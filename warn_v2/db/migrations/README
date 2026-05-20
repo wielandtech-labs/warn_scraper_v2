@@ -1,0 +1,10 @@
+Alembic migrations.
+
+Generate the initial migration after spinning up the dev DB:
+
+    $env:DATABASE_URL="postgresql+psycopg://warn:warn@localhost:5432/warn_v2"
+    uv run alembic revision --autogenerate -m "initial schema"
+    uv run alembic upgrade head
+
+For tests we bypass migrations and use `Base.metadata.create_all(engine)` against
+an in-memory SQLite — see `tests/conftest.py`.
