@@ -129,7 +129,8 @@ def _city_zip_from_cell(cell) -> tuple[str | None, str | None]:
         # parts[-3] usually ends with the city, prefixed by address tokens
         city_token = parts[-3].split()
         if city_token:
-            city = " ".join(city_token[-2:]).title() if len(city_token) >= 2 else city_token[-1].title()
+            last = city_token[-2:] if len(city_token) >= 2 else city_token[-1:]
+            city = " ".join(last).title()
             # Heuristic: single-word city → just title-case; multi-word → use last 1-2 tokens
             # In practice FL data has city as the last 1 or 2 ALL-CAPS words.
             city = _extract_city(parts[-3])
