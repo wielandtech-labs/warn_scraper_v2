@@ -67,10 +67,11 @@ class NYScraper:
             if not employer:
                 continue
 
-            # NY's tables use whichever of "Notice Date" or "Date Posted" is
-            # present; either works for identifying when the notice landed.
+            # NY's tables use whichever of "Date Posted" or "Notice Date" is
+            # present. Prefer "Date Posted" — that's when DOL received the
+            # notice (V1's canonical "Date" column).
             notice_date = None
-            for key in ("notice_date", "date_posted"):
+            for key in ("date_posted", "notice_date"):
                 if key in idx:
                     notice_date = as_date(cells[idx[key]].get_text(strip=True))
                     if notice_date:
