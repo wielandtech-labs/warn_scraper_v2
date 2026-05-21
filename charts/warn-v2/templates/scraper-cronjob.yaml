@@ -1,0 +1,37 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "warn-v2.fullname" . }}-scraper
+  labels:
+    {{- include "warn-v2.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.scraper.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            {{- include "warn-v2.labels" . | nindent 12 }}
+            app.kubernetes.io/component: scraper
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: scraper
+              image: {{ include "warn-v2.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              args: ["scrape-all"]
+              env:
+                {{- include "warn-v2.envSecrets" . | nindent 16 }}
+              volumeMounts:
+                - name: snapshots
+                  mountPath: /var/snapshots
+              resources:
+                {{- toYaml .Values.scraper.resources | nindent 16 }}
+          volumes:
+            - name: snapshots
+              persistentVolumeClaim:
+                claimName: {{ include "warn-v2.fullname" . }}-snapshots

@@ -1,0 +1,57 @@
+# Default values for the warn-v2 chart.
+# Override in the homelab w_lab repo's HelmRelease.
+
+image:
+  repository: ghcr.io/wielandtech/warn-v2
+  tag: ""  # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+
+# Postgres connection. The cluster itself is managed by CloudNativePG
+# in a separate manifest (see w_lab/clusters/warn-v2/).
+database:
+  # SealedSecret name producing DATABASE_URL
+  secretName: warn-v2-db
+  secretKey: url
+
+# Anthropic API key for self-heal + enrichment agents.
+anthropic:
+  secretName: warn-v2-anthropic
+  secretKey: api-key
+
+github:
+  # GITHUB_TOKEN with `repo` + `workflow` scopes for the self-heal PR opener.
+  secretName: warn-v2-github
+  secretKey: token
+
+snapshotStorage:
+  # NFS PVC for raw scrape snapshots (replay material for self-heal).
+  storageClass: nfs-client
+  size: 10Gi
+
+scraper:
+  schedule: "17 7 * * *"  # daily 07:17 local — off the :00 + :30 herd
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: 1000m, memory: 1Gi }
+
+enricher:
+  schedule: "23 */6 * * *"  # every 6h
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+
+api:
+  enabled: true
+  replicas: 1
+  service:
+    port: 8000
+  ingress:
+    enabled: false  # flip on once auth story is decided
+    host: warn.lab.wielandtech.com
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+
+serviceMonitor:
+  enabled: true   # picked up by your existing Prometheus
+  interval: 30s
