@@ -8,7 +8,6 @@ import pytest
 from warn_v2.heal.sandbox import run_candidate
 from warn_v2.scrapers.states.ca import CAScraper
 
-
 CA_PATH = Path(CAScraper.__module__.replace(".", "/") + ".py")
 
 

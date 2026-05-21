@@ -135,7 +135,7 @@ def run_heal(
         for use in tool_uses:
             try:
                 value, terminal_args = tools.dispatch(use.name, use.input, ctx)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 log.exception("tool %s raised", use.name)
                 value = {"error": f"{type(e).__name__}: {e}"}
                 terminal_args = None
@@ -175,7 +175,7 @@ def run_heal(
 
 def build_anthropic_client() -> LLMClient:
     """Construct the real Anthropic client. Imported lazily so tests don't need the SDK."""
-    import anthropic  # noqa: PLC0415  (lazy import on purpose)
+    import anthropic
 
     client = anthropic.Anthropic()
     return _AnthropicAdapter(client)

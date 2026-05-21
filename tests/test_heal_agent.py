@@ -12,11 +12,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import pytest
-
 from warn_v2.heal.agent import HealResult, run_heal
 from warn_v2.heal.tools import HealContext, read_parser
-
 
 # ----- Fakes that mimic the Anthropic SDK response shape -----
 

@@ -60,11 +60,11 @@ def heal(
     state: str, snapshot_path: Path | None, error: str, dry_run: bool, max_turns: int
 ) -> None:
     """Run the self-heal agent for a broken state scraper."""
+    from warn_v2.db.session import session_scope
     from warn_v2.heal.agent import build_anthropic_client, run_heal
     from warn_v2.heal.detector import find_candidates
     from warn_v2.heal.github import PRPlan, open_pr
     from warn_v2.heal.tools import HealContext
-    from warn_v2.db.session import session_scope
 
     scraper = get_scraper(state)
 
