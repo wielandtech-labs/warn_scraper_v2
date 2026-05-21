@@ -107,3 +107,69 @@ def ca_golden_expected() -> dict:
         "first_zip": "94607",
         "total_layoffs": sum(r[5] for r in _CA_GOLDEN_ROWS),
     }
+
+
+# ----- TX golden fixture -----
+# TX schema: JOB_SITE_NAME, COUNTY_NAME, CITY_NAME, NOTICE_DATE, LayOff_Date,
+# WFDD_RECEIVED_DATE, TOTAL_LAYOFF_NUMBER, WDA_NAME
+
+_TX_GOLDEN_ROWS = [
+    ("Lone Star Refrigeration", "Harris", "Houston",
+     date(2026, 1, 12), date(2026, 3, 13), date(2026, 1, 10), 145, "Gulf Coast WDA"),
+    ("Bayou Marine Logistics", "Galveston", "Galveston",
+     date(2026, 1, 22), date(2026, 3, 23), date(2026, 1, 20), 60, "Gulf Coast WDA"),
+    ("Sundown Energy Holdings", "Midland", "Midland",
+     date(2026, 2, 5), date(2026, 4, 6), date(2026, 2, 3), 220, "Permian Basin WDA"),
+    ("Capitol Construction Corp", "Travis", "Austin",
+     date(2026, 2, 18), date(2026, 4, 19), date(2026, 2, 17), 95, "Capital Area WDA"),
+    ("Pecos Plant Foods", "Reeves", "Pecos",
+     date(2026, 3, 3), date(2026, 5, 2), date(2026, 3, 1), 38, "Permian Basin WDA"),
+    ("Brazos Apparel Manufacturing", "McLennan", "Waco",
+     date(2026, 3, 20), date(2026, 5, 19), date(2026, 3, 18), 410, "Heart of Texas WDA"),
+    ("Dallas Forklift Services", "Dallas", "Dallas",
+     date(2026, 4, 4), date(2026, 6, 3), date(2026, 4, 2), 75, "Dallas WDA"),
+    ("San Antonio Hospitality Group", "Bexar", "San Antonio",
+     date(2026, 4, 15), date(2026, 6, 14), date(2026, 4, 13), 180, "Alamo WDA"),
+    ("Tyler Manufacturing Inc", "Smith", "Tyler",
+     date(2026, 4, 28), date(2026, 6, 27), date(2026, 4, 26), 64, "East Texas WDA"),
+    ("Lubbock Logistics Partners", "Lubbock", "Lubbock",
+     date(2026, 5, 7), date(2026, 7, 6), date(2026, 5, 5), 50, "South Plains WDA"),
+    ("Houston Retail Holdings", "Harris", "Houston",
+     date(2026, 5, 15), date(2026, 7, 14), date(2026, 5, 13), 290, "Gulf Coast WDA"),
+    ("El Paso Distribution Center", "El Paso", "El Paso",
+     date(2026, 5, 18), date(2026, 7, 17), date(2026, 5, 16), 132, "Borderplex WDA"),
+]
+
+
+@pytest.fixture
+def tx_golden_xlsx_bytes() -> bytes:
+    """A TX-shaped XLSX, with header on row 0 (TWC publishes a clean sheet)."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "WARN_Act_Listings"
+    ws.append([
+        "JOB_SITE_NAME",
+        "COUNTY_NAME",
+        "CITY_NAME",
+        "NOTICE_DATE",
+        "LayOff_Date",
+        "WFDD_RECEIVED_DATE",
+        "TOTAL_LAYOFF_NUMBER",
+        "WDA_NAME",
+    ])
+    for r in _TX_GOLDEN_ROWS:
+        ws.append(list(r))
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+@pytest.fixture
+def tx_golden_expected() -> dict:
+    return {
+        "row_count": len(_TX_GOLDEN_ROWS),
+        "first_employer": "Lone Star Refrigeration",
+        "first_notice_date": "2026-01-12",
+        "first_city": "Houston",
+        "total_layoffs": sum(r[6] for r in _TX_GOLDEN_ROWS),
+    }

@@ -10,11 +10,19 @@ so a column reorder or extra blank top rows doesn't break it.
 from __future__ import annotations
 
 import io
-from datetime import date
 
 import httpx
 import pandas as pd
 
+from warn_v2.scrapers._helpers import (
+    ColumnMap,
+    as_date,
+    as_int,
+    as_str,
+    city_from_address,
+    norm,
+    zip_from,
+)
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.registry import register
 
@@ -52,31 +60,31 @@ class CAScraper:
         except Exception as e:
             raise ParseFailed(f"could not read xlsx: {e}") from e
 
-        col = _ColumnMap(df.columns)
+        col = ColumnMap(df.columns)
         rows: list[NoticeRow] = []
         for _, r in df.iterrows():
             employer = col.get(r, _COMPANY_KEYS)
-            if not employer or not str(employer).strip():
+            employer_str = as_str(employer)
+            if not employer_str:
                 continue
-            notice_date = _as_date(col.get(r, _NOTICE_DATE_KEYS))
-            layoff_count = _as_int(col.get(r, _LAYOFF_COUNT_KEYS))
+            notice_date = as_date(col.get(r, _NOTICE_DATE_KEYS))
+            layoff_count = as_int(col.get(r, _LAYOFF_COUNT_KEYS))
             # Skip footer/summary rows: real notices always have at least one of
             # notice_date or layoff_count. Summary lines ("Total notices: N")
             # have neither.
             if notice_date is None and layoff_count is None:
                 continue
+            address = col.get(r, _ADDRESS_KEYS)
             row = NoticeRow(
                 state="CA",
-                employer=str(employer).strip(),
+                employer=employer_str,
                 notice_date=notice_date,
-                effective_date=_as_date(col.get(r, _EFFECTIVE_DATE_KEYS)),
+                effective_date=as_date(col.get(r, _EFFECTIVE_DATE_KEYS)),
                 layoff_count=layoff_count,
-                closure_type=_as_str(col.get(r, _TYPE_KEYS)),
-                county=_as_str(col.get(r, _COUNTY_KEYS)),
-                city=_as_str(col.get(r, _CITY_KEYS)) or _city_from_address(
-                    col.get(r, _ADDRESS_KEYS)
-                ),
-                zip=_zip_from(col.get(r, _ZIP_KEYS), col.get(r, _ADDRESS_KEYS)),
+                closure_type=as_str(col.get(r, _TYPE_KEYS)),
+                county=as_str(col.get(r, _COUNTY_KEYS)),
+                city=as_str(col.get(r, _CITY_KEYS)) or city_from_address(address),
+                zip=zip_from(col.get(r, _ZIP_KEYS), address),
                 source_url=SOURCE_URL,
             )
             rows.append(row)
@@ -97,78 +105,9 @@ def _read_with_header_detection(raw: bytes) -> pd.DataFrame:
         raise ParseFailed("could not locate header row containing 'Company'")
     buf.seek(0)
     df = pd.read_excel(buf, engine="openpyxl", header=header_row)
-    # Drop trailing summary rows (V1 hardcoded `iloc[:-2]`); detect by missing company.
-    df = df.dropna(subset=[c for c in df.columns if _norm(c) in _COMPANY_KEYS])
+    # Drop trailing summary rows; detect by missing company.
+    df = df.dropna(subset=[c for c in df.columns if norm(c) in _COMPANY_KEYS])
     return df
-
-
-class _ColumnMap:
-    """Case/whitespace-insensitive column lookup."""
-
-    def __init__(self, columns: pd.Index) -> None:
-        self._map = {_norm(c): c for c in columns}
-
-    def get(self, row: pd.Series, keys: tuple[str, ...]) -> object | None:
-        for key in keys:
-            actual = self._map.get(key)
-            if actual is not None and actual in row.index:
-                return row[actual]
-        return None
-
-
-def _norm(s: object) -> str:
-    return " ".join(str(s).strip().lower().split())
-
-
-def _as_date(value: object) -> date | None:
-    if value is None or (isinstance(value, float) and pd.isna(value)):
-        return None
-    try:
-        ts = pd.Timestamp(value)
-    except (ValueError, TypeError):
-        return None
-    if pd.isna(ts):
-        return None
-    return ts.date()
-
-
-def _as_int(value: object) -> int | None:
-    if value is None or (isinstance(value, float) and pd.isna(value)):
-        return None
-    try:
-        return int(float(value))
-    except (ValueError, TypeError):
-        return None
-
-
-def _as_str(value: object) -> str | None:
-    if value is None or (isinstance(value, float) and pd.isna(value)):
-        return None
-    s = str(value).strip()
-    return s or None
-
-
-def _city_from_address(address: object) -> str | None:
-    s = _as_str(address)
-    if not s:
-        return None
-    # Best-effort: addresses look like "123 Main St, San Diego, CA 92101"
-    parts = [p.strip() for p in s.split(",")]
-    if len(parts) >= 3:
-        return parts[-2]
-    return None
-
-
-def _zip_from(zip_value: object, address: object) -> str | None:
-    z = _as_str(zip_value)
-    if z:
-        return z.split("-", 1)[0][:5]
-    s = _as_str(address)
-    if not s:
-        return None
-    tail = s.rsplit(" ", 1)[-1]
-    digits = "".join(c for c in tail if c.isdigit())
-    return digits[:5] if len(digits) >= 5 else None
 
 
 register(CAScraper())
