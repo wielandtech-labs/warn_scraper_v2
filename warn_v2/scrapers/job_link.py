@@ -23,7 +23,6 @@ from datetime import datetime
 from typing import ClassVar
 
 import httpx
-import pandas as pd
 from bs4 import BeautifulSoup
 
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
