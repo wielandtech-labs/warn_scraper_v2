@@ -58,12 +58,19 @@ class CAScraper:
             employer = col.get(r, _COMPANY_KEYS)
             if not employer or not str(employer).strip():
                 continue
+            notice_date = _as_date(col.get(r, _NOTICE_DATE_KEYS))
+            layoff_count = _as_int(col.get(r, _LAYOFF_COUNT_KEYS))
+            # Skip footer/summary rows: real notices always have at least one of
+            # notice_date or layoff_count. Summary lines ("Total notices: N")
+            # have neither.
+            if notice_date is None and layoff_count is None:
+                continue
             row = NoticeRow(
                 state="CA",
                 employer=str(employer).strip(),
-                notice_date=_as_date(col.get(r, _NOTICE_DATE_KEYS)),
+                notice_date=notice_date,
                 effective_date=_as_date(col.get(r, _EFFECTIVE_DATE_KEYS)),
-                layoff_count=_as_int(col.get(r, _LAYOFF_COUNT_KEYS)),
+                layoff_count=layoff_count,
                 closure_type=_as_str(col.get(r, _TYPE_KEYS)),
                 county=_as_str(col.get(r, _COUNTY_KEYS)),
                 city=_as_str(col.get(r, _CITY_KEYS)) or _city_from_address(
