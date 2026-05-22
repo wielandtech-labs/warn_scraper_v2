@@ -58,8 +58,18 @@ install WSL2 (`wsl --install`), or build and `docker run` the image.
 ## Status
 
 - [x] Phase 0 — scaffold + first state (CA)
-- [ ] Phase 1 — 5 representative states
+- [x] Phase 1 — 5 representative states (CA, TX, NY, FL, WA)
 - [ ] Phase 2 — self-heal agent
-- [ ] Phase 3 — bulk-port remaining states
+- [x] Phase 3 — bulk-port remaining states (**39 jurisdictions, 212 tests** as of 2026-05-22)
 - [ ] Phase 4 — enrichment agent
 - [ ] Phase 5 — API + Grafana + AlertManager
+
+### Phase 3 coverage
+
+39 jurisdictions implemented (38 states + DC):
+
+| Implemented | Deferred |
+|-------------|---------|
+| AK, AL, AZ, CA, CO, CT, DC, DE, FL, HI, IA, ID, IL, IN, KS, KY, LA, MD, ME, MS, MT, NC, ND, NE, NJ, NM, NV, NY, OK, OR, RI, SC, SD, TN, TX, UT, VA, VT, WA, WI | GA, MA, MI, MN, MO, OH, PA (JS-rendered / bot-blocked) · AR, NH, WY (no public data) · WV (unstructured PDFs) |
+
+See [`docs/deferred-states.md`](docs/deferred-states.md) for investigation notes on each deferred state.
