@@ -1,13 +1,13 @@
 # Default values for the warn-v2 chart.
-# Override in the homelab w_lab repo's HelmRelease.
+# Override in the homelab w_homelab repo's HelmRelease.
 
 image:
   repository: ghcr.io/wielandtech/warn-v2
   tag: ""  # defaults to .Chart.AppVersion
   pullPolicy: IfNotPresent
 
-# Postgres connection. The cluster itself is managed by CloudNativePG
-# in a separate manifest (see w_lab/clusters/warn-v2/).
+# Postgres connection. The cluster itself is the shared CNPG postgres-cluster
+# in the database namespace (see w_homelab/clusters/prod/databases/).
 database:
   # SealedSecret name producing DATABASE_URL
   secretName: warn-v2-db
@@ -35,6 +35,7 @@ scraper:
     limits:   { cpu: 1000m, memory: 1Gi }
 
 enricher:
+  enabled: true  # override to false in HelmRelease until Phase 4 is ready
   schedule: "23 */6 * * *"  # every 6h
   resources:
     requests: { cpu: 100m, memory: 256Mi }

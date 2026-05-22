@@ -33,6 +33,25 @@ def scrape(state: str) -> None:
         sys.exit(1)
 
 
+@main.command(name="scrape-all")
+@click.option("--states", default=None, help="Comma-separated subset, e.g. CA,TX")
+def scrape_all(states: str | None) -> None:
+    """Run all registered scrapers and exit non-zero if any failed."""
+    targets = [s.strip().upper() for s in states.split(",")] if states else all_states()
+    failed: list[str] = []
+    for state in targets:
+        scraper = get_scraper(state)
+        run = run_state(scraper)
+        click.echo(
+            f"{run.state} status={run.status} rows={run.rows_scraped} new={run.rows_new}"
+        )
+        if run.status != "ok":
+            failed.append(run.state)
+    if failed:
+        click.echo(f"failed: {', '.join(failed)}", err=True)
+        sys.exit(1)
+
+
 @main.command(name="list")
 def list_states() -> None:
     """List registered state scrapers."""

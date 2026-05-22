@@ -1,3 +1,4 @@
+{{- if .Values.enricher.enabled }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -28,3 +29,4 @@ spec:
                 {{- include "warn-v2.envSecrets" . | nindent 16 }}
               resources:
                 {{- toYaml .Values.enricher.resources | nindent 16 }}
+{{- end }}
