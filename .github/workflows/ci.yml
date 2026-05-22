@@ -16,7 +16,7 @@ jobs:
       - name: Set up Python 3.12
         run: uv python install 3.12
       - name: Sync deps
-        run: uv sync --extra dev
+        run: uv sync --extra dev --extra heal
       - name: Lint
         run: uv run ruff check .
       - name: Test

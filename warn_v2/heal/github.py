@@ -40,9 +40,14 @@ def open_pr(
     root = repo_root or _repo_root()
     branch = f"heal/{plan.state.lower()}-{plan.snapshot_path.stem}"
 
-    target = state_module_path(plan.state)
-    if not target.is_absolute():
-        target = root / target
+    # When repo_root is supplied explicitly (e.g. in tests) write relative to it
+    # so we never touch real source files.  Otherwise fall back to the absolute
+    # path that state_module_path() returns.
+    if repo_root is not None:
+        target = root / "warn_v2" / "scrapers" / "states" / f"{plan.state.lower()}.py"
+        target.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        target = state_module_path(plan.state)
     target.write_text(plan.new_module_src, encoding="utf-8")
 
     body = _pr_body(plan)

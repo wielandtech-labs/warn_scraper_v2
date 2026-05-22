@@ -51,7 +51,12 @@ def find_candidates(
         if run.state in seen:
             continue
         seen.add(run.state)
-        if run.started_at < cutoff:
+        # SQLite returns timezone-naive datetimes even for tz-aware columns;
+        # Postgres returns tz-aware.  Normalise before comparing.
+        started_at = run.started_at
+        if started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=UTC)
+        if started_at < cutoff:
             # Too long ago — assume it's already been looked at.
             continue
         if not run.snapshot_path:
