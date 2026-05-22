@@ -15,6 +15,8 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 if (url := os.environ.get("DATABASE_URL")) is not None:
+    if url.startswith("postgresql://") or url.startswith("postgres://"):
+        url = url.replace("postgres", "postgresql+psycopg", 1)
     config.set_main_option("sqlalchemy.url", url)
 
 target_metadata = Base.metadata

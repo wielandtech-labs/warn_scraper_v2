@@ -14,6 +14,9 @@ def _database_url() -> str:
     url = os.environ.get("DATABASE_URL")
     if not url:
         raise RuntimeError("DATABASE_URL is not set")
+    # Heroku-style postgresql:// → psycopg3 driver (psycopg[binary] is installed, not psycopg2)
+    if url.startswith("postgresql://") or url.startswith("postgres://"):
+        url = url.replace("postgres", "postgresql+psycopg", 1)
     return url
 
 
