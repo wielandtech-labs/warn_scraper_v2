@@ -23,9 +23,16 @@ See the [design plan](https://github.com/wielandtech) for full details (kept loc
 ## Quick start
 
 ```powershell
+# Core scraping + tests
 uv sync --extra dev
 uv run python -m pytest
 uv run warn-v2 scrape --state CA
+
+# Self-heal agent (requires ANTHROPIC_API_KEY)
+uv sync --extra dev --extra heal
+uv run warn-v2 heal --state IA          # heal one broken state
+uv run warn-v2 heal --all               # heal every state with a recent DB failure
+uv run warn-v2 heal --all --dry-run     # rehearse without opening PRs
 ```
 
 ### Note on local testing under Windows Smart App Control
@@ -59,8 +66,8 @@ install WSL2 (`wsl --install`), or build and `docker run` the image.
 
 - [x] Phase 0 — scaffold + first state (CA)
 - [x] Phase 1 — 5 representative states (CA, TX, NY, FL, WA)
-- [ ] Phase 2 — self-heal agent
-- [x] Phase 3 — bulk-port remaining states (**39 jurisdictions, 212 tests** as of 2026-05-22)
+- [x] Phase 2 — self-heal agent (**228 tests** as of 2026-05-22)
+- [x] Phase 3 — bulk-port remaining states (39 jurisdictions)
 - [ ] Phase 4 — enrichment agent
 - [ ] Phase 5 — API + Grafana + AlertManager
 
@@ -73,3 +80,48 @@ install WSL2 (`wsl --install`), or build and `docker run` the image.
 | AK, AL, AZ, CA, CO, CT, DC, DE, FL, HI, IA, ID, IL, IN, KS, KY, LA, MD, ME, MS, MT, NC, ND, NE, NJ, NM, NV, NY, OK, OR, RI, SC, SD, TN, TX, UT, VA, VT, WA, WI | GA, MA, MI, MN, MO, OH, PA (JS-rendered / bot-blocked) · AR, NH, WY (no public data) · WV (unstructured PDFs) |
 
 See [`docs/deferred-states.md`](docs/deferred-states.md) for investigation notes on each deferred state.
+
+### Phase 2: Self-heal agent
+
+When a scraper's `parse()` or `validate()` step fails, the runner saves the raw
+response as a **snapshot** and records the failure in `scraper_runs`. A separate
+heal CronJob (or a manual `warn-v2 heal` invocation) detects these failures and
+runs an agent loop to fix them autonomously.
+
+**How it works:**
+
+1. `warn_v2/heal/detector.py` — queries `scraper_runs` for recent
+   `parse_failed` / `validation_failed` rows that still have a snapshot on disk
+   and haven't been healed within the cooldown window (default 12 h).
+2. `warn_v2/heal/agent.py` — a multi-turn Claude loop.  The agent has five
+   tools: `read_parser` (current scraper source), `read_snapshot` (the failing
+   raw input), `read_golden_fixture` (last-known-good sample), 
+   `run_parser_candidate` (sandbox-executes a proposed fix), and `propose_patch`
+   (terminal tool that ends the loop and hands back the fixed code).
+3. `warn_v2/heal/sandbox.py` — runs candidate code in a subprocess with a
+   timeout so a broken parser can't hang or crash the agent process.
+4. `warn_v2/heal/github.py` — creates a branch, commits the patched module, and
+   opens a PR via `gh`.  A human merges; the agent never auto-merges.
+
+**Triggering heal:**
+
+```powershell
+# Heal a single state using the latest failure snapshot from the DB
+warn-v2 heal --state IA
+
+# Point at a specific snapshot (useful when DB is unavailable)
+warn-v2 heal --state IA --snapshot ./snapshots/IA/20260522T060000_a1b2c3d4.bin
+
+# Batch mode — heal every state with a recent unhealed failure
+warn-v2 heal --all
+
+# Dry-run: run the agent and prepare the patch but don't push or open a PR
+warn-v2 heal --all --dry-run
+```
+
+**Environment variables:**
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `ANTHROPIC_API_KEY` | *(required)* | Anthropic API key for the Claude model |
+| `SNAPSHOT_DIR` | `./snapshots` | Where the runner writes raw failure snapshots |
