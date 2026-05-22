@@ -4,7 +4,7 @@ description: WARN Scraper V2 — daily state-WARN collector with self-healing pa
 type: application
 version: 0.1.0
 appVersion: "0.1.0"
-home: https://github.com/wielandtech/warn_scrapper_v2
+home: https://github.com/wielandtech/warn_scraper_v2
 maintainers:
   - name: Raphael Wieland
     email: raphael@wielandtech.com
