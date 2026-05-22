@@ -49,13 +49,16 @@ def test_hi_conditional_warn_parsed(hi_sample_html: bytes) -> None:
     """'Conditional WARN' entries are still parsed as notices."""
     scraper = get_scraper("HI")
     rows = scraper.parse(hi_sample_html)
-    rndc = next((r for r in rows if "RNDC" in (r.employer or "") or "Republic" in (r.employer or "")), None)
+    rndc = next(
+        (r for r in rows if "RNDC" in (r.employer or "") or "Republic" in (r.employer or "")),
+        None,
+    )
     assert rndc is not None, "expected to find the Conditional WARN entry for RNDC"
     assert rndc.notice_date == date(2026, 4, 23)
 
 
 def test_hi_update_prefix_stripped(hi_sample_html: bytes) -> None:
-    """'UPDATE – DFS Group L.P.' -> employer is 'DFS Group L.P.'"""
+    """'UPDATE - DFS Group L.P.' -> employer is 'DFS Group L.P.'"""
     scraper = get_scraper("HI")
     rows = scraper.parse(hi_sample_html)
     dfs_updates = [r for r in rows if r.employer and "DFS" in r.employer]
