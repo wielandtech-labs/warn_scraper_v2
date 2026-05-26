@@ -23,7 +23,7 @@ from bs4 import BeautifulSoup
 
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
-from warn_v2.scrapers.registry import register
+from warn_v2.scrapers.registry import register  # noqa: F401 — kept for when TN is re-enabled
 
 SOURCE_URL = (
     "https://www.tn.gov/workforce/general-resources/"
