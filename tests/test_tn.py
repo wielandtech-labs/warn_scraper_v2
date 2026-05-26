@@ -9,6 +9,10 @@ from warn_v2.pipeline.validate import validate
 from warn_v2.scrapers.base import ParseFailed
 from warn_v2.scrapers.registry import get_scraper
 
+# TN is deregistered: tn.gov resets TLS from container/server IPs.
+# The parser itself is correct; skip until a proxy solution is found.
+pytestmark = pytest.mark.skip(reason="TN deferred — tn.gov blocks container TLS")
+
 FIXTURE = (
     Path(__file__).resolve().parent.parent
     / "warn_v2"
