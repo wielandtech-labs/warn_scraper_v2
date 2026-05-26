@@ -1,8 +1,13 @@
 """Texas WARN scraper.
 
-Source: https://twc.texas.gov/files/news/warn-act-listings-{year}.xlsx — the URL
-templates on the current calendar year, so January runs may need to fall back to
-the prior year (TWC sometimes publishes the new year's file a few weeks late).
+Source: https://www.twc.texas.gov/sites/default/files/oei/docs/warn-act-listings-{year}-twc.xlsx
+The URL templates on the current calendar year; January runs may need to fall
+back to the prior year (TWC sometimes publishes the new year's file a few weeks
+late).
+
+URL history:
+  2021 and earlier: https://twc.texas.gov/files/news/warn-act-listings-{year}.xlsx
+  2022+:            https://www.twc.texas.gov/sites/default/files/oei/docs/warn-act-listings-{year}-twc.xlsx
 
 V1 schema (columns we still see in 2026):
   NOTICE_DATE, JOB_SITE_NAME, COUNTY_NAME, WDA_NAME, TOTAL_LAYOFF_NUMBER,
@@ -20,7 +25,7 @@ from warn_v2.scrapers._helpers import ColumnMap, as_date, as_int, as_str, norm
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.registry import register
 
-URL_TEMPLATE = "https://twc.texas.gov/files/news/warn-act-listings-{year}.xlsx"
+URL_TEMPLATE = "https://www.twc.texas.gov/sites/default/files/oei/docs/warn-act-listings-{year}-twc.xlsx"
 
 _COMPANY_KEYS = ("job_site_name", "company", "employer", "company name")
 _NOTICE_DATE_KEYS = ("notice_date", "notice date")
