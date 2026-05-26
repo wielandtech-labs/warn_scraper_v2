@@ -7,7 +7,7 @@ scraper or a public API endpoint is found.
 """
 from __future__ import annotations
 
-from warn_v2.scrapers.job_link import JobLinkScraper  # noqa: F401 (class kept for future use)
+from warn_v2.scrapers.job_link import JobLinkScraper
 
 
 class OKScraper(JobLinkScraper):
