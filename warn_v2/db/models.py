@@ -31,8 +31,8 @@ class Location(Base):
     __tablename__ = "locations"
 
     id: Mapped[int] = mapped_column(BigIntPK, primary_key=True, autoincrement=True)
-    city: Mapped[str | None] = mapped_column(String(128))
-    county: Mapped[str | None] = mapped_column(String(128))
+    city: Mapped[str | None] = mapped_column(Text)
+    county: Mapped[str | None] = mapped_column(Text)
     state: Mapped[str] = mapped_column(String(2), index=True)
     zip: Mapped[str | None] = mapped_column(String(10))
     lat: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
@@ -66,7 +66,7 @@ class Notice(Base):
     notice_date: Mapped[date | None] = mapped_column(Date, index=True)
     effective_date: Mapped[date | None] = mapped_column(Date)
     layoff_count: Mapped[int | None] = mapped_column(Integer)
-    closure_type: Mapped[str | None] = mapped_column(String(32))
+    closure_type: Mapped[str | None] = mapped_column(Text)
     source_url: Mapped[str | None] = mapped_column(String(1024))
     raw_notice_url: Mapped[str | None] = mapped_column(String(1024))
     scraped_at: Mapped[datetime] = mapped_column(

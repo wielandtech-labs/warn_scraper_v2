@@ -92,9 +92,19 @@ class CAScraper:
 
 
 def _read_with_header_detection(raw: bytes) -> pd.DataFrame:
-    """Find the header row by scanning the first 10 rows for a known company-column name."""
+    """Find the header row by scanning the first 10 rows for a known company-column name.
+
+    EDD publishes a multi-sheet workbook (Index, WARN Report Summary,
+    Detailed WARN Report). We pick the first sheet whose name contains
+    'detail' (case-insensitive), falling back to the last sheet.
+    """
     buf = io.BytesIO(raw)
-    probe = pd.read_excel(buf, engine="openpyxl", header=None, nrows=10)
+    xf = pd.ExcelFile(buf, engine="openpyxl")
+    sheet_name = next(
+        (s for s in xf.sheet_names if "detail" in s.lower()),
+        xf.sheet_names[-1],
+    )
+    probe = xf.parse(sheet_name, header=None, nrows=10)
     header_row = None
     for i, row in probe.iterrows():
         cells = [str(c).strip().lower() for c in row.tolist() if pd.notna(c)]
@@ -103,8 +113,7 @@ def _read_with_header_detection(raw: bytes) -> pd.DataFrame:
             break
     if header_row is None:
         raise ParseFailed("could not locate header row containing 'Company'")
-    buf.seek(0)
-    df = pd.read_excel(buf, engine="openpyxl", header=header_row)
+    df = xf.parse(sheet_name, header=header_row)
     # Drop trailing summary rows; detect by missing company.
     df = df.dropna(subset=[c for c in df.columns if norm(c) in _COMPANY_KEYS])
     return df

@@ -123,4 +123,7 @@ def _text(cell) -> str:
     return " ".join(cell.get_text(" ", strip=True).split())
 
 
-register(TNScraper())
+# tn.gov resets TLS connections from server/container environments (TLS
+# fingerprinting or IP-based block). Deferred until a proxy or alternative
+# source is available.
+# register(TNScraper())

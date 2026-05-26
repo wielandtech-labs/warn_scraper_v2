@@ -1,13 +1,13 @@
-"""Oklahoma WARN scraper — JobLink platform.
+"""Oklahoma WARN scraper — deferred.
 
-Note: as of May 2026, `okjobmatch.com` returns 404 — the source is currently
-down. The scraper will surface `fetch_failed` ScraperRun rows until the host
-is reachable again or moves elsewhere.
+okjobmatch.com (the JobLink host) is dead as of May 2026. The replacement
+portal (employoklahoma.gov) is a Salesforce community requiring JavaScript
+to render — not scrapable with plain httpx. Deferred until a Playwright-based
+scraper or a public API endpoint is found.
 """
 from __future__ import annotations
 
 from warn_v2.scrapers.job_link import JobLinkScraper
-from warn_v2.scrapers.registry import register
 
 
 class OKScraper(JobLinkScraper):
@@ -16,4 +16,4 @@ class OKScraper(JobLinkScraper):
     expected_row_range = (1, 500)
 
 
-register(OKScraper())
+# register(OKScraper())  # deferred — see module docstring
