@@ -56,3 +56,6 @@ api:
 serviceMonitor:
   enabled: true   # picked up by your existing Prometheus
   interval: 30s
+
+migrations:
+  enabled: true   # set false only if you manage migrations out-of-band
