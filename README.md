@@ -68,8 +68,85 @@ install WSL2 (`wsl --install`), or build and `docker run` the image.
 - [x] Phase 1 — 5 representative states (CA, TX, NY, FL, WA)
 - [x] Phase 2 — self-heal agent (**228 tests** as of 2026-05-22)
 - [x] Phase 3 — bulk-port remaining states (39 jurisdictions)
+- [x] **Production deployment live** (K3s via Flux, CloudNativePG, 2026-05-26)
 - [ ] Phase 4 — enrichment agent
 - [ ] Phase 5 — API + Grafana + AlertManager
+
+### Production deployment (as of 2026-05-26)
+
+The scraper runs in a K3s homelab cluster managed by Flux GitOps (see
+`w_homelab` repo at `wielandtech/w_homelab`).
+
+**Infrastructure stack:**
+- **Image**: `ghcr.io/wielandtech/warn-v2` — built by `.github/workflows/docker.yml`,
+  tagged `YYYYMMDD-HHMMSS-{sha}` for Flux Image Automation auto-upgrades
+- **GitOps source**: `GitRepository` → `HelmRelease` using `charts/warn-v2`
+  from this repo directly (not an OCI/HelmRepository)
+- **Database**: shared CloudNativePG `postgres-cluster` in the `database` namespace;
+  app uses `postgres-cluster-rw.database.svc.cluster.local:5432/warn_v2`
+- **Alembic**: initial migration (`revision a1b2c3d4e5f6`) ran 2026-05-26;
+  all four tables live (`locations`, `companies`, `notices`, `scraper_runs`)
+- **CronJob**: `warn-v2-warn-v2-scraper` runs daily at 07:17 (`scrape-all`)
+- **Snapshots PVC**: `synostorage-iscsi-retain`, 10 Gi, mounted at `/var/snapshots`
+
+**Secrets in `warn-v2` namespace** (all SealedSecrets, reconciled by Flux):
+
+| Secret | Key | Env var |
+|--------|-----|---------|
+| `warn-v2-db` | `url` | `DATABASE_URL` |
+| `warn-v2-anthropic` | `api-key` | `ANTHROPIC_API_KEY` |
+| `warn-v2-github` | `token` | `GITHUB_TOKEN` |
+
+> **Password rule**: `DATABASE_URL` must contain only URL-safe characters.
+> Use `openssl rand -hex 20` to generate the Postgres role password — never
+> a random generator that can produce `@`, `/`, `+`, or `=` in output.
+> On the k3s cluster, use `~/.local/bin/kubeseal` (v0.37.0, installed 2026-05-26).
+
+**Known issues as of 2026-05-26:**
+
+- **TX**: `twc.texas.gov/files/news/warn-act-listings-{year}.xlsx` returns 404
+  for both 2025 and 2026. TWC likely moved the file; scraper needs URL update.
+- **Playwright states** (GA, OK, MI, OH, MA, MN, MO): deferred — need
+  Playwright installed in the Docker image and matching scrapers written.
+- **GitHub Actions Node 20 deprecation**: CI uses Node 20 actions; deadline
+  June 2, 2026 to upgrade action versions to Node 24 equivalents.
+
+**Running a one-off migration or scrape on the cluster:**
+
+```bash
+# Alembic upgrade (run from a shell with kubectl access)
+kubectl run alembic-init -n warn-v2 \
+  --image=ghcr.io/wielandtech/warn-v2:LATEST_TAG \
+  --restart=Never \
+  --overrides='{
+    "spec":{"containers":[{
+      "name":"alembic-init",
+      "image":"ghcr.io/wielandtech/warn-v2:LATEST_TAG",
+      "command":["uv","run","alembic","upgrade","head"],
+      "env":[{"name":"DATABASE_URL","valueFrom":{"secretKeyRef":{"name":"warn-v2-db","key":"url"}}}]
+    }]}
+  }'
+
+# Manual scrape for one state
+kubectl create job --from=cronjob/warn-v2-warn-v2-scraper manual-$(date +%s) -n warn-v2
+
+# Or targeted:
+kubectl run scrape-tx -n warn-v2 \
+  --image=ghcr.io/wielandtech/warn-v2:LATEST_TAG \
+  --restart=Never \
+  --overrides='{
+    "spec":{"containers":[{
+      "name":"scrape-tx",
+      "image":"ghcr.io/wielandtech/warn-v2:LATEST_TAG",
+      "command":["uv","run","warn-v2","scrape-all","--states","TX"],
+      "env":[
+        {"name":"DATABASE_URL","valueFrom":{"secretKeyRef":{"name":"warn-v2-db","key":"url"}}},
+        {"name":"ANTHROPIC_API_KEY","valueFrom":{"secretKeyRef":{"name":"warn-v2-anthropic","key":"api-key"}}},
+        {"name":"SNAPSHOT_DIR","value":"/tmp"}
+      ]
+    }]}
+  }'
+```
 
 ### Phase 3 coverage
 
