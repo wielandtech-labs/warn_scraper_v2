@@ -38,6 +38,7 @@ dev = [
     "respx>=0.21",
 ]
 heal = ["anthropic>=0.40"]
+browser = ["playwright>=1.45"]
 
 [project.scripts]
 warn-v2 = "warn_v2.cli:main"

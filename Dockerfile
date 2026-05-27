@@ -12,7 +12,8 @@ COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /usr/local/bin/uv
 
 WORKDIR /app
 COPY pyproject.toml uv.lock* README.md ./
-RUN uv sync --frozen --no-dev --extra heal
+RUN uv sync --frozen --no-dev --extra heal --extra browser \
+    && uv run playwright install chromium --with-deps
 
 COPY warn_v2 ./warn_v2
 COPY alembic.ini ./alembic.ini
