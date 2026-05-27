@@ -18,8 +18,6 @@ import io
 import json
 import re
 
-import httpx
-
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.playwright_base import PlaywrightScraper
@@ -47,44 +45,51 @@ class MAScraper(PlaywrightScraper):
     required_fields = frozenset({"employer", "notice_date"})
 
     def fetch(self) -> bytes:
-        """Load the mass.gov page via Playwright, find CSV links, download CSVs."""
+        """Load the mass.gov page via Playwright, find and download CSV files.
+
+        mass.gov returns 403 to plain httpx on the CSV download endpoints, so
+        both the index page visit *and* the CSV downloads happen inside the same
+        Playwright browser context — this way session cookies are shared and the
+        CDN/WAF sees a consistent browser fingerprint throughout.
+        """
         try:
             from playwright.sync_api import sync_playwright
 
             from warn_v2.scrapers.playwright_base import _LAUNCH_ARGS
 
-            # Step 1: discover CSV URLs from the index page
-            csv_urls: list[str] = []
+            files: list[dict[str, str]] = []
             with sync_playwright() as pw:
                 browser = pw.chromium.launch(headless=True, args=_LAUNCH_ARGS)
                 try:
                     ctx = browser.new_context(user_agent=_CHROME_UA)
                     page = ctx.new_page()
+
+                    # Step 1: discover CSV URLs from the index page
                     page.goto(SOURCE_URL, wait_until="load", timeout=60_000)
-                    # Collect all .csv hrefs on the page
                     hrefs = page.eval_on_selector_all(
                         "a[href*='.csv']", "els => els.map(e => e.href)"
                     )
-                    csv_urls = list(dict.fromkeys(hrefs))  # deduplicate, preserve order
+                    csv_urls: list[str] = list(dict.fromkeys(hrefs))
+
+                    if not csv_urls:
+                        raise ScrapeFailed("MA: no CSV links found on mass.gov WARN page")
+
+                    # Step 2: download each CSV via the browser context's request API
+                    # so that session cookies and headers are inherited from Step 1.
+                    for url in csv_urls:
+                        try:
+                            resp = ctx.request.get(
+                                url,
+                                headers={"User-Agent": _CHROME_UA},
+                                timeout=60_000,
+                            )
+                            if resp.ok:
+                                text = resp.body().decode("utf-8-sig")
+                                files.append({"url": url, "csv": text})
+                        except Exception:
+                            continue
                 finally:
                     browser.close()
-
-            if not csv_urls:
-                raise ScrapeFailed("MA: no CSV links found on mass.gov WARN page")
-
-            # Step 2: download each CSV (files are directly reachable without auth)
-            files: list[dict[str, str]] = []
-            with httpx.Client(
-                headers={"User-Agent": _CHROME_UA}, timeout=60, follow_redirects=True
-            ) as client:
-                for url in csv_urls:
-                    try:
-                        r = client.get(url)
-                        r.raise_for_status()
-                        text = r.content.decode("utf-8-sig")
-                        files.append({"url": url, "csv": text})
-                    except httpx.HTTPError:
-                        continue
 
             if not files:
                 raise ScrapeFailed("MA: could not download any CSV files")

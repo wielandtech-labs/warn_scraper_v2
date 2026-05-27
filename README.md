@@ -102,14 +102,14 @@ The scraper runs in a K3s homelab cluster managed by Flux GitOps (see
 > a random generator that can produce `@`, `/`, `+`, or `=` in output.
 > On the k3s cluster, use `~/.local/bin/kubeseal` (v0.37.0, installed 2026-05-26).
 
-**Known issues as of 2026-05-26:**
+**Known issues as of 2026-05-27:**
 
-- **TX**: `twc.texas.gov/files/news/warn-act-listings-{year}.xlsx` returns 404
-  for both 2025 and 2026. TWC likely moved the file; scraper needs URL update.
-- **Playwright states** (GA, OK, MI, OH, MA, MN, MO): deferred — need
-  Playwright installed in the Docker image and matching scrapers written.
-- **GitHub Actions Node 20 deprecation**: CI uses Node 20 actions; deadline
-  June 2, 2026 to upgrade action versions to Node 24 equivalents.
+- **GA**: `tcsg.edu/warn-public-view/` page sometimes doesn't settle to networkidle
+  in under 60 s; scraper now uses `wait_until="load"` + `wait_for_selector("table")`.
+- **MA**: mass.gov CSV endpoints reject plain httpx (403); scraper now downloads
+  CSVs via the Playwright browser context so session cookies are shared.
+- **TN**: `tn.gov` resets TLS from container/server IPs; scraper is written but
+  `register()` is commented out. Re-enable with a proxy or residential IP.
 
 **Running a one-off migration or scrape on the cluster:**
 

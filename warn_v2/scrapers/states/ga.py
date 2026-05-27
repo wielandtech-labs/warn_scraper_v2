@@ -27,8 +27,11 @@ class GAScraper(PlaywrightScraper):
     required_fields = frozenset({"employer", "notice_date"})
 
     def _navigate(self, page) -> None:  # type: ignore[override]
-        page.goto(SOURCE_URL, wait_until="networkidle", timeout=60_000)
-        page.wait_for_selector("table", timeout=20_000)
+        # "load" fires when the HTML is parsed; wait_for_selector then blocks
+        # until the data table appears.  "networkidle" times out on this page
+        # because background XHRs never fully settle.
+        page.goto(SOURCE_URL, wait_until="load", timeout=60_000)
+        page.wait_for_selector("table", timeout=30_000)
 
     def parse(self, raw: bytes) -> list[NoticeRow]:
         soup = BeautifulSoup(raw, "html.parser")
