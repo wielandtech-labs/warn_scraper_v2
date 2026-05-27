@@ -3,10 +3,13 @@
 Source: https://www.mass.gov/info-details/warn-layoff-and-closure-updates
 Administered by the Massachusetts Executive Office of Labor and Workforce Development.
 
-Mass.gov returns 403 to non-browser requests on both the index page and the CSV
-download endpoints.  Playwright is used end-to-end: it discovers the CSV links on
-the index page, then navigates to each CSV URL in a new page within the same browser
-context so that session cookies are present throughout.
+Two-step approach:
+  1. Playwright (Chrome UA) loads the index page to discover CSV download links — the
+     index page blocks non-browser user agents.
+  2. httpx with its *default* user agent downloads each CSV file.  The files are served
+     from mass.gov/files/csv/ which is publicly accessible, but Akamai blocks Chrome
+     UAs from server IPs (looks like a bot pretending to be a browser).  Using httpx's
+     neutral "python-httpx/..." UA avoids that false-positive 403.
 
 Each weekly CSV released on Friday contains ALL notices for the current fiscal year
 (July - June), so one download covers the full current-year dataset.
@@ -21,6 +24,8 @@ import io
 import json
 import logging
 import re
+
+import httpx
 
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
@@ -51,57 +56,55 @@ class MAScraper(PlaywrightScraper):
     required_fields = frozenset({"employer", "notice_date"})
 
     def fetch(self) -> bytes:
-        """Load the mass.gov page via Playwright, find and download CSV files.
+        """Discover CSV links via Playwright, then download them with httpx.
 
-        mass.gov returns 403 to plain httpx on the CSV download endpoints, so
-        both the index page visit *and* the CSV downloads happen inside the same
-        Playwright browser context — this way session cookies are shared and the
-        CDN/WAF sees a consistent browser fingerprint throughout.
+        The index page requires a browser UA; the CSV files (mass.gov/files/csv/*)
+        are publicly accessible and work best with a neutral UA — Chrome UAs from
+        server IPs trigger Akamai's bot detection on the file endpoint.
         """
         try:
             from playwright.sync_api import sync_playwright
 
             from warn_v2.scrapers.playwright_base import _LAUNCH_ARGS
 
-            files: list[dict[str, str]] = []
+            # Step 1: use Playwright (Chrome UA) to load the index page and collect
+            # CSV link URLs.
+            csv_urls: list[str] = []
             with sync_playwright() as pw:
                 browser = pw.chromium.launch(headless=True, args=_LAUNCH_ARGS)
                 try:
                     ctx = browser.new_context(user_agent=_CHROME_UA)
                     page = ctx.new_page()
-
-                    # Step 1: discover CSV URLs from the index page
                     page.goto(SOURCE_URL, wait_until="load", timeout=60_000)
                     hrefs = page.eval_on_selector_all(
                         "a[href*='.csv']", "els => els.map(e => e.href)"
                     )
-                    csv_urls: list[str] = list(dict.fromkeys(hrefs))
-
-                    if not csv_urls:
-                        raise ScrapeFailed("MA: no CSV links found on mass.gov WARN page")
-
-                    # Step 2: download each CSV by navigating a new page within the
-                    # same browser context.  Full page navigation is necessary because
-                    # mass.gov's CDN download endpoints require cookies and redirect
-                    # chains that only work when the browser itself follows them.
-                    for url in csv_urls:
-                        csv_page = ctx.new_page()
-                        try:
-                            resp = csv_page.goto(
-                                url, wait_until="load", timeout=60_000
-                            )
-                            if resp and resp.ok:
-                                text = resp.body().decode("utf-8-sig")
-                                files.append({"url": url, "csv": text})
-                            else:
-                                status = resp.status if resp else "no response"
-                                log.warning("MA: %s → HTTP %s", url, status)
-                        except Exception as exc:
-                            log.warning("MA: failed to download %s: %s", url, exc)
-                        finally:
-                            csv_page.close()
+                    csv_urls = list(dict.fromkeys(hrefs))  # deduplicate, keep order
                 finally:
                     browser.close()
+
+            if not csv_urls:
+                raise ScrapeFailed("MA: no CSV links found on mass.gov WARN page")
+
+            log.info("MA: found %d CSV link(s): %s", len(csv_urls), csv_urls)
+
+            # Step 2: download each CSV with httpx using the default (neutral) UA.
+            # Sending a Chrome UA here triggers Akamai 403 on server IPs.
+            files: list[dict[str, str]] = []
+            with httpx.Client(timeout=60, follow_redirects=True) as client:
+                for url in csv_urls:
+                    try:
+                        r = client.get(url)
+                        r.raise_for_status()
+                        text = r.content.decode("utf-8-sig")
+                        files.append({"url": url, "csv": text})
+                        log.info("MA: downloaded %s (%d bytes)", url, len(text))
+                    except Exception as exc:
+                        log.warning(
+                            "MA: failed to download %s → %s: %s",
+                            url, type(exc).__name__, exc,
+                        )
+                        continue
 
             if not files:
                 raise ScrapeFailed("MA: could not download any CSV files")
