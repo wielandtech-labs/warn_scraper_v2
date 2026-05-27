@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 
 # AR is deregistered: WARN data is confidential under A.C.A. § 11-10-314.
-pytestmark = pytest.mark.skip(reason="AR deferred — WARN data legally confidential, not published publicly")
+pytestmark = pytest.mark.skip(reason="AR deferred: WARN data confidential under A.C.A. 11-10-314")
 
 
 def test_ar_placeholder() -> None:

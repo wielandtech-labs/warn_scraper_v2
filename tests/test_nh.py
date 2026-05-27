@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 
 # NH is deregistered: no public online WARN notice listing exists.
-pytestmark = pytest.mark.skip(reason="NH deferred — no public WARN notice listing; requires public records request")
+pytestmark = pytest.mark.skip(reason="NH deferred: no public WARN listing; records request only")
 
 
 def test_nh_placeholder() -> None:
