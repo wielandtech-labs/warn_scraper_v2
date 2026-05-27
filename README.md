@@ -150,11 +150,11 @@ kubectl run scrape-tx -n warn-v2 \
 
 ### Phase 3 coverage
 
-39 jurisdictions implemented (38 states + DC):
+46 jurisdictions implemented (45 states + DC):
 
 | Implemented | Deferred |
 |-------------|---------|
-| AK, AL, AZ, CA, CO, CT, DC, DE, FL, HI, IA, ID, IL, IN, KS, KY, LA, MD, ME, MS, MT, NC, ND, NE, NJ, NM, NV, NY, OK, OR, RI, SC, SD, TN, TX, UT, VA, VT, WA, WI | GA, MA, MI, MN, MO, OH, PA (JS-rendered / bot-blocked) · AR, NH, WY (no public data) · WV (unstructured PDFs) |
+| AK, AL, AZ, CA, CO, CT, DC, DE, FL, GA, HI, IA, ID, IL, IN, KS, KY, LA, MA, MD, ME, MI, MN, MO, MS, MT, NC, ND, NE, NJ, NM, NV, NY, OH, OR, PA, RI, SC, SD, TX, UT, VA, VT, WA, WI, WV | AR, NH, WY (no public data) · OK (Salesforce/Aura auth) · TN (container TLS block) |
 
 See [`docs/deferred-states.md`](docs/deferred-states.md) for investigation notes on each deferred state.
 
