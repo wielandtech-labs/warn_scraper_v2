@@ -3,8 +3,11 @@
 Source: https://www.mass.gov/info-details/warn-layoff-and-closure-updates
 Administered by the Massachusetts Executive Office of Labor and Workforce Development.
 
-Mass.gov returns 403 to non-browser requests on the index page, so Playwright is used
-to discover the current CSV link. The CSV itself is publicly downloadable with httpx.
+Mass.gov returns 403 to non-browser requests on both the index page and the CSV
+download endpoints.  Playwright is used end-to-end: it discovers the CSV links on
+the index page, then navigates to each CSV URL in a new page within the same browser
+context so that session cookies are present throughout.
+
 Each weekly CSV released on Friday contains ALL notices for the current fiscal year
 (July - June), so one download covers the full current-year dataset.
 
@@ -16,12 +19,15 @@ from __future__ import annotations
 import csv
 import io
 import json
+import logging
 import re
 
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.playwright_base import PlaywrightScraper
 from warn_v2.scrapers.registry import register
+
+log = logging.getLogger(__name__)
 
 SOURCE_URL = (
     "https://www.mass.gov/info-details/"
@@ -74,20 +80,26 @@ class MAScraper(PlaywrightScraper):
                     if not csv_urls:
                         raise ScrapeFailed("MA: no CSV links found on mass.gov WARN page")
 
-                    # Step 2: download each CSV via the browser context's request API
-                    # so that session cookies and headers are inherited from Step 1.
+                    # Step 2: download each CSV by navigating a new page within the
+                    # same browser context.  Full page navigation is necessary because
+                    # mass.gov's CDN download endpoints require cookies and redirect
+                    # chains that only work when the browser itself follows them.
                     for url in csv_urls:
+                        csv_page = ctx.new_page()
                         try:
-                            resp = ctx.request.get(
-                                url,
-                                headers={"User-Agent": _CHROME_UA},
-                                timeout=60_000,
+                            resp = csv_page.goto(
+                                url, wait_until="load", timeout=60_000
                             )
-                            if resp.ok:
+                            if resp and resp.ok:
                                 text = resp.body().decode("utf-8-sig")
                                 files.append({"url": url, "csv": text})
-                        except Exception:
-                            continue
+                            else:
+                                status = resp.status if resp else "no response"
+                                log.warning("MA: %s → HTTP %s", url, status)
+                        except Exception as exc:
+                            log.warning("MA: failed to download %s: %s", url, exc)
+                        finally:
+                            csv_page.close()
                 finally:
                     browser.close()
 
