@@ -60,7 +60,7 @@ _TABLE_SETTINGS = {"vertical_strategy": "lines", "horizontal_strategy": "lines"}
 class MNScraper:
     state = "MN"
     source_url = "https://mn.gov/deed/programs-services/dislocated-worker-program/reports/"
-    expected_row_range = (0, 500)
+    expected_row_range = (1, 500)
     required_fields = frozenset({"employer", "notice_date"})
 
     def fetch(self) -> bytes:
