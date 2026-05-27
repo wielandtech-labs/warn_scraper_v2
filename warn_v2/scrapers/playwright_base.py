@@ -9,7 +9,10 @@ button clicks, year-range selection, or pagination handling.
 """
 from __future__ import annotations
 
-from playwright.sync_api import Page, sync_playwright
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from playwright.sync_api import Page
 
 from warn_v2.scrapers.base import NoticeRow, ScrapeFailed
 
@@ -34,6 +37,8 @@ class PlaywrightScraper:
     def fetch(self) -> bytes:
         """Render the page with headless Chromium and return the full HTML."""
         try:
+            from playwright.sync_api import sync_playwright  # lazy: not needed at import time
+
             with sync_playwright() as pw:
                 browser = pw.chromium.launch(headless=True, args=_LAUNCH_ARGS)
                 try:
