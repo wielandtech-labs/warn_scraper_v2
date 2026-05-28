@@ -9,6 +9,7 @@ import pytest
 from openpyxl import Workbook
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 import warn_v2.db.session as db_session
 from warn_v2.db.models import Base
@@ -16,7 +17,14 @@ from warn_v2.db.models import Base
 
 @pytest.fixture
 def db_engine():
-    engine = create_engine("sqlite:///:memory:", future=True)
+    # StaticPool + check_same_thread=False lets TestClient (which runs the ASGI
+    # app in a worker thread) share the same in-memory SQLite connection.
+    engine = create_engine(
+        "sqlite:///:memory:",
+        future=True,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     Base.metadata.create_all(engine)
     yield engine
     engine.dispose()

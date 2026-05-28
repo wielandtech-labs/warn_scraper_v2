@@ -239,5 +239,25 @@ def enrich(
         sys.exit(1)
 
 
+@main.command()
+@click.option("--host", default="0.0.0.0", show_default=True, help="Bind host")
+@click.option("--port", default=8000, show_default=True, help="Bind port")
+@click.option("--reload", is_flag=True, help="Enable auto-reload (dev only)")
+def serve(host: str, port: int, reload: bool) -> None:
+    """Start the FastAPI HTTP server.
+
+    This is the command run by the K8s api pod (args: [serve]).
+
+    \b
+    Examples:
+      warn-v2 serve                       # production mode
+      warn-v2 serve --reload              # dev mode with auto-reload
+      warn-v2 serve --port 9000           # custom port
+    """
+    import uvicorn
+
+    uvicorn.run("warn_v2.api:app", host=host, port=port, reload=reload)
+
+
 if __name__ == "__main__":
     main()
