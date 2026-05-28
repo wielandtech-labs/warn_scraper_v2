@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: homelab-dind
+    runs-on: homelab-dind-warn-v2
     permissions:
       contents: read
       packages: write
