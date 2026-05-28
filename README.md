@@ -38,6 +38,13 @@ uv run warn-v2 enrich                   # enrich up to 50 unenriched companies
 uv run warn-v2 enrich --state CA        # only companies from CA notices
 uv run warn-v2 enrich --rerun-below 0.7 # re-enrich low-confidence rows
 uv run warn-v2 enrich --dry-run         # run agent but don't write to DB
+
+# API + SPA (Phase 5 + 6) — single process, single port
+uv run warn-v2 serve                    # FastAPI + bundled SPA on :8000
+uv run warn-v2 backfill-geo             # populate locations.lat/lon from ZIP centroids
+
+# Frontend dev (separate from python — requires node 20)
+cd frontend && npm install && npm run dev   # Vite dev server on :5173, proxies to :8000
 ```
 
 ### Note on local testing under Windows Smart App Control
@@ -71,11 +78,12 @@ install WSL2 (`wsl --install`), or build and `docker run` the image.
 
 - [x] Phase 0 — scaffold + first state (CA)
 - [x] Phase 1 — 5 representative states (CA, TX, NY, FL, WA)
-- [x] Phase 2 — self-heal agent (**313 tests** as of 2026-05-28)
+- [x] Phase 2 — self-heal agent (**334 tests** as of 2026-05-28)
 - [x] Phase 3 — bulk-port remaining states (46 jurisdictions)
 - [x] **Production deployment live** (K3s via Flux, CloudNativePG, 2026-05-26)
 - [x] Phase 4 — enrichment agent (Claude + web search, runs every 6 h)
 - [x] Phase 5 — API + Grafana + AlertManager
+- [x] Phase 6 — React SPA (dashboard, notices, companies, map, stats)
 
 ### Production deployment (as of 2026-05-26)
 
