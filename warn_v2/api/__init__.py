@@ -61,14 +61,31 @@ def create_app() -> FastAPI:
     # --- SPA static assets (mounted LAST so API routes take precedence) ---
     # In dev (no built bundle) the directory won't exist; skip silently.
     from pathlib import Path
+    from typing import Any
 
+    from fastapi import HTTPException
     from fastapi.staticfiles import StaticFiles
+    from starlette.requests import Request
+    from starlette.responses import Response
 
     static_dir = Path(__file__).parent / "static"
     if static_dir.exists():
-        # html=True makes /any/path that isn't a file fall back to index.html
-        # (so client-side routing in React works on direct URL visits).
-        app.mount("/", StaticFiles(directory=static_dir, html=True), name="ui")
+
+        class SPAStaticFiles(StaticFiles):
+            """StaticFiles subclass that falls back to index.html for any path
+            not found on disk — required for React client-side routing so that
+            a hard refresh on /notices, /map, /stats, etc. returns the SPA
+            rather than FastAPI's JSON 404 response."""
+
+            async def get_response(self, path: str, scope: Any) -> Response:
+                try:
+                    return await super().get_response(path, scope)
+                except HTTPException as exc:
+                    if exc.status_code == 404:
+                        return await super().get_response("index.html", scope)
+                    raise
+
+        app.mount("/", SPAStaticFiles(directory=static_dir, html=True), name="ui")
 
     return app
 
