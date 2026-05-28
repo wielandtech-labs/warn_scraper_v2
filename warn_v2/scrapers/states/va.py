@@ -69,14 +69,18 @@ class VAScraper:
                 continue
 
             # Company cell: <a> text = clean employer name; href = notice PDF.
+            # The cell's plain text after the anchor is the street address.
             company_cell = cells[col["company"]]
             anchor = company_cell.find("a")
             if anchor:
                 employer = as_str(anchor.get_text(" ", strip=True))
                 notice_url: str | None = anchor.get("href") or None
+                full_text = _text(company_cell)
+                address = as_str(full_text.replace(employer or "", "", 1).strip(" ,"))
             else:
                 employer = as_str(_text(company_cell))
                 notice_url = None
+                address = None
 
             if not employer:
                 continue
@@ -96,6 +100,7 @@ class VAScraper:
                     layoff_count=as_int(_text(cells[col["employees affected"]])),
                     closure_type=as_str(_text(cells[col["notice type"]])),
                     city=city,
+                    address=address,
                     raw_notice_url=notice_url,
                     source_url=SOURCE_URL,
                 )

@@ -85,6 +85,7 @@ class CAScraper:
                 county=as_str(col.get(r, _COUNTY_KEYS)),
                 city=as_str(col.get(r, _CITY_KEYS)) or city_from_address(address),
                 zip=zip_from(col.get(r, _ZIP_KEYS), address),
+                address=as_str(address),
                 source_url=SOURCE_URL,
             )
             rows.append(row)

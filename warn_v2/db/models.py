@@ -67,6 +67,7 @@ class Notice(Base):
     effective_date: Mapped[date | None] = mapped_column(Date)
     layoff_count: Mapped[int | None] = mapped_column(Integer)
     closure_type: Mapped[str | None] = mapped_column(Text)
+    address: Mapped[str | None] = mapped_column(Text)
     source_url: Mapped[str | None] = mapped_column(String(1024))
     raw_notice_url: Mapped[str | None] = mapped_column(String(1024))
     scraped_at: Mapped[datetime] = mapped_column(

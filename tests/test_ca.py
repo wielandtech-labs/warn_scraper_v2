@@ -18,6 +18,8 @@ def test_ca_parses_golden_fixture(ca_golden_xlsx_bytes, ca_golden_expected) -> N
         ca_golden_expected["first_notice_date"]
     )
     assert first.zip == ca_golden_expected["first_zip"]
+    # Address from the source spreadsheet should be promoted to first-class field.
+    assert first.address == "1 Main St, Oakland, CA 94607"
 
     total_layoffs = sum(r.layoff_count or 0 for r in rows)
     assert total_layoffs == ca_golden_expected["total_layoffs"]

@@ -42,7 +42,7 @@ from html import unescape
 import httpx
 from bs4 import BeautifulSoup
 
-from warn_v2.scrapers._helpers import as_int, as_str
+from warn_v2.scrapers._helpers import as_int, as_str, zip_from
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.registry import register
 
@@ -162,6 +162,8 @@ def _parse_panel(
     for addr, lbl in locations:
         if notice_date is None:
             continue
+        # Join multi-line address lines into a single mailing address string.
+        address = as_str(", ".join(addr)) if addr else None
         rows.append(
             NoticeRow(
                 state="PA",
@@ -175,6 +177,8 @@ def _parse_panel(
                 ),
                 city=_extract_city(addr),
                 county=as_str(lbl.get("COUNTY")) or None,
+                zip=zip_from(None, address),
+                address=address,
                 closure_type=as_str(lbl.get("CLOSURE OR LAYOFF")) or None,
                 source_url=_SOURCE_URL,
             )

@@ -90,6 +90,15 @@ class IAScraper:
             if notice_date is None:
                 continue
 
+            zip_raw = _col("ZIP")
+            if isinstance(zip_raw, (int, float)):
+                zip_str = str(int(zip_raw))
+                # Iowa ZIPs may lose their leading zero in numeric cells.
+                if len(zip_str) == 4:
+                    zip_str = "0" + zip_str
+            else:
+                zip_str = as_str(zip_raw)
+
             rows.append(
                 NoticeRow(
                     state="IA",
@@ -103,6 +112,8 @@ class IAScraper:
                     ),
                     city=as_str(_col("CITY")) or None,
                     county=as_str(_col("COUNTY")) or None,
+                    zip=zip_str,
+                    address=as_str(_col("ADDRESS LINE 1")) or None,
                     closure_type=as_str(_col("NOTICE TYPE")) or None,
                     source_url=_SOURCE_URL,
                     extra={

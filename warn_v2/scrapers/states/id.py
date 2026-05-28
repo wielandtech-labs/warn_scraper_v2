@@ -121,10 +121,8 @@ class IDScraper:
                     layoff_count=layoff_count,
                     city=as_str(_first_line(raw_row[col["city"]])),
                     zip=as_str(_first_line(raw_row[col["zip"]])),
+                    address=as_str(_first_line(raw_row[col["address"]])),
                     source_url=_LANDING_URL,
-                    extra={
-                        "address": as_str(_first_line(raw_row[col["address"]])) or ""
-                    },
                 )
             )
         return rows

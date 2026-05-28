@@ -54,3 +54,89 @@ def test_upsert_handles_missing_location(db) -> None:
     assert (seen, new) == (1, 1)
     notice = db.query(Notice).one()
     assert notice.location_id is None
+
+
+def test_upsert_persists_address(db) -> None:
+    rows = [_row(address="1 Main St, Oakland, CA 94607")]
+    seen, new = upsert_notices(db, rows)
+    db.commit()
+    assert (seen, new) == (1, 1)
+    notice = db.query(Notice).one()
+    assert notice.address == "1 Main St, Oakland, CA 94607"
+
+
+def test_reupsert_fills_in_null_address(db) -> None:
+    """A re-scrape with newly-extracted address fills it in on the existing row."""
+    # First scrape: no address
+    upsert_notices(db, [_row(address=None)])
+    db.commit()
+    assert db.query(Notice).one().address is None
+
+    # Second scrape: same notice_id, now with address
+    seen, new = upsert_notices(db, [_row(address="1 Main St, Oakland, CA 94607")])
+    db.commit()
+    assert (seen, new) == (1, 0)  # not a new row, just a fill-in
+    assert db.query(Notice).one().address == "1 Main St, Oakland, CA 94607"
+
+
+def test_reupsert_does_not_overwrite_existing_address(db) -> None:
+    """Re-upserting with a different address must NOT overwrite an existing value."""
+    upsert_notices(db, [_row(address="1 Main St, Oakland, CA 94607")])
+    db.commit()
+
+    # New scrape returns a different address for the same notice_id
+    upsert_notices(db, [_row(address="999 Other Way, Oakland, CA 94607")])
+    db.commit()
+    assert db.query(Notice).one().address == "1 Main St, Oakland, CA 94607"
+
+
+def test_reupsert_does_not_overwrite_existing_nonnull_fields(db) -> None:
+    """COALESCE semantics: an existing layoff_count must survive a NULL re-scrape."""
+    upsert_notices(db, [_row(layoff_count=50, effective_date=date(2026, 3, 1))])
+    db.commit()
+
+    upsert_notices(db, [_row(layoff_count=None, effective_date=None)])
+    db.commit()
+    notice = db.query(Notice).one()
+    assert notice.layoff_count == 50
+    assert notice.effective_date == date(2026, 3, 1)
+
+
+def test_location_zip_merged_in_place(db) -> None:
+    """A zip-less location should be upgraded in place when a real ZIP arrives."""
+    upsert_notices(db, [_row(city="Oakland", zip=None)])
+    db.commit()
+    loc = db.query(Location).one()
+    assert loc.zip in (None, "")
+    loc_id = loc.id
+
+    upsert_notices(db, [
+        _row(employer="Acme Inc 2", city="Oakland", zip="94607",
+             notice_date=date(2026, 2, 1)),
+    ])
+    db.commit()
+
+    # Should still be one location, now with the ZIP populated.
+    assert db.query(Location).count() == 1
+    loc = db.query(Location).one()
+    assert loc.id == loc_id
+    assert loc.zip == "94607"
+
+
+def test_location_zip_merge_skipped_when_ambiguous(db) -> None:
+    """If two zip-less rows exist for the same (state, city), skip the merge."""
+    # Create two zip-less locations for the same (state, city) by inserting
+    # manually — the unique constraint normally prevents this, but in real
+    # production data NULL+NULL can collide because NULLs are distinct.
+    db.add(Location(state="CA", city="Oakland", zip=None))
+    db.add(Location(state="CA", city="Oakland", zip=None))
+    db.commit()
+    assert db.query(Location).count() == 2
+
+    upsert_notices(db, [_row(city="Oakland", zip="94607")])
+    db.commit()
+    # Merge skipped → a third row was inserted with the real ZIP.
+    assert db.query(Location).count() == 3
+    assert (
+        db.query(Location).filter(Location.zip == "94607").count() == 1
+    )

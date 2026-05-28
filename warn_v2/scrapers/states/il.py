@@ -24,7 +24,7 @@ import httpx
 import openpyxl
 from bs4 import BeautifulSoup
 
-from warn_v2.scrapers._helpers import as_int, as_str
+from warn_v2.scrapers._helpers import as_int, as_str, zip_from
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.registry import register
 
@@ -148,7 +148,12 @@ class ILScraper:
 
             city_state_zip = as_str(_col("CITY, STATE, ZIP")) or None
             city = _parse_city(city_state_zip)
+            zip_code = zip_from(city_state_zip)
             county = as_str(_col("COUNTY")) or None
+            company_address = as_str(_col("COMPANY ADDRESS")) or None
+            # Combine street + "City, State ZIP" into one mailing-address string.
+            address_parts = [p for p in (company_address, city_state_zip) if p]
+            address = ", ".join(address_parts) if address_parts else None
             closure_type = as_str(_col("TYPE OF EVENT")) or None
             layoff_type = as_str(_col("TYPE OF LAYOFF")) or None
             event_causes = as_str(_col("EVENT CAUSES")) or None
@@ -167,6 +172,8 @@ class ILScraper:
                     layoff_count=layoff_count,
                     city=city,
                     county=county,
+                    zip=zip_code,
+                    address=address,
                     closure_type=closure_type,
                     source_url=_SOURCE_URL,
                     extra={

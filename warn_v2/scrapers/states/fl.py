@@ -82,6 +82,7 @@ class FLScraper:
             effective_date = _first_date(effective_text)
 
             city, zip_code = _city_zip_from_cell(cells[0])
+            address = _address_from_cell(cells[0], employer)
             layoff_count = as_int(cells[3].get_text(strip=True))
             industry = as_str(cells[4].get_text(strip=True))
 
@@ -101,12 +102,28 @@ class FLScraper:
                     layoff_count=layoff_count,
                     city=city,
                     zip=zip_code,
+                    address=address,
                     source_url=self.source_url,
                     raw_notice_url=raw_notice_url,
                     extra={"industry": industry} if industry else {},
                 )
             )
         return rows
+
+
+def _address_from_cell(cell, employer: str) -> str | None:
+    """Drop the leading <b>Employer Name</b> and return the remaining address text.
+
+    Layout: <b>Acme Inc.</b><br>123 Main St<br>CITY, FL, 32101
+    Returns: "123 Main St, CITY, FL, 32101"
+    """
+    text = cell.get_text("\n", strip=True)
+    lines = [ln.strip() for ln in text.split("\n") if ln.strip()]
+    if lines and lines[0] == employer:
+        lines = lines[1:]
+    if not lines:
+        return None
+    return as_str(", ".join(lines))
 
 
 def _employer_from_cell(cell) -> str | None:

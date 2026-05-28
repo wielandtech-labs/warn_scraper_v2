@@ -79,6 +79,9 @@ class NCScraper:
         if employer_col is None:
             raise ParseFailed(f"NC: could not find employer column; headers: {header_cells}")
 
+        # "Address 1" is the street address of the layoff site; optional.
+        address_col = next((k for k in col if "address" in k), None)
+
         rows: list[NoticeRow] = []
         for tr in all_trs[1:]:
             cells = tr.find_all(["td", "th"])
@@ -90,6 +93,12 @@ class NCScraper:
             notice_date = as_date(_text(cells[col["date of notice"]]))
             if notice_date is None:
                 continue
+
+            address = (
+                as_str(_text(cells[col[address_col]]))
+                if address_col is not None
+                else None
+            )
 
             rows.append(
                 NoticeRow(
@@ -105,6 +114,7 @@ class NCScraper:
                     ),
                     city=as_str(_text(cells[col["city"]])),
                     county=as_str(_text(cells[col["county"]])),
+                    address=address,
                     source_url=self.source_url,
                     extra={
                         "warn_number": as_str(_text(cells[col["warn number"]])) or "",

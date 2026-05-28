@@ -126,6 +126,7 @@ class COScraper:
                     layoff_count=layoff_count,
                     closure_type=_get(record, key_to_idx, "reason") or None,
                     zip=zip_code,
+                    address=address,
                     source_url=SOURCE_URL,
                     extra=extra,
                 )

@@ -176,8 +176,8 @@ class SCScraper:
                     city=city,
                     county=county,
                     zip=zip_code,
+                    address=as_str(address),
                     source_url=_LANDING_URL,
-                    extra={"address": address},
                 )
             )
         return rows

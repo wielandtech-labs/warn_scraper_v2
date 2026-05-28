@@ -120,6 +120,7 @@ class LAScraper:
                     layoff_count=as_int(_norm(raw_row[col.get("employees affected", 4)])),
                     city=city,
                     zip=zip_code,
+                    address=as_str(address),
                     source_url=self.source_url,
                     extra={"industry": industry or ""},
                 )

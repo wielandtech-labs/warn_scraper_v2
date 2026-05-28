@@ -103,6 +103,7 @@ class MDScraper:
                     city=city,
                     county=as_str(_text(cells[col["local area"]])),
                     zip=zip_code,
+                    address=as_str(location_text),
                     source_url=SOURCE_URL,
                     extra={"naics": as_str(_text(cells[col["naics code"]])) or ""},
                 )
