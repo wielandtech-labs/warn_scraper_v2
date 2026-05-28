@@ -1803,6 +1803,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
+    { name = "anthropic" },
     { name = "beautifulsoup4" },
     { name = "click" },
     { name = "fastapi" },
@@ -1834,14 +1835,11 @@ dev = [
     { name = "respx" },
     { name = "ruff" },
 ]
-heal = [
-    { name = "anthropic" },
-]
 
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.13" },
-    { name = "anthropic", marker = "extra == 'heal'", specifier = ">=0.40" },
+    { name = "anthropic", specifier = ">=0.40" },
     { name = "beautifulsoup4", specifier = ">=4.12" },
     { name = "click", specifier = ">=8.1" },
     { name = "fastapi", specifier = ">=0.115" },
@@ -1867,7 +1865,7 @@ requires-dist = [
     { name = "tenacity", specifier = ">=8.5" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
-provides-extras = ["dev", "heal", "browser"]
+provides-extras = ["dev", "browser"]
 
 [[package]]
 name = "watchfiles"
