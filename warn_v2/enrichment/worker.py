@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -110,11 +111,16 @@ def enrich_batch(
     state_filter: str | None = None,
     rerun_below: float | None = None,
     dry_run: bool = False,
+    inter_delay_s: float = 30.0,
 ) -> dict:
     """Enrich a batch of companies. Returns summary stats.
 
     Commits after each company so partial runs are safe.
     In dry_run mode the agent still runs but nothing is written to the DB.
+
+    ``inter_delay_s`` (default 30 s) is the sleep inserted *between* companies
+    to avoid exhausting the Anthropic 30,000 input-tokens-per-minute limit.
+    Set to 0 to disable (e.g. in tests where the client is a stub).
     """
     companies = find_pending(
         session,
@@ -130,7 +136,11 @@ def enrich_batch(
     enriched = 0
     skipped = 0
 
-    for company in companies:
+    for i, company in enumerate(companies):
+        if i > 0 and inter_delay_s > 0:
+            log.debug("enrich_batch: sleeping %.0fs between companies", inter_delay_s)
+            time.sleep(inter_delay_s)
+
         notice_ctx = _load_notice_context(session, company.id)
         ctx = EnrichmentContext(
             company_id=company.id,

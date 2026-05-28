@@ -189,11 +189,20 @@ def heal(
     help="Also re-enrich companies whose confidence is below this threshold (e.g. 0.7)",
 )
 @click.option("--dry-run", is_flag=True, help="Run the agent but do not write results to the DB")
+@click.option(
+    "--sleep-between",
+    type=float,
+    default=30.0,
+    show_default=True,
+    metavar="SECONDS",
+    help="Seconds to sleep between companies (throttles Anthropic TPM usage)",
+)
 def enrich(
     limit: int,
     state: str | None,
     rerun_below: float | None,
     dry_run: bool,
+    sleep_between: float,
 ) -> None:
     """Enrich company records with website, SIC code, and DUNS via Claude + web search.
 
@@ -204,6 +213,7 @@ def enrich(
       warn-v2 enrich --state CA            # only companies from CA notices
       warn-v2 enrich --rerun-below 0.7     # also re-enrich low-confidence rows
       warn-v2 enrich --dry-run             # test without writing to DB
+      warn-v2 enrich --sleep-between 60    # slower but stays under TPM limit
     """
     from warn_v2.db.session import session_scope
     from warn_v2.enrichment.agent import build_anthropic_client
@@ -218,6 +228,7 @@ def enrich(
             state_filter=state,
             rerun_below=rerun_below,
             dry_run=dry_run,
+            inter_delay_s=sleep_between,
         )
 
     suffix = " (dry run — nothing written)" if dry_run else ""
