@@ -1,4 +1,4 @@
-import { US_STATES } from "../lib/format";
+import { daysAgoIso, US_STATES } from "../lib/format";
 
 export interface FilterValues {
   state?: string;
@@ -12,6 +12,13 @@ export interface FilterBarProps {
   onChange: (next: FilterValues) => void;
   showEmployer?: boolean;
 }
+
+const PRESETS = [
+  { label: "30d", days: 30 },
+  { label: "90d", days: 90 },
+  { label: "1yr", days: 365 },
+  { label: "All", days: null },
+] as const;
 
 export function FilterBar({ values, onChange, showEmployer = true }: FilterBarProps) {
   const update = (patch: Partial<FilterValues>) => {
@@ -81,6 +88,35 @@ export function FilterBar({ values, onChange, showEmployer = true }: FilterBarPr
           onChange={(e) => update({ before: e.target.value || undefined })}
         />
       </label>
+
+      {/* Quick date presets */}
+      <div className="col-span-full flex items-center gap-1.5">
+        <span className="text-xs text-slate-400">Quick:</span>
+        {PRESETS.map(({ label, days }) => {
+          const active =
+            days === null
+              ? !values.after && !values.before
+              : values.after === daysAgoIso(days) && !values.before;
+          return (
+            <button
+              key={label}
+              type="button"
+              onClick={() =>
+                days === null
+                  ? update({ after: undefined, before: undefined })
+                  : update({ after: daysAgoIso(days), before: undefined })
+              }
+              className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                active
+                  ? "bg-sky-700 text-white"
+                  : "border border-slate-300 text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

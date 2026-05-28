@@ -27,6 +27,13 @@ export function fmtMonth(m: string): string {
   });
 }
 
+/** Returns today minus `n` days as a YYYY-MM-DD string. */
+export function daysAgoIso(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
 export const US_STATES = [
   "AK", "AL", "AR", "AZ", "CA", "CO", "CT", "DC", "DE", "FL",
   "GA", "HI", "IA", "ID", "IL", "IN", "KS", "KY", "LA", "MA",

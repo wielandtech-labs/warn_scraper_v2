@@ -92,8 +92,8 @@ export function MapPage() {
       </div>
 
       <div className="mt-2 text-xs text-slate-500">
-        Showing {points.length} of {query.data?.total ?? "—"} notices ·
-        {" "}{(query.data?.total ?? 0) - points.length} hidden (no coordinates).
+        Showing {points.length} geocoded of {query.data?.items.length ?? 0} fetched
+        {" "}(of {fmtNum(query.data?.total ?? 0)} total notices).
       </div>
     </div>
   );
