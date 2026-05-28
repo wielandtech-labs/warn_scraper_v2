@@ -63,9 +63,7 @@ def create_app() -> FastAPI:
     from pathlib import Path
     from typing import Any
 
-    from fastapi import HTTPException
     from fastapi.staticfiles import StaticFiles
-    from starlette.requests import Request
     from starlette.responses import Response
 
     static_dir = Path(__file__).parent / "static"
@@ -75,12 +73,19 @@ def create_app() -> FastAPI:
             """StaticFiles subclass that falls back to index.html for any path
             not found on disk — required for React client-side routing so that
             a hard refresh on /notices, /map, /stats, etc. returns the SPA
-            rather than FastAPI's JSON 404 response."""
+            rather than FastAPI's JSON 404 response.
+
+            Important: StaticFiles raises starlette.exceptions.HTTPException
+            (the base class), not fastapi.HTTPException (its subclass), so we
+            must catch the Starlette variant here.
+            """
 
             async def get_response(self, path: str, scope: Any) -> Response:
+                from starlette.exceptions import HTTPException as _StarletteHTTPException
+
                 try:
                     return await super().get_response(path, scope)
-                except HTTPException as exc:
+                except _StarletteHTTPException as exc:
                     if exc.status_code == 404:
                         return await super().get_response("index.html", scope)
                     raise
