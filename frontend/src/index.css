@@ -41,11 +41,19 @@
 @import "leaflet.markercluster/dist/MarkerCluster.css";
 @import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 
-/* Tailwind Preflight injects `img { max-width: 100%; height: auto; }` which
-   clips Leaflet's 256×256 tile <img> elements, leaving most of the map black.
-   Override specifically for Leaflet tile images. */
+/* Ensure Leaflet tile panes position themselves relative to the map container,
+   not the document root. Leaflet's own CSS does not set this; react-leaflet
+   does not inject it automatically. Without it, absolutely-positioned panes
+   resolve their containing block against <html>, placing tiles in wrong
+   document coordinates and leaving most of the map grey. */
+.leaflet-container {
+  position: relative;
+}
+
+/* Tailwind Preflight injects img { max-width: 100%; height: auto; } globally.
+   Guard Leaflet tiles against max-width clipping. height is set inline by
+   Leaflet's JS so height: auto cannot affect it. */
 .leaflet-container img.leaflet-tile {
   max-width: none;
   max-height: none;
-  height: inherit;
 }

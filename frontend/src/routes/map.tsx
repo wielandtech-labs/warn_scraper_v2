@@ -56,7 +56,7 @@ export function MapPage() {
           center={CENTER_US}
           zoom={4}
           scrollWheelZoom
-          style={{ height: "70vh", width: "100%" }}
+          style={{ height: "70vh", width: "100%", position: "relative" }}
         >
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
