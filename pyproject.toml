@@ -27,6 +27,7 @@ dependencies = [
     "python-dateutil>=2.9",
     "click>=8.1",
     "pdfplumber>=0.11.9",
+    "anthropic>=0.40",
 ]
 
 [project.optional-dependencies]
@@ -37,7 +38,6 @@ dev = [
     "mypy>=1.10",
     "respx>=0.21",
 ]
-heal = ["anthropic>=0.40"]
 browser = ["playwright>=1.45"]
 
 [project.scripts]

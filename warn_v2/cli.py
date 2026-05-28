@@ -178,5 +178,55 @@ def heal(
         sys.exit(3)
 
 
+@main.command()
+@click.option("--limit", default=50, show_default=True, help="Max companies to enrich per run")
+@click.option("--state", default=None, help="Only enrich companies from this state's notices")
+@click.option(
+    "--rerun-below",
+    type=float,
+    default=None,
+    metavar="CONFIDENCE",
+    help="Also re-enrich companies whose confidence is below this threshold (e.g. 0.7)",
+)
+@click.option("--dry-run", is_flag=True, help="Run the agent but do not write results to the DB")
+def enrich(
+    limit: int,
+    state: str | None,
+    rerun_below: float | None,
+    dry_run: bool,
+) -> None:
+    """Enrich company records with website, SIC code, and DUNS via Claude + web search.
+
+    \b
+    Examples:
+      warn-v2 enrich                       # enrich up to 50 unenriched companies
+      warn-v2 enrich --limit 200           # larger batch
+      warn-v2 enrich --state CA            # only companies from CA notices
+      warn-v2 enrich --rerun-below 0.7     # also re-enrich low-confidence rows
+      warn-v2 enrich --dry-run             # test without writing to DB
+    """
+    from warn_v2.db.session import session_scope
+    from warn_v2.enrichment.agent import build_anthropic_client
+    from warn_v2.enrichment.worker import enrich_batch
+
+    client = build_anthropic_client()
+    with session_scope() as session:
+        stats = enrich_batch(
+            session,
+            client,
+            limit=limit,
+            state_filter=state,
+            rerun_below=rerun_below,
+            dry_run=dry_run,
+        )
+
+    suffix = " (dry run — nothing written)" if dry_run else ""
+    click.echo(
+        f"enriched={stats['enriched']} skipped={stats['skipped']} total={stats['total']}{suffix}"
+    )
+    if stats["skipped"] and not dry_run:
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     main()
