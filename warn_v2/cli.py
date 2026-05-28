@@ -259,5 +259,22 @@ def serve(host: str, port: int, reload: bool) -> None:
     uvicorn.run("warn_v2.api:app", host=host, port=port, reload=reload)
 
 
+@main.command("backfill-geo")
+@click.option("--dry-run", is_flag=True, help="Preview impact without writing")
+def backfill_geo(dry_run: bool) -> None:
+    """Populate locations.lat/lon from bundled US Census ZIP centroids.
+
+    Idempotent — re-running only updates rows still missing coordinates.
+    """
+    from warn_v2.scripts.backfill_geo import backfill
+
+    stats = backfill(dry_run=dry_run)
+    suffix = " (dry run — nothing written)" if dry_run else ""
+    click.echo(
+        f"considered={stats['considered']} filled={stats['filled']} "
+        f"no_centroid={stats['no_centroid']}{suffix}"
+    )
+
+
 if __name__ == "__main__":
     main()

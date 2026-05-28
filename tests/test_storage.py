@@ -1,8 +1,23 @@
 from datetime import date
 
+import pytest
+
 from warn_v2.db.models import Company, Location, Notice
+from warn_v2.geo import zip_centroids
 from warn_v2.pipeline.storage import upsert_notices
 from warn_v2.scrapers.base import NoticeRow
+
+
+@pytest.fixture(autouse=True)
+def _seed_centroids():
+    """Make ZIP centroid lookups deterministic across this test module."""
+    zip_centroids.reload_for_testing({
+        "94607": (37.7944, -122.2724),  # Oakland CA
+        "94089": (37.4030, -122.0146),  # Sunnyvale CA
+        "10001": (40.7506, -73.9971),   # NYC
+    })
+    yield
+    zip_centroids._cache = None  # type: ignore[attr-defined]
 
 
 def _row(**kw) -> NoticeRow:
@@ -121,6 +136,38 @@ def test_location_zip_merged_in_place(db) -> None:
     loc = db.query(Location).one()
     assert loc.id == loc_id
     assert loc.zip == "94607"
+
+
+def test_new_location_gets_lat_lon_from_zip(db) -> None:
+    """A brand-new Location with a known ZIP should get its centroid filled in."""
+    upsert_notices(db, [_row(city="Oakland", zip="94607")])
+    db.commit()
+    loc = db.query(Location).filter(Location.zip == "94607").one()
+    assert loc.lat is not None
+    assert loc.lon is not None
+    assert float(loc.lat) == pytest.approx(37.79, abs=0.01)
+    assert float(loc.lon) == pytest.approx(-122.27, abs=0.01)
+
+
+def test_unknown_zip_leaves_lat_lon_null(db) -> None:
+    """A ZIP not in the centroid table should still create the row, with NULL coords."""
+    upsert_notices(db, [_row(city="Mars City", zip="99999")])
+    db.commit()
+    loc = db.query(Location).filter(Location.zip == "99999").one()
+    assert loc.lat is None
+    assert loc.lon is None
+
+
+def test_zip_promotion_fills_lat_lon(db) -> None:
+    """When a zip-less row is upgraded with a real ZIP, its lat/lon are populated."""
+    db.add(Location(state="CA", city="Sunnyvale", zip=None))
+    db.commit()
+
+    upsert_notices(db, [_row(city="Sunnyvale", zip="94089")])
+    db.commit()
+
+    loc = db.query(Location).filter(Location.zip == "94089").one()
+    assert float(loc.lat) == pytest.approx(37.40, abs=0.01)
 
 
 def test_location_zip_merge_skipped_when_ambiguous(db) -> None:

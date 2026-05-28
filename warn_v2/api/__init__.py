@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from prometheus_client import make_asgi_app
 
-from warn_v2.api.routes import companies, notices, runs
+from warn_v2.api.routes import companies, notices, runs, stats
 from warn_v2.observability.metrics import enrichment_backlog
 
 log = logging.getLogger(__name__)
@@ -56,6 +56,19 @@ def create_app() -> FastAPI:
     app.include_router(notices.router)
     app.include_router(companies.router)
     app.include_router(runs.router)
+    app.include_router(stats.router)
+
+    # --- SPA static assets (mounted LAST so API routes take precedence) ---
+    # In dev (no built bundle) the directory won't exist; skip silently.
+    from pathlib import Path
+
+    from fastapi.staticfiles import StaticFiles
+
+    static_dir = Path(__file__).parent / "static"
+    if static_dir.exists():
+        # html=True makes /any/path that isn't a file fall back to index.html
+        # (so client-side routing in React works on direct URL visits).
+        app.mount("/", StaticFiles(directory=static_dir, html=True), name="ui")
 
     return app
 
