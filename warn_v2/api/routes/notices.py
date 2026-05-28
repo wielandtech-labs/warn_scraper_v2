@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from warn_v2.api.deps import PaginationParams, get_db
 from warn_v2.api.schemas import NoticeOut, Page
-from warn_v2.db.models import Notice
+from warn_v2.db.models import Location, Notice
 
 router = APIRouter(prefix="/notices", tags=["notices"])
 
@@ -20,6 +20,7 @@ def list_notices(
     employer: str | None = Query(None, description="Employer name (case-insensitive substring)"),
     after: date | None = Query(None, description="Only notices on or after this date"),
     before: date | None = Query(None, description="Only notices on or before this date"),
+    geocoded_only: bool = Query(False, description="Only return notices with latitude/longitude"),
     pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ) -> Page[NoticeOut]:
@@ -43,6 +44,14 @@ def list_notices(
     if before:
         stmt = stmt.where(Notice.notice_date <= before)
         count_stmt = count_stmt.where(Notice.notice_date <= before)
+    if geocoded_only:
+        # Join to locations and require non-null lat/lon.
+        stmt = stmt.join(Location, Notice.location_id == Location.id).where(
+            Location.lat.is_not(None), Location.lon.is_not(None)
+        )
+        count_stmt = count_stmt.join(Location, Notice.location_id == Location.id).where(
+            Location.lat.is_not(None), Location.lon.is_not(None)
+        )
 
     total = db.scalar(count_stmt) or 0
     items = list(db.scalars(stmt.offset(pagination.offset).limit(pagination.limit)))

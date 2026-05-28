@@ -48,6 +48,7 @@ export interface NoticesQuery {
   employer?: string;
   after?: string;
   before?: string;
+  geocoded_only?: boolean;
   limit?: number;
   offset?: number;
 }

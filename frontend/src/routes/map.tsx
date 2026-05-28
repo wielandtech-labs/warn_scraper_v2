@@ -25,7 +25,8 @@ export function MapPage() {
   const navigate = useNavigate({ from: "/map" });
   const search = useSearch({ from: "/map" });
 
-  // Pull a large batch — the map needs as many as the API will give us.
+  // Pull a large batch of geocoded-only notices — the API pre-filters so every
+  // item in the response has valid lat/lon, letting us show up to the limit cap.
   const query = useQuery({
     queryKey: ["map", search],
     queryFn: () =>
@@ -33,6 +34,7 @@ export function MapPage() {
         state: search.state,
         after: search.after,
         before: search.before,
+        geocoded_only: true,
         limit: 500,
       }),
   });
@@ -92,8 +94,7 @@ export function MapPage() {
       </div>
 
       <div className="mt-2 text-xs text-slate-500">
-        Showing {points.length} geocoded of {query.data?.items.length ?? 0} fetched
-        {" "}(of {fmtNum(query.data?.total ?? 0)} total notices).
+        Showing {fmtNum(points.length)} of {fmtNum(query.data?.total ?? 0)} geocoded notices.
       </div>
     </div>
   );
