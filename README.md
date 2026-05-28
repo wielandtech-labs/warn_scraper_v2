@@ -29,10 +29,15 @@ uv run python -m pytest
 uv run warn-v2 scrape --state CA
 
 # Self-heal agent (requires ANTHROPIC_API_KEY)
-uv sync --extra dev --extra heal
 uv run warn-v2 heal --state IA          # heal one broken state
 uv run warn-v2 heal --all               # heal every state with a recent DB failure
 uv run warn-v2 heal --all --dry-run     # rehearse without opening PRs
+
+# Enrichment agent (requires ANTHROPIC_API_KEY)
+uv run warn-v2 enrich                   # enrich up to 50 unenriched companies
+uv run warn-v2 enrich --state CA        # only companies from CA notices
+uv run warn-v2 enrich --rerun-below 0.7 # re-enrich low-confidence rows
+uv run warn-v2 enrich --dry-run         # run agent but don't write to DB
 ```
 
 ### Note on local testing under Windows Smart App Control
@@ -66,10 +71,10 @@ install WSL2 (`wsl --install`), or build and `docker run` the image.
 
 - [x] Phase 0 — scaffold + first state (CA)
 - [x] Phase 1 — 5 representative states (CA, TX, NY, FL, WA)
-- [x] Phase 2 — self-heal agent (**261 tests** as of 2026-05-27)
+- [x] Phase 2 — self-heal agent (**293 tests** as of 2026-05-28)
 - [x] Phase 3 — bulk-port remaining states (46 jurisdictions)
 - [x] **Production deployment live** (K3s via Flux, CloudNativePG, 2026-05-26)
-- [ ] Phase 4 — enrichment agent
+- [x] Phase 4 — enrichment agent (Claude + web search, runs every 6 h)
 - [ ] Phase 5 — API + Grafana + AlertManager
 
 ### Production deployment (as of 2026-05-26)
@@ -86,7 +91,7 @@ The scraper runs in a K3s homelab cluster managed by Flux GitOps (see
   app uses `postgres-cluster-rw.database.svc.cluster.local:5432/warn_v2`
 - **Alembic**: initial migration (`revision a1b2c3d4e5f6`) ran 2026-05-26;
   all four tables live (`locations`, `companies`, `notices`, `scraper_runs`)
-- **CronJob**: `warn-v2-warn-v2-scraper` runs daily at 07:17 (`scrape-all`)
+- **CronJobs**: `warn-v2-warn-v2-scraper` runs daily at 07:17 (`scrape-all`); `warn-v2-warn-v2-enricher` runs every 6 h at `:23` (`enrich`, 50 companies/run, 30 s between companies)
 - **Snapshots PVC**: `synostorage-iscsi-retain`, 10 Gi, mounted at `/var/snapshots`
 
 **Secrets in `warn-v2` namespace** (all SealedSecrets, reconciled by Flux):
