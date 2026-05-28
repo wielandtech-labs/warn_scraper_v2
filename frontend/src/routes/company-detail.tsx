@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 
@@ -105,7 +106,7 @@ export function CompanyDetail() {
   );
 }
 
-function Item({ label, value }: { label: string; value: React.ReactNode }) {
+function Item({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
       <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
