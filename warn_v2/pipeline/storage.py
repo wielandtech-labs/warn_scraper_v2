@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from warn_v2.db.models import Company, Location, Notice
-from warn_v2.geo.zip_centroids import lookup_decimal as _zip_centroid
+from warn_v2.geo.geocoder import geocode as _geocode
 from warn_v2.pipeline.dedup import notice_id
 from warn_v2.scrapers.base import NoticeRow
 
@@ -145,9 +145,9 @@ def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None
     if exact is not None:
         if row.county and not exact.county:
             exact.county = row.county
-        # Backfill lat/lon from ZIP centroid if missing.
-        if exact.zip and exact.lat is None and exact.lon is None:
-            pair = _zip_centroid(exact.zip)
+        # Backfill lat/lon if missing — try address first, ZIP centroid fallback.
+        if exact.lat is None and exact.lon is None:
+            pair = _geocode(row.address, row.city, row.state, exact.zip)
             if pair is not None:
                 exact.lat, exact.lon = pair
         return exact
@@ -167,7 +167,7 @@ def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None
             if row.county and not loc.county:
                 loc.county = row.county
             if loc.lat is None and loc.lon is None:
-                pair = _zip_centroid(incoming_zip)
+                pair = _geocode(row.address, row.city, row.state, incoming_zip)
                 if pair is not None:
                     loc.lat, loc.lon = pair
             session.flush()
@@ -175,10 +175,9 @@ def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None
 
     # 3. fall through to insert
     lat, lon = (None, None)
-    if incoming_zip:
-        pair = _zip_centroid(incoming_zip)
-        if pair is not None:
-            lat, lon = pair
+    pair = _geocode(row.address, row.city, row.state, incoming_zip)
+    if pair is not None:
+        lat, lon = pair
     loc = Location(
         state=state,
         city=row.city,
