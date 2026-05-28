@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-feature-settings: "cv11", "ss01";
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-sm font-medium shadow-sm transition-colors;
+  }
+  .btn-primary {
+    @apply btn border-sky-700 bg-sky-700 text-white hover:bg-sky-600;
+  }
+  .btn-secondary {
+    @apply btn border-slate-300 bg-white text-slate-700 hover:bg-slate-100;
+  }
+  .card {
+    @apply rounded-lg border border-slate-200 bg-white p-5 shadow-sm;
+  }
+  .badge {
+    @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+  }
+  .badge-green {
+    @apply badge bg-green-100 text-green-800;
+  }
+  .badge-amber {
+    @apply badge bg-amber-100 text-amber-800;
+  }
+  .badge-slate {
+    @apply badge bg-slate-100 text-slate-700;
+  }
+}
+
+/* Leaflet's default CSS expects the icon images to be in /node_modules,
+   which Vite serves. The marker-cluster CSS is imported in MapView. */
+@import "leaflet/dist/leaflet.css";
+@import "leaflet.markercluster/dist/MarkerCluster.css";
+@import "leaflet.markercluster/dist/MarkerCluster.Default.css";

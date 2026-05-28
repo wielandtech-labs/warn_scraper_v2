@@ -47,8 +47,13 @@ api:
   service:
     port: 8000
   ingress:
-    enabled: false  # flip on once auth story is decided
+    enabled: false   # flip on in HelmRelease to expose externally
+    className: traefik
     host: warn.lab.wielandtech.com
+    tls: true        # provisions a cert-manager Certificate when annotations include cluster-issuer
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
   resources:
     requests: { cpu: 50m, memory: 128Mi }
     limits:   { cpu: 500m, memory: 256Mi }
