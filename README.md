@@ -71,11 +71,11 @@ install WSL2 (`wsl --install`), or build and `docker run` the image.
 
 - [x] Phase 0 — scaffold + first state (CA)
 - [x] Phase 1 — 5 representative states (CA, TX, NY, FL, WA)
-- [x] Phase 2 — self-heal agent (**293 tests** as of 2026-05-28)
+- [x] Phase 2 — self-heal agent (**313 tests** as of 2026-05-28)
 - [x] Phase 3 — bulk-port remaining states (46 jurisdictions)
 - [x] **Production deployment live** (K3s via Flux, CloudNativePG, 2026-05-26)
 - [x] Phase 4 — enrichment agent (Claude + web search, runs every 6 h)
-- [ ] Phase 5 — API + Grafana + AlertManager
+- [x] Phase 5 — API + Grafana + AlertManager
 
 ### Production deployment (as of 2026-05-26)
 
