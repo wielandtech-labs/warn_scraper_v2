@@ -52,11 +52,11 @@ def create_app() -> FastAPI:
     # --- Prometheus metrics endpoint ---
     app.mount("/metrics", make_asgi_app())
 
-    # --- domain routes ---
-    app.include_router(notices.router)
-    app.include_router(companies.router)
-    app.include_router(runs.router)
-    app.include_router(stats.router)
+    # --- domain routes (all under /api so they don't shadow SPA paths) ---
+    app.include_router(notices.router, prefix="/api")
+    app.include_router(companies.router, prefix="/api")
+    app.include_router(runs.router, prefix="/api")
+    app.include_router(stats.router, prefix="/api")
 
     # --- SPA static assets (mounted LAST so API routes take precedence) ---
     # In dev (no built bundle) the directory won't exist; skip silently.

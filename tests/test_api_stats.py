@@ -53,7 +53,7 @@ def _notice(
 
 def test_by_state_empty(api_client, db):
     db.commit()
-    resp = api_client.get("/stats/by-state")
+    resp = api_client.get("/api/stats/by-state")
     assert resp.status_code == 200
     assert resp.json() == []
 
@@ -64,7 +64,7 @@ def test_by_state_aggregates(api_client, db):
     _notice(db, state="TX", employer="Lone Star", notice_date=date(2026, 1, 15), layoff_count=50)
     db.commit()
 
-    resp = api_client.get("/stats/by-state")
+    resp = api_client.get("/api/stats/by-state")
     body = resp.json()
     assert len(body) == 2
     ca = next(r for r in body if r["state"] == "CA")
@@ -80,7 +80,7 @@ def test_by_state_date_filter(api_client, db):
     _notice(db, state="CA", employer="New", notice_date=date(2026, 6, 1), layoff_count=20)
     db.commit()
 
-    resp = api_client.get("/stats/by-state?after=2026-01-01")
+    resp = api_client.get("/api/stats/by-state?after=2026-01-01")
     body = resp.json()
     assert len(body) == 1
     assert body[0]["notice_count"] == 1
@@ -97,7 +97,7 @@ def test_by_month_aggregates(api_client, db):
     _notice(db, state="CA", employer="C", notice_date=date(2026, 2, 1), layoff_count=40)
     db.commit()
 
-    resp = api_client.get("/stats/by-month")
+    resp = api_client.get("/api/stats/by-month")
     body = resp.json()
     months = {r["month"]: r for r in body}
     assert months["2026-01"]["notice_count"] == 2
@@ -111,7 +111,7 @@ def test_by_month_state_filter(api_client, db):
     _notice(db, state="TX", employer="B", notice_date=date(2026, 1, 6), layoff_count=20)
     db.commit()
 
-    resp = api_client.get("/stats/by-month?state=CA")
+    resp = api_client.get("/api/stats/by-month?state=CA")
     body = resp.json()
     assert len(body) == 1
     assert body[0]["layoff_total"] == 10
@@ -129,7 +129,7 @@ def test_by_month_skips_null_dates(api_client, db):
     db.add(n)
     db.commit()
 
-    resp = api_client.get("/stats/by-month")
+    resp = api_client.get("/api/stats/by-month")
     body = resp.json()
     assert all(r["month"] is not None for r in body)
     assert len(body) == 1
@@ -154,7 +154,7 @@ def test_top_employers_sorted_desc(api_client, db):
             layoff_count=20, company_id=c2.id)
     db.commit()
 
-    resp = api_client.get("/stats/top-employers")
+    resp = api_client.get("/api/stats/top-employers")
     body = resp.json()
     assert body[0]["employer"] == "Big Co"
     assert body[0]["layoff_total"] == 1500
@@ -169,7 +169,7 @@ def test_top_employers_limit(api_client, db):
                 layoff_count=10 * (i + 1))
     db.commit()
 
-    resp = api_client.get("/stats/top-employers?limit=3")
+    resp = api_client.get("/api/stats/top-employers?limit=3")
     body = resp.json()
     assert len(body) == 3
 
@@ -179,7 +179,7 @@ def test_top_employers_state_filter(api_client, db):
     _notice(db, state="TX", employer="Tex", notice_date=date(2026, 1, 1), layoff_count=200)
     db.commit()
 
-    resp = api_client.get("/stats/top-employers?state=CA")
+    resp = api_client.get("/api/stats/top-employers?state=CA")
     body = resp.json()
     assert len(body) == 1
     assert body[0]["employer"] == "Cali"

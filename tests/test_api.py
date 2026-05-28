@@ -88,7 +88,7 @@ def test_healthz(api_client):
 
 def test_notices_empty(api_client, db):
     db.commit()
-    resp = api_client.get("/notices")
+    resp = api_client.get("/api/notices")
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 0
@@ -100,7 +100,7 @@ def test_notices_returns_data(api_client, db):
     _notice(db, state="TX", employer="Texas Co", notice_date=date(2026, 2, 1))
     db.commit()
 
-    resp = api_client.get("/notices")
+    resp = api_client.get("/api/notices")
     assert resp.status_code == 200
     assert resp.json()["total"] == 2
 
@@ -110,7 +110,7 @@ def test_notices_state_filter(api_client, db):
     _notice(db, state="TX", employer="Texas Co", notice_date=date(2026, 2, 1))
     db.commit()
 
-    resp = api_client.get("/notices?state=CA")
+    resp = api_client.get("/api/notices?state=CA")
     body = resp.json()
     assert body["total"] == 1
     assert body["items"][0]["state"] == "CA"
@@ -121,7 +121,7 @@ def test_notices_employer_filter_ilike(api_client, db):
     _notice(db, employer="Other Corp", notice_date=date(2026, 2, 1))
     db.commit()
 
-    resp = api_client.get("/notices?employer=acme")
+    resp = api_client.get("/api/notices?employer=acme")
     body = resp.json()
     assert body["total"] == 1
     assert "Acme" in body["items"][0]["employer"]
@@ -132,7 +132,7 @@ def test_notices_pagination(api_client, db):
         _notice(db, employer=f"Corp {i}", notice_date=date(2026, 1, i + 1))
     db.commit()
 
-    resp = api_client.get("/notices?limit=2&offset=0")
+    resp = api_client.get("/api/notices?limit=2&offset=0")
     body = resp.json()
     assert body["total"] == 5
     assert len(body["items"]) == 2
@@ -145,7 +145,7 @@ def test_notices_date_filter(api_client, db):
     _notice(db, employer="Late Corp", notice_date=date(2026, 6, 1))
     db.commit()
 
-    resp = api_client.get("/notices?after=2026-03-01")
+    resp = api_client.get("/api/notices?after=2026-03-01")
     body = resp.json()
     assert body["total"] == 1
     assert body["items"][0]["employer"] == "Late Corp"
@@ -156,7 +156,7 @@ def test_notice_detail_found(api_client, db):
     n = _notice(db, company=c)
     db.commit()
 
-    resp = api_client.get(f"/notices/{n.notice_id}")
+    resp = api_client.get(f"/api/notices/{n.notice_id}")
     assert resp.status_code == 200
     body = resp.json()
     assert body["notice_id"] == n.notice_id
@@ -165,7 +165,7 @@ def test_notice_detail_found(api_client, db):
 
 def test_notice_detail_not_found(api_client, db):
     db.commit()
-    resp = api_client.get("/notices/does-not-exist")
+    resp = api_client.get("/api/notices/does-not-exist")
     assert resp.status_code == 404
 
 
@@ -175,7 +175,7 @@ def test_notice_detail_not_found(api_client, db):
 
 def test_companies_empty(api_client, db):
     db.commit()
-    resp = api_client.get("/companies")
+    resp = api_client.get("/api/companies")
     assert resp.status_code == 200
     assert resp.json()["total"] == 0
 
@@ -185,7 +185,7 @@ def test_companies_list(api_client, db):
     _company(db, name="Beta Corp")
     db.commit()
 
-    resp = api_client.get("/companies")
+    resp = api_client.get("/api/companies")
     assert resp.json()["total"] == 2
 
 
@@ -199,7 +199,7 @@ def test_companies_enriched_filter_false(api_client, db):
     )
     db.commit()
 
-    resp = api_client.get("/companies?enriched=false")
+    resp = api_client.get("/api/companies?enriched=false")
     body = resp.json()
     assert body["total"] == 1
     assert body["items"][0]["name"] == "Unenriched"
@@ -215,7 +215,7 @@ def test_companies_enriched_filter_true(api_client, db):
     )
     db.commit()
 
-    resp = api_client.get("/companies?enriched=true")
+    resp = api_client.get("/api/companies?enriched=true")
     body = resp.json()
     assert body["total"] == 1
     assert body["items"][0]["name"] == "Enriched"
@@ -225,14 +225,14 @@ def test_company_detail_found(api_client, db):
     c = _company(db)
     db.commit()
 
-    resp = api_client.get(f"/companies/{c.id}")
+    resp = api_client.get(f"/api/companies/{c.id}")
     assert resp.status_code == 200
     assert resp.json()["name"] == c.name
 
 
 def test_company_detail_not_found(api_client, db):
     db.commit()
-    resp = api_client.get("/companies/99999")
+    resp = api_client.get("/api/companies/99999")
     assert resp.status_code == 404
 
 
@@ -242,7 +242,7 @@ def test_company_notices(api_client, db):
     _notice(db, company=c, notice_date=date(2026, 3, 1), employer="Acme Inc")
     db.commit()
 
-    resp = api_client.get(f"/companies/{c.id}/notices")
+    resp = api_client.get(f"/api/companies/{c.id}/notices")
     assert resp.status_code == 200
     assert resp.json()["total"] == 2
 
@@ -253,7 +253,7 @@ def test_company_notices(api_client, db):
 
 def test_scraper_runs_empty(api_client, db):
     db.commit()
-    resp = api_client.get("/scraper-runs")
+    resp = api_client.get("/api/scraper-runs")
     assert resp.status_code == 200
     assert resp.json()["total"] == 0
 
@@ -263,7 +263,7 @@ def test_scraper_runs_list(api_client, db):
     _run(db, state="TX", status="parse_failed")
     db.commit()
 
-    resp = api_client.get("/scraper-runs")
+    resp = api_client.get("/api/scraper-runs")
     assert resp.json()["total"] == 2
 
 
@@ -272,7 +272,7 @@ def test_scraper_runs_status_filter(api_client, db):
     _run(db, state="TX", status="parse_failed")
     db.commit()
 
-    resp = api_client.get("/scraper-runs?status=ok")
+    resp = api_client.get("/api/scraper-runs?status=ok")
     body = resp.json()
     assert body["total"] == 1
     assert body["items"][0]["status"] == "ok"
@@ -283,7 +283,7 @@ def test_scraper_runs_state_filter(api_client, db):
     _run(db, state="TX", status="ok")
     db.commit()
 
-    resp = api_client.get("/scraper-runs?state=TX")
+    resp = api_client.get("/api/scraper-runs?state=TX")
     body = resp.json()
     assert body["total"] == 1
     assert body["items"][0]["state"] == "TX"

@@ -4,11 +4,9 @@ import react from "@vitejs/plugin-react";
 // Backend paths that should be proxied to the FastAPI dev server during
 // `npm run dev`. In prod, the SPA is served by the same FastAPI process
 // (via StaticFiles), so no proxy is needed.
+// All domain API routes live under /api to avoid shadowing SPA paths.
 const API_PATHS = [
-  "/notices",
-  "/companies",
-  "/scraper-runs",
-  "/stats",
+  "/api",
   "/healthz",
   "/metrics",
   "/docs",

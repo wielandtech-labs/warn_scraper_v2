@@ -54,9 +54,9 @@ export interface NoticesQuery {
 
 export const api = {
   listNotices: (q: NoticesQuery = {}) =>
-    get<Page<NoticeOut>>("/notices" + qs(q as Record<string, string | number | undefined>)),
+    get<Page<NoticeOut>>("/api/notices" + qs(q as Record<string, string | number | undefined>)),
   getNotice: (id: string) =>
-    get<NoticeOut>(`/notices/${encodeURIComponent(id)}`),
+    get<NoticeOut>(`/api/notices/${encodeURIComponent(id)}`),
 
   // ---------- Companies ----------
   listCompanies: (q: {
@@ -66,7 +66,7 @@ export const api = {
     offset?: number;
   } = {}) =>
     get<Page<CompanyOut>>(
-      "/companies" +
+      "/api/companies" +
         qs({
           enriched: q.enriched === undefined ? undefined : String(q.enriched),
           sic_code: q.sic_code,
@@ -74,20 +74,20 @@ export const api = {
           offset: q.offset,
         }),
     ),
-  getCompany: (id: number) => get<CompanyOut>(`/companies/${id}`),
+  getCompany: (id: number) => get<CompanyOut>(`/api/companies/${id}`),
   listCompanyNotices: (id: number, q: { limit?: number; offset?: number } = {}) =>
-    get<Page<NoticeOut>>(`/companies/${id}/notices` + qs(q)),
+    get<Page<NoticeOut>>(`/api/companies/${id}/notices` + qs(q)),
 
   // ---------- Scraper runs ----------
   listRuns: (q: { state?: string; status?: string; limit?: number; offset?: number } = {}) =>
-    get<Page<ScraperRunOut>>("/scraper-runs" + qs(q)),
+    get<Page<ScraperRunOut>>("/api/scraper-runs" + qs(q)),
 
   // ---------- Stats ----------
   statsByState: (q: { after?: string; before?: string } = {}) =>
-    get<StateStat[]>("/stats/by-state" + qs(q)),
+    get<StateStat[]>("/api/stats/by-state" + qs(q)),
   statsByMonth: (q: { state?: string; after?: string; before?: string } = {}) =>
-    get<MonthStat[]>("/stats/by-month" + qs(q)),
+    get<MonthStat[]>("/api/stats/by-month" + qs(q)),
   statsTopEmployers: (
     q: { limit?: number; state?: string; after?: string; before?: string } = {},
-  ) => get<EmployerStat[]>("/stats/top-employers" + qs(q)),
+  ) => get<EmployerStat[]>("/api/stats/top-employers" + qs(q)),
 };
