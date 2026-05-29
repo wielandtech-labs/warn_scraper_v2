@@ -73,7 +73,7 @@ def _fetch_osha_page(sic_code: str) -> tuple[str, str] | None:
         soup = BeautifulSoup(resp.content, "lxml")
         # OSHA pages include NAICS equivalent in the body text: "NAICS: 333249"
         text = soup.get_text(" ")
-        m = re.search(r"NAICS[:\s]+(\d{6})\s*[-–—]?\s*([^\n\r]+)", text)
+        m = re.search(r"NAICS[:\s]+(\d{6})\s*[--—]?\s*([^\n\r]+)", text)
         if m:
             return m.group(1).strip(), m.group(2).strip()[:120]
         return None

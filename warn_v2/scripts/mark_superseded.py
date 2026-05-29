@@ -173,7 +173,7 @@ def mark_superseded(
                 blocked_states.append(st)
 
         # Process allowed states
-        for sup_id, can_id, state, desc in pairs:
+        for sup_id, _can_id, state, desc in pairs:
             if state in blocked_states:
                 stats["skipped"] += 1
                 log.debug("SKIP %s", desc)

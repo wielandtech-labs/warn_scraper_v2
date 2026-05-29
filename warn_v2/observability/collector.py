@@ -30,7 +30,7 @@ class WarnCollector(Collector):
         # Return empty list so prometheus_client doesn't pre-check for conflicts.
         return []
 
-    def collect(self):  # noqa: ANN201
+    def collect(self):
         try:
             yield from self._collect()
         except Exception:

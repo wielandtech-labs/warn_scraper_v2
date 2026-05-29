@@ -73,7 +73,7 @@ def _census_geocode(
             log.debug("Census geocoded %r → (%.4f, %.4f)", street, lat, lon)
             return lat, lon
         log.debug("Census geocoder: no match for %r %s %s %s", street, city, state, zip_code)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         log.debug("Census geocoder error for %r: %s", street, exc)
     return None
 

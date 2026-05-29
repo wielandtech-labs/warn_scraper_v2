@@ -35,7 +35,7 @@ Call finalize as soon as you have enough evidence — do not keep searching.
 Steps:
 1. web_search the company name + state.
 2. Optionally fetch_url one candidate page to confirm it is the right company.
-3. Call finalize with the website (or null if not found), confidence 0.0–1.0,
+3. Call finalize with the website (or null if not found), confidence 0.0-1.0,
    and any DUNS you found in a public source (never guess).
 
 Do not call finalize if confidence < 0.4. If nothing is found, finalize with

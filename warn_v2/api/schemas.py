@@ -76,7 +76,7 @@ class MapPinOut(BaseModel):
     """Lightweight notice projection used exclusively by the map endpoint.
 
     Contains only the 7 fields the map popup actually renders, keeping the
-    response ~7× smaller than a full NoticeOut so all geocoded notices can
+    response ~7x smaller than a full NoticeOut so all geocoded notices can
     be returned in a single fetch without hitting payload size concerns.
     """
 

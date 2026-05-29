@@ -1,7 +1,7 @@
 """Prometheus metrics. Imported by the API and the runner CLI."""
 from __future__ import annotations
 
-from prometheus_client import Counter, Gauge, Histogram
+from prometheus_client import Counter, Histogram
 
 scrape_attempts = Counter(
     "warn_scrape_attempts_total",

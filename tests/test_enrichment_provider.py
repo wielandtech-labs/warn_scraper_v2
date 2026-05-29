@@ -3,12 +3,10 @@ from __future__ import annotations
 
 import sys
 import types
-from unittest.mock import MagicMock
 
 import pytest
 
 from warn_v2.enrichment.provider import EnrichmentProvider, ProviderResult, load_provider
-
 
 # ---------------------------------------------------------------------------
 # load_provider tests
@@ -27,7 +25,7 @@ def test_load_provider_returns_none_when_empty(monkeypatch):
 
 def test_load_provider_raises_on_missing_colon(monkeypatch):
     monkeypatch.setenv("ENRICHMENT_PROVIDER_MODULE", "mypackage.module")
-    with pytest.raises(ValueError, match="pkg.module:ClassName"):
+    with pytest.raises(ValueError, match=r"pkg\.module:ClassName"):
         load_provider()
 
 

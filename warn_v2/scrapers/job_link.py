@@ -196,7 +196,7 @@ def _parse_detail(html: str | bytes) -> tuple[str | None, int | None]:
     if dl is None:
         return None, None
     labels: dict[str, str] = {}
-    for h3, p in zip(dl.find_all("h3"), dl.find_all("p")):
+    for h3, p in zip(dl.find_all("h3"), dl.find_all("p"), strict=False):
         key = h3.get_text(strip=True).lower()
         labels[key] = p.get_text(separator=" ", strip=True)
     address = labels.get("address") or None

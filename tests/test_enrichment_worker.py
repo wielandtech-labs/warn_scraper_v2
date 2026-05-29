@@ -240,7 +240,6 @@ def test_enrich_batch_rerun_below(db, monkeypatch) -> None:
 
 def test_find_pending_recent_years(db) -> None:
     """recent_years only returns companies with notices in the last N years."""
-    from datetime import timedelta
     recent_co = _company(db, name="Recent Corp")
     old_co = _company(db, name="Old Corp")
     db.flush()

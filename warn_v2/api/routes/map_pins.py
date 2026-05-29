@@ -5,7 +5,7 @@ routing conflict with the parametric /api/notices/{notice_id} route.
 
 It intentionally returns a plain list (no pagination wrapper) and projects
 only the 7 fields the map popup renders — employer, state, notice_date,
-layoff_count, lat, lon — keeping each record ~7× smaller than a full
+layoff_count, lat, lon — keeping each record ~7x smaller than a full
 NoticeOut. This lets the map fetch every geocoded notice in the selected
 time frame in a single request instead of being capped at the 500-item
 limit that applies to the general /notices endpoint.

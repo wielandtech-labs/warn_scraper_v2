@@ -48,7 +48,9 @@ def fetch() -> dict[str, str]:
 
     log.info("Parsed %d SIC descriptions", len(result))
     if len(result) < 400:
-        raise RuntimeError(f"Expected ≥400 SIC codes, got {len(result)} — page format may have changed")
+        raise RuntimeError(
+            f"Expected >=400 SIC codes, got {len(result)} -- page format may have changed"
+        )
     return result
 
 
