@@ -43,7 +43,8 @@ TOOL_DEFS: list[dict] = [
     {
         "type": "web_search_20250305",
         "name": "web_search",
-        "max_results": 3,   # default is 5; fewer results = fewer tokens per search
+        # Note: max_results is NOT a valid field for this tool type — the API
+        # rejects it. Result count is controlled by the system prompt budget instead.
     },
     {
         "name": "fetch_url",
