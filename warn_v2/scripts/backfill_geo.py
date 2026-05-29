@@ -35,6 +35,7 @@ def backfill(
     *,
     dry_run: bool = False,
     rerun_address: bool = False,
+    state_filter: str | None = None,
     batch_size: int = 100,
 ) -> dict[str, int]:
     """Run the backfill; returns a stats dict.
@@ -63,15 +64,20 @@ def backfill(
                 Notice.address != "",
             )
             stmt = select(Location).where(has_address)
+            if state_filter:
+                stmt = stmt.where(Location.state == state_filter.upper())
             log.info(
-                "Mode: --rerun-address — re-geocoding all locations "
-                "linked to a notice with a street address"
+                "Mode: --rerun-address — re-geocoding locations "
+                "linked to a notice with a street address%s",
+                f" (state={state_filter.upper()})" if state_filter else "",
             )
         else:
             # Default: only locations missing coordinates.
             stmt = select(Location).where(
                 or_(Location.lat.is_(None), Location.lon.is_(None)),
             )
+            if state_filter:
+                stmt = stmt.where(Location.state == state_filter.upper())
 
         results = session.scalars(stmt).all()
         stats["considered"] = len(results)

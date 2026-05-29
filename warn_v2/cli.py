@@ -330,7 +330,8 @@ def mark_superseded_cmd(dry_run: bool, state: str | None, force: bool) -> None:
         "linked notice with a street address (ZIP/city centroid → Census accuracy)"
     ),
 )
-def backfill_geo(dry_run: bool, rerun_address: bool) -> None:
+@click.option("--state", default=None, help="Limit to one state abbreviation, e.g. AZ")
+def backfill_geo(dry_run: bool, rerun_address: bool, state: str | None) -> None:
     """Populate locations.lat/lon using address geocoding + ZIP centroid fallback.
 
     By default only targets locations where coordinates are NULL.
@@ -345,7 +346,7 @@ def backfill_geo(dry_run: bool, rerun_address: bool) -> None:
     """
     from warn_v2.scripts.backfill_geo import backfill
 
-    stats = backfill(dry_run=dry_run, rerun_address=rerun_address)
+    stats = backfill(dry_run=dry_run, rerun_address=rerun_address, state_filter=state)
     suffix = " (dry run — nothing written)" if dry_run else ""
     click.echo(
         f"considered={stats['considered']} "
