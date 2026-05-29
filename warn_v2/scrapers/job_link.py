@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from datetime import datetime
 from typing import ClassVar
 
@@ -111,6 +112,8 @@ class JobLinkScraper:
                         detail_urls.append(full)
 
         # Fetch each detail page; best-effort (failures silently omitted).
+        # A short inter-request delay avoids 429 rate-limiting from the
+        # JobLink platform, which throttles rapid sequential requests.
         details: dict[str, str] = {}
         for url in detail_urls:
             try:
@@ -119,6 +122,7 @@ class JobLinkScraper:
                 details[url] = dr.text
             except httpx.HTTPError as exc:
                 log.warning("%s: detail fetch failed: %s", url, exc)
+            time.sleep(0.5)
 
         return json.dumps({"search_html": r.text, "details": details}).encode()
 
