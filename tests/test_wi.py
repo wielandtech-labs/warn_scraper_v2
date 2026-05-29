@@ -74,6 +74,18 @@ def test_wi_extra_fields(wi_sample_json: bytes) -> None:
     assert milk.extra.get("notice_type_code") == "WR"
 
 
+def test_wi_has_updates_populated(wi_sample_json: bytes) -> None:
+    """Notices flagged HasUpdates='Y' in the sheet carry has_updates in extra."""
+    scraper = get_scraper("WI")
+    rows = scraper.parse(wi_sample_json)
+    with_flag = [r for r in rows if r.extra.get("has_updates")]
+    without_flag = [r for r in rows if not r.extra.get("has_updates")]
+    # Fixture contains both amended and un-amended notices.
+    assert with_flag, "expected at least one notice with has_updates='Y'"
+    assert without_flag, "expected at least one notice without has_updates"
+    assert all(r.extra["has_updates"] == "Y" for r in with_flag)
+
+
 def test_wi_effective_date(wi_sample_json: bytes) -> None:
     scraper = get_scraper("WI")
     rows = scraper.parse(wi_sample_json)

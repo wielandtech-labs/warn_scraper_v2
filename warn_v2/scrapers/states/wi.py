@@ -135,6 +135,16 @@ class WIScraper:
             # Map abbreviated codes to human-readable closure type
             closure_type = as_str(notice_type) or None
 
+            extra: dict[str, str] = {
+                "wda": _cell(raw_row, "WDA"),
+                "naics_description": _cell(raw_row, "NAICSDescription"),
+                "notice_type_code": notice_type,
+            }
+            # "Y" when a WI notice has had at least one amendment filed.
+            has_updates = _cell(raw_row, "HasUpdates")
+            if has_updates:
+                extra["has_updates"] = has_updates
+
             rows.append(
                 NoticeRow(
                     state="WI",
@@ -147,11 +157,7 @@ class WIScraper:
                     closure_type=closure_type,
                     raw_notice_url=notice_url,
                     source_url=_SOURCE_URL,
-                    extra={
-                        "wda": _cell(raw_row, "WDA"),
-                        "naics_description": _cell(raw_row, "NAICSDescription"),
-                        "notice_type_code": notice_type,
-                    },
+                    extra=extra,
                 )
             )
         return rows

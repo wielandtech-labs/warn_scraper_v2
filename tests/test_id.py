@@ -63,6 +63,22 @@ def test_id_validation_passes(id_sample_pdf: bytes) -> None:
     assert result.ok, result.reason
 
 
+def test_id_updates_column_in_extra(id_sample_pdf: bytes) -> None:
+    """The 'Updates' column is stored in extra and includes revision history."""
+    scraper = get_scraper("ID")
+    rows = scraper.parse(id_sample_pdf)
+    with_updates = [r for r in rows if r.extra.get("updates")]
+    assert with_updates, "expected at least some rows to have an updates field"
+    # All updates values contain "received" or "revised" (date-history entries).
+    assert all(
+        "received" in r.extra["updates"] or "revised" in r.extra["updates"]
+        for r in with_updates
+    ), "updates should contain 'received' or 'revised'"
+    # At least one row has a revision history (contains "revised").
+    revised = [r for r in with_updates if "revised" in r.extra["updates"]]
+    assert revised, "expected at least one row with a revision in updates"
+
+
 def test_id_raises_on_bad_pdf() -> None:
     scraper = get_scraper("ID")
     with pytest.raises(ParseFailed):

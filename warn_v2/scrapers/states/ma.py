@@ -25,8 +25,6 @@ import json
 import logging
 import re
 
-import httpx
-
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.playwright_base import PlaywrightScraper
@@ -56,55 +54,57 @@ class MAScraper(PlaywrightScraper):
     required_fields = frozenset({"employer", "notice_date"})
 
     def fetch(self) -> bytes:
-        """Discover CSV links via Playwright, then download them with httpx.
+        """Discover CSV links via Playwright, then download them in the same session.
 
-        The index page requires a browser UA; the CSV files (mass.gov/files/csv/*)
-        are publicly accessible and work best with a neutral UA — Chrome UAs from
-        server IPs trigger Akamai's bot detection on the file endpoint.
+        Both the index page and the CSV files are gated by Akamai, which ties
+        the CSV download to the browser session that loaded the index page.
+        Using Playwright's ``APIRequestContext`` (``ctx.request.get()``) shares
+        the browser cookies so the CSV download is accepted without a 403.
         """
         try:
             from playwright.sync_api import sync_playwright
 
             from warn_v2.scrapers.playwright_base import _LAUNCH_ARGS
 
-            # Step 1: use Playwright (Chrome UA) to load the index page and collect
-            # CSV link URLs.
-            csv_urls: list[str] = []
+            files: list[dict[str, str]] = []
             with sync_playwright() as pw:
                 browser = pw.chromium.launch(headless=True, args=_LAUNCH_ARGS)
                 try:
                     ctx = browser.new_context(user_agent=_CHROME_UA)
                     page = ctx.new_page()
+
+                    # Step 1: load index page with browser UA to establish session.
                     page.goto(SOURCE_URL, wait_until="load", timeout=60_000)
                     hrefs = page.eval_on_selector_all(
                         "a[href*='.csv']", "els => els.map(e => e.href)"
                     )
                     csv_urls = list(dict.fromkeys(hrefs))  # deduplicate, keep order
+
+                    if not csv_urls:
+                        raise ScrapeFailed("MA: no CSV links found on mass.gov WARN page")
+
+                    log.info("MA: found %d CSV link(s): %s", len(csv_urls), csv_urls)
+
+                    # Step 2: download each CSV via the same browser context so
+                    # Akamai session cookies are forwarded automatically.
+                    for url in csv_urls:
+                        try:
+                            response = ctx.request.get(url, timeout=60_000)
+                            if not response.ok:
+                                log.warning(
+                                    "MA: %s returned HTTP %d", url, response.status
+                                )
+                                continue
+                            text = response.body().decode("utf-8-sig")
+                            files.append({"url": url, "csv": text})
+                            log.info("MA: downloaded %s (%d chars)", url, len(text))
+                        except Exception as exc:
+                            log.warning(
+                                "MA: failed to download %s → %s: %s",
+                                url, type(exc).__name__, exc,
+                            )
                 finally:
                     browser.close()
-
-            if not csv_urls:
-                raise ScrapeFailed("MA: no CSV links found on mass.gov WARN page")
-
-            log.info("MA: found %d CSV link(s): %s", len(csv_urls), csv_urls)
-
-            # Step 2: download each CSV with httpx using the default (neutral) UA.
-            # Sending a Chrome UA here triggers Akamai 403 on server IPs.
-            files: list[dict[str, str]] = []
-            with httpx.Client(timeout=60, follow_redirects=True) as client:
-                for url in csv_urls:
-                    try:
-                        r = client.get(url)
-                        r.raise_for_status()
-                        text = r.content.decode("utf-8-sig")
-                        files.append({"url": url, "csv": text})
-                        log.info("MA: downloaded %s (%d bytes)", url, len(text))
-                    except Exception as exc:
-                        log.warning(
-                            "MA: failed to download %s → %s: %s",
-                            url, type(exc).__name__, exc,
-                        )
-                        continue
 
             if not files:
                 raise ScrapeFailed("MA: could not download any CSV files")

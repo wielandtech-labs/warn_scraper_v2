@@ -112,6 +112,15 @@ class IDScraper:
                 raw_row[col.get("effective or commencing date", -1)]
             )
 
+            # "Updates" column records receive/revision history as multi-line text,
+            # e.g. "received 4/21/2026\nrevised 5/1/2026". Store raw for provenance.
+            updates_idx = col.get("updates", -1)
+            updates_raw = (
+                str(raw_row[updates_idx]).strip()
+                if 0 <= updates_idx < len(raw_row) and raw_row[updates_idx]
+                else None
+            )
+
             rows.append(
                 NoticeRow(
                     state="ID",
@@ -123,6 +132,7 @@ class IDScraper:
                     zip=as_str(_first_line(raw_row[col["zip"]])),
                     address=as_str(_first_line(raw_row[col["address"]])),
                     source_url=_LANDING_URL,
+                    extra={"updates": updates_raw} if updates_raw else {},
                 )
             )
         return rows
