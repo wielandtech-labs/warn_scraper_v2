@@ -1,4 +1,4 @@
-"""Geocoding: US Census address API → ZIP centroid → city centroid fallback.
+"""Geocoding: US Census address API → ZIP centroid → city centroid → county centroid.
 
 Strategy (in priority order):
   1. US Census Geocoder — free, no API key, US-only, street-level precision.
@@ -9,6 +9,9 @@ Strategy (in priority order):
      ~city-level accuracy (~11 km).  Used when no ZIP is available and the
      first two tiers both return None.  Covers states whose WARN sources
      report city name but not ZIP code (e.g. AK, AL, MA, MN, TX, WA, …).
+  4. County centroid — (state, county) lookup from the Census County Gazetteer,
+     ~county-level accuracy (~30 km).  Last resort for states that report only
+     county (e.g. KY, MT).
 
 The Census geocoder is called synchronously with a short timeout.  Any
 exception (network error, rate-limit, bad JSON) falls through to ZIP centroid
@@ -17,7 +20,7 @@ so callers always get a best-effort result without raising.
 Typical usage in storage.py::
 
     from warn_v2.geo.geocoder import geocode as _geocode
-    pair = _geocode(row.address, row.city, row.state, row.zip)
+    pair = _geocode(row.address, row.city, row.state, row.zip, row.county)
     if pair:
         loc.lat, loc.lon = pair
 """
@@ -27,6 +30,7 @@ import logging
 from decimal import Decimal
 
 from warn_v2.geo.city_centroids import lookup_decimal as _city_lookup
+from warn_v2.geo.county_centroids import lookup_decimal as _county_lookup
 from warn_v2.geo.zip_centroids import lookup_decimal
 
 log = logging.getLogger(__name__)
@@ -83,6 +87,7 @@ def geocode(
     city: str | None,
     state: str | None,
     zip_code: str | None,
+    county: str | None = None,
 ) -> tuple[Decimal, Decimal] | None:
     """Best-effort geocode returning ``(lat, lon)`` as Decimal pair, or ``None``.
 
@@ -90,6 +95,7 @@ def geocode(
       1. Census street-level geocoding (when *address* is given)
       2. ZIP centroid (fast local lookup, ~city-block radius)
       3. City centroid (fast local lookup, ~city-level / ~11 km)
+      4. County centroid (fast local lookup, ~county-level / ~30 km)
     """
     # 1. Full street address via Census geocoder
     if address:
@@ -103,4 +109,9 @@ def geocode(
         return result
 
     # 3. City centroid fallback (handles states that report city but not ZIP)
-    return _city_lookup(state, city)
+    result = _city_lookup(state, city)
+    if result is not None:
+        return result
+
+    # 4. County centroid fallback (handles states that report only county, e.g. KY, MT)
+    return _county_lookup(state, county)

@@ -123,9 +123,38 @@ def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None
     (state, city), update *that* row's zip in place rather than inserting a
     new one.  This preserves FKs from historical notices that were ingested
     before the scraper knew how to extract a ZIP.
+
+    County-only path: states like KY and MT report only a county name (no
+    city, no ZIP).  These notices get a Location keyed on (state, county)
+    with county-centroid coordinates as a best-effort lat/lon.
     """
-    if not row.city and not row.zip:
+    if not row.city and not row.zip and not row.county:
         return None
+
+    # County-only path: no city, no zip — only county is known.
+    if not row.city and not row.zip and row.county:
+        state = row.state.upper()
+        existing = session.execute(
+            select(Location).where(
+                Location.state == state,
+                Location.city.is_(None),
+                Location.county == row.county,
+            ).limit(1)
+        ).scalar_one_or_none()
+        if existing is not None:
+            if existing.lat is None and existing.lon is None:
+                pair = _geocode(None, None, state, None, row.county)
+                if pair is not None:
+                    existing.lat, existing.lon = pair
+            return existing
+        lat, lon = (None, None)
+        pair = _geocode(None, None, state, None, row.county)
+        if pair is not None:
+            lat, lon = pair
+        loc = Location(state=state, county=row.county, lat=lat, lon=lon)
+        session.add(loc)
+        session.flush()
+        return loc
     state = row.state.upper()
     incoming_zip = row.zip or None  # normalize empty string → None
 
@@ -147,7 +176,7 @@ def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None
             exact.county = row.county
         # Backfill lat/lon if missing — try address first, ZIP centroid fallback.
         if exact.lat is None and exact.lon is None:
-            pair = _geocode(row.address, row.city, row.state, exact.zip)
+            pair = _geocode(row.address, row.city, row.state, exact.zip, row.county)
             if pair is not None:
                 exact.lat, exact.lon = pair
         return exact
@@ -167,7 +196,7 @@ def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None
             if row.county and not loc.county:
                 loc.county = row.county
             if loc.lat is None and loc.lon is None:
-                pair = _geocode(row.address, row.city, row.state, incoming_zip)
+                pair = _geocode(row.address, row.city, row.state, incoming_zip, row.county)
                 if pair is not None:
                     loc.lat, loc.lon = pair
             session.flush()
@@ -175,7 +204,7 @@ def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None
 
     # 3. fall through to insert
     lat, lon = (None, None)
-    pair = _geocode(row.address, row.city, row.state, incoming_zip)
+    pair = _geocode(row.address, row.city, row.state, incoming_zip, row.county)
     if pair is not None:
         lat, lon = pair
     loc = Location(
