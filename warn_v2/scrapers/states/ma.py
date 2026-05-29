@@ -56,10 +56,13 @@ class MAScraper(PlaywrightScraper):
     def fetch(self) -> bytes:
         """Discover CSV links via Playwright, then download them in the same session.
 
-        Both the index page and the CSV files are gated by Akamai, which ties
-        the CSV download to the browser session that loaded the index page.
-        Using Playwright's ``APIRequestContext`` (``ctx.request.get()``) shares
-        the browser cookies so the CSV download is accepted without a 403.
+        Both the index page and the CSV files are gated by Akamai bot-detection.
+        Akamai inspects the Sec-Fetch-* headers and ties the CDN session to the
+        originating browser navigation.  ``ctx.request.get()`` (Playwright's fetch
+        API) sends ``Sec-Fetch-Mode: no-cors`` / ``Sec-Fetch-Dest: empty`` which
+        Akamai rejects.  Using ``page.goto()`` for each CSV URL sends proper
+        navigation headers (``Sec-Fetch-Mode: navigate``, ``Sec-Fetch-Dest:
+        document``) and passes the CDN check.
         """
         try:
             from playwright.sync_api import sync_playwright
@@ -73,7 +76,7 @@ class MAScraper(PlaywrightScraper):
                     ctx = browser.new_context(user_agent=_CHROME_UA)
                     page = ctx.new_page()
 
-                    # Step 1: load index page with browser UA to establish session.
+                    # Step 1: load index page to establish Akamai session.
                     page.goto(SOURCE_URL, wait_until="load", timeout=60_000)
                     hrefs = page.eval_on_selector_all(
                         "a[href*='.csv']", "els => els.map(e => e.href)"
@@ -85,22 +88,25 @@ class MAScraper(PlaywrightScraper):
 
                     log.info("MA: found %d CSV link(s): %s", len(csv_urls), csv_urls)
 
-                    # Step 2: download each CSV via the same browser context so
-                    # Akamai session cookies are forwarded automatically.
+                    # Step 2: navigate directly to each CSV URL within the same
+                    # browser context.  page.goto() sends full navigation headers
+                    # (Sec-Fetch-Mode: navigate) that Akamai treats as a legitimate
+                    # browser request.  The response body contains the raw CSV bytes.
                     for url in csv_urls:
                         try:
-                            response = ctx.request.get(url, timeout=60_000)
-                            if not response.ok:
+                            resp = page.goto(url, wait_until="commit", timeout=60_000)
+                            if resp is None or not resp.ok:
                                 log.warning(
-                                    "MA: %s returned HTTP %d", url, response.status
+                                    "MA: %s returned HTTP %s",
+                                    url, resp.status if resp else "None",
                                 )
                                 continue
-                            text = response.body().decode("utf-8-sig")
+                            text = resp.body().decode("utf-8-sig")
                             files.append({"url": url, "csv": text})
                             log.info("MA: downloaded %s (%d chars)", url, len(text))
                         except Exception as exc:
                             log.warning(
-                                "MA: failed to download %s → %s: %s",
+                                "MA: failed to navigate to %s → %s: %s",
                                 url, type(exc).__name__, exc,
                             )
                 finally:
