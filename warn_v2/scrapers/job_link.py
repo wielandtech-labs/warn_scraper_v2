@@ -122,7 +122,7 @@ class JobLinkScraper:
                 details[url] = dr.text
             except httpx.HTTPError as exc:
                 log.warning("%s: detail fetch failed: %s", url, exc)
-            time.sleep(0.5)
+            time.sleep(1.5)
 
         return json.dumps({"search_html": r.text, "details": details}).encode()
 
