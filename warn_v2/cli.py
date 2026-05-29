@@ -322,17 +322,34 @@ def mark_superseded_cmd(dry_run: bool, state: str | None, force: bool) -> None:
 
 @main.command("backfill-geo")
 @click.option("--dry-run", is_flag=True, help="Preview impact without writing")
-def backfill_geo(dry_run: bool) -> None:
+@click.option(
+    "--rerun-address",
+    is_flag=True,
+    help=(
+        "Also upgrade locations that already have coordinates but have a "
+        "linked notice with a street address (ZIP/city centroid → Census accuracy)"
+    ),
+)
+def backfill_geo(dry_run: bool, rerun_address: bool) -> None:
     """Populate locations.lat/lon using address geocoding + ZIP centroid fallback.
 
-    Idempotent — re-running only updates rows still missing coordinates.
+    By default only targets locations where coordinates are NULL.
+    Use --rerun-address to upgrade existing ZIP/city-centroid coordinates to
+    Census street-level accuracy wherever a street address is now available.
+
+    \b
+    Examples:
+      warn-v2 backfill-geo                   # fill NULLs only
+      warn-v2 backfill-geo --rerun-address   # also upgrade existing centroids
+      warn-v2 backfill-geo --dry-run         # preview without writing
     """
     from warn_v2.scripts.backfill_geo import backfill
 
-    stats = backfill(dry_run=dry_run)
+    stats = backfill(dry_run=dry_run, rerun_address=rerun_address)
     suffix = " (dry run — nothing written)" if dry_run else ""
     click.echo(
         f"considered={stats['considered']} "
+        f"upgraded={stats['upgraded_address']} "
         f"filled_address={stats['filled_address']} filled_zip={stats['filled_zip']} "
         f"no_coords={stats['no_coords']}{suffix}"
     )
