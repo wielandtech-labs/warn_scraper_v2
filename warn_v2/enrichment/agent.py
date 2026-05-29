@@ -42,10 +42,6 @@ Do not call finalize if confidence < 0.4. If nothing is found, finalize with
 null website and confidence 0.3.
 """
 
-# Characters to keep from each web search result block.
-# Web search results average ~4,000 chars each; trimming to 1,500 cuts
-# per-turn context by ~60% while preserving the useful snippets.
-_MAX_SEARCH_RESULT_CHARS = 1_500
 
 
 class LLMClient(Protocol):
@@ -85,42 +81,6 @@ class EnrichmentResult:
     last_message: str | None = None
     turns: int = 0
 
-
-def _truncate_search_blocks(content: list) -> list:
-    """Serialize response content to dicts and truncate web search result text.
-
-    Web search result blocks accumulate in the conversation history and are
-    re-sent on every subsequent turn.  Truncating them here keeps per-turn
-    context size bounded regardless of how many searches the agent does.
-
-    Non-search blocks (text, tool_use, server_tool_use, tool_result) are
-    passed through as-is so the API protocol stays intact.
-    """
-    out = []
-    for block in content:
-        # Convert SDK object → dict so we can mutate it safely.
-        if hasattr(block, "model_dump"):
-            block_dict: dict = block.model_dump()
-        elif hasattr(block, "__dataclass_fields__"):
-            import dataclasses
-            block_dict = dataclasses.asdict(block)
-        elif isinstance(block, dict):
-            block_dict = dict(block)
-        else:
-            # Unknown type — pass through unchanged; no truncation possible.
-            out.append(block)
-            continue
-
-        if block_dict.get("type") == "web_search_tool_result":
-            for item in block_dict.get("content") or []:
-                if isinstance(item, dict):
-                    for key in ("text", "encrypted_content", "page_content"):
-                        val = item.get(key)
-                        if isinstance(val, str) and len(val) > _MAX_SEARCH_RESULT_CHARS:
-                            item[key] = val[:_MAX_SEARCH_RESULT_CHARS] + " …[truncated]"
-
-        out.append(block_dict)
-    return out
 
 
 def _build_brief(ctx: EnrichmentContext) -> str:
@@ -167,9 +127,7 @@ def run_enrichment(
             messages=messages,
         )
 
-        # Truncate web search result blocks before appending to history so the
-        # cumulative context doesn't balloon across turns.
-        messages.append({"role": "assistant", "content": _truncate_search_blocks(resp.content)})
+        messages.append({"role": "assistant", "content": resp.content})
 
         tool_uses = [b for b in resp.content if getattr(b, "type", None) == "tool_use"]
         texts = [b for b in resp.content if getattr(b, "type", None) == "text"]
