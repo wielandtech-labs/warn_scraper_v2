@@ -67,3 +67,22 @@ class Page[T](BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class MapPinOut(BaseModel):
+    """Lightweight notice projection used exclusively by the map endpoint.
+
+    Contains only the 7 fields the map popup actually renders, keeping the
+    response ~7× smaller than a full NoticeOut so all geocoded notices can
+    be returned in a single fetch without hitting payload size concerns.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    notice_id: str
+    employer: str
+    state: str
+    notice_date: date | None
+    layoff_count: int | None
+    lat: Decimal
+    lon: Decimal

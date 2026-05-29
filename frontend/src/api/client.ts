@@ -53,11 +53,32 @@ export interface NoticesQuery {
   offset?: number;
 }
 
+/** Lightweight pin object returned by /api/map-pins. */
+export interface MapPin {
+  notice_id: string;
+  employer: string;
+  state: string;
+  notice_date: string | null;
+  layoff_count: number | null;
+  lat: number;
+  lon: number;
+}
+
+export interface MapPinQuery {
+  state?: string;
+  after?: string;
+  before?: string;
+}
+
 export const api = {
   listNotices: (q: NoticesQuery = {}) =>
     get<Page<NoticeOut>>("/api/notices" + qs(q as Record<string, string | number | undefined>)),
   getNotice: (id: string) =>
     get<NoticeOut>(`/api/notices/${encodeURIComponent(id)}`),
+
+  /** All geocoded notices for the map — lightweight DTO, up to 10 000 per fetch. */
+  listMapPins: (q: MapPinQuery = {}) =>
+    get<MapPin[]>("/api/map-pins" + qs(q as Record<string, string | undefined>)),
 
   // ---------- Companies ----------
   listCompanies: (q: {

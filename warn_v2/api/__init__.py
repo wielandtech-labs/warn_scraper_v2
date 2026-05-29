@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from prometheus_client import make_asgi_app
 
-from warn_v2.api.routes import companies, notices, runs, stats
+from warn_v2.api.routes import companies, map_pins, notices, runs, stats
 from warn_v2.observability.metrics import enrichment_backlog
 
 log = logging.getLogger(__name__)
@@ -57,6 +57,7 @@ def create_app() -> FastAPI:
     app.include_router(companies.router, prefix="/api")
     app.include_router(runs.router, prefix="/api")
     app.include_router(stats.router, prefix="/api")
+    app.include_router(map_pins.router, prefix="/api")
 
     # --- SPA static assets (mounted LAST so API routes take precedence) ---
     # In dev (no built bundle) the directory won't exist; skip silently.

@@ -25,17 +25,16 @@ export function MapPage() {
   const navigate = useNavigate({ from: "/map" });
   const search = useSearch({ from: "/map" });
 
-  // Pull a large batch of geocoded-only notices — the API pre-filters so every
-  // item in the response has valid lat/lon, letting us show up to the limit cap.
+  // Use the lightweight /api/map-pins endpoint — it pre-filters to geocoded
+  // notices only and returns just the 7 fields the map needs, so the full
+  // 3 000+ geocoded notices fit in a single ~400 KB fetch.
   const query = useQuery({
-    queryKey: ["map", search],
+    queryKey: ["map-pins", search],
     queryFn: () =>
-      api.listNotices({
+      api.listMapPins({
         state: search.state,
         after: search.after,
         before: search.before,
-        geocoded_only: true,
-        limit: 500,
       }),
   });
 
@@ -43,10 +42,8 @@ export function MapPage() {
     navigate({ search: () => ({ ...next, employer: undefined }) });
   };
 
-  const points =
-    query.data?.items.filter(
-      (n) => n.location?.lat != null && n.location?.lon != null,
-    ) ?? [];
+  // Every item from listMapPins is guaranteed to have lat/lon — no client filter needed.
+  const points = query.data ?? [];
 
   return (
     <div>
@@ -68,7 +65,7 @@ export function MapPage() {
             {points.map((n) => (
               <Marker
                 key={n.notice_id}
-                position={[Number(n.location!.lat), Number(n.location!.lon)]}
+                position={[Number(n.lat), Number(n.lon)]}
               >
                 <Popup>
                   <div className="text-sm">
@@ -94,7 +91,7 @@ export function MapPage() {
       </div>
 
       <div className="mt-2 text-xs text-slate-500">
-        Showing {fmtNum(points.length)} of {fmtNum(query.data?.total ?? 0)} geocoded notices.
+        Showing {fmtNum(points.length)} geocoded notices.
       </div>
     </div>
   );
