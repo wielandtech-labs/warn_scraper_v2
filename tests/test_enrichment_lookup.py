@@ -2,15 +2,13 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 
+import httpx
 import pytest
 import respx
-import httpx
 
 from warn_v2.enrichment.lookup import (
-    LookupResult,
     edgar_lookup,
     naics_from_sic,
     normalize_name,
@@ -70,7 +68,8 @@ def test_normalize_handles_punctuation():
 
 def test_naics_from_sic_known_code():
     """Any SIC code present in the bundled crosswalk should return a tuple."""
-    cw_path = Path(__file__).parent.parent / "warn_v2" / "enrichment" / "_data" / "sic_naics_crosswalk.json"
+    _data = Path(__file__).parent.parent / "warn_v2" / "enrichment" / "_data"
+    cw_path = _data / "sic_naics_crosswalk.json"
     if not cw_path.exists():
         pytest.skip("Crosswalk data file not generated yet")
     cw = json.loads(cw_path.read_text())
@@ -164,7 +163,8 @@ def test_edgar_lookup_high_confidence_on_close_name_match():
 @respx.mock
 def test_edgar_lookup_returns_naics_when_crosswalk_available():
     """If the SIC code is in the crosswalk, NAICS fields are populated."""
-    cw_path = Path(__file__).parent.parent / "warn_v2" / "enrichment" / "_data" / "sic_naics_crosswalk.json"
+    _data = Path(__file__).parent.parent / "warn_v2" / "enrichment" / "_data"
+    cw_path = _data / "sic_naics_crosswalk.json"
     if not cw_path.exists():
         pytest.skip("Crosswalk data file not generated yet")
 
