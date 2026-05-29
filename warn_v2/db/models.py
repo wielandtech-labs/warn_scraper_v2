@@ -57,6 +57,8 @@ class Company(Base):
     enriched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     enrichment_confidence: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))
     enrichment_sources: Mapped[str | None] = mapped_column(Text)  # JSON-encoded list
+    enrichment_source: Mapped[str | None] = mapped_column(String(16))
+    # Values: 'provider' | 'edgar' | 'claude'. Null for rows enriched before this field existed.
 
 
 class Notice(Base):

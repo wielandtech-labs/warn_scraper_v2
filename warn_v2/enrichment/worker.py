@@ -119,6 +119,7 @@ def _persist_result(session: Session, company: Company, result: EnrichmentResult
     company.duns = result.duns
     company.enrichment_confidence = result_to_confidence_decimal(result)
     company.enrichment_sources = json.dumps(result.sources) if result.sources else None
+    company.enrichment_source = "claude"
     company.enriched_at = datetime.now(UTC)
     session.add(company)
     session.commit()
@@ -136,6 +137,7 @@ def _persist_provider_result(
     company.naics_desc = result.naics_desc
     company.enrichment_confidence = Decimal(str(round(result.confidence, 2)))
     company.enrichment_sources = json.dumps(result.sources) if result.sources else None
+    company.enrichment_source = "provider"
     company.enriched_at = datetime.now(UTC)
     session.add(company)
     session.commit()
@@ -152,6 +154,7 @@ def _persist_lookup_result(
     company.naics_desc = naics_desc
     company.enrichment_confidence = Decimal(str(round(confidence, 2)))
     company.enrichment_sources = json.dumps(sources) if sources else None
+    company.enrichment_source = "edgar"
     company.enriched_at = datetime.now(UTC)
     session.add(company)
     session.commit()

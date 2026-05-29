@@ -6,33 +6,21 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from prometheus_client import make_asgi_app
+from prometheus_client import REGISTRY, make_asgi_app
 
 from warn_v2.api.routes import companies, map_pins, notices, runs, stats
-from warn_v2.observability.metrics import enrichment_backlog
+from warn_v2.observability.collector import WarnCollector
 
 log = logging.getLogger(__name__)
 
 
-def _seed_backlog() -> None:
-    """Query the DB and update the enrichment_backlog Prometheus gauge."""
-    try:
-        from sqlalchemy import func, select
-
-        from warn_v2.db.models import Company
-        from warn_v2.db.session import get_session_factory
-
-        with get_session_factory()() as session:
-            n = session.scalar(select(func.count()).where(Company.enriched_at.is_(None)))
-        enrichment_backlog.set(n or 0)
-        log.info("enrichment_backlog seeded to %d", n or 0)
-    except Exception:
-        log.warning("could not seed enrichment_backlog at startup", exc_info=True)
-
-
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    _seed_backlog()
+    try:
+        REGISTRY.register(WarnCollector())
+        log.info("WarnCollector registered with Prometheus REGISTRY")
+    except Exception:
+        log.warning("could not register WarnCollector at startup", exc_info=True)
     yield
 
 

@@ -35,7 +35,7 @@ heal_jobs = Counter(
     ["state", "outcome"],
 )
 
-enrichment_backlog = Gauge(
-    "warn_enrichment_backlog",
-    "Number of companies awaiting enrichment.",
-)
+# NOTE: enrichment_backlog is intentionally NOT defined here.
+# It is computed from the DB by WarnCollector (warn_v2.observability.collector)
+# registered in the API at startup. Defining it here as a Gauge would cause a
+# duplicate-registration conflict with the collector.

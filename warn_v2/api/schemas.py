@@ -32,6 +32,7 @@ class CompanyOut(BaseModel):
     website: str | None
     enriched_at: datetime | None
     enrichment_confidence: Decimal | None
+    enrichment_source: str | None
 
 
 class NoticeOut(BaseModel):
