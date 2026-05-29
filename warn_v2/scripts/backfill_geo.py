@@ -185,8 +185,11 @@ def main() -> int:
             "accuracy to Census street-level accuracy)"
         ),
     )
+    parser.add_argument("--state", default=None,
+                        help="Limit to one state abbreviation, e.g. AZ")
     args = parser.parse_args()
-    backfill(dry_run=args.dry_run, rerun_address=args.rerun_address)
+    backfill(dry_run=args.dry_run, rerun_address=args.rerun_address,
+             state_filter=args.state)
     return 0
 
 
