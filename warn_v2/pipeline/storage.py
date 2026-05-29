@@ -13,17 +13,11 @@ from warn_v2.geo.geocoder import geocode as _geocode
 from warn_v2.pipeline.dedup import notice_id
 from warn_v2.scrapers.base import NoticeRow
 
-# Fields that should be COALESCE'd in on re-upsert: never overwrite an existing
-# non-NULL value, but fill in when the existing row's column is NULL.  Identity
-# fields (notice_id, state, employer, notice_date, scraped_at) and already-
-# immutable metadata (source_url, raw_notice_url) are intentionally excluded.
-_FILL_IN_FIELDS = (
-    "address",
-    "effective_date",
-    "layoff_count",
-    "closure_type",
-    "location_id",
-)
+# First non-null wins: once set, don't overwrite (geocoded location, address, type).
+_FILL_IN_FIELDS: tuple[str, ...] = ("address", "closure_type", "location_id")
+
+# Last non-null wins: amendments may update these fields, so prefer incoming value.
+_UPDATE_FIELDS: tuple[str, ...] = ("layoff_count", "effective_date")
 
 
 def upsert_notices(session: Session, rows: Iterable[NoticeRow]) -> tuple[int, int]:
@@ -73,11 +67,13 @@ def upsert_notices(session: Session, rows: Iterable[NoticeRow]) -> tuple[int, in
         if dialect == "postgresql":
             stmt = pg_insert(Notice).values(**payload)
             set_ = {
-                field: func.coalesce(
-                    getattr(Notice, field), getattr(stmt.excluded, field)
-                )
-                for field in _FILL_IN_FIELDS
+                f: func.coalesce(getattr(Notice, f), getattr(stmt.excluded, f))
+                for f in _FILL_IN_FIELDS
             }
+            set_.update({
+                f: func.coalesce(getattr(stmt.excluded, f), getattr(Notice, f))
+                for f in _UPDATE_FIELDS
+            })
             stmt = stmt.on_conflict_do_update(
                 index_elements=["notice_id"],
                 set_=set_,
@@ -95,6 +91,10 @@ def upsert_notices(session: Session, rows: Iterable[NoticeRow]) -> tuple[int, in
                         new_val = payload.get(field)
                         if new_val is not None:
                             setattr(existing, field, new_val)
+                for field in _UPDATE_FIELDS:
+                    new_val = payload.get(field)
+                    if new_val is not None:
+                        setattr(existing, field, new_val)
 
     session.flush()
     return seen, new

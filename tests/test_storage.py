@@ -106,7 +106,7 @@ def test_reupsert_does_not_overwrite_existing_address(db) -> None:
 
 
 def test_reupsert_does_not_overwrite_existing_nonnull_fields(db) -> None:
-    """COALESCE semantics: an existing layoff_count must survive a NULL re-scrape."""
+    """A NULL incoming value must not clear an existing count or date."""
     upsert_notices(db, [_row(layoff_count=50, effective_date=date(2026, 3, 1))])
     db.commit()
 
@@ -115,6 +115,27 @@ def test_reupsert_does_not_overwrite_existing_nonnull_fields(db) -> None:
     notice = db.query(Notice).one()
     assert notice.layoff_count == 50
     assert notice.effective_date == date(2026, 3, 1)
+
+
+def test_reupsert_updates_layoff_count_on_amendment(db) -> None:
+    """An amendment with a new non-null count should overwrite the existing value."""
+    upsert_notices(db, [_row(layoff_count=50)])
+    db.commit()
+
+    seen, new = upsert_notices(db, [_row(layoff_count=75)])
+    db.commit()
+    assert (seen, new) == (1, 0)  # not a new row
+    assert db.query(Notice).one().layoff_count == 75
+
+
+def test_reupsert_updates_effective_date_on_amendment(db) -> None:
+    """An amendment with a revised effective_date should overwrite the existing value."""
+    upsert_notices(db, [_row(effective_date=date(2026, 3, 1))])
+    db.commit()
+
+    upsert_notices(db, [_row(effective_date=date(2026, 4, 1))])
+    db.commit()
+    assert db.query(Notice).one().effective_date == date(2026, 4, 1)
 
 
 def test_location_zip_merged_in_place(db) -> None:

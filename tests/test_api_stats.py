@@ -185,5 +185,35 @@ def test_top_employers_state_filter(api_client, db):
     assert body[0]["employer"] == "Cali"
 
 
+# ---------------------------------------------------------------------------
+# is_superseded filtering
+# ---------------------------------------------------------------------------
+
+def test_superseded_notices_excluded_from_all_endpoints(api_client, db):
+    """Superseded notices must not count toward any stats aggregate."""
+    _notice(db, state="CA", employer="Active", notice_date=date(2026, 1, 1), layoff_count=100)
+    sup = _notice(db, state="CA", employer="Superseded", notice_date=date(2026, 1, 1),
+                  layoff_count=50)
+    sup.is_superseded = True
+    db.commit()
+
+    # by-state: only Active's count should appear
+    body = api_client.get("/api/stats/by-state").json()
+    ca = next(r for r in body if r["state"] == "CA")
+    assert ca["notice_count"] == 1
+    assert ca["layoff_total"] == 100
+
+    # by-month: same
+    body = api_client.get("/api/stats/by-month").json()
+    assert len(body) == 1
+    assert body[0]["notice_count"] == 1
+    assert body[0]["layoff_total"] == 100
+
+    # top-employers: only Active appears
+    body = api_client.get("/api/stats/top-employers").json()
+    assert len(body) == 1
+    assert body[0]["employer"] == "Active"
+
+
 # Ensure unused imports don't break ruff
 _ = (UTC, datetime, Decimal)

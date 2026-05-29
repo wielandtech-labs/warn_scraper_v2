@@ -180,10 +180,15 @@ def _parse_card(html: str) -> NoticeRow | None:
     count_raw = labels.get("number of jobs impacted", labels.get("number of workers", ""))
     layoff_count = as_int(count_raw)
 
+    # MI's API only publishes the layoff occurrence date ("Layoff date:" label).
+    # We store it as both notice_date (for the content-hash dedup key) and
+    # effective_date (the semantically correct field).  A separate filing date
+    # is not available from this source.
     return NoticeRow(
         state="MI",
         employer=employer,
         notice_date=notice_date,
+        effective_date=notice_date,
         layoff_count=layoff_count,
         closure_type=closure_type,
         city=city,

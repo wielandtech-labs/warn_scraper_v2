@@ -292,6 +292,34 @@ def serve(host: str, port: int, reload: bool) -> None:
     uvicorn.run("warn_v2.api:app", host=host, port=port, reload=reload)
 
 
+@main.command("mark-superseded")
+@click.option("--dry-run", is_flag=True, help="Preview matches without writing")
+@click.option("--state", default=None, help="Limit to one state abbreviation, e.g. IA")
+@click.option("--force", is_flag=True, help="Bypass the 20%% guardrail")
+def mark_superseded_cmd(dry_run: bool, state: str | None, force: bool) -> None:
+    """Flag duplicate/amended notices as superseded so totals are accurate.
+
+    \b
+    Detects two patterns:
+      ZIP-variance: same notice, scraped with different ZIP → keep the one with address
+      Amendment:    same employer/date/location, updated count → keep the newer one
+
+    Always run with --dry-run first and review the output before committing.
+
+    \b
+    Examples:
+      warn-v2 mark-superseded --dry-run           # preview all states
+      warn-v2 mark-superseded --dry-run --state IA
+      warn-v2 mark-superseded --state IA          # commit IA only
+      warn-v2 mark-superseded --state IA --force  # override 20%% guardrail
+    """
+    from warn_v2.scripts.mark_superseded import mark_superseded
+
+    stats = mark_superseded(dry_run=dry_run, state_filter=state, force=force)
+    suffix = " (dry run — nothing written)" if dry_run else ""
+    click.echo(f"marked={stats['marked']} skipped={stats['skipped']}{suffix}")
+
+
 @main.command("backfill-geo")
 @click.option("--dry-run", is_flag=True, help="Preview impact without writing")
 def backfill_geo(dry_run: bool) -> None:

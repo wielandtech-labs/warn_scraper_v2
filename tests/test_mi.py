@@ -36,6 +36,9 @@ def test_mi_parses_fixture(mi_sample: bytes) -> None:
     assert "Our Next Energy" in first.employer
     assert first.city == "Novi"
     assert first.county == "Oakland"
+    # MI API only publishes the layoff date; both fields should be set to it.
+    assert first.effective_date is not None
+    assert first.effective_date == first.notice_date
 
 
 def test_mi_layoff_counts_present(mi_sample: bytes) -> None:

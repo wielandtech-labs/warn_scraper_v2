@@ -54,6 +54,10 @@ def _apply_date_filters(stmt, after: date | None, before: date | None):
     return stmt
 
 
+def _not_superseded(stmt):
+    return stmt.where(Notice.is_superseded.is_(False))
+
+
 def _coerce_int(value) -> int:
     """Pyramid of nullable / Decimal coalesces to a plain int."""
     if value is None:
@@ -82,6 +86,7 @@ def by_state(
         .group_by(Notice.state)
         .order_by(Notice.state)
     )
+    stmt = _not_superseded(stmt)
     stmt = _apply_date_filters(stmt, after, before)
     rows = db.execute(stmt).all()
     return [
@@ -113,6 +118,7 @@ def by_month(
         .group_by(month_col)
         .order_by(month_col)
     )
+    stmt = _not_superseded(stmt)
     stmt = _apply_date_filters(stmt, after, before)
     if state:
         stmt = stmt.where(Notice.state == state.upper())
@@ -144,6 +150,7 @@ def top_employers(
         .order_by(layoff_sum.desc())
         .limit(limit)
     )
+    stmt = _not_superseded(stmt)
     stmt = _apply_date_filters(stmt, after, before)
     if state:
         stmt = stmt.where(Notice.state == state.upper())
