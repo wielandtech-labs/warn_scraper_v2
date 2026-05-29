@@ -56,15 +56,17 @@ class MAScraper(PlaywrightScraper):
     def fetch(self) -> bytes:
         """Discover CSV links via Playwright, then download them in the same session.
 
-        Both the index page and the CSV files are gated by Akamai bot-detection.
-        Akamai inspects the Sec-Fetch-* headers and ties the CDN session to the
-        originating browser navigation.  ``ctx.request.get()`` (Playwright's fetch
-        API) sends ``Sec-Fetch-Mode: no-cors`` / ``Sec-Fetch-Dest: empty`` which
-        Akamai rejects.  Using ``page.goto()`` for each CSV URL sends proper
-        navigation headers (``Sec-Fetch-Mode: navigate``, ``Sec-Fetch-Dest:
-        document``) and passes the CDN check.
+        Akamai bot-detection gates both the index page and the CSV files.
+        ``ctx.request.get()`` (fetch-style headers) and standalone httpx both
+        return 403.  ``page.goto()`` passes the CDN check but triggers Playwright's
+        download interception because the server responds with
+        ``Content-Disposition: attachment``.  The correct pattern is to use
+        ``page.expect_download()`` so Playwright saves the file to a temp path
+        that we can read back as bytes.
         """
         try:
+            from pathlib import Path
+
             from playwright.sync_api import sync_playwright
 
             from warn_v2.scrapers.playwright_base import _LAUNCH_ARGS
@@ -73,7 +75,11 @@ class MAScraper(PlaywrightScraper):
             with sync_playwright() as pw:
                 browser = pw.chromium.launch(headless=True, args=_LAUNCH_ARGS)
                 try:
-                    ctx = browser.new_context(user_agent=_CHROME_UA)
+                    # accept_downloads=True tells Playwright to save downloads
+                    # to a temp directory and expose them via Download objects.
+                    ctx = browser.new_context(
+                        user_agent=_CHROME_UA, accept_downloads=True
+                    )
                     page = ctx.new_page()
 
                     # Step 1: load index page to establish Akamai session.
@@ -88,25 +94,29 @@ class MAScraper(PlaywrightScraper):
 
                     log.info("MA: found %d CSV link(s): %s", len(csv_urls), csv_urls)
 
-                    # Step 2: navigate directly to each CSV URL within the same
-                    # browser context.  page.goto() sends full navigation headers
-                    # (Sec-Fetch-Mode: navigate) that Akamai treats as a legitimate
-                    # browser request.  The response body contains the raw CSV bytes.
+                    # Step 2: navigate to each CSV URL as a full page navigation
+                    # (passes Akamai) and capture the resulting file download.
                     for url in csv_urls:
                         try:
-                            resp = page.goto(url, wait_until="commit", timeout=60_000)
-                            if resp is None or not resp.ok:
-                                log.warning(
-                                    "MA: %s returned HTTP %s",
-                                    url, resp.status if resp else "None",
-                                )
+                            with page.expect_download(timeout=60_000) as dl_info:
+                                try:
+                                    page.goto(url, wait_until="commit", timeout=60_000)
+                                except Exception:
+                                    # Playwright raises "Download is starting" when
+                                    # the server sends Content-Disposition: attachment.
+                                    # The download is still captured by expect_download.
+                                    pass
+                            dl = dl_info.value
+                            dl_path = dl.path()
+                            if not dl_path:
+                                log.warning("MA: download of %s produced no file", url)
                                 continue
-                            text = resp.body().decode("utf-8-sig")
+                            text = Path(dl_path).read_bytes().decode("utf-8-sig")
                             files.append({"url": url, "csv": text})
                             log.info("MA: downloaded %s (%d chars)", url, len(text))
                         except Exception as exc:
                             log.warning(
-                                "MA: failed to navigate to %s → %s: %s",
+                                "MA: failed to download %s → %s: %s",
                                 url, type(exc).__name__, exc,
                             )
                 finally:
