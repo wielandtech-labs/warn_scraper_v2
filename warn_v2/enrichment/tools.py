@@ -17,6 +17,7 @@ from bs4 import BeautifulSoup
 log = logging.getLogger(__name__)
 
 _MAX_BYTES = 50_000
+_MAX_FETCH_CHARS = 4_000   # truncate fetch_url output before returning to the model
 _TIMEOUT_S = 10
 
 
@@ -42,6 +43,7 @@ TOOL_DEFS: list[dict] = [
     {
         "type": "web_search_20250305",
         "name": "web_search",
+        "max_results": 3,   # default is 5; fewer results = fewer tokens per search
     },
     {
         "name": "fetch_url",
@@ -156,9 +158,9 @@ def _fetch_url(url: str) -> dict[str, Any]:
             text = soup.get_text(" ", strip=True)
             # Normalise whitespace
             text = " ".join(text.split())
-            return {"url": url, "text": text[:_MAX_BYTES]}
+            return {"url": url, "text": text[:_MAX_FETCH_CHARS]}
         # Non-HTML (PDF, JSON, etc.) — return raw truncated text
-        return {"url": url, "text": r.text[:_MAX_BYTES]}
+        return {"url": url, "text": r.text[:_MAX_FETCH_CHARS]}
     except httpx.HTTPStatusError as e:
         return {"url": url, "error": f"HTTP {e.response.status_code}"}
     except Exception as e:

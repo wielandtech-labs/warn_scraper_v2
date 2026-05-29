@@ -26,27 +26,26 @@ DEFAULT_MAX_TOKENS = 2048
 
 
 SYSTEM_PROMPT = """\
-You are a company research agent for warn-v2, a system that tracks US state
-WARN layoff notices. Your job is to find the company's primary website URL.
+You are a company research agent for warn-v2 (US WARN layoff notices).
+Find the company's primary website URL. SIC/NAICS/DUNS were already tried elsewhere.
 
-SIC codes, NAICS codes, and DUNS numbers have already been attempted via other
-sources. Focus exclusively on finding the company's official website.
+BUDGET: 3 tool calls total (web_search + fetch_url combined). Use them wisely.
+Call finalize as soon as you have enough evidence — do not keep searching.
 
-Given a company name and its WARN notice context (state, city, layoff count):
-  1. Search for the company's primary website URL.
-  2. If you happen to find a DUNS number in a public source (SEC EDGAR, OpenCorporates),
-     include it — but do NOT guess or fabricate one.
+Steps:
+1. web_search the company name + state.
+2. Optionally fetch_url one candidate page to confirm it is the right company.
+3. Call finalize with the website (or null if not found), confidence 0.0–1.0,
+   and any DUNS you found in a public source (never guess).
 
-Strategy:
-- Use web_search with the company name and state.
-- Use fetch_url to verify candidate websites look like the right company.
-- Assign confidence: 1.0 = certain (official site confirmed), 0.7 = high,
-  0.5 = medium, below 0.5 = low. Do not call finalize if confidence < 0.4.
-- Call finalize once you have sufficient evidence. 2-3 tool calls is enough.
-
-If the company has no identifiable web presence, call finalize with null
-fields and confidence 0.3.
+Do not call finalize if confidence < 0.4. If nothing is found, finalize with
+null website and confidence 0.3.
 """
+
+# Characters to keep from each web search result block.
+# Web search results average ~4,000 chars each; trimming to 1,500 cuts
+# per-turn context by ~60% while preserving the useful snippets.
+_MAX_SEARCH_RESULT_CHARS = 1_500
 
 
 class LLMClient(Protocol):
@@ -85,6 +84,43 @@ class EnrichmentResult:
     sources: list[str] = field(default_factory=list)
     last_message: str | None = None
     turns: int = 0
+
+
+def _truncate_search_blocks(content: list) -> list:
+    """Serialize response content to dicts and truncate web search result text.
+
+    Web search result blocks accumulate in the conversation history and are
+    re-sent on every subsequent turn.  Truncating them here keeps per-turn
+    context size bounded regardless of how many searches the agent does.
+
+    Non-search blocks (text, tool_use, server_tool_use, tool_result) are
+    passed through as-is so the API protocol stays intact.
+    """
+    out = []
+    for block in content:
+        # Convert SDK object → dict so we can mutate it safely.
+        if hasattr(block, "model_dump"):
+            block_dict: dict = block.model_dump()
+        elif hasattr(block, "__dataclass_fields__"):
+            import dataclasses
+            block_dict = dataclasses.asdict(block)
+        elif isinstance(block, dict):
+            block_dict = dict(block)
+        else:
+            # Unknown type — pass through unchanged; no truncation possible.
+            out.append(block)
+            continue
+
+        if block_dict.get("type") == "web_search_tool_result":
+            for item in block_dict.get("content") or []:
+                if isinstance(item, dict):
+                    for key in ("text", "encrypted_content", "page_content"):
+                        val = item.get(key)
+                        if isinstance(val, str) and len(val) > _MAX_SEARCH_RESULT_CHARS:
+                            item[key] = val[:_MAX_SEARCH_RESULT_CHARS] + " …[truncated]"
+
+        out.append(block_dict)
+    return out
 
 
 def _build_brief(ctx: EnrichmentContext) -> str:
@@ -131,7 +167,9 @@ def run_enrichment(
             messages=messages,
         )
 
-        messages.append({"role": "assistant", "content": resp.content})
+        # Truncate web search result blocks before appending to history so the
+        # cumulative context doesn't balloon across turns.
+        messages.append({"role": "assistant", "content": _truncate_search_blocks(resp.content)})
 
         tool_uses = [b for b in resp.content if getattr(b, "type", None) == "tool_use"]
         texts = [b for b in resp.content if getattr(b, "type", None) == "text"]
@@ -214,5 +252,17 @@ class _AnthropicAdapter:
     def __init__(self, client: Any) -> None:
         self._client = client
 
-    def create(self, **kwargs: Any) -> Any:
-        return self._client.messages.create(**kwargs)
+    def create(self, *, system: str, **kwargs: Any) -> Any:
+        # Wrap the system prompt in the cache_control format so Anthropic caches
+        # it for 5 minutes.  The system prompt + tool definitions are resent on
+        # every turn; caching them gives a 90 % discount on those tokens.
+        # Tests pass system as a plain string and never reach this adapter, so
+        # the LLMClient Protocol signature stays as `system: str`.
+        system_with_cache = [
+            {
+                "type": "text",
+                "text": system,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
+        return self._client.messages.create(system=system_with_cache, **kwargs)
