@@ -1,0 +1,1758 @@
+{
+  "1000": [
+    "21",
+    "Mining, Quarrying, and Oil and Gas Extraction"
+  ],
+  "1040": [
+    "21",
+    "Mining, Quarrying, and Oil and Gas Extraction"
+  ],
+  "1090": [
+    "21",
+    "Mining, Quarrying, and Oil and Gas Extraction"
+  ],
+  "1220": [
+    "21",
+    "Mining, Quarrying, and Oil and Gas Extraction"
+  ],
+  "1221": [
+    "21",
+    "Mining, Quarrying, and Oil and Gas Extraction"
+  ],
+  "1311": [
+    "21",
+    "Mining, Quarrying, and Oil and Gas Extraction"
+  ],
+  "1381": [
+    "21",
+    "Mining, Quarrying, and Oil and Gas Extraction"
+  ],
+  "1382": [
+    "21",
+    "Mining, Quarrying, and Oil and Gas Extraction"
+  ],
+  "1389": [
+    "21",
+    "Mining, Quarrying, and Oil and Gas Extraction"
+  ],
+  "1400": [
+    "21",
+    "Mining, Quarrying, and Oil and Gas Extraction"
+  ],
+  "1520": [
+    "23",
+    "Construction"
+  ],
+  "1531": [
+    "23",
+    "Construction"
+  ],
+  "1540": [
+    "23",
+    "Construction"
+  ],
+  "1600": [
+    "23",
+    "Construction"
+  ],
+  "1623": [
+    "23",
+    "Construction"
+  ],
+  "1700": [
+    "23",
+    "Construction"
+  ],
+  "1731": [
+    "23",
+    "Construction"
+  ],
+  "2000": [
+    "31",
+    "Manufacturing"
+  ],
+  "2011": [
+    "31",
+    "Manufacturing"
+  ],
+  "2013": [
+    "31",
+    "Manufacturing"
+  ],
+  "2015": [
+    "31",
+    "Manufacturing"
+  ],
+  "2020": [
+    "31",
+    "Manufacturing"
+  ],
+  "2024": [
+    "31",
+    "Manufacturing"
+  ],
+  "2030": [
+    "31",
+    "Manufacturing"
+  ],
+  "2033": [
+    "31",
+    "Manufacturing"
+  ],
+  "2040": [
+    "31",
+    "Manufacturing"
+  ],
+  "2050": [
+    "31",
+    "Manufacturing"
+  ],
+  "2052": [
+    "31",
+    "Manufacturing"
+  ],
+  "2060": [
+    "31",
+    "Manufacturing"
+  ],
+  "2070": [
+    "31",
+    "Manufacturing"
+  ],
+  "2080": [
+    "31",
+    "Manufacturing"
+  ],
+  "2082": [
+    "31",
+    "Manufacturing"
+  ],
+  "2086": [
+    "31",
+    "Manufacturing"
+  ],
+  "2090": [
+    "31",
+    "Manufacturing"
+  ],
+  "2092": [
+    "31",
+    "Manufacturing"
+  ],
+  "2100": [
+    "31",
+    "Manufacturing"
+  ],
+  "2111": [
+    "31",
+    "Manufacturing"
+  ],
+  "2200": [
+    "31",
+    "Manufacturing"
+  ],
+  "2211": [
+    "31",
+    "Manufacturing"
+  ],
+  "2221": [
+    "31",
+    "Manufacturing"
+  ],
+  "2250": [
+    "31",
+    "Manufacturing"
+  ],
+  "2253": [
+    "31",
+    "Manufacturing"
+  ],
+  "2273": [
+    "31",
+    "Manufacturing"
+  ],
+  "2300": [
+    "31",
+    "Manufacturing"
+  ],
+  "2320": [
+    "31",
+    "Manufacturing"
+  ],
+  "2330": [
+    "31",
+    "Manufacturing"
+  ],
+  "2340": [
+    "31",
+    "Manufacturing"
+  ],
+  "2390": [
+    "31",
+    "Manufacturing"
+  ],
+  "2400": [
+    "31",
+    "Manufacturing"
+  ],
+  "2421": [
+    "31",
+    "Manufacturing"
+  ],
+  "2430": [
+    "31",
+    "Manufacturing"
+  ],
+  "2451": [
+    "31",
+    "Manufacturing"
+  ],
+  "2452": [
+    "31",
+    "Manufacturing"
+  ],
+  "2510": [
+    "31",
+    "Manufacturing"
+  ],
+  "2511": [
+    "31",
+    "Manufacturing"
+  ],
+  "2520": [
+    "31",
+    "Manufacturing"
+  ],
+  "2522": [
+    "31",
+    "Manufacturing"
+  ],
+  "2531": [
+    "31",
+    "Manufacturing"
+  ],
+  "2540": [
+    "31",
+    "Manufacturing"
+  ],
+  "2590": [
+    "31",
+    "Manufacturing"
+  ],
+  "2600": [
+    "31",
+    "Manufacturing"
+  ],
+  "2611": [
+    "31",
+    "Manufacturing"
+  ],
+  "2621": [
+    "31",
+    "Manufacturing"
+  ],
+  "2631": [
+    "31",
+    "Manufacturing"
+  ],
+  "2650": [
+    "31",
+    "Manufacturing"
+  ],
+  "2670": [
+    "31",
+    "Manufacturing"
+  ],
+  "2673": [
+    "31",
+    "Manufacturing"
+  ],
+  "2711": [
+    "31",
+    "Manufacturing"
+  ],
+  "2721": [
+    "31",
+    "Manufacturing"
+  ],
+  "2731": [
+    "31",
+    "Manufacturing"
+  ],
+  "2732": [
+    "31",
+    "Manufacturing"
+  ],
+  "2741": [
+    "31",
+    "Manufacturing"
+  ],
+  "2750": [
+    "31",
+    "Manufacturing"
+  ],
+  "2761": [
+    "31",
+    "Manufacturing"
+  ],
+  "2771": [
+    "31",
+    "Manufacturing"
+  ],
+  "2780": [
+    "31",
+    "Manufacturing"
+  ],
+  "2790": [
+    "31",
+    "Manufacturing"
+  ],
+  "2800": [
+    "31",
+    "Manufacturing"
+  ],
+  "2810": [
+    "31",
+    "Manufacturing"
+  ],
+  "2820": [
+    "31",
+    "Manufacturing"
+  ],
+  "2821": [
+    "31",
+    "Manufacturing"
+  ],
+  "2833": [
+    "31",
+    "Manufacturing"
+  ],
+  "2834": [
+    "31",
+    "Manufacturing"
+  ],
+  "2835": [
+    "31",
+    "Manufacturing"
+  ],
+  "2836": [
+    "31",
+    "Manufacturing"
+  ],
+  "2840": [
+    "31",
+    "Manufacturing"
+  ],
+  "2842": [
+    "31",
+    "Manufacturing"
+  ],
+  "2844": [
+    "31",
+    "Manufacturing"
+  ],
+  "2851": [
+    "31",
+    "Manufacturing"
+  ],
+  "2860": [
+    "31",
+    "Manufacturing"
+  ],
+  "2870": [
+    "31",
+    "Manufacturing"
+  ],
+  "2890": [
+    "31",
+    "Manufacturing"
+  ],
+  "2891": [
+    "31",
+    "Manufacturing"
+  ],
+  "2911": [
+    "31",
+    "Manufacturing"
+  ],
+  "2950": [
+    "31",
+    "Manufacturing"
+  ],
+  "2990": [
+    "31",
+    "Manufacturing"
+  ],
+  "3011": [
+    "31",
+    "Manufacturing"
+  ],
+  "3021": [
+    "31",
+    "Manufacturing"
+  ],
+  "3050": [
+    "31",
+    "Manufacturing"
+  ],
+  "3060": [
+    "31",
+    "Manufacturing"
+  ],
+  "3080": [
+    "31",
+    "Manufacturing"
+  ],
+  "3081": [
+    "31",
+    "Manufacturing"
+  ],
+  "3086": [
+    "31",
+    "Manufacturing"
+  ],
+  "3089": [
+    "31",
+    "Manufacturing"
+  ],
+  "3100": [
+    "31",
+    "Manufacturing"
+  ],
+  "3140": [
+    "31",
+    "Manufacturing"
+  ],
+  "3211": [
+    "31",
+    "Manufacturing"
+  ],
+  "3220": [
+    "31",
+    "Manufacturing"
+  ],
+  "3221": [
+    "31",
+    "Manufacturing"
+  ],
+  "3231": [
+    "31",
+    "Manufacturing"
+  ],
+  "3241": [
+    "31",
+    "Manufacturing"
+  ],
+  "3250": [
+    "31",
+    "Manufacturing"
+  ],
+  "3260": [
+    "31",
+    "Manufacturing"
+  ],
+  "3270": [
+    "31",
+    "Manufacturing"
+  ],
+  "3272": [
+    "31",
+    "Manufacturing"
+  ],
+  "3281": [
+    "31",
+    "Manufacturing"
+  ],
+  "3290": [
+    "31",
+    "Manufacturing"
+  ],
+  "3310": [
+    "31",
+    "Manufacturing"
+  ],
+  "3312": [
+    "31",
+    "Manufacturing"
+  ],
+  "3317": [
+    "31",
+    "Manufacturing"
+  ],
+  "3320": [
+    "31",
+    "Manufacturing"
+  ],
+  "3330": [
+    "31",
+    "Manufacturing"
+  ],
+  "3334": [
+    "31",
+    "Manufacturing"
+  ],
+  "3341": [
+    "31",
+    "Manufacturing"
+  ],
+  "3350": [
+    "31",
+    "Manufacturing"
+  ],
+  "3357": [
+    "31",
+    "Manufacturing"
+  ],
+  "3360": [
+    "31",
+    "Manufacturing"
+  ],
+  "3390": [
+    "31",
+    "Manufacturing"
+  ],
+  "3411": [
+    "31",
+    "Manufacturing"
+  ],
+  "3412": [
+    "31",
+    "Manufacturing"
+  ],
+  "3420": [
+    "31",
+    "Manufacturing"
+  ],
+  "3430": [
+    "31",
+    "Manufacturing"
+  ],
+  "3433": [
+    "31",
+    "Manufacturing"
+  ],
+  "3440": [
+    "31",
+    "Manufacturing"
+  ],
+  "3442": [
+    "31",
+    "Manufacturing"
+  ],
+  "3443": [
+    "31",
+    "Manufacturing"
+  ],
+  "3444": [
+    "31",
+    "Manufacturing"
+  ],
+  "3448": [
+    "31",
+    "Manufacturing"
+  ],
+  "3451": [
+    "31",
+    "Manufacturing"
+  ],
+  "3452": [
+    "31",
+    "Manufacturing"
+  ],
+  "3460": [
+    "31",
+    "Manufacturing"
+  ],
+  "3470": [
+    "31",
+    "Manufacturing"
+  ],
+  "3480": [
+    "31",
+    "Manufacturing"
+  ],
+  "3490": [
+    "31",
+    "Manufacturing"
+  ],
+  "3510": [
+    "31",
+    "Manufacturing"
+  ],
+  "3523": [
+    "31",
+    "Manufacturing"
+  ],
+  "3524": [
+    "31",
+    "Manufacturing"
+  ],
+  "3530": [
+    "31",
+    "Manufacturing"
+  ],
+  "3531": [
+    "31",
+    "Manufacturing"
+  ],
+  "3532": [
+    "31",
+    "Manufacturing"
+  ],
+  "3533": [
+    "31",
+    "Manufacturing"
+  ],
+  "3537": [
+    "31",
+    "Manufacturing"
+  ],
+  "3540": [
+    "31",
+    "Manufacturing"
+  ],
+  "3541": [
+    "31",
+    "Manufacturing"
+  ],
+  "3550": [
+    "31",
+    "Manufacturing"
+  ],
+  "3555": [
+    "31",
+    "Manufacturing"
+  ],
+  "3559": [
+    "31",
+    "Manufacturing"
+  ],
+  "3560": [
+    "31",
+    "Manufacturing"
+  ],
+  "3561": [
+    "31",
+    "Manufacturing"
+  ],
+  "3562": [
+    "31",
+    "Manufacturing"
+  ],
+  "3564": [
+    "31",
+    "Manufacturing"
+  ],
+  "3567": [
+    "31",
+    "Manufacturing"
+  ],
+  "3569": [
+    "31",
+    "Manufacturing"
+  ],
+  "3570": [
+    "31",
+    "Manufacturing"
+  ],
+  "3571": [
+    "31",
+    "Manufacturing"
+  ],
+  "3572": [
+    "31",
+    "Manufacturing"
+  ],
+  "3575": [
+    "31",
+    "Manufacturing"
+  ],
+  "3576": [
+    "31",
+    "Manufacturing"
+  ],
+  "3577": [
+    "31",
+    "Manufacturing"
+  ],
+  "3578": [
+    "31",
+    "Manufacturing"
+  ],
+  "3579": [
+    "31",
+    "Manufacturing"
+  ],
+  "3580": [
+    "31",
+    "Manufacturing"
+  ],
+  "3585": [
+    "31",
+    "Manufacturing"
+  ],
+  "3590": [
+    "31",
+    "Manufacturing"
+  ],
+  "3600": [
+    "31",
+    "Manufacturing"
+  ],
+  "3612": [
+    "31",
+    "Manufacturing"
+  ],
+  "3613": [
+    "31",
+    "Manufacturing"
+  ],
+  "3620": [
+    "31",
+    "Manufacturing"
+  ],
+  "3621": [
+    "31",
+    "Manufacturing"
+  ],
+  "3630": [
+    "31",
+    "Manufacturing"
+  ],
+  "3634": [
+    "31",
+    "Manufacturing"
+  ],
+  "3640": [
+    "31",
+    "Manufacturing"
+  ],
+  "3651": [
+    "31",
+    "Manufacturing"
+  ],
+  "3652": [
+    "31",
+    "Manufacturing"
+  ],
+  "3661": [
+    "31",
+    "Manufacturing"
+  ],
+  "3663": [
+    "31",
+    "Manufacturing"
+  ],
+  "3669": [
+    "31",
+    "Manufacturing"
+  ],
+  "3670": [
+    "31",
+    "Manufacturing"
+  ],
+  "3672": [
+    "31",
+    "Manufacturing"
+  ],
+  "3674": [
+    "31",
+    "Manufacturing"
+  ],
+  "3677": [
+    "31",
+    "Manufacturing"
+  ],
+  "3678": [
+    "31",
+    "Manufacturing"
+  ],
+  "3679": [
+    "31",
+    "Manufacturing"
+  ],
+  "3690": [
+    "31",
+    "Manufacturing"
+  ],
+  "3695": [
+    "31",
+    "Manufacturing"
+  ],
+  "3711": [
+    "31",
+    "Manufacturing"
+  ],
+  "3713": [
+    "31",
+    "Manufacturing"
+  ],
+  "3714": [
+    "31",
+    "Manufacturing"
+  ],
+  "3715": [
+    "31",
+    "Manufacturing"
+  ],
+  "3716": [
+    "31",
+    "Manufacturing"
+  ],
+  "3720": [
+    "31",
+    "Manufacturing"
+  ],
+  "3721": [
+    "31",
+    "Manufacturing"
+  ],
+  "3724": [
+    "31",
+    "Manufacturing"
+  ],
+  "3728": [
+    "31",
+    "Manufacturing"
+  ],
+  "3730": [
+    "31",
+    "Manufacturing"
+  ],
+  "3743": [
+    "31",
+    "Manufacturing"
+  ],
+  "3751": [
+    "31",
+    "Manufacturing"
+  ],
+  "3760": [
+    "31",
+    "Manufacturing"
+  ],
+  "3790": [
+    "31",
+    "Manufacturing"
+  ],
+  "3812": [
+    "31",
+    "Manufacturing"
+  ],
+  "3821": [
+    "31",
+    "Manufacturing"
+  ],
+  "3822": [
+    "31",
+    "Manufacturing"
+  ],
+  "3823": [
+    "31",
+    "Manufacturing"
+  ],
+  "3824": [
+    "31",
+    "Manufacturing"
+  ],
+  "3825": [
+    "31",
+    "Manufacturing"
+  ],
+  "3826": [
+    "31",
+    "Manufacturing"
+  ],
+  "3827": [
+    "31",
+    "Manufacturing"
+  ],
+  "3829": [
+    "31",
+    "Manufacturing"
+  ],
+  "3841": [
+    "31",
+    "Manufacturing"
+  ],
+  "3842": [
+    "31",
+    "Manufacturing"
+  ],
+  "3843": [
+    "31",
+    "Manufacturing"
+  ],
+  "3844": [
+    "31",
+    "Manufacturing"
+  ],
+  "3845": [
+    "31",
+    "Manufacturing"
+  ],
+  "3851": [
+    "31",
+    "Manufacturing"
+  ],
+  "3861": [
+    "31",
+    "Manufacturing"
+  ],
+  "3873": [
+    "31",
+    "Manufacturing"
+  ],
+  "3910": [
+    "31",
+    "Manufacturing"
+  ],
+  "3911": [
+    "31",
+    "Manufacturing"
+  ],
+  "3931": [
+    "31",
+    "Manufacturing"
+  ],
+  "3942": [
+    "31",
+    "Manufacturing"
+  ],
+  "3944": [
+    "31",
+    "Manufacturing"
+  ],
+  "3949": [
+    "31",
+    "Manufacturing"
+  ],
+  "3950": [
+    "31",
+    "Manufacturing"
+  ],
+  "3960": [
+    "31",
+    "Manufacturing"
+  ],
+  "3990": [
+    "31",
+    "Manufacturing"
+  ],
+  "4011": [
+    "48",
+    "Transportation and Warehousing"
+  ],
+  "4013": [
+    "48",
+    "Transportation and Warehousing"
+  ],
+  "4100": [
+    "48",
+    "Transportation and Warehousing"
+  ],
+  "4210": [
+    "48",
+    "Transportation and Warehousing"
+  ],
+  "4213": [
+    "48",
+    "Transportation and Warehousing"
+  ],
+  "4220": [
+    "48",
+    "Transportation and Warehousing"
+  ],
+  "4231": [
+    "48",
+    "Transportation and Warehousing"
+  ],
+  "4400": [
+    "48",
+    "Transportation and Warehousing"
+  ],
+  "4412": [
+    "48",
+    "Transportation and Warehousing"
+  ],
+  "4512": [
+    "48",
+    "Transportation and Warehousing"
+  ],
+  "4513": [
+    "48",
+    "Transportation and Warehousing"
+  ],
+  "4522": [
+    "48",
+    "Transportation and Warehousing"
+  ],
+  "4581": [
+    "48",
+    "Transportation and Warehousing"
+  ],
+  "4610": [
+    "48",
+    "Transportation and Warehousing"
+  ],
+  "4700": [
+    "48",
+    "Transportation and Warehousing"
+  ],
+  "4731": [
+    "48",
+    "Transportation and Warehousing"
+  ],
+  "4812": [
+    "51",
+    "Information"
+  ],
+  "4813": [
+    "51",
+    "Information"
+  ],
+  "4822": [
+    "51",
+    "Information"
+  ],
+  "4832": [
+    "51",
+    "Information"
+  ],
+  "4833": [
+    "51",
+    "Information"
+  ],
+  "4841": [
+    "51",
+    "Information"
+  ],
+  "4899": [
+    "51",
+    "Information"
+  ],
+  "4900": [
+    "22",
+    "Utilities"
+  ],
+  "4911": [
+    "22",
+    "Utilities"
+  ],
+  "4922": [
+    "22",
+    "Utilities"
+  ],
+  "4923": [
+    "22",
+    "Utilities"
+  ],
+  "4924": [
+    "22",
+    "Utilities"
+  ],
+  "4931": [
+    "22",
+    "Utilities"
+  ],
+  "4932": [
+    "22",
+    "Utilities"
+  ],
+  "4941": [
+    "22",
+    "Utilities"
+  ],
+  "4950": [
+    "22",
+    "Utilities"
+  ],
+  "4953": [
+    "22",
+    "Utilities"
+  ],
+  "4955": [
+    "22",
+    "Utilities"
+  ],
+  "4961": [
+    "22",
+    "Utilities"
+  ],
+  "4991": [
+    "22",
+    "Utilities"
+  ],
+  "5000": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5010": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5013": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5020": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5030": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5031": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5040": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5045": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5047": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5050": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5051": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5063": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5064": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5065": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5070": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5072": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5080": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5082": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5084": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5090": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5094": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5099": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5110": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5122": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5130": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5140": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5141": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5150": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5160": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5171": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5172": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5180": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5190": [
+    "42",
+    "Wholesale Trade"
+  ],
+  "5200": [
+    "44",
+    "Retail Trade"
+  ],
+  "5211": [
+    "44",
+    "Retail Trade"
+  ],
+  "5271": [
+    "44",
+    "Retail Trade"
+  ],
+  "5311": [
+    "44",
+    "Retail Trade"
+  ],
+  "5331": [
+    "44",
+    "Retail Trade"
+  ],
+  "5399": [
+    "44",
+    "Retail Trade"
+  ],
+  "5400": [
+    "44",
+    "Retail Trade"
+  ],
+  "5411": [
+    "44",
+    "Retail Trade"
+  ],
+  "5412": [
+    "44",
+    "Retail Trade"
+  ],
+  "5500": [
+    "44",
+    "Retail Trade"
+  ],
+  "5531": [
+    "44",
+    "Retail Trade"
+  ],
+  "5600": [
+    "44",
+    "Retail Trade"
+  ],
+  "5621": [
+    "44",
+    "Retail Trade"
+  ],
+  "5651": [
+    "44",
+    "Retail Trade"
+  ],
+  "5661": [
+    "44",
+    "Retail Trade"
+  ],
+  "5700": [
+    "44",
+    "Retail Trade"
+  ],
+  "5712": [
+    "44",
+    "Retail Trade"
+  ],
+  "5731": [
+    "44",
+    "Retail Trade"
+  ],
+  "5734": [
+    "44",
+    "Retail Trade"
+  ],
+  "5735": [
+    "44",
+    "Retail Trade"
+  ],
+  "5810": [
+    "44",
+    "Retail Trade"
+  ],
+  "5812": [
+    "44",
+    "Retail Trade"
+  ],
+  "5900": [
+    "44",
+    "Retail Trade"
+  ],
+  "5912": [
+    "44",
+    "Retail Trade"
+  ],
+  "5940": [
+    "44",
+    "Retail Trade"
+  ],
+  "5944": [
+    "44",
+    "Retail Trade"
+  ],
+  "5945": [
+    "44",
+    "Retail Trade"
+  ],
+  "5960": [
+    "44",
+    "Retail Trade"
+  ],
+  "5961": [
+    "44",
+    "Retail Trade"
+  ],
+  "5990": [
+    "44",
+    "Retail Trade"
+  ],
+  "6021": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6022": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6029": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6035": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6036": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6099": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6111": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6141": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6153": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6159": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6162": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6163": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6172": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6189": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6199": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6200": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6211": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6221": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6282": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6311": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6321": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6324": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6331": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6351": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6361": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6399": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6411": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6500": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6510": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6512": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6513": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6519": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6531": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6532": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6552": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6770": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6792": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6794": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6795": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6798": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "6799": [
+    "52",
+    "Finance and Insurance"
+  ],
+  "7000": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7011": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7200": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7310": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7311": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7320": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7330": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7331": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7340": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7350": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7359": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7361": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7363": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7370": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7371": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7372": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7373": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7374": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7377": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7380": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7381": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7384": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7385": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7389": [
+    "72",
+    "Accommodation and Food Services"
+  ],
+  "7500": [
+    "56",
+    "Administrative and Support Services"
+  ],
+  "7510": [
+    "56",
+    "Administrative and Support Services"
+  ],
+  "7600": [
+    "56",
+    "Administrative and Support Services"
+  ],
+  "7812": [
+    "71",
+    "Arts, Entertainment, and Recreation"
+  ],
+  "7819": [
+    "71",
+    "Arts, Entertainment, and Recreation"
+  ],
+  "7822": [
+    "71",
+    "Arts, Entertainment, and Recreation"
+  ],
+  "7829": [
+    "71",
+    "Arts, Entertainment, and Recreation"
+  ],
+  "7830": [
+    "71",
+    "Arts, Entertainment, and Recreation"
+  ],
+  "7841": [
+    "71",
+    "Arts, Entertainment, and Recreation"
+  ],
+  "7900": [
+    "71",
+    "Arts, Entertainment, and Recreation"
+  ],
+  "7948": [
+    "71",
+    "Arts, Entertainment, and Recreation"
+  ],
+  "7990": [
+    "71",
+    "Arts, Entertainment, and Recreation"
+  ],
+  "7997": [
+    "71",
+    "Arts, Entertainment, and Recreation"
+  ],
+  "8000": [
+    "62",
+    "Health Care and Social Assistance"
+  ],
+  "8011": [
+    "62",
+    "Health Care and Social Assistance"
+  ],
+  "8050": [
+    "62",
+    "Health Care and Social Assistance"
+  ],
+  "8051": [
+    "62",
+    "Health Care and Social Assistance"
+  ],
+  "8060": [
+    "62",
+    "Health Care and Social Assistance"
+  ],
+  "8062": [
+    "62",
+    "Health Care and Social Assistance"
+  ],
+  "8071": [
+    "62",
+    "Health Care and Social Assistance"
+  ],
+  "8082": [
+    "62",
+    "Health Care and Social Assistance"
+  ],
+  "8090": [
+    "62",
+    "Health Care and Social Assistance"
+  ],
+  "8093": [
+    "62",
+    "Health Care and Social Assistance"
+  ],
+  "8111": [
+    "54",
+    "Professional, Scientific, and Technical Services"
+  ],
+  "8200": [
+    "61",
+    "Educational Services"
+  ],
+  "8300": [
+    "62",
+    "Health Care and Social Assistance"
+  ],
+  "8351": [
+    "62",
+    "Health Care and Social Assistance"
+  ],
+  "8600": [
+    "62",
+    "Health Care and Social Assistance"
+  ],
+  "8700": [
+    "62",
+    "Health Care and Social Assistance"
+  ],
+  "8711": [
+    "62",
+    "Health Care and Social Assistance"
+  ],
+  "8731": [
+    "62",
+    "Health Care and Social Assistance"
+  ],
+  "8734": [
+    "62",
+    "Health Care and Social Assistance"
+  ],
+  "8741": [
+    "62",
+    "Health Care and Social Assistance"
+  ],
+  "8742": [
+    "62",
+    "Health Care and Social Assistance"
+  ],
+  "8744": [
+    "62",
+    "Health Care and Social Assistance"
+  ],
+  "8880": [
+    "81",
+    "Other Services (except Public Administration)"
+  ],
+  "8888": [
+    "81",
+    "Other Services (except Public Administration)"
+  ],
+  "8900": [
+    "81",
+    "Other Services (except Public Administration)"
+  ],
+  "9721": [
+    "92",
+    "Public Administration"
+  ],
+  "9995": [
+    "99",
+    "Nonclassifiable Establishments"
+  ]
+}

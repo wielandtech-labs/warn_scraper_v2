@@ -51,6 +51,8 @@ class Company(Base):
     duns: Mapped[str | None] = mapped_column(String(16), index=True)
     sic_code: Mapped[str | None] = mapped_column(String(8))
     sic_desc: Mapped[str | None] = mapped_column(String(256))
+    naics_code: Mapped[str | None] = mapped_column(String(8))
+    naics_desc: Mapped[str | None] = mapped_column(String(256))
     website: Mapped[str | None] = mapped_column(String(512))
     enriched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     enrichment_confidence: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))

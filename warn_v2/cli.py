@@ -188,14 +188,21 @@ def heal(
     metavar="CONFIDENCE",
     help="Also re-enrich companies whose confidence is below this threshold (e.g. 0.7)",
 )
-@click.option("--dry-run", is_flag=True, help="Run the agent but do not write results to the DB")
+@click.option("--dry-run", is_flag=True, help="Run agents but do not write results to the DB")
 @click.option(
     "--sleep-between",
     type=float,
     default=30.0,
     show_default=True,
     metavar="SECONDS",
-    help="Seconds to sleep between companies (throttles Anthropic TPM usage)",
+    help="Seconds to sleep between Claude API calls (throttles TPM usage)",
+)
+@click.option(
+    "--recent-years",
+    type=int,
+    default=None,
+    metavar="N",
+    help="Only enrich companies with notices in the last N years (e.g. 2)",
 )
 def enrich(
     limit: int,
@@ -203,37 +210,63 @@ def enrich(
     rerun_below: float | None,
     dry_run: bool,
     sleep_between: float,
+    recent_years: int | None,
 ) -> None:
-    """Enrich company records with website, SIC code, and DUNS via Claude + web search.
+    """Enrich company records using a cheapest-first cascade.
+
+    \b
+    Cascade order:
+      1. External provider (ENRICHMENT_PROVIDER_MODULE env var) — richest data
+      2. SEC EDGAR lookup — free, SIC for public companies
+      3. Claude Haiku — cheap fallback for website + remaining gaps
 
     \b
     Examples:
-      warn-v2 enrich                       # enrich up to 50 unenriched companies
-      warn-v2 enrich --limit 200           # larger batch
-      warn-v2 enrich --state CA            # only companies from CA notices
-      warn-v2 enrich --rerun-below 0.7     # also re-enrich low-confidence rows
-      warn-v2 enrich --dry-run             # test without writing to DB
-      warn-v2 enrich --sleep-between 60    # slower but stays under TPM limit
+      warn-v2 enrich                        # enrich up to 50 unenriched companies
+      warn-v2 enrich --limit 200            # larger batch
+      warn-v2 enrich --recent-years 2       # only companies with notices in last 2 years
+      warn-v2 enrich --state CA             # only companies from CA notices
+      warn-v2 enrich --rerun-below 0.7      # also re-enrich low-confidence rows
+      warn-v2 enrich --dry-run              # test without writing to DB
+      warn-v2 enrich --sleep-between 10     # faster (lower TPM headroom)
     """
     from warn_v2.db.session import session_scope
     from warn_v2.enrichment.agent import build_anthropic_client
+    from warn_v2.enrichment.provider import load_provider
     from warn_v2.enrichment.worker import enrich_batch
 
+    provider = load_provider()
+    if provider:
+        click.echo("External enrichment provider loaded.")
+    else:
+        click.echo("No external provider configured — using EDGAR + Claude cascade.")
+
     client = build_anthropic_client()
-    with session_scope() as session:
-        stats = enrich_batch(
-            session,
-            client,
-            limit=limit,
-            state_filter=state,
-            rerun_below=rerun_below,
-            dry_run=dry_run,
-            inter_delay_s=sleep_between,
-        )
+    try:
+        with session_scope() as session:
+            stats = enrich_batch(
+                session,
+                client,
+                limit=limit,
+                state_filter=state,
+                rerun_below=rerun_below,
+                dry_run=dry_run,
+                inter_delay_s=sleep_between,
+                provider=provider,
+                recent_years=recent_years,
+            )
+    finally:
+        if provider:
+            try:
+                provider.close()
+            except Exception:
+                pass
 
     suffix = " (dry run — nothing written)" if dry_run else ""
     click.echo(
-        f"enriched={stats['enriched']} skipped={stats['skipped']} total={stats['total']}{suffix}"
+        f"enriched={stats['enriched']} "
+        f"(provider={stats['provider']} edgar={stats['edgar']} claude={stats['claude']}) "
+        f"skipped={stats['skipped']} total={stats['total']}{suffix}"
     )
     if stats["skipped"] and not dry_run:
         sys.exit(1)

@@ -212,7 +212,9 @@ def test_enrich_batch_dry_run_does_not_persist(db, monkeypatch) -> None:
 def test_enrich_batch_empty_when_no_pending(db, monkeypatch) -> None:
     monkeypatch.setattr("warn_v2.enrichment.worker.run_enrichment", _stub_run())
     stats = enrich_batch(db, _StubClient())
-    assert stats == {"total": 0, "enriched": 0, "skipped": 0}
+    assert stats["total"] == 0
+    assert stats["enriched"] == 0
+    assert stats["skipped"] == 0
 
 
 def test_enrich_batch_rerun_below(db, monkeypatch) -> None:

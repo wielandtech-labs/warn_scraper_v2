@@ -27,6 +27,8 @@ class CompanyOut(BaseModel):
     duns: str | None
     sic_code: str | None
     sic_desc: str | None
+    naics_code: str | None
+    naics_desc: str | None
     website: str | None
     enriched_at: datetime | None
     enrichment_confidence: Decimal | None

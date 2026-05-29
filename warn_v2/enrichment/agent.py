@@ -20,43 +20,32 @@ from warn_v2.enrichment.tools import FinalizeArgs
 
 log = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "claude-sonnet-4-5"
-DEFAULT_MAX_TURNS = 8
-DEFAULT_MAX_TOKENS = 4096
+DEFAULT_MODEL = "claude-haiku-4-5-20251001"
+DEFAULT_MAX_TURNS = 4
+DEFAULT_MAX_TOKENS = 2048
 
 
 SYSTEM_PROMPT = """\
 You are a company research agent for warn-v2, a system that tracks US state
-WARN layoff notices. Your job is to enrich each company record with publicly
-available information.
+WARN layoff notices. Your job is to find the company's primary website URL.
 
-Given a company name and its WARN notice context (state, city, layoff count),
-find:
-  1. The company's primary website URL.
-  2. The SIC code (4-digit Standard Industrial Classification) and its description
-     that best matches this company's industry.
-  3. The D-U-N-S number, if you can find it in a public source such as SEC EDGAR
-     or OpenCorporates. Do NOT guess or fabricate a DUNS — set it to null if
-     you cannot find it in a real source.
+SIC codes, NAICS codes, and DUNS numbers have already been attempted via other
+sources. Focus exclusively on finding the company's official website.
+
+Given a company name and its WARN notice context (state, city, layoff count):
+  1. Search for the company's primary website URL.
+  2. If you happen to find a DUNS number in a public source (SEC EDGAR, OpenCorporates),
+     include it — but do NOT guess or fabricate one.
 
 Strategy:
-- Start with a web_search for the company name and state to identify the right
-  entity (common names may have multiple companies — the WARN context helps).
-- Use fetch_url to read the company's own website, SEC EDGAR search
-  (https://efts.sec.gov/LATEST/search-index?q="COMPANY+NAME"&dateRange=custom&startdt=2020-01-01),
-  OpenCorporates (https://opencorporates.com/companies/us_XX?q=COMPANY+NAME),
-  or state Secretary of State search results.
-- For SIC code, consult the company's primary industry. If the company has SEC
-  filings, the SIC code is listed there. Otherwise infer from business description.
-- Assign confidence: 1.0 = certain (found official source), 0.7 = high
-  (strong circumstantial evidence), 0.5 = medium (likely but uncertain),
-  below 0.5 = low (guessing). Do not call finalize if confidence < 0.4.
-- List only URLs you actually fetched or searched — no invented sources.
-- Call finalize once you have sufficient evidence. Do not over-search; 3-5
-  tool calls is usually enough for a clear result.
+- Use web_search with the company name and state.
+- Use fetch_url to verify candidate websites look like the right company.
+- Assign confidence: 1.0 = certain (official site confirmed), 0.7 = high,
+  0.5 = medium, below 0.5 = low. Do not call finalize if confidence < 0.4.
+- Call finalize once you have sufficient evidence. 2-3 tool calls is enough.
 
-If the company genuinely cannot be identified (no web presence, too generic a
-name, completely ambiguous), call finalize with null fields and confidence 0.3.
+If the company has no identifiable web presence, call finalize with null
+fields and confidence 0.3.
 """
 
 
