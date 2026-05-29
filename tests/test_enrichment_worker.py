@@ -165,6 +165,7 @@ def test_enrich_batch_persists_result(db, monkeypatch) -> None:
     assert c.enrichment_confidence == Decimal("0.85")
     assert c.enriched_at is not None
     assert json.loads(c.enrichment_sources or "[]") == ["https://acme.com"]
+    assert c.enrichment_source == "claude"
 
 
 def test_enrich_batch_idempotent(db, monkeypatch) -> None:
@@ -230,3 +231,136 @@ def test_enrich_batch_rerun_below(db, monkeypatch) -> None:
     assert stats["enriched"] == 1
     db.refresh(c)
     assert c.enrichment_confidence == Decimal("0.90")
+
+
+# ---------------------------------------------------------------------------
+# Cascade tier tests
+# ---------------------------------------------------------------------------
+
+
+def test_find_pending_recent_years(db) -> None:
+    """recent_years only returns companies with notices in the last N years."""
+    from datetime import timedelta
+    recent_co = _company(db, name="Recent Corp")
+    old_co = _company(db, name="Old Corp")
+    db.flush()
+    _notice(db, recent_co.id, state="CA", notice_date=date(2025, 6, 1))   # ~1 year ago
+    _notice(db, old_co.id, state="CA", notice_date=date(2020, 1, 1))       # ~6 years ago
+    db.commit()
+
+    pending = find_pending(db, recent_years=2)
+    ids = [p.id for p in pending]
+    assert recent_co.id in ids
+    assert old_co.id not in ids
+
+
+def test_enrich_batch_provider_hit_skips_edgar_and_claude(db, monkeypatch) -> None:
+    """When provider returns a result, EDGAR and Claude are never called."""
+    from warn_v2.enrichment.provider import ProviderResult
+
+    edgar_calls: list[str] = []
+    monkeypatch.setattr(
+        "warn_v2.enrichment.lookup.edgar_lookup",
+        lambda name, state=None: edgar_calls.append(name) or None,
+    )
+    claude_calls: list[str] = []
+    monkeypatch.setattr(
+        "warn_v2.enrichment.worker.run_enrichment",
+        lambda ctx, client, **kw: claude_calls.append(ctx.company_name)
+        or EnrichmentResult(proposed=False),
+    )
+
+    class _FakeProvider:
+        def lookup(self, company_name: str, state):
+            return ProviderResult(
+                entity_name="Boeing Company",
+                sic_code="3721",
+                sic_desc="Aircraft & Parts",
+                naics_code="336411",
+                naics_desc="Aircraft Manufacturing",
+                duns="009867000",
+                website="https://boeing.com",
+                confidence=0.95,
+                sources=["https://provider.example.com"],
+            )
+
+        def close(self) -> None:
+            pass
+
+    c = _company(db, name="Boeing")
+    db.commit()
+
+    stats = enrich_batch(db, _StubClient(), provider=_FakeProvider(), inter_delay_s=0)
+    assert stats == {"total": 1, "enriched": 1, "skipped": 0,
+                     "provider": 1, "edgar": 0, "claude": 0}
+    assert edgar_calls == []
+    assert claude_calls == []
+
+    db.refresh(c)
+    assert c.enrichment_source == "provider"
+    assert c.sic_code == "3721"
+    assert c.naics_code == "336411"
+    assert c.duns == "009867000"
+    assert c.website == "https://boeing.com"
+    assert c.enriched_at is not None
+
+
+def test_enrich_batch_edgar_hit_skips_claude(db, monkeypatch) -> None:
+    """When provider is absent and EDGAR matches, Claude is never called."""
+    from warn_v2.enrichment.lookup import LookupResult
+
+    monkeypatch.setattr(
+        "warn_v2.enrichment.lookup.edgar_lookup",
+        lambda name, state=None: LookupResult(
+            entity_name="General Electric",
+            sic_code="3612",
+            sic_desc="Power, Distribution & Specialty Transformers",
+            naics_code="335311",
+            naics_desc="Power, Distribution, and Specialty Transformer Manufacturing",
+            confidence=0.85,
+            sources=["https://efts.sec.gov/LATEST/search-index?q=General+Electric"],
+        ),
+    )
+    claude_calls: list[str] = []
+    monkeypatch.setattr(
+        "warn_v2.enrichment.worker.run_enrichment",
+        lambda ctx, client, **kw: claude_calls.append(ctx.company_name)
+        or EnrichmentResult(proposed=False),
+    )
+
+    c = _company(db, name="General Electric")
+    db.commit()
+
+    stats = enrich_batch(db, _StubClient(), inter_delay_s=0)
+    assert stats == {"total": 1, "enriched": 1, "skipped": 0,
+                     "provider": 0, "edgar": 1, "claude": 0}
+    assert claude_calls == []
+
+    db.refresh(c)
+    assert c.enrichment_source == "edgar"
+    assert c.sic_code == "3612"
+    assert c.naics_code == "335311"
+    assert c.duns is None  # EDGAR tier never sets DUNS
+    assert c.enriched_at is not None
+
+
+def test_enrich_batch_falls_through_to_claude(db, monkeypatch) -> None:
+    """When no provider and EDGAR misses, Tier 3 Claude is called."""
+    monkeypatch.setattr(
+        "warn_v2.enrichment.lookup.edgar_lookup",
+        lambda name, state=None: None,
+    )
+    monkeypatch.setattr("warn_v2.enrichment.worker.run_enrichment", _stub_run())
+
+    c = _company(db, name="Acme Temp Services")
+    db.commit()
+
+    stats = enrich_batch(db, _StubClient(), inter_delay_s=0)
+    assert stats == {"total": 1, "enriched": 1, "skipped": 0,
+                     "provider": 0, "edgar": 0, "claude": 1}
+
+    db.refresh(c)
+    assert c.enrichment_source == "claude"
+    assert c.website == "https://acme.com"
+    assert c.sic_code == "3559"
+    assert c.enriched_at is not None
