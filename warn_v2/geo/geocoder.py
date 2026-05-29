@@ -1,10 +1,14 @@
-"""Geocoding: US Census address API → ZIP centroid fallback.
+"""Geocoding: US Census address API → ZIP centroid → city centroid fallback.
 
 Strategy (in priority order):
   1. US Census Geocoder — free, no API key, US-only, street-level precision.
      Requires a street address.  Called only when ``address`` is provided.
   2. ZIP centroid — local dictionary lookup, instant, ~city-block radius.
      Used when no address is available or Census call fails/returns nothing.
+  3. City centroid — (state, city) lookup from the Census Places Gazetteer,
+     ~city-level accuracy (~11 km).  Used when no ZIP is available and the
+     first two tiers both return None.  Covers states whose WARN sources
+     report city name but not ZIP code (e.g. AK, AL, MA, MN, TX, WA, …).
 
 The Census geocoder is called synchronously with a short timeout.  Any
 exception (network error, rate-limit, bad JSON) falls through to ZIP centroid
@@ -22,6 +26,7 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
+from warn_v2.geo.city_centroids import lookup_decimal as _city_lookup
 from warn_v2.geo.zip_centroids import lookup_decimal
 
 log = logging.getLogger(__name__)
@@ -83,7 +88,8 @@ def geocode(
 
     Priority:
       1. Census street-level geocoding (when *address* is given)
-      2. ZIP centroid (fast local lookup)
+      2. ZIP centroid (fast local lookup, ~city-block radius)
+      3. City centroid (fast local lookup, ~city-level / ~11 km)
     """
     # 1. Full street address via Census geocoder
     if address:
@@ -92,4 +98,9 @@ def geocode(
             return result
 
     # 2. ZIP centroid fallback
-    return lookup_decimal(zip_code)
+    result = lookup_decimal(zip_code)
+    if result is not None:
+        return result
+
+    # 3. City centroid fallback (handles states that report city but not ZIP)
+    return _city_lookup(state, city)
