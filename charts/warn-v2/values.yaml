@@ -37,6 +37,8 @@ scraper:
 enricher:
   enabled: true  # override to false in HelmRelease until Phase 4 is ready
   schedule: "23 */6 * * *"  # every 6h
+  limit: 10       # max companies to enrich per CronJob run
+  recentYears: 2  # only enrich companies with notices in the last N years
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 500m, memory: 512Mi }

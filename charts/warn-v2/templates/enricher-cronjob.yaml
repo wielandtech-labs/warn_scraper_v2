@@ -24,7 +24,12 @@ spec:
             - name: enricher
               image: {{ include "warn-v2.image" . }}
               imagePullPolicy: {{ .Values.image.pullPolicy }}
-              args: ["enrich"]
+              args:
+                - enrich
+                - --limit
+                - {{ .Values.enricher.limit | quote }}
+                - --recent-years
+                - {{ .Values.enricher.recentYears | quote }}
               env:
                 {{- include "warn-v2.envSecrets" . | nindent 16 }}
               resources:

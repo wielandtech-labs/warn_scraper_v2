@@ -179,7 +179,7 @@ def heal(
 
 
 @main.command()
-@click.option("--limit", default=50, show_default=True, help="Max companies to enrich per run")
+@click.option("--limit", default=10, show_default=True, help="Max companies to enrich per run")
 @click.option("--state", default=None, help="Only enrich companies from this state's notices")
 @click.option(
     "--rerun-below",
