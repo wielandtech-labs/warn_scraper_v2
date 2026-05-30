@@ -22,7 +22,7 @@ import argparse
 import logging
 import sys
 
-from sqlalchemy import exists, or_, select
+from sqlalchemy import exists, func, or_, select
 
 from warn_v2.db.models import Location, Notice
 from warn_v2.db.session import session_scope
@@ -79,11 +79,13 @@ def backfill(
             if state_filter:
                 stmt = stmt.where(Location.state == state_filter.upper())
 
-        results = session.scalars(stmt).all()
-        stats["considered"] = len(results)
-        log.info("Found %d locations to process", stats["considered"])
+        total = session.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+        stats["considered"] = total
+        log.info("Found %d locations to process", total)
 
-        for i, loc in enumerate(results, start=1):
+        for i, loc in enumerate(
+            session.scalars(stmt.execution_options(yield_per=batch_size)), start=1
+        ):
             # Find the most recent associated notice with a street address.
             notice_with_address = session.scalar(
                 select(Notice)
