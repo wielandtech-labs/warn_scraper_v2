@@ -10,10 +10,21 @@ Excel columns (A-L, row 1 = header):
   Local Workforce Area | Industry
 
 Dates are Excel datetime objects (converted natively by openpyxl).
+
+ZIP-variance deduplication
+--------------------------
+Iowa's cumulative Excel occasionally lists the same notice twice — once
+without a ZIP (early filing) and again with a ZIP (after Iowa staff
+complete the record).  ``parse()`` collapses those pairs within a single
+download: for any group sharing ``(employer, notice_date, city)``, rows
+without a ZIP are dropped when at least one sibling in the group has a ZIP.
+Rows where both siblings have distinct non-null ZIPs are kept as-is (they
+represent genuinely different sites).
 """
 from __future__ import annotations
 
 import io
+from collections import defaultdict
 from datetime import date, datetime
 
 import httpx
@@ -126,7 +137,42 @@ class IAScraper:
         wb.close()
         if not rows:
             raise ParseFailed("IA Excel: no data rows found")
-        return rows
+        return _dedup_zip_variance(rows)
+
+
+def _dedup_zip_variance(rows: list[NoticeRow]) -> list[NoticeRow]:
+    """Drop ZIP-less rows that have a ZIP-bearing sibling with the same key.
+
+    Groups rows by ``(employer_normalized, notice_date, city_normalized)``.
+    Within each group, if *any* row has a non-empty ZIP, rows without a ZIP
+    are discarded.  Rows where every sibling lacks a ZIP, or where siblings
+    have distinct non-null ZIPs (different sites), are kept as-is.
+    """
+    def _key(r: NoticeRow) -> tuple:
+        return (
+            " ".join(r.employer.strip().lower().split()),
+            r.notice_date,
+            " ".join((r.city or "").strip().lower().split()),
+        )
+
+    groups: dict[tuple, list[NoticeRow]] = defaultdict(list)
+    for r in rows:
+        groups[_key(r)].append(r)
+
+    out: list[NoticeRow] = []
+    for group in groups.values():
+        if len(group) == 1:
+            out.append(group[0])
+            continue
+        has_zip = [r for r in group if r.zip]
+        no_zip  = [r for r in group if not r.zip]
+        if has_zip and no_zip:
+            # Prefer ZIP-bearing rows; drop the ZIP-less duplicates.
+            out.extend(has_zip)
+        else:
+            # All have ZIPs (different sites) or none have ZIPs — keep all.
+            out.extend(group)
+    return out
 
 
 register(IAScraper())
