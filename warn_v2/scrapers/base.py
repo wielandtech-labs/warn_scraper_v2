@@ -33,6 +33,7 @@ class NoticeRow:
     county: str | None = None
     zip: str | None = None
     address: str | None = None
+    naics_code: str | None = None
     source_url: str | None = None
     raw_notice_url: str | None = None
     extra: dict[str, str] = field(default_factory=dict)

@@ -40,7 +40,7 @@ def upsert_notices(session: Session, rows: Iterable[NoticeRow]) -> tuple[int, in
     for row in rows:
         seen += 1
         nid = notice_id(row)
-        company = _get_or_create_company(session, row.employer)
+        company = _get_or_create_company(session, row.employer, row.naics_code)
         location = _get_or_create_location(session, row)
 
         payload = {
@@ -108,13 +108,19 @@ def upsert_notices(session: Session, rows: Iterable[NoticeRow]) -> tuple[int, in
     return seen, new
 
 
-def _get_or_create_company(session: Session, name: str) -> Company:
+def _get_or_create_company(
+    session: Session, name: str, naics_code: str | None = None
+) -> Company:
     stmt = select(Company).where(Company.name == name).limit(1)
     company = session.execute(stmt).scalar_one_or_none()
     if company is None:
-        company = Company(name=name)
+        company = Company(name=name, naics_code=naics_code)
         session.add(company)
         session.flush()
+    elif naics_code and not company.naics_code:
+        # First non-null wins: fill in a missing NAICS from the WARN filing.
+        # An existing enrichment-provided code is preserved.
+        company.naics_code = naics_code
     return company
 
 

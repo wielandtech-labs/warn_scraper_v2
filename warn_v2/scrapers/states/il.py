@@ -175,11 +175,11 @@ class ILScraper:
                     zip=zip_code,
                     address=address,
                     closure_type=closure_type,
+                    naics_code=naics,
                     source_url=_SOURCE_URL,
                     extra={
                         "layoff_type": layoff_type,
                         "event_causes": event_causes,
-                        "naics": naics,
                         "workforce_area": as_str(_col("LOCAL WORKFORCE AREA")) or None,
                     },
                 )
