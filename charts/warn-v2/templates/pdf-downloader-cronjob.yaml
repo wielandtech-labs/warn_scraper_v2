@@ -1,0 +1,42 @@
+{{- if .Values.pdfDownloader.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "warn-v2.fullname" . }}-pdf-downloader
+  labels:
+    {{- include "warn-v2.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.pdfDownloader.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            {{- include "warn-v2.labels" . | nindent 12 }}
+            app.kubernetes.io/component: pdf-downloader
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: pdf-downloader
+              image: {{ include "warn-v2.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              args:
+                - download-pdfs
+                - --limit
+                - {{ .Values.pdfDownloader.limit | quote }}
+              env:
+                {{- include "warn-v2.envSecrets" . | nindent 16 }}
+              volumeMounts:
+                - name: pdfs
+                  mountPath: /var/pdfs
+              resources:
+                {{- toYaml .Values.pdfDownloader.resources | nindent 16 }}
+          volumes:
+            - name: pdfs
+              persistentVolumeClaim:
+                claimName: {{ include "warn-v2.fullname" . }}-pdfs
+{{- end }}

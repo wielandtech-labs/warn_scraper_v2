@@ -64,5 +64,18 @@ serviceMonitor:
   enabled: true   # picked up by your existing Prometheus
   interval: 30s
 
+pdfStorage:
+  enabled: false        # flip on in HelmRelease; requires a PVC-capable storage class
+  storageClass: nfs-client
+  size: 20Gi
+
+pdfDownloader:
+  enabled: false        # flip on in HelmRelease after pdfStorage is enabled
+  schedule: "0 9 * * *" # daily 09:00, ~2h after the scraper
+  limit: 500
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+
 migrations:
   enabled: true   # set false only if you manage migrations out-of-band

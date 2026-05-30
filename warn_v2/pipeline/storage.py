@@ -124,6 +124,49 @@ def _get_or_create_company(
     return company
 
 
+def enrich_notice_location(
+    session: Session,
+    notice,
+    city: str | None,
+    zip_: str | None,
+    address: str | None,
+) -> bool:
+    """Create or upgrade the location for a notice using PDF-extracted data.
+
+    Fill-in: if the notice has no location and city/zip are available, create/find one.
+    Promote: if the notice has a zip-less location and zip is now known, promote in place.
+    Returns True if any location change was made.
+    """
+    if not city and not zip_:
+        return False
+
+    existing_loc = notice.location
+    if existing_loc is None:
+        partial = NoticeRow(
+            state=notice.state,
+            employer=notice.employer or "",
+            city=city,
+            zip=zip_,
+            address=address,
+        )
+        loc = _get_or_create_location(session, partial)
+        if loc and loc.id != notice.location_id:
+            notice.location_id = loc.id
+            session.flush()
+            return True
+    elif not existing_loc.zip and zip_:
+        existing_loc.zip = zip_
+        # Re-geocode with the now-known zip
+        from warn_v2.geo.geocoder import geocode as _geocode
+        if existing_loc.lat is None:
+            pair = _geocode(address, existing_loc.city, notice.state, zip_, existing_loc.county)
+            if pair is not None:
+                existing_loc.lat, existing_loc.lon = pair
+        session.flush()
+        return True
+    return False
+
+
 def _zip_is_missing(col):
     """Filter expression matching a Location row with no usable ZIP."""
     return or_(col.is_(None), col == "")

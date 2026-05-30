@@ -426,5 +426,42 @@ def backfill_historical_cmd(
     )
 
 
+@main.command("download-pdfs")
+@click.option("--state", default=None, help="State abbreviation (default: all PDF-bearing states)")
+@click.option("--limit", type=int, default=None, help="Max PDFs to fetch per run")
+@click.option(
+    "--pdf-dir",
+    default="/var/pdfs",
+    show_default=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Root directory for PDF storage",
+)
+@click.option("--dry-run", is_flag=True, help="Fetch and parse but do not write to disk or DB")
+def download_pdfs_cmd(state: str | None, limit: int | None, pdf_dir: Path, dry_run: bool) -> None:
+    """Download per-notice PDFs and enrich notices with extracted fields.
+
+    Targets notices that have a raw_notice_url but no stored pdf_path.
+    PDFs are saved to PDF_DIR/{state}/{notice_id}.pdf and notices are updated
+    with any fields extractable from the PDF content (layoff_count, effective_date,
+    address, city, zip).
+
+    \b
+    Examples:
+      warn-v2 download-pdfs --state AK              # Alaska only
+      warn-v2 download-pdfs --state CT --limit 200  # first 200 CT PDFs
+      warn-v2 download-pdfs --dry-run               # preview without writing
+    """
+    from warn_v2.scripts.download_pdfs import download_pdfs
+
+    stats = download_pdfs(state, limit=limit, dry_run=dry_run, pdf_dir=pdf_dir)
+    suffix = " (dry run — nothing written)" if dry_run else ""
+    click.echo(
+        f"fetched={stats['fetched']} enriched={stats['enriched']} "
+        f"skipped={stats['skipped']} errors={stats['errors']}{suffix}"
+    )
+    if stats["errors"]:
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     main()

@@ -75,6 +75,7 @@ class Notice(Base):
     address: Mapped[str | None] = mapped_column(Text)
     source_url: Mapped[str | None] = mapped_column(String(1024))
     raw_notice_url: Mapped[str | None] = mapped_column(String(1024))
+    pdf_path: Mapped[str | None] = mapped_column(String(1024))
     is_superseded: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
