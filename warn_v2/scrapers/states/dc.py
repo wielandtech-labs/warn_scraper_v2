@@ -98,16 +98,31 @@ class DCScraper:
             if notice_date is None:
                 continue
 
-            code = _text(cells[col["code type"]]).strip()
-            closure_type = _CODE_TYPE.get(code, as_str(code))
+            code_col = col.get("code type")
+            code = _text(cells[code_col]).strip() if code_col is not None else ""
+            closure_type = _CODE_TYPE.get(code, as_str(code)) or None
+
+            eff_col = col.get("effective layoff date")
+            effective_date = (
+                as_date(_text(cells[eff_col])) if eff_col is not None else None
+            )
+
+            count_col = (
+                col.get("number toemployees affected")
+                or col.get("number of employees affected")
+                or col.get("employees affected")
+            )
+            layoff_count = (
+                as_int(_text(cells[count_col])) if count_col is not None else None
+            )
 
             rows.append(
                 NoticeRow(
                     state="DC",
                     employer=employer,
                     notice_date=notice_date,
-                    effective_date=as_date(_text(cells[col["effective layoff date"]])),
-                    layoff_count=as_int(_text(cells[col["number toemployees affected"]])),
+                    effective_date=effective_date,
+                    layoff_count=layoff_count,
                     closure_type=closure_type,
                     source_url=self.source_url,
                 )
