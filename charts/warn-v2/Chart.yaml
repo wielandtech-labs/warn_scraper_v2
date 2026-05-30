@@ -2,7 +2,7 @@ apiVersion: v2
 name: warn-v2
 description: WARN Scraper V2 — daily state-WARN collector with self-healing parsers
 type: application
-version: 0.1.2
+version: 0.1.3
 appVersion: "0.1.0"
 home: https://github.com/wielandtech/warn_scraper_v2
 maintainers:
