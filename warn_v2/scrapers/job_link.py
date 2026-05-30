@@ -76,24 +76,27 @@ class JobLinkScraper:
             raise TypeError(f"{type(self).__name__} must set `state` and `host`")
         self.source_url = _build_url(self.host)
 
-    def fetch(self) -> bytes:
+    def fetch(self, year: int | None = None) -> bytes:
         """Fetch search results page + all linked detail pages.
 
         Returns a JSON bundle: ``{"search_html": "...", "details": {...}}``.
         Detail keys are the full detail-page URL; values are the page HTML.
         Missing or errored detail pages are silently omitted — the notice
         will still be stored, just without address / employee count.
+
+        Pass ``year`` to fetch a specific calendar year instead of the current one.
         """
+        url = _build_url(self.host, year=year) if year else self.source_url
         try:
             r = httpx.get(
-                self.source_url,
+                url,
                 timeout=60,
                 follow_redirects=True,
                 headers=_UA,
             )
             r.raise_for_status()
         except httpx.HTTPError as e:
-            raise ScrapeFailed(f"GET {self.source_url}: {e}") from e
+            raise ScrapeFailed(f"GET {url}: {e}") from e
 
         # Discover detail URLs from the search results table.
         soup = BeautifulSoup(r.content, "html.parser")

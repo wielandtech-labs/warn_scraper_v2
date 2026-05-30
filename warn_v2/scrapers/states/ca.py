@@ -27,6 +27,43 @@ from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.registry import register
 
 SOURCE_URL = "https://edd.ca.gov/Jobs_and_Training/warn/WARN_Report.xlsx"
+_ARCHIVE_PAGE = "https://edd.ca.gov/Jobs_and_Training/Layoff_Services_WARN.htm"
+_UA = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+    )
+}
+
+
+def _discover_archive_xlsx_urls() -> list[str]:
+    """Scrape EDD WARN archive page; return absolute URLs for all historical XLSX files.
+
+    Excludes the current-year file (WARN_Report.xlsx) which the regular scraper handles.
+    """
+    from bs4 import BeautifulSoup
+
+    try:
+        r = httpx.get(_ARCHIVE_PAGE, headers=_UA, timeout=30, follow_redirects=True)
+        r.raise_for_status()
+    except httpx.HTTPError as e:
+        raise ScrapeFailed(f"CA archive page: {e}") from e
+
+    soup = BeautifulSoup(r.text, "html.parser")
+    base = "https://edd.ca.gov"
+    urls: list[str] = []
+    for a in soup.find_all("a", href=True):
+        href: str = a["href"]
+        if not href.lower().endswith(".xlsx"):
+            continue
+        if "warn" not in href.lower():
+            continue
+        if href == "/Jobs_and_Training/warn/WARN_Report.xlsx":
+            continue
+        full = href if href.startswith("http") else base + href
+        if full not in urls:
+            urls.append(full)
+    return urls
 
 # Tolerate minor renames; first match wins.
 _COMPANY_KEYS = ("company", "employer", "company name")

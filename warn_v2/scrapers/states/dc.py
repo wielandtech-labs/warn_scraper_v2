@@ -36,6 +36,21 @@ def _source_url(year: int) -> str:
     return _URL.format(year=year)
 
 
+def _fetch_dc_year(year: int) -> bytes | None:
+    """Fetch the DC WARN HTML table for a specific year.
+
+    Returns the page bytes if the table is present, or None if the page exists
+    but has no WARN data (empty year or future year).
+    """
+    url = _source_url(year)
+    try:
+        r = httpx.get(url, headers=_UA, timeout=60, follow_redirects=True)
+        r.raise_for_status()
+    except httpx.HTTPError:
+        return None
+    return r.content if b"Organization Name" in r.content else None
+
+
 class DCScraper:
     state = "DC"
     source_url = _URL.format(year=date.today().year)

@@ -379,5 +379,52 @@ def backfill_effective_dates_cmd(dry_run: bool, state: str | None) -> None:
     click.echo(f"updated={stats['updated']}{suffix}")
 
 
+@main.command("backfill-historical")
+@click.option(
+    "--state", required=True,
+    help="State to backfill: CA, DC, AZ, or DE (CO is already cumulative)",
+)
+@click.option("--year-start", type=int, default=None,
+              help="First year to fetch (DC default 2013, AZ/DE default 2016)")
+@click.option("--year-end", type=int, default=None,
+              help="Last year to fetch (default: current year)")
+@click.option("--dry-run", is_flag=True, help="Fetch and parse but do not write to DB")
+def backfill_historical_cmd(
+    state: str,
+    year_start: int | None,
+    year_end: int | None,
+    dry_run: bool,
+) -> None:
+    """Ingest historical WARN data for states where the regular scraper only fetches
+    the current year.
+
+    \b
+    Supported states: CA, DC, AZ, DE
+    CO is excluded — its Google Sheets export is cumulative since 2019.
+
+    \b
+    Examples:
+      warn-v2 backfill-historical --state CA
+      warn-v2 backfill-historical --state DC --dry-run
+      warn-v2 backfill-historical --state AZ --year-start 2018 --year-end 2023
+    """
+    from warn_v2.scripts.backfill_historical import backfill_historical
+
+    stats = backfill_historical(
+        state,
+        year_start=year_start,
+        year_end=year_end,
+        dry_run=dry_run,
+    )
+    suffix = " (dry run — nothing written)" if dry_run else ""
+    click.echo(
+        f"years_attempted={stats['years_attempted']} "
+        f"years_ok={stats['years_ok']} "
+        f"rows_seen={stats['rows_seen']} "
+        f"rows_new={stats['rows_new']}"
+        f"{suffix}"
+    )
+
+
 if __name__ == "__main__":
     main()
