@@ -17,7 +17,7 @@ from warn_v2.scrapers.base import NoticeRow
 _FILL_IN_FIELDS: tuple[str, ...] = ("address", "closure_type", "location_id")
 
 # Last non-null wins: amendments may update these fields, so prefer incoming value.
-_UPDATE_FIELDS: tuple[str, ...] = ("layoff_count", "effective_date")
+_UPDATE_FIELDS: tuple[str, ...] = ("layoff_count", "effective_date", "raw_notice_url")
 
 
 def upsert_notices(session: Session, rows: Iterable[NoticeRow]) -> tuple[int, int]:

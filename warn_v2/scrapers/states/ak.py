@@ -6,7 +6,7 @@ Schema (live as of May 2026):
   Company | Location | Notice Date | Layoff Date | Employees Affected | Notes
 
 Static HTML table; company cell has an anchor linking to a per-notice PDF
-at /RR/notices/<filename>.pdf on labor.alaska.gov.
+at /RR/notices/<filename>.pdf on jobs.alaska.gov.
 
 Notes contains the closure type ("Closure", "Layoff", "Loss of Contract", etc.).
 Employees Affected can be "TBA" or "N Alaska Workers" — we extract the first
@@ -26,7 +26,7 @@ from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.registry import register
 
 SOURCE_URL = "https://jobs.alaska.gov/rr/WARN_notices.htm"
-_BASE_URL = "https://labor.alaska.gov"
+_BASE_URL = "https://jobs.alaska.gov"
 
 _UA = {
     "User-Agent": (
