@@ -26,12 +26,12 @@ from datetime import datetime
 import httpx
 
 from warn_v2.db.models import ScraperRun
-from warn_v2.scrapers.states.ca import _discover_archive_urls, parse_ca_pdf
-from warn_v2.scrapers.states.dc import _fetch_dc_year
 from warn_v2.db.session import session_scope
 from warn_v2.pipeline.storage import upsert_notices
 from warn_v2.scrapers.base import ParseFailed, ScrapeFailed
 from warn_v2.scrapers.registry import get_scraper
+from warn_v2.scrapers.states.ca import _discover_archive_urls, parse_ca_pdf
+from warn_v2.scrapers.states.dc import _fetch_dc_year
 
 log = logging.getLogger(__name__)
 
@@ -121,7 +121,9 @@ def _backfill_ca(scraper, stats: dict[str, int], *, dry_run: bool) -> None:
             raw = r.content
         except httpx.HTTPError as e:
             log.warning("CA: fetch failed for %s: %s", url, e)
-            _record_run(scraper.state, label=url, status="fetch_failed", error=str(e), dry_run=dry_run)
+            _record_run(
+                scraper.state, label=url, status="fetch_failed", error=str(e), dry_run=dry_run
+            )
             continue
 
         parse_fn = parse_ca_pdf if url.lower().endswith(".pdf") else None
@@ -141,7 +143,7 @@ def _backfill_year_loop(
     *,
     dry_run: bool,
 ) -> None:
-    log.info("%s: backfilling years %d–%d", state, start, end)
+    log.info("%s: backfilling years %d-%d", state, start, end)
 
     for year in range(start, end + 1):
         stats["years_attempted"] += 1
@@ -158,7 +160,9 @@ def _backfill_year_loop(
                 raw = scraper.fetch(year=year)
         except ScrapeFailed as e:
             log.warning("%s %d: fetch failed: %s", state, year, e)
-            _record_run(state, label=str(year), status="fetch_failed", error=str(e), dry_run=dry_run)
+            _record_run(
+                state, label=str(year), status="fetch_failed", error=str(e), dry_run=dry_run
+            )
             continue
 
         _ingest_raw(scraper, raw, label=str(year), stats=stats, dry_run=dry_run)
@@ -182,7 +186,9 @@ def _ingest_raw(
         rows = _parse(raw)
     except ParseFailed as e:
         log.warning("%s %s: parse failed: %s", scraper.state, label, e)
-        _record_run(scraper.state, label=label, status="parse_failed", error=str(e), dry_run=dry_run)
+        _record_run(
+            scraper.state, label=label, status="parse_failed", error=str(e), dry_run=dry_run
+        )
         return
 
     if not rows:

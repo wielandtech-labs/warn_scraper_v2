@@ -97,20 +97,20 @@ def test_ny_raises_on_empty_csv() -> None:
 # ---------------------------------------------------------------------------
 
 def test_parse_address_double_space_separator() -> None:
-    addr, city, zip_ = _parse_address("1440 Broadway  New York City, NY, 10018")
+    _addr, city, zip_ = _parse_address("1440 Broadway  New York City, NY, 10018")
     assert city == "New York City"
     assert zip_ == "10018"
 
 
 def test_parse_address_standard() -> None:
-    addr, city, zip_ = _parse_address("420 Park Ave S  New York, NY, 10016")
+    _addr, city, zip_ = _parse_address("420 Park Ave S  New York, NY, 10016")
     assert city == "New York"
     assert zip_ == "10016"
 
 
 def test_parse_address_fallback_no_double_space() -> None:
     """Addresses without double-space separator fall back to last comma split."""
-    addr, city, zip_ = _parse_address("456 Johnson Avenue 420 Brooklyn, NY, 11237")
+    _addr, city, zip_ = _parse_address("456 Johnson Avenue 420 Brooklyn, NY, 11237")
     assert city == "Brooklyn"
     assert zip_ == "11237"
 

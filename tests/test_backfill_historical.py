@@ -11,10 +11,9 @@ import openpyxl
 import pytest
 import respx
 
-from warn_v2.db.models import Notice, ScraperRun
+from warn_v2.db.models import Notice
 from warn_v2.scrapers.base import NoticeRow
 from warn_v2.scripts.backfill_historical import backfill_historical
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -68,7 +67,7 @@ def _minimal_joblink_bundle(employer: str = "AZ Corp", city: str = "Phoenix") ->
 @respx.mock
 def test_ca_discover_urls_finds_pdf_and_xlsx_hrefs():
     """Archive page with PDF and XLSX historical links; current-year XLSX excluded."""
-    from warn_v2.scrapers.states.ca import _discover_archive_urls, _ARCHIVE_PAGE
+    from warn_v2.scrapers.states.ca import _ARCHIVE_PAGE, _discover_archive_urls
 
     html = (
         b"<html><body>"
@@ -89,7 +88,7 @@ def test_ca_discover_urls_finds_pdf_and_xlsx_hrefs():
 
 @respx.mock
 def test_ca_discover_urls_empty_when_no_files():
-    from warn_v2.scrapers.states.ca import _discover_archive_urls, _ARCHIVE_PAGE
+    from warn_v2.scrapers.states.ca import _ARCHIVE_PAGE, _discover_archive_urls
 
     respx.get(_ARCHIVE_PAGE).mock(return_value=httpx.Response(200, content=b"<html></html>"))
     assert _discover_archive_urls() == []
@@ -148,7 +147,9 @@ def test_joblink_fetch_uses_year_param():
         "&q%5Bnotice_on_lteq%5D=2020-12-31"
         "&q%5Bs%5D=notice_on+desc&commit=Search"
     )
-    respx.get(search_url).mock(return_value=httpx.Response(200, content=b"<html><table></table></html>"))
+    respx.get(search_url).mock(
+        return_value=httpx.Response(200, content=b"<html><table></table></html>")
+    )
 
     raw = scraper.fetch(year=2020)
     bundle = json.loads(raw)

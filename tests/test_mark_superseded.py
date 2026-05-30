@@ -3,11 +3,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-import pytest
-
 from warn_v2.db.models import Location, Notice
 from warn_v2.scripts.mark_superseded import mark_superseded
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -103,10 +100,10 @@ def test_case_c_different_counts_not_matched(db) -> None:
     # Case C should not fire; Case B may or may not (different city+zip logic),
     # but the key assertion is Case C specifically doesn't mark the pair here
     # via the count-mismatch guard.
-    result = mark_superseded(dry_run=False, state_filter="IA")
+    mark_superseded(dry_run=False, state_filter="IA")
     db.expire_all()
     # Neither should be superseded by Case C (counts differ → not zip-variance)
-    old = db.get(Notice, "ia-old")
+    _old = db.get(Notice, "ia-old")
     new = db.get(Notice, "ia-new")
     # Case B fires on same city+zip — both share the same location so zip matches.
     # It supersedes the older one, which is correct behaviour. We just verify
@@ -117,7 +114,7 @@ def test_case_c_different_counts_not_matched(db) -> None:
 def test_case_c_already_superseded_skipped(db) -> None:
     """Already-superseded notices are excluded from Case C matching."""
     loc = _location(db, zip="50309")
-    old = _notice(db, notice_id="ia-old", location=loc, scraped_at=_T0, is_superseded=True)
+    _notice(db, notice_id="ia-old", location=loc, scraped_at=_T0, is_superseded=True)
     new = _notice(db, notice_id="ia-new", location=loc, scraped_at=_T1)
     db.commit()
 

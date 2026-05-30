@@ -2,18 +2,15 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import httpx
-import pytest
 import respx
 
-from warn_v2.db.models import Company, Location, Notice
+from warn_v2.db.models import Location, Notice
 from warn_v2.pipeline.dedup import notice_id
 from warn_v2.scrapers.base import NoticeRow
 from warn_v2.scripts.download_pdfs import download_pdfs
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -104,7 +101,7 @@ def test_dry_run_no_file_written(db, tmp_path):
 @respx.mock
 def test_skips_already_stored(db, tmp_path):
     """Notice with an existing pdf_path is not re-fetched."""
-    notice = _insert_notice(db, pdf_path="ak/existing.pdf")
+    _insert_notice(db, pdf_path="ak/existing.pdf")
     db.commit()
 
     with patch("warn_v2.scripts.download_pdfs.session_scope") as mock_scope:
@@ -118,7 +115,7 @@ def test_skips_already_stored(db, tmp_path):
 
 def test_skips_notice_without_raw_url(db, tmp_path):
     """Notice with raw_notice_url=None is excluded from the query."""
-    notice = _insert_notice(db, raw_notice_url=None)
+    _insert_notice(db, raw_notice_url=None)
     db.commit()
 
     with patch("warn_v2.scripts.download_pdfs.session_scope") as mock_scope:
