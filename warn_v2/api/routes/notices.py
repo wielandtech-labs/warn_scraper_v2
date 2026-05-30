@@ -34,8 +34,10 @@ def list_notices(
     after: date | None = Query(None, description="Only notices on or after this date"),
     before: date | None = Query(None, description="Only notices on or before this date"),
     geocoded_only: bool = Query(False, description="Only return notices with latitude/longitude"),
-    sort_by: str | None = Query(None, description="Column: notice_date, state, employer, layoff_count, effective_date"),
-    sort_dir: str | None = Query("desc", description="Sort direction: asc or desc"),
+    sort_by: str | None = Query(
+        None, description="Column: notice_date, state, employer, layoff_count, effective_date"
+    ),
+    sort_dir: str | None = Query("desc", description="asc or desc"),
     pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ) -> Page[NoticeOut]:
