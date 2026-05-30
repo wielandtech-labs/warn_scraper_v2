@@ -1,9 +1,12 @@
 """Routes: /notices"""
 from __future__ import annotations
 
+import os
 from datetime import date
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
@@ -12,6 +15,8 @@ from warn_v2.api.schemas import NoticeOut, Page
 from warn_v2.db.models import Location, Notice
 
 router = APIRouter(prefix="/notices", tags=["notices"])
+
+_PDF_DIR = Path(os.getenv("PDF_DIR", "/var/pdfs"))
 
 
 @router.get("", response_model=Page[NoticeOut])
@@ -72,3 +77,17 @@ def get_notice(
     if notice is None:
         raise HTTPException(status_code=404, detail="Notice not found")
     return notice
+
+
+@router.get("/{notice_id}/pdf")
+def get_notice_pdf(notice_id: str, db: Session = Depends(get_db)) -> FileResponse:
+    notice = db.get(Notice, notice_id)
+    if notice is None or notice.pdf_path is None:
+        raise HTTPException(status_code=404, detail="PDF not available")
+    full_path = (_PDF_DIR / notice.pdf_path).resolve()
+    pdf_dir_resolved = _PDF_DIR.resolve()
+    if not str(full_path).startswith(str(pdf_dir_resolved)):
+        raise HTTPException(status_code=400, detail="Invalid path")
+    if not full_path.exists():
+        raise HTTPException(status_code=404, detail="PDF file missing")
+    return FileResponse(full_path, media_type="application/pdf")

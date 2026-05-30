@@ -33,6 +33,8 @@ export interface NoticeOut {
   closure_type: string | null;
   address: string | null;
   source_url: string | null;
+  raw_notice_url: string | null;
+  pdf_path: string | null;
   scraped_at: string;
   company: CompanyOut | null;
   location: LocationOut | null;

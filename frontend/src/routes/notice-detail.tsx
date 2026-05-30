@@ -62,8 +62,43 @@ export function NoticeDetail() {
               }
             />
           )}
+          {n.raw_notice_url && (
+            <DescriptionItem
+              label="Original notice"
+              value={
+                <a
+                  className="text-sky-700 hover:underline"
+                  href={n.raw_notice_url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  view document →
+                </a>
+              }
+            />
+          )}
         </dl>
       </div>
+
+      {n.pdf_path && (
+        <div className="card">
+          <h2 className="mb-2 text-lg font-semibold">Notice Document</h2>
+          <a
+            className="text-sky-700 hover:underline text-sm"
+            href={`/api/notices/${encodeURIComponent(n.notice_id)}/pdf`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open PDF →
+          </a>
+          <iframe
+            className="mt-3 w-full rounded border"
+            style={{ height: "60vh" }}
+            src={`/api/notices/${encodeURIComponent(n.notice_id)}/pdf`}
+            title="Notice PDF"
+          />
+        </div>
+      )}
 
       {n.company && (
         <div className="card">

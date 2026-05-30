@@ -31,6 +31,16 @@ spec:
               containerPort: 8000
           env:
             {{- include "warn-v2.envSecrets" . | nindent 12 }}
+            {{- if .Values.pdfStorage.enabled }}
+            - name: PDF_DIR
+              value: /var/pdfs
+            {{- end }}
+          {{- if .Values.pdfStorage.enabled }}
+          volumeMounts:
+            - name: pdfs
+              mountPath: /var/pdfs
+              readOnly: true
+          {{- end }}
           readinessProbe:
             httpGet:
               path: /healthz
@@ -45,6 +55,12 @@ spec:
             periodSeconds: 30
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}
+      {{- if .Values.pdfStorage.enabled }}
+      volumes:
+        - name: pdfs
+          persistentVolumeClaim:
+            claimName: {{ include "warn-v2.fullname" . }}-pdfs
+      {{- end }}
 ---
 apiVersion: v1
 kind: Service

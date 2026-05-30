@@ -47,6 +47,8 @@ class NoticeOut(BaseModel):
     closure_type: str | None
     address: str | None
     source_url: str | None
+    raw_notice_url: str | None
+    pdf_path: str | None
     scraped_at: datetime
     company: CompanyOut | None
     location: LocationOut | None
