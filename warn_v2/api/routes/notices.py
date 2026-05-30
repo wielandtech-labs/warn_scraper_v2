@@ -19,10 +19,10 @@ router = APIRouter(prefix="/notices", tags=["notices"])
 _PDF_DIR = Path(os.getenv("PDF_DIR", "/var/pdfs"))
 
 _SORT_COLUMNS = {
-    "notice_date":    Notice.notice_date,
-    "state":          Notice.state,
-    "employer":       Notice.employer,
-    "layoff_count":   Notice.layoff_count,
+    "notice_date": Notice.notice_date,
+    "state": Notice.state,
+    "employer": Notice.employer,
+    "layoff_count": Notice.layoff_count,
     "effective_date": Notice.effective_date,
 }
 
@@ -34,7 +34,7 @@ def list_notices(
     after: date | None = Query(None, description="Only notices on or after this date"),
     before: date | None = Query(None, description="Only notices on or before this date"),
     geocoded_only: bool = Query(False, description="Only return notices with latitude/longitude"),
-    sort_by: str | None = Query(None, description="Column to sort by (notice_date, state, employer, layoff_count, effective_date)"),
+    sort_by: str | None = Query(None, description="Column: notice_date, state, employer, layoff_count, effective_date"),
     sort_dir: str | None = Query("desc", description="Sort direction: asc or desc"),
     pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
