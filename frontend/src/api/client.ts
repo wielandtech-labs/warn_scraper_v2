@@ -49,6 +49,8 @@ export interface NoticesQuery {
   after?: string;
   before?: string;
   geocoded_only?: boolean;
+  sort_by?: string;
+  sort_dir?: string;
   limit?: number;
   offset?: number;
 }

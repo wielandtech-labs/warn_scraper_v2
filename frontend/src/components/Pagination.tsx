@@ -19,6 +19,13 @@ export function Pagination({ total, limit, offset, onPageChange }: PaginationPro
         <button
           className="btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
           disabled={current === 1}
+          onClick={() => onPageChange(0)}
+        >
+          « First
+        </button>
+        <button
+          className="btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={current === 1}
           onClick={() => onPageChange(Math.max(0, offset - limit))}
         >
           ← Prev
@@ -29,6 +36,13 @@ export function Pagination({ total, limit, offset, onPageChange }: PaginationPro
           onClick={() => onPageChange(offset + limit)}
         >
           Next →
+        </button>
+        <button
+          className="btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={current >= last}
+          onClick={() => onPageChange((last - 1) * limit)}
+        >
+          Last »
         </button>
       </div>
     </div>

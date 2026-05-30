@@ -17,6 +17,8 @@ export function NoticesPage() {
   const search = useSearch({ from: "/notices" });
   const page = search.page ?? 1;
   const offset = (page - 1) * PAGE_SIZE;
+  const sortBy = search.sort_by ?? "notice_date";
+  const sortDir = search.sort_dir ?? "desc";
 
   const query = useQuery({
     queryKey: ["notices", search, offset],
@@ -26,6 +28,8 @@ export function NoticesPage() {
         employer: search.employer,
         after: search.after,
         before: search.before,
+        sort_by: sortBy,
+        sort_dir: sortDir,
         limit: PAGE_SIZE,
         offset,
       }),
@@ -33,13 +37,19 @@ export function NoticesPage() {
 
   const handleFilterChange = (next: FilterValues) => {
     navigate({
-      search: () => ({ ...next, page: 1 }),
+      search: (prev) => ({ ...prev, ...next, page: 1 }),
     });
   };
 
   const handlePageChange = (newOffset: number) => {
     navigate({
       search: (prev) => ({ ...prev, page: Math.floor(newOffset / PAGE_SIZE) + 1 }),
+    });
+  };
+
+  const handleSortChange = (colId: string, dir: "asc" | "desc") => {
+    navigate({
+      search: (prev) => ({ ...prev, sort_by: colId, sort_dir: dir, page: 1 }),
     });
   };
 
@@ -65,6 +75,8 @@ export function NoticesPage() {
         ),
       },
       {
+        id: "location",
+        enableSorting: false,
         header: "Location",
         cell: (info) => {
           const loc = info.row.original.location;
@@ -103,6 +115,9 @@ export function NoticesPage() {
             data={query.data.items}
             columns={columns}
             emptyMessage="No notices match your filters."
+            sortBy={sortBy}
+            sortDir={sortDir}
+            onSortChange={handleSortChange}
           />
           <Pagination
             total={query.data.total}

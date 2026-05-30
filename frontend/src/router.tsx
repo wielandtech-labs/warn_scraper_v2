@@ -39,12 +39,16 @@ const noticesRoute = createRoute({
     after?: string;
     before?: string;
     page?: number;
+    sort_by?: string;
+    sort_dir?: "asc" | "desc";
   } => ({
     state: (search.state as string) || undefined,
     employer: (search.employer as string) || undefined,
     after: (search.after as string) || undefined,
     before: (search.before as string) || undefined,
     page: search.page ? Number(search.page) : undefined,
+    sort_by: (search.sort_by as string) || "notice_date",
+    sort_dir: search.sort_dir === "asc" ? "asc" : "desc",
   }),
   component: NoticesPage,
 });
