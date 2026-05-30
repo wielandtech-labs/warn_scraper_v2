@@ -1,14 +1,10 @@
 """Tests for warn_v2.pdf_extract — best-effort field extraction from WARN PDF text."""
 from __future__ import annotations
 
-import io
 from datetime import date
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from warn_v2.pdf_extract import extract_warn_fields, _parse_text
-
+from warn_v2.pdf_extract import _parse_text, extract_warn_fields
 
 # ---------------------------------------------------------------------------
 # _parse_text — direct text parsing (no pdfplumber needed)

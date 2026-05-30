@@ -9,7 +9,6 @@ import pytest
 from warn_v2.db.models import Location, Notice
 from warn_v2.scripts.backfill_geo import backfill
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

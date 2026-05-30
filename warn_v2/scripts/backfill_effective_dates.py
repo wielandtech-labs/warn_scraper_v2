@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 
 from warn_v2.db.models import Notice
 from warn_v2.db.session import session_scope
@@ -66,12 +66,11 @@ def backfill_effective_dates(
         # SQLAlchemy's func.date() + timedelta-style expression, but the cleanest
         # cross-engine approach is to use a Python-side loop for correctness.
         # For production (Postgres at scale) we use a single UPDATE statement.
-        from sqlalchemy.engine import Connection  # noqa: PLC0415
 
         dialect = session.bind.dialect.name if session.bind is not None else ""
 
         if dialect == "postgresql":
-            from sqlalchemy import text  # noqa: PLC0415
+            from sqlalchemy import text
 
             state_clause = "AND state = :state" if state_filter else ""
             params: dict = {"state": state_filter.upper()} if state_filter else {}
@@ -87,7 +86,7 @@ def backfill_effective_dates(
             )
         else:
             # SQLite / test path: iterate and update row-by-row.
-            from datetime import timedelta  # noqa: PLC0415
+            from datetime import timedelta
 
             fetch_stmt = select(Notice).where(
                 Notice.effective_date.is_(None),

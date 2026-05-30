@@ -14,7 +14,7 @@ import logging
 import re
 from datetime import date
 
-import pdfplumber  # noqa: F401 — imported at module level so tests can patch it
+import pdfplumber
 
 log = logging.getLogger(__name__)
 
