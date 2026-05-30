@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -63,6 +63,14 @@ def upsert_notices(session: Session, rows: Iterable[NoticeRow]) -> tuple[int, in
         # ON CONFLICT DO UPDATE returns rowcount=1 for both paths, so we
         # can't rely on it for the rows_new counter.
         existing = session.get(Notice, nid)
+
+        # Apply 60-day WARN Act fallback for effective_date on new inserts only.
+        # We deliberately do NOT apply it on re-upserts so that a real
+        # source-provided date stored from a previous scrape is never overwritten
+        # by our estimate.  Amendments that supply a new non-null date still win
+        # via _UPDATE_FIELDS ("last non-null wins").
+        if existing is None and payload["effective_date"] is None and row.notice_date is not None:
+            payload["effective_date"] = row.notice_date + timedelta(days=60)
 
         if dialect == "postgresql":
             stmt = pg_insert(Notice).values(**payload)

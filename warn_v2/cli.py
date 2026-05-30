@@ -356,5 +356,28 @@ def backfill_geo(dry_run: bool, rerun_address: bool, state: str | None) -> None:
     )
 
 
+@main.command("backfill-effective-dates")
+@click.option("--dry-run", is_flag=True, help="Preview count without writing")
+@click.option("--state", default=None, help="Limit to one state abbreviation, e.g. KY")
+def backfill_effective_dates_cmd(dry_run: bool, state: str | None) -> None:
+    """Fill in missing effective_date as notice_date + 60 days (WARN Act minimum).
+
+    Targets notices that have a notice_date but a NULL effective_date — typically
+    from state sources that omit the layoff/closure start date.  Safe to re-run:
+    notices that already have an effective_date are untouched.
+
+    \b
+    Examples:
+      warn-v2 backfill-effective-dates --dry-run     # preview count
+      warn-v2 backfill-effective-dates               # commit all states
+      warn-v2 backfill-effective-dates --state KY    # one state only
+    """
+    from warn_v2.scripts.backfill_effective_dates import backfill_effective_dates
+
+    stats = backfill_effective_dates(dry_run=dry_run, state_filter=state)
+    suffix = " (dry run — nothing written)" if dry_run else ""
+    click.echo(f"updated={stats['updated']}{suffix}")
+
+
 if __name__ == "__main__":
     main()
