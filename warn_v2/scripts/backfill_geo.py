@@ -83,6 +83,9 @@ def backfill(
         stats["considered"] = total
         log.info("Found %d locations to process", total)
 
+        # Defer _census_geocode import once rather than inside the hot loop.
+        from warn_v2.geo.geocoder import _census_geocode  # type: ignore[attr-defined]
+
         for i, loc in enumerate(
             session.scalars(stmt.execution_options(yield_per=batch_size)), start=1
         ):
@@ -98,58 +101,68 @@ def backfill(
                 .limit(1)
             )
             address = notice_with_address.address if notice_with_address else None
-
             had_coords = loc.lat is not None and loc.lon is not None
 
-            if rerun_address and not address:
-                # Should not happen given the query filter, but guard anyway.
-                stats["skipped_no_address"] += 1
-                continue
-
-            if rerun_address and address:
-                # Only call Census geocoder (Tier 1) — skip ZIP/city fallback.
-                # If Census can't resolve the address we keep existing coords.
-                from warn_v2.geo.geocoder import _census_geocode  # type: ignore[attr-defined]
-                pair = _census_geocode(address, loc.city, loc.state, loc.zip)
-                if pair is None:
-                    log.debug(
-                        "Census geocoder returned nothing for location %d "
-                        "(address=%r) — keeping existing coords",
-                        loc.id, address,
-                    )
+            # Use try/finally so the expunge at the end always runs — even on
+            # early `continue` paths — preventing identity-map memory growth.
+            try:
+                if rerun_address and not address:
+                    # Should not happen given the query filter, but guard anyway.
                     stats["skipped_no_address"] += 1
                     continue
-            else:
-                pair = geocode(address, loc.city, loc.state, loc.zip)
 
-            if pair is None:
-                stats["no_coords"] += 1
-                log.debug(
-                    "No coordinates for location %d (city=%r zip=%r address=%r)",
-                    loc.id, loc.city, loc.zip, address,
-                )
-                continue
+                if rerun_address and address:
+                    # Only call Census geocoder (Tier 1) — skip ZIP/city fallback.
+                    # If Census can't resolve the address we keep existing coords.
+                    pair = _census_geocode(address, loc.city, loc.state, loc.zip)
+                    if pair is None:
+                        log.debug(
+                            "Census geocoder returned nothing for location %d "
+                            "(address=%r) — keeping existing coords",
+                            loc.id, address,
+                        )
+                        stats["skipped_no_address"] += 1
+                        continue
+                else:
+                    pair = geocode(address, loc.city, loc.state, loc.zip)
 
-            loc.lat, loc.lon = pair
+                if pair is None:
+                    stats["no_coords"] += 1
+                    log.debug(
+                        "No coordinates for location %d (city=%r zip=%r address=%r)",
+                        loc.id, loc.city, loc.zip, address,
+                    )
+                    continue
 
-            if rerun_address and had_coords:
-                stats["upgraded_address"] += 1
-                log.debug(
-                    "Upgraded location %d from centroid to Census: %r → (%.4f, %.4f)",
-                    loc.id, address, loc.lat, loc.lon,
-                )
-            elif address and notice_with_address:
-                stats["filled_address"] += 1
-                log.debug(
-                    "Address geocoded location %d: %r → (%.4f, %.4f)",
-                    loc.id, address, loc.lat, loc.lon,
-                )
-            else:
-                stats["filled_zip"] += 1
-
-            if i % batch_size == 0:
+                loc.lat, loc.lon = pair
+                # Flush this individual change *before* the finally-block expunge
+                # so pending writes aren't silently discarded on expunge.
                 if not dry_run:
                     session.flush()
+
+                if rerun_address and had_coords:
+                    stats["upgraded_address"] += 1
+                    log.debug(
+                        "Upgraded location %d from centroid to Census: %r → (%.4f, %.4f)",
+                        loc.id, address, loc.lat, loc.lon,
+                    )
+                elif address and notice_with_address:
+                    stats["filled_address"] += 1
+                    log.debug(
+                        "Address geocoded location %d: %r → (%.4f, %.4f)",
+                        loc.id, address, loc.lat, loc.lon,
+                    )
+                else:
+                    stats["filled_zip"] += 1
+
+            finally:
+                # Always expunge processed objects so the SQLAlchemy identity
+                # map stays bounded regardless of dataset size.
+                if notice_with_address is not None:
+                    session.expunge(notice_with_address)
+                session.expunge(loc)
+
+            if i % batch_size == 0:
                 log.info(
                     "Progress: %d / %d (upgraded=%d filled_addr=%d "
                     "filled_zip=%d no_coords=%d)",
