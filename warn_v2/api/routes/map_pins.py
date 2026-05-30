@@ -54,6 +54,7 @@ def list_map_pins(
         )
         .join(Location, Notice.location_id == Location.id)
         .where(
+            Notice.is_superseded.is_(False),
             Location.lat.is_not(None),
             Location.lon.is_not(None),
         )

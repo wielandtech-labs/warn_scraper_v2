@@ -122,6 +122,50 @@ def _find_pairs(session, state_filter: str | None) -> list[tuple[str, str, str, 
         desc = f"{state} {emp!r} {nd} count {cnt1}→{cnt2} [amendment]"
         pairs.append((sup_id, can_id, state, desc))
 
+    # Case C — ZIP-variance where both notices have addresses (not caught by Case A
+    # because Iowa always populates `address`).  Matches pairs with identical
+    # (employer, notice_date) whose locations share the same city, and either:
+    #   • point to the *same* location row (promotion merged them in-place), or
+    #   • one location is ZIP-less and the other has a ZIP.
+    # Same layoff_count distinguishes this from genuine amendments (Case B).
+    result = session.execute(
+        text(f"""
+            SELECT n1.notice_id, n2.notice_id, n1.state,
+                   n1.employer, n1.notice_date, n1.layoff_count
+            FROM notices n1
+            JOIN notices n2 ON (
+                n1.state = n2.state
+                AND lower(trim(n1.employer)) = lower(trim(n2.employer))
+                AND n1.notice_date = n2.notice_date
+                AND n1.notice_id != n2.notice_id
+                AND n1.scraped_at < n2.scraped_at
+            )
+            LEFT JOIN locations l1 ON l1.id = n1.location_id
+            LEFT JOIN locations l2 ON l2.id = n2.location_id
+            WHERE (
+                n1.location_id = n2.location_id
+                OR (
+                    lower(trim(coalesce(l1.city, ''))) = lower(trim(coalesce(l2.city, '')))
+                    AND (l1.zip IS NULL OR l1.zip = '')
+                    AND l2.zip IS NOT NULL AND l2.zip != ''
+                )
+            )
+              AND n1.layoff_count IS NOT DISTINCT FROM n2.layoff_count
+              AND NOT n1.is_superseded
+              AND NOT n2.is_superseded
+              {state_clause}
+            ORDER BY n1.state, n1.employer, n1.notice_date
+        """),
+        params,
+    )
+    for row in result:
+        sup_id, can_id, state, emp, nd, cnt = row
+        if sup_id in seen or can_id in seen:
+            continue
+        seen.add(sup_id)
+        desc = f"{state} {emp!r} {nd} count={cnt} [zip-variance-addressed]"
+        pairs.append((sup_id, can_id, state, desc))
+
     return pairs
 
 

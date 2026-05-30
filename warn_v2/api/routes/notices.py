@@ -27,9 +27,10 @@ def list_notices(
     stmt = (
         select(Notice)
         .options(joinedload(Notice.company), joinedload(Notice.location))
+        .where(Notice.is_superseded.is_(False))
         .order_by(Notice.notice_date.desc().nullslast(), Notice.scraped_at.desc())
     )
-    count_stmt = select(func.count()).select_from(Notice)
+    count_stmt = select(func.count()).select_from(Notice).where(Notice.is_superseded.is_(False))
 
     if state:
         stmt = stmt.where(Notice.state == state.upper())

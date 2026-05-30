@@ -169,6 +169,30 @@ def test_notice_detail_not_found(api_client, db):
     assert resp.status_code == 404
 
 
+def test_notices_excludes_superseded(api_client, db):
+    """is_superseded=True notices must not appear in list results or totals."""
+    _notice(db, state="IA", employer="Active Co", notice_date=date(2026, 1, 10))
+    sup = _notice(db, state="IA", employer="Dup Co", notice_date=date(2026, 1, 11))
+    sup.is_superseded = True
+    db.commit()
+
+    resp = api_client.get("/api/notices?state=IA")
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["items"][0]["employer"] == "Active Co"
+
+
+def test_notices_superseded_still_fetchable_by_id(api_client, db):
+    """A superseded record can still be fetched directly by notice_id."""
+    n = _notice(db, state="IA", employer="Dup Co")
+    n.is_superseded = True
+    db.commit()
+
+    resp = api_client.get(f"/api/notices/{n.notice_id}")
+    assert resp.status_code == 200
+    assert resp.json()["employer"] == "Dup Co"
+
+
 # ---------------------------------------------------------------------------
 # /companies
 # ---------------------------------------------------------------------------
