@@ -26,7 +26,7 @@ from datetime import datetime
 import httpx
 
 from warn_v2.db.models import ScraperRun
-from warn_v2.scrapers.states.ca import _discover_archive_xlsx_urls
+from warn_v2.scrapers.states.ca import _discover_archive_urls, parse_ca_pdf
 from warn_v2.scrapers.states.dc import _fetch_dc_year
 from warn_v2.db.session import session_scope
 from warn_v2.pipeline.storage import upsert_notices
@@ -99,9 +99,9 @@ def backfill_historical(
 # ---------------------------------------------------------------------------
 
 def _backfill_ca(scraper, stats: dict[str, int], *, dry_run: bool) -> None:
-    log.info("CA: discovering historical XLSX URLs from EDD archive page")
+    log.info("CA: discovering historical file URLs from EDD archive page")
     try:
-        urls = _discover_archive_xlsx_urls()
+        urls = _discover_archive_urls()
     except ScrapeFailed as e:
         log.error("CA: could not load archive page: %s", e)
         return
@@ -124,7 +124,8 @@ def _backfill_ca(scraper, stats: dict[str, int], *, dry_run: bool) -> None:
             _record_run(scraper.state, label=url, status="fetch_failed", error=str(e), dry_run=dry_run)
             continue
 
-        _ingest_raw(scraper, raw, label=url, stats=stats, dry_run=dry_run)
+        parse_fn = parse_ca_pdf if url.lower().endswith(".pdf") else None
+        _ingest_raw(scraper, raw, label=url, stats=stats, dry_run=dry_run, parse_fn=parse_fn)
 
 
 # ---------------------------------------------------------------------------
@@ -174,9 +175,11 @@ def _ingest_raw(
     label: str,
     stats: dict[str, int],
     dry_run: bool,
+    parse_fn=None,
 ) -> None:
+    _parse = parse_fn if parse_fn is not None else scraper.parse
     try:
-        rows = scraper.parse(raw)
+        rows = _parse(raw)
     except ParseFailed as e:
         log.warning("%s %s: parse failed: %s", scraper.state, label, e)
         _record_run(scraper.state, label=label, status="parse_failed", error=str(e), dry_run=dry_run)

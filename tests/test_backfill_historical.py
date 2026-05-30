@@ -12,6 +12,7 @@ import pytest
 import respx
 
 from warn_v2.db.models import Notice, ScraperRun
+from warn_v2.scrapers.base import NoticeRow
 from warn_v2.scripts.backfill_historical import backfill_historical
 
 
@@ -65,32 +66,33 @@ def _minimal_joblink_bundle(employer: str = "AZ Corp", city: str = "Phoenix") ->
 # ---------------------------------------------------------------------------
 
 @respx.mock
-def test_ca_discover_urls_finds_xlsx_hrefs():
-    """Archive page with two historical XLSX links; current-year file excluded."""
-    from warn_v2.scrapers.states.ca import _discover_archive_xlsx_urls, _ARCHIVE_PAGE
+def test_ca_discover_urls_finds_pdf_and_xlsx_hrefs():
+    """Archive page with PDF and XLSX historical links; current-year XLSX excluded."""
+    from warn_v2.scrapers.states.ca import _discover_archive_urls, _ARCHIVE_PAGE
 
     html = (
         b"<html><body>"
-        b"<a href='/Jobs_and_Training/warn/WARN_Report_FY23-24.xlsx'>FY23-24</a>"
-        b"<a href='/Jobs_and_Training/warn/WARN_Report_FY22-23.xlsx'>FY22-23</a>"
+        b"<a href='/Jobs_and_Training/warn/WARN_Report_FY23-24.pdf'>FY23-24 (PDF)</a>"
+        b"<a href='/Jobs_and_Training/warn/WARN_Report_FY22-23.pdf'>FY22-23 (PDF)</a>"
+        b"<a href='/Jobs_and_Training/warn/WARN_Report_FY21-22.xlsx'>FY21-22</a>"
         b"<a href='/Jobs_and_Training/warn/WARN_Report.xlsx'>Current</a>"
-        b"<a href='/some/other.pdf'>PDF</a>"
+        b"<a href='/some/other-doc.pdf'>unrelated</a>"
         b"</body></html>"
     )
     respx.get(_ARCHIVE_PAGE).mock(return_value=httpx.Response(200, content=html))
 
-    urls = _discover_archive_xlsx_urls()
-    assert len(urls) == 2
+    urls = _discover_archive_urls()
+    assert len(urls) == 3
     assert all("warn" in u.lower() for u in urls)
     assert not any(u.endswith("WARN_Report.xlsx") for u in urls)
 
 
 @respx.mock
-def test_ca_discover_urls_empty_when_no_xlsx():
-    from warn_v2.scrapers.states.ca import _discover_archive_xlsx_urls, _ARCHIVE_PAGE
+def test_ca_discover_urls_empty_when_no_files():
+    from warn_v2.scrapers.states.ca import _discover_archive_urls, _ARCHIVE_PAGE
 
     respx.get(_ARCHIVE_PAGE).mock(return_value=httpx.Response(200, content=b"<html></html>"))
-    assert _discover_archive_xlsx_urls() == []
+    assert _discover_archive_urls() == []
 
 
 # ---------------------------------------------------------------------------
@@ -206,13 +208,13 @@ def test_backfill_historical_unsupported_state() -> None:
 # ---------------------------------------------------------------------------
 
 @respx.mock
-def test_backfill_historical_ca_upserts_rows(db) -> None:
+def test_backfill_historical_ca_upserts_rows_xlsx(db) -> None:
     archive_url = "https://edd.ca.gov/Jobs_and_Training/warn/WARN_Report_FY22-23.xlsx"
     xlsx_bytes = _minimal_ca_xlsx()
 
     respx.get(archive_url).mock(return_value=httpx.Response(200, content=xlsx_bytes))
 
-    with patch("warn_v2.scripts.backfill_historical._discover_archive_xlsx_urls") as mock_disc:
+    with patch("warn_v2.scripts.backfill_historical._discover_archive_urls") as mock_disc:
         mock_disc.return_value = [archive_url]
 
         with patch("warn_v2.scripts.backfill_historical.session_scope") as mock_scope:
@@ -224,3 +226,27 @@ def test_backfill_historical_ca_upserts_rows(db) -> None:
     assert stats["years_attempted"] == 1
     assert stats["years_ok"] == 1
     assert stats["rows_seen"] >= 1
+
+
+@respx.mock
+def test_backfill_historical_ca_upserts_rows_pdf(db) -> None:
+    """PDF archive URLs are dispatched to parse_ca_pdf instead of scraper.parse."""
+    archive_url = "https://edd.ca.gov/Jobs_and_Training/warn/WARN_Report_FY21-22.pdf"
+    fake_rows = [
+        NoticeRow(state="CA", employer="PDF Corp", notice_date=date(2022, 1, 5), layoff_count=50)
+    ]
+
+    respx.get(archive_url).mock(return_value=httpx.Response(200, content=b"%PDF-1.4 fake"))
+
+    with patch("warn_v2.scripts.backfill_historical._discover_archive_urls") as mock_disc:
+        mock_disc.return_value = [archive_url]
+        with patch("warn_v2.scripts.backfill_historical.parse_ca_pdf", return_value=fake_rows):
+            with patch("warn_v2.scripts.backfill_historical.session_scope") as mock_scope:
+                mock_scope.return_value.__enter__ = lambda _: db
+                mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+
+                stats = backfill_historical("CA")
+
+    assert stats["years_attempted"] == 1
+    assert stats["years_ok"] == 1
+    assert stats["rows_seen"] == 1

@@ -36,10 +36,11 @@ _UA = {
 }
 
 
-def _discover_archive_xlsx_urls() -> list[str]:
-    """Scrape EDD WARN archive page; return absolute URLs for all historical XLSX files.
+def _discover_archive_urls() -> list[str]:
+    """Scrape EDD WARN archive page; return absolute URLs for all historical files.
 
-    Excludes the current-year file (WARN_Report.xlsx) which the regular scraper handles.
+    EDD publishes fiscal-year WARN reports as PDFs (and occasionally XLSX).
+    Excludes the current-year XLSX (WARN_Report.xlsx) handled by the regular scraper.
     """
     from bs4 import BeautifulSoup
 
@@ -54,9 +55,10 @@ def _discover_archive_xlsx_urls() -> list[str]:
     urls: list[str] = []
     for a in soup.find_all("a", href=True):
         href: str = a["href"]
-        if not href.lower().endswith(".xlsx"):
+        lower = href.lower()
+        if not (lower.endswith(".xlsx") or lower.endswith(".pdf")):
             continue
-        if "warn" not in href.lower():
+        if "warn" not in lower:
             continue
         if href == "/Jobs_and_Training/warn/WARN_Report.xlsx":
             continue
@@ -64,6 +66,10 @@ def _discover_archive_xlsx_urls() -> list[str]:
         if full not in urls:
             urls.append(full)
     return urls
+
+
+# Keep the old name as an alias so existing code / tests don't break.
+_discover_archive_xlsx_urls = _discover_archive_urls
 
 # Tolerate minor renames; first match wins.
 _COMPANY_KEYS = ("company", "employer", "company name")
@@ -96,37 +102,92 @@ class CAScraper:
             df = _read_with_header_detection(raw)
         except Exception as e:
             raise ParseFailed(f"could not read xlsx: {e}") from e
+        return _parse_df(df)
 
-        col = ColumnMap(df.columns)
-        rows: list[NoticeRow] = []
-        for _, r in df.iterrows():
-            employer = col.get(r, _COMPANY_KEYS)
-            employer_str = as_str(employer)
-            if not employer_str:
+
+def _parse_df(df: pd.DataFrame) -> list[NoticeRow]:
+    """Convert a CA WARN DataFrame (from XLSX or PDF) to NoticeRows."""
+    col = ColumnMap(df.columns)
+    rows: list[NoticeRow] = []
+    for _, r in df.iterrows():
+        employer = col.get(r, _COMPANY_KEYS)
+        employer_str = as_str(employer)
+        if not employer_str:
+            continue
+        notice_date = as_date(col.get(r, _NOTICE_DATE_KEYS))
+        layoff_count = as_int(col.get(r, _LAYOFF_COUNT_KEYS))
+        # Skip footer/summary rows: real notices always have at least one of
+        # notice_date or layoff_count. Summary lines ("Total notices: N")
+        # have neither.
+        if notice_date is None and layoff_count is None:
+            continue
+        address = col.get(r, _ADDRESS_KEYS)
+        rows.append(NoticeRow(
+            state="CA",
+            employer=employer_str,
+            notice_date=notice_date,
+            effective_date=as_date(col.get(r, _EFFECTIVE_DATE_KEYS)),
+            layoff_count=layoff_count,
+            closure_type=as_str(col.get(r, _TYPE_KEYS)),
+            county=as_str(col.get(r, _COUNTY_KEYS)),
+            city=as_str(col.get(r, _CITY_KEYS)) or city_from_address(address),
+            zip=zip_from(col.get(r, _ZIP_KEYS), address),
+            address=as_str(address),
+            source_url=SOURCE_URL,
+        ))
+    return rows
+
+
+def parse_ca_pdf(raw: bytes) -> list[NoticeRow]:
+    """Parse a CA EDD historical WARN PDF report.
+
+    EDD fiscal-year WARN PDFs contain a multi-page table with the same columns
+    as the current-year XLSX. Uses pdfplumber to extract the table, then applies
+    the same flexible column-name matching as the XLSX parser.
+    """
+    try:
+        df = _read_ca_pdf(raw)
+    except ParseFailed:
+        raise
+    except Exception as e:
+        raise ParseFailed(f"CA PDF: {e}") from e
+    return _parse_df(df)
+
+
+def _read_ca_pdf(raw: bytes) -> pd.DataFrame:
+    """Extract the WARN notice table from a CA EDD PDF report as a DataFrame."""
+    import pdfplumber
+
+    all_rows: list[list[str]] = []
+    header: list[str] | None = None
+
+    with pdfplumber.open(io.BytesIO(raw)) as pdf:
+        for page in pdf.pages:
+            table = page.extract_table()
+            if not table:
                 continue
-            notice_date = as_date(col.get(r, _NOTICE_DATE_KEYS))
-            layoff_count = as_int(col.get(r, _LAYOFF_COUNT_KEYS))
-            # Skip footer/summary rows: real notices always have at least one of
-            # notice_date or layoff_count. Summary lines ("Total notices: N")
-            # have neither.
-            if notice_date is None and layoff_count is None:
-                continue
-            address = col.get(r, _ADDRESS_KEYS)
-            row = NoticeRow(
-                state="CA",
-                employer=employer_str,
-                notice_date=notice_date,
-                effective_date=as_date(col.get(r, _EFFECTIVE_DATE_KEYS)),
-                layoff_count=layoff_count,
-                closure_type=as_str(col.get(r, _TYPE_KEYS)),
-                county=as_str(col.get(r, _COUNTY_KEYS)),
-                city=as_str(col.get(r, _CITY_KEYS)) or city_from_address(address),
-                zip=zip_from(col.get(r, _ZIP_KEYS), address),
-                address=as_str(address),
-                source_url=SOURCE_URL,
-            )
-            rows.append(row)
-        return rows
+            for row in table:
+                if row is None:
+                    continue
+                cells = [str(c or "").strip() for c in row]
+                if not any(cells):
+                    continue
+                cells_lower = [c.lower() for c in cells]
+                if any(k in cells_lower for k in _COMPANY_KEYS):
+                    if header is None:
+                        header = cells  # preserve original case for ColumnMap
+                    continue  # skip header rows, including repeated ones per page
+                if header is not None:
+                    all_rows.append(cells)
+
+    if header is None:
+        raise ParseFailed("CA PDF: could not find header row")
+    if not all_rows:
+        raise ParseFailed("CA PDF: no data rows found")
+
+    n = len(header)
+    padded = [row[:n] + [""] * max(0, n - len(row)) for row in all_rows]
+    return pd.DataFrame(padded, columns=header)
 
 
 def _read_with_header_detection(raw: bytes) -> pd.DataFrame:
