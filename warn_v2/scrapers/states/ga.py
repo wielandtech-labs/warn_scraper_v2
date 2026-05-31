@@ -55,6 +55,8 @@ class GAScraper(PlaywrightScraper):
             )
 
         count_col = next((c for c in col if "affected" in c or "employee" in c), None)
+        # GA WARN ID column — the cell contains <a href="…/entry/NNN/">GA…ID</a>
+        id_col = next((c for c in col if "warn" in c and "id" in c), None)
 
         rows: list[NoticeRow] = []
         for tr in all_trs[1:]:
@@ -70,6 +72,12 @@ class GAScraper(PlaywrightScraper):
             layoff_count = (
                 as_int(_text(cells[col[count_col]])) if count_col is not None else None
             )
+            # Extract entry detail URL from the GA WARN ID link.
+            raw_notice_url: str | None = None
+            if id_col is not None and col[id_col] < len(cells):
+                a_tag = cells[col[id_col]].find("a")
+                if a_tag and a_tag.get("href"):
+                    raw_notice_url = a_tag["href"]
             rows.append(
                 NoticeRow(
                     state="GA",
@@ -77,6 +85,7 @@ class GAScraper(PlaywrightScraper):
                     notice_date=notice_date,
                     layoff_count=layoff_count,
                     source_url=SOURCE_URL,
+                    raw_notice_url=raw_notice_url,
                 )
             )
         if not rows:

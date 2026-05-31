@@ -34,6 +34,14 @@ def test_ga_parses_fixture(ga_sample_html: bytes) -> None:
     assert "Dexter Axle" in first.employer
     assert first.notice_date == date(2023, 1, 17)
     assert first.layoff_count == 67
+    assert first.raw_notice_url == "https://www.tcsg.edu/warn-public-view/entry/41068/"
+
+
+def test_ga_raw_notice_urls_present(ga_sample_html: bytes) -> None:
+    scraper = get_scraper("GA")
+    rows = scraper.parse(ga_sample_html)
+    with_url = [r for r in rows if r.raw_notice_url]
+    assert len(with_url) == len(rows), "every GA row should have a raw_notice_url"
 
 
 def test_ga_layoff_counts_present(ga_sample_html: bytes) -> None:
