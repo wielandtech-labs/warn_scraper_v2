@@ -426,6 +426,42 @@ def backfill_historical_cmd(
     )
 
 
+@main.command("enrich-ga")
+@click.option("--limit", type=int, default=None, help="Max notices to process per run")
+@click.option(
+    "--pdf-dir",
+    default="/var/pdfs",
+    show_default=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Root directory for PDF storage",
+)
+@click.option("--dry-run", is_flag=True, help="Fetch and parse but do not write to DB or disk")
+def enrich_ga_cmd(limit: int | None, pdf_dir: Path, dry_run: bool) -> None:
+    """Enrich GA notices from TCSG entry detail pages.
+
+    Fetches each notice's raw_notice_url and extracts: closure_type,
+    effective_date, company address, zip, and the attached PDF (if any).
+    Only processes notices that are still missing at least one of those fields.
+
+    \b
+    Examples:
+      warn-v2 enrich-ga                    # all GA notices missing data
+      warn-v2 enrich-ga --limit 20         # first 20
+      warn-v2 enrich-ga --dry-run          # preview without writing
+    """
+    from warn_v2.scripts.enrich_ga import enrich_ga
+
+    stats = enrich_ga(limit=limit, dry_run=dry_run, pdf_dir=pdf_dir)
+    suffix = " (dry run — nothing written)" if dry_run else ""
+    click.echo(
+        f"considered={stats['considered']} enriched={stats['enriched']} "
+        f"pdf_fetched={stats['pdf_fetched']} skipped={stats['skipped']} "
+        f"errors={stats['errors']}{suffix}"
+    )
+    if stats["errors"]:
+        sys.exit(1)
+
+
 @main.command("download-pdfs")
 @click.option("--state", default=None, help="State abbreviation (default: all PDF-bearing states)")
 @click.option("--limit", type=int, default=None, help="Max PDFs to fetch per run")
