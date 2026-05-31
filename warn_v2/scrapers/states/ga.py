@@ -23,7 +23,7 @@ SOURCE_URL = "https://www.tcsg.edu/warn-public-view/"
 class GAScraper(PlaywrightScraper):
     state = "GA"
     source_url = SOURCE_URL
-    expected_row_range = (5, 300)
+    expected_row_range = (100, 500)
     required_fields = frozenset({"employer", "notice_date"})
 
     def _navigate(self, page) -> None:  # type: ignore[override]
@@ -32,6 +32,20 @@ class GAScraper(PlaywrightScraper):
         # because background XHRs never fully settle.
         page.goto(SOURCE_URL, wait_until="load", timeout=60_000)
         page.wait_for_selector("table", timeout=30_000)
+
+        # The DataTables defaults to 25 rows/page.  Select "All" (-1) so a
+        # single server-side AJAX call returns every entry.  We intercept the
+        # response to know exactly when the reload is done before calling
+        # page.content(), avoiding a race with partial rendering.
+        with page.expect_response(
+            lambda r: "admin-ajax.php" in r.url, timeout=30_000
+        ):
+            page.select_option(
+                "select[name='DataTables_Table_0_length']", "-1"
+            )
+        # Table rows are rendered synchronously from the AJAX payload, so a
+        # brief selector wait is enough for the DOM to settle.
+        page.wait_for_selector("table tbody tr", timeout=10_000)
 
     def parse(self, raw: bytes) -> list[NoticeRow]:
         soup = BeautifulSoup(raw, "html.parser")
