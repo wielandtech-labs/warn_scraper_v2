@@ -6,6 +6,22 @@ tried that" finding.
 
 ---
 
+## Kubernetes access
+
+`kubectl` is not configured in the Windows shell but works via WSL:
+
+```bash
+wsl kubectl get nodes
+wsl kubectl apply -f - -n warn-v2 <<'EOF'
+...
+EOF
+wsl kubectl logs -n warn-v2 -l job-name=my-job -f
+```
+
+All `kubectl` commands in this project should be prefixed with `wsl`.
+
+---
+
 ## Kubernetes / one-off jobs
 
 ### Memory requirements for `backfill-historical`
