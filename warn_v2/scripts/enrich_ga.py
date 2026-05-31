@@ -27,7 +27,7 @@ import httpx
 from bs4 import BeautifulSoup
 from sqlalchemy import or_, select
 
-from warn_v2.db.models import Notice
+from warn_v2.db.models import Location, Notice
 from warn_v2.db.session import session_scope
 from warn_v2.pdf_extract import extract_warn_fields
 from warn_v2.pipeline.storage import enrich_notice_location
@@ -61,6 +61,7 @@ def enrich_ga(
 
     stmt = (
         select(Notice)
+        .outerjoin(Location, Notice.location_id == Location.id)
         .where(
             Notice.state == "GA",
             Notice.raw_notice_url.isnot(None),
@@ -69,6 +70,7 @@ def enrich_ga(
                 Notice.closure_type.is_(None),
                 Notice.address.is_(None),
                 Notice.pdf_path.is_(None),
+                Location.county.is_(None),
             ),
         )
         .order_by(Notice.notice_date.desc().nullslast())
@@ -237,6 +239,14 @@ def _apply_text_fields(
         )
         if loc_changed:
             changed = True
+
+    # county — store on the linked location so the UI can display it
+    county_raw = fields.get("County")
+    if county_raw and notice.location and not notice.location.county:
+        if not dry_run:
+            notice.location.county = county_raw
+        changed = True
+        log.debug("GA %s: county=%r", notice.notice_id[:10], county_raw)
 
     return changed
 
