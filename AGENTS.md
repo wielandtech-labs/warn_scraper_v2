@@ -50,6 +50,50 @@ current single-effective-node setup; revisit if the cluster grows.
 
 ---
 
+## `warn-v2 backfill-geo`
+
+Populates or upgrades `locations.lat/lon` using the best available source.
+
+```
+warn-v2 backfill-geo                        # fill NULL coordinates only
+warn-v2 backfill-geo --rerun-address        # also upgrade ZIP/city centroids to Census street-level
+warn-v2 backfill-geo --state GA             # limit to one state
+warn-v2 backfill-geo --dry-run              # preview without writing
+```
+
+**Geocoding priority** (per location, in order):
+1. Census street geocoder — requires a non-null `notice.address` linked to the location
+2. ZIP centroid — fast local lookup, ~city-block radius
+3. City centroid — ~11 km accuracy, for city-only records
+4. County centroid — last resort (~30 km)
+
+**`--rerun-address` mode** calls only the Census geocoder (Tier 1). If Census
+can't resolve the address, existing coordinates are kept — no ZIP-centroid
+regression. Use this after a new enricher populates `notice.address` for a
+state that previously had only centroid-level coordinates.
+
+**When to run:**
+- After `enrich-ga` (or any enricher that backfills `notice.address`) to upgrade affected locations.
+- After adding a new state whose scraper now extracts addresses.
+- Periodically with `--rerun-address` to pick up any newly enriched addresses across all states.
+
+**Stats output:**
+
+| Field | Meaning |
+|-------|---------|
+| `upgraded` | Had coordinates; upgraded to Census street-level via address |
+| `filled_address` | Was NULL; filled via Census geocoder |
+| `filled_zip` | Was NULL; filled via ZIP/city/county centroid |
+| `no_coords` | No geocoding source resolved — coordinates still NULL |
+| `skipped_no_address` | `--rerun-address` mode: location has coords but no linked address (or Census returned nothing) |
+
+**GA-specific note (May 2026):** TCSG `Company Address` is sometimes the
+corporate HQ address (non-GA state). Those locations get `skipped_no_address`
+because Census returns no match for a non-GA address with `state=GA`. Their
+ZIP centroids are preserved, which is the correct fallback.
+
+---
+
 ## SQLAlchemy / `backfill_geo.py`
 
 `yield_per` controls the DB fetch batch size but does **not** bound the
