@@ -51,6 +51,11 @@ class StateScraper(Protocol):
     source_url: str
     expected_row_range: tuple[int, int]
     required_fields: frozenset[str]
+    #: True  → raw_notice_url is a direct PDF link (download_pdfs handles it).
+    #: False → raw_notice_url is an HTML intermediary page that requires a
+    #:         state-specific enricher (e.g. GA → enrich_ga, which must find
+    #:         the PDF link embedded in the page).  download_pdfs skips these.
+    raw_notice_url_is_pdf: bool
 
     def fetch(self) -> bytes:
         """Retrieve the live source. Raise ScrapeFailed on network errors."""

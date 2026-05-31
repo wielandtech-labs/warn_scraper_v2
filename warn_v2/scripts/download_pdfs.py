@@ -26,6 +26,7 @@ from warn_v2.db.models import Notice
 from warn_v2.db.session import session_scope
 from warn_v2.pdf_extract import extract_warn_fields
 from warn_v2.pipeline.storage import enrich_notice_location
+from warn_v2.scrapers.registry import all_states, get_scraper
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +40,25 @@ _UA = {
 }
 
 
+def _pdf_states() -> frozenset[str]:
+    """Return the set of state codes whose raw_notice_url is a direct PDF link.
+
+    States where raw_notice_url is an HTML intermediary page (e.g. GA, which
+    uses a GravityView entry page) are excluded — they have a dedicated
+    state-specific enricher (e.g. enrich_ga) that handles both field extraction
+    and PDF download.
+    """
+    result = set()
+    for code in all_states():
+        try:
+            scraper = get_scraper(code)
+            if getattr(scraper, "raw_notice_url_is_pdf", True):
+                result.add(code)
+        except Exception:
+            result.add(code)  # unknown → include by default
+    return frozenset(result)
+
+
 def download_pdfs(
     state: str | None = None,
     *,
@@ -48,20 +68,44 @@ def download_pdfs(
 ) -> dict[str, int]:
     """Download and enrich PDFs for notices that have ``raw_notice_url`` but no ``pdf_path``.
 
+    Only processes states where ``raw_notice_url`` is a direct PDF link
+    (``scraper.raw_notice_url_is_pdf is True``).  States like GA, whose
+    ``raw_notice_url`` points to an HTML intermediary page, are skipped here
+    and handled by their own enricher (e.g. ``warn-v2 enrich-ga``).
+
     Returns ``{"fetched": N, "enriched": N, "skipped": N, "errors": N}``.
     """
     stats = {"fetched": 0, "enriched": 0, "skipped": 0, "errors": 0}
+
+    # Determine which states to process.
+    if state is not None:
+        target_state = state.upper()
+        scraper = get_scraper(target_state)
+        if not getattr(scraper, "raw_notice_url_is_pdf", True):
+            log.warning(
+                "download-pdfs: %s raw_notice_url is not a direct PDF link "
+                "(raw_notice_url_is_pdf=False) — use the state-specific enricher instead",
+                target_state,
+            )
+            return stats
+        state_filter: frozenset[str] | None = frozenset([target_state])
+    else:
+        state_filter = _pdf_states()
+        log.info(
+            "download-pdfs: limiting to %d PDF-bearing states: %s",
+            len(state_filter),
+            ", ".join(sorted(state_filter)),
+        )
 
     stmt = (
         select(Notice)
         .where(
             Notice.raw_notice_url.isnot(None),
             Notice.pdf_path.is_(None),
+            Notice.state.in_(state_filter),
         )
         .order_by(Notice.notice_date.desc().nullslast())
     )
-    if state is not None:
-        stmt = stmt.where(Notice.state == state.upper())
     if limit is not None:
         stmt = stmt.limit(limit)
 
@@ -70,7 +114,7 @@ def download_pdfs(
         log.info(
             "download-pdfs: %d notice(s) to process%s",
             len(notices),
-            f" [state={state}]" if state else "",
+            f" [state={state.upper()}]" if state else "",
         )
 
         pending_commit = 0

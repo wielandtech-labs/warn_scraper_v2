@@ -25,6 +25,7 @@ class PlaywrightScraper:
     source_url: str
     expected_row_range: tuple[int, int]
     required_fields: frozenset[str]
+    raw_notice_url_is_pdf: bool = True
 
     def _navigate(self, page: Page) -> None:
         """Navigate to source_url and wait for content to finish rendering.

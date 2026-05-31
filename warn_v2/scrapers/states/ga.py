@@ -25,6 +25,10 @@ class GAScraper(PlaywrightScraper):
     source_url = SOURCE_URL
     expected_row_range = (100, 500)
     required_fields = frozenset({"employer", "notice_date"})
+    # raw_notice_url points to a GravityView HTML entry page, not a direct PDF.
+    # enrich_ga handles scraping the page, extracting fields, and downloading
+    # the embedded gk-download PDF.  download_pdfs must skip GA.
+    raw_notice_url_is_pdf = False
 
     def _navigate(self, page) -> None:  # type: ignore[override]
         # "load" fires when the HTML is parsed; wait_for_selector then blocks
