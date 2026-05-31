@@ -35,7 +35,7 @@ from warn_v2.pipeline.storage import enrich_notice_location
 log = logging.getLogger(__name__)
 
 _BATCH_COMMIT = 50
-_REQUEST_DELAY = 1.0   # seconds between requests — be polite to TCSG
+_REQUEST_DELAY = 3.0   # seconds between requests — TCSG rate-limits after ~10 fast requests
 _UA = {
     "User-Agent": (
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
