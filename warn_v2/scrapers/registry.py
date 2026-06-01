@@ -14,6 +14,13 @@ def register(scraper: StateScraper) -> StateScraper:
     key = scraper.state.upper()
     if key in REGISTRY:
         raise ValueError(f"Scraper for {key} already registered")
+    # `raw_notice_url_is_pdf` is part of the StateScraper protocol, but most
+    # scrapers (everything except the Playwright/GA family) predate it and don't
+    # declare it. The conceptual default is True — a raw_notice_url is a direct
+    # PDF link unless a scraper opts out (e.g. GA sets it False). Default it here
+    # so every registered scraper satisfies the runtime_checkable protocol.
+    if not hasattr(scraper, "raw_notice_url_is_pdf"):
+        scraper.raw_notice_url_is_pdf = True
     REGISTRY[key] = scraper
     return scraper
 

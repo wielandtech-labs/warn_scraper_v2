@@ -104,11 +104,6 @@ Findings the DB can't tell us — confirmed against the live sources.
 - Any state the audit flags `dead_links`, `row_drift`, or persistent `scraper_*`.
 - States whose source exposes a field we don't yet capture (confirm via Part-B
   spot check before writing extraction code).
-- **Pre-existing test bug (unrelated to the audit):**
-  `tests/test_contract.py::test_all_registered_states_satisfy_protocol` fails in a
-  full-suite run but passes in isolation — a test-ordering pollution issue with the
-  `runtime_checkable` `StateScraper` `isinstance` check. Present on the committed
-  baseline; worth fixing separately.
 
 ## Optional enhancement
 
