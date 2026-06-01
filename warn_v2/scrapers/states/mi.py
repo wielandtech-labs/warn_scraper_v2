@@ -126,9 +126,16 @@ def _parse_card(html: str) -> NoticeRow | None:
     """Parse one Sitecore HTML card fragment into a NoticeRow."""
     soup = BeautifulSoup(html, "html.parser")
 
-    # Company name: prefer <a class="content-title-link">, fall back to <h3>
-    name_el = soup.find("a", class_="content-title-link") or soup.find("h3")
+    # Company name: prefer <a class="content-title-link"> text, fall back to <h3>.
+    # The anchor is frequently present but EMPTY (those cards carry the name in an
+    # adjacent <h3>), so a plain `find(a) or find(h3)` latches onto the empty anchor
+    # and the h3 fallback never fires — silently dropping the notice. Test the
+    # extracted text, not mere element existence, before falling through.
+    name_el = soup.find("a", class_="content-title-link")
     employer = as_str(name_el.get_text(strip=True)) if name_el else None
+    if not employer:
+        h3 = soup.find("h3")
+        employer = as_str(h3.get_text(strip=True)) if h3 else None
     if not employer:
         return None
 
