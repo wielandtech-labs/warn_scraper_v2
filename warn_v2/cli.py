@@ -499,5 +499,59 @@ def download_pdfs_cmd(state: str | None, limit: int | None, pdf_dir: Path, dry_r
         sys.exit(1)
 
 
+@main.command("audit")
+@click.option("--state", default=None, help="Limit to one state abbreviation, e.g. CA")
+@click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON")
+@click.option("--markdown", is_flag=True, help="Emit the STATE_AUDIT.md table body")
+@click.option(
+    "--check-links",
+    is_flag=True,
+    help="Also HEAD-sample each flagged state's raw_notice_url links (network)",
+)
+def audit_cmd(state: str | None, as_json: bool, markdown: bool, check_links: bool) -> None:
+    """Audit data quality across all jurisdictions (or one).
+
+    Runs a single pass over the DB and scores each state against the data-quality
+    rubric: field fill-rates, PDF coverage, per-year completeness, geocoding,
+    company enrichment, scraper health, and sanity checks.  Each row lists the
+    rubric items that failed (flags) and, in markdown mode, the remediation
+    command that addresses them.
+
+    \b
+    Examples:
+      warn-v2 audit                  # table for all jurisdictions
+      warn-v2 audit --state CA       # one state
+      warn-v2 audit --json           # full structured output
+      warn-v2 audit --markdown       # STATE_AUDIT.md table body
+      warn-v2 audit --check-links    # also verify PDF source links resolve
+    """
+    from warn_v2.db.session import session_scope
+    from warn_v2.scripts.audit import (
+        audit_states,
+        render_json,
+        render_markdown,
+        render_table,
+    )
+    from warn_v2.scripts.audit import (
+        check_links as _check_links,
+    )
+
+    with session_scope() as session:
+        audits = audit_states(session, state_filter=state)
+        if check_links:
+            for a in audits:
+                if a.active and a.pdf_state and a.pdf_eligible:
+                    checked, dead = _check_links(session, a.state)
+                    a.link_sample, a.link_dead = checked, dead
+                    a.finalize()
+
+    if as_json:
+        click.echo(render_json(audits))
+    elif markdown:
+        click.echo(render_markdown(audits))
+    else:
+        click.echo(render_table(audits))
+
+
 if __name__ == "__main__":
     main()
