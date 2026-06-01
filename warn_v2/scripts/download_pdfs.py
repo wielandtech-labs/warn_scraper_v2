@@ -165,7 +165,20 @@ def _process_one(
     abs_path = pdf_dir / rel_path
 
     if not dry_run:
-        abs_path.parent.mkdir(parents=True, exist_ok=True)
+        state_dir = abs_path.parent
+        # Guard against a legacy bug where an earlier run wrote a PDF directly to
+        # the state-directory path (e.g. /var/pdfs/wi) instead of into it.  That
+        # file blocks mkdir even with exist_ok=True because exist_ok only suppresses
+        # the error when the *existing path is already a directory*, not when it is
+        # a regular file.  Log loudly and skip rather than crashing the whole job.
+        if state_dir.exists() and not state_dir.is_dir():
+            log.error(
+                "%s %s: storage dir path %s exists but is not a directory — "
+                "remove the stale file from the PDF PVC to unblock this state",
+                notice.state, notice.notice_id[:8], state_dir,
+            )
+            return "errors"
+        state_dir.mkdir(parents=True, exist_ok=True)
         abs_path.write_bytes(pdf_bytes)
         notice.pdf_path = str(rel_path)
 
