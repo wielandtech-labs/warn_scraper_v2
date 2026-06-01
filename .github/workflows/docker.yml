@@ -44,7 +44,10 @@ jobs:
         tags: |
           type=ref,event=branch
           type=ref,event=pr
-          type=sha,prefix={{branch}}-
+          # On pull_request events {{branch}} is empty, which would produce the
+          # invalid tag ":-<sha>". Restrict the branch-prefixed sha tag to non-PR
+          # events; PRs are already identified by the type=ref,event=pr tag.
+          type=sha,prefix={{branch}}-,enable=${{ github.event_name != 'pull_request' }}
           type=raw,value=latest,enable={{is_default_branch}}
           type=raw,value=${{ steps.vars.outputs.date }}-${{ steps.vars.outputs.time }}-${{ steps.vars.outputs.sha }},enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
