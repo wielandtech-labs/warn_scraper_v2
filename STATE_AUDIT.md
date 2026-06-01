@@ -74,6 +74,57 @@ enrichment.
 > `kubectl cp`/`exec` output — generate it from a trusted run._
 
 <!-- BEGIN GENERATED TABLE -->
+_Generated 2026-06-01 from prod via `warn-v2 audit --markdown`
+(image `20260601-033622-e2e0aa4`)._
+
+| State | Active | Superseded | Years | Eff% | Count% | PDF% | Geo% | Enrich% | Scraper | Status | Next action |
+|-------|-------:|-----------:|-------|-----:|-------:|-----:|-----:|--------:|---------|--------|-------------|
+| AK | 64 | 0 | 2006-2025 | 100% | 97% | 100% | 66% | 2% | ok | gaps | backfill-historical --state AK; backfill-geo; fix geocode / address source; enrich --state AK; inspect parser date handling |
+| AL | 1034 | 0 | 1998-2026 | 100% | 100% | - | 96% | 1% | ok | gaps | enrich --state AL; inspect parser date handling |
+| AZ | 240 | 0 | 2016-2026 | 100% | 100% | 25% | 90% | 1% | ok | gaps | source detail/PDF for real dates; download-pdfs --state AZ; backfill-geo; fix geocode / address source; enrich --state AZ |
+| CA | 15868 | 0 | 2008-2026 | 100% | 72% | - | 99% | 1% | ok | gaps | backfill-historical --state CA; fix geocode / address source; enrich --state CA; inspect parser date handling; inspect parser count handling |
+| CO | 44 | 0 | 1957-2021 | 100% | 86% | - | 25% | 0% | ok | gaps | backfill-historical --state CO; backfill-geo; enrich --state CO; inspect parser date handling |
+| CT | 284 | 0 | 2019-2026 | 100% | 17% | 100% | 81% | 1% | ok | gaps | source detail/PDF for real dates; backfill-geo; fix geocode / address source; enrich --state CT; inspect parser date handling |
+| DC | 141 | 0 | 2005-2026 | 100% | 56% | - | 0% | 1% | ok | gaps | backfill-historical --state DC; backfill-geo; enrich --state DC; inspect parser date handling |
+| DE | 41 | 0 | 2016-2026 | 100% | 100% | 7% | 29% | 2% | ok | gaps | backfill-historical --state DE; source detail/PDF for real dates; download-pdfs --state DE; backfill-geo; fix geocode / address source; enrich --state DE |
+| FL | 101 | 0 | 2026-2026 | 100% | 100% | 100% | 100% | 0% | ok | gaps | enrich --state FL; inspect parser date handling |
+| GA | 259 | 0 | 2023-2026 | 100% | 100% | n/a | 72% | 4% | fetch_failed | broken | heal --state GA; backfill-geo; fix geocode / address source; enrich --state GA; inspect parser date handling |
+| HI | 12 | 0 | 2026-2026 | 100% | 0% | 100% | 8% | 0% | ok | gaps | source detail/PDF for real dates; backfill-geo; enrich --state HI |
+| IA | 486 | 479 | 2021-2026 | 100% | 100% | - | 100% | 3% | ok | gaps | fix geocode / address source; enrich --state IA; mark-superseded --state IA; inspect parser date handling |
+| ID | 193 | 0 | 2009-2026 | 100% | 99% | - | 99% | 1% | ok | gaps | fix geocode / address source; enrich --state ID; inspect parser date handling |
+| IL | 14 | 14 | 2026-2026 | 100% | 100% | - | 100% | 0% | ok | gaps | enrich --state IL; mark-superseded --state IL; inspect parser date handling; inspect parser count handling |
+| IN | 1005 | 0 | 2008-2026 | 100% | 98% | 99% | 93% | 0% | ok | gaps | backfill-geo; fix geocode / address source; enrich --state IN; inspect parser date handling; inspect parser count handling |
+| KS | 7 | 0 | 2026-2026 | 100% | 100% | 100% | 100% | 0% | ok | gaps | source detail/PDF for real dates; fix geocode / address source; enrich --state KS |
+| KY | 23 | 0 | 2025-2026 | 100% | 100% | 100% | 78% | 4% | ok | gaps | backfill-geo; enrich --state KY |
+| LA | 5 | 0 | 2025-2026 | 100% | 100% | - | 100% | 20% | ok | gaps | enrich --state LA |
+| MA | 78 | 0 | 2025-2026 | 100% | 100% | - | 72% | 3% | ok | gaps | backfill-geo; enrich --state MA; inspect parser date handling |
+| MD | 66 | 0 | 2026-2026 | 100% | 98% | - | 100% | 2% | ok | gaps | fix geocode / address source; enrich --state MD; inspect parser date handling |
+| ME | 2 | 0 | 2026-2026 | 100% | 100% | 100% | 100% | 0% | ok | gaps | source detail/PDF for real dates; fix geocode / address source; enrich --state ME |
+| MI | 91 | 0 | 2024-2026 | 100% | 95% | - | 90% | 0% | ok | gaps | backfill-geo; enrich --state MI |
+| MN | 75 | 0 | 2023-2025 | 100% | 100% | - | 4% | 1% | ok | gaps | backfill-geo; enrich --state MN; inspect parser date handling |
+| MO | 317 | 0 | 2019-2026 | 100% | 99% | - | 68% | 4% | ok | gaps | backfill-geo; enrich --state MO; inspect parser date handling |
+| MS | 7 | 0 | 2025-2026 | 100% | 100% | - | 100% | 29% | ok | gaps | enrich --state MS |
+| MT | 43 | 0 | 225-2026 | 100% | 91% | - | 60% | 2% | ok | gaps | backfill-historical --state MT; backfill-geo; enrich --state MT; inspect parser date handling |
+| NC | 39 | 0 | 2026-2026 | 100% | 100% | - | 100% | 0% | ok | gaps | fix geocode / address source; enrich --state NC |
+| ND | 54 | 0 | 2015-2026 | 100% | 100% | - | 80% | 0% | ok | gaps | backfill-historical --state ND; backfill-geo; enrich --state ND; inspect parser date handling |
+| NE | 43 | 0 | 2023-2026 | 100% | 95% | 40% | 79% | 0% | ok | gaps | source detail/PDF for real dates; download-pdfs --state NE; backfill-geo; enrich --state NE |
+| NJ | 60 | 0 | 2026-2026 | 98% | 98% | - | 63% | 2% | ok | gaps | backfill-geo; enrich --state NJ; inspect parser date handling |
+| NM | 5 | 0 | 2025-2026 | 100% | 100% | - | 100% | 20% | ok | gaps | enrich --state NM |
+| NV | 11 | 0 | 2025-2026 | 100% | 100% | - | 82% | 9% | ok | gaps | backfill-geo; enrich --state NV; inspect parser date handling |
+| NY | 147 | 0 | 2025-2026 | 100% | 63% | 99% | 99% | 4% | ok | gaps | fix geocode / address source; enrich --state NY |
+| OH | 25 | 0 | 2026-2026 | 100% | 100% | - | 92% | 4% | ok | gaps | backfill-geo; enrich --state OH; inspect parser date handling |
+| OR | 100 | 0 | 2020-2026 | 100% | 98% | 5% | 100% | 0% | ok | gaps | source detail/PDF for real dates; download-pdfs --state OR; enrich --state OR |
+| PA | 383 | 286 | 2024-2026 | 100% | 61% | - | 76% | 5% | ok | gaps | backfill-geo; fix geocode / address source; enrich --state PA; mark-superseded --state PA; inspect parser date handling |
+| RI | 125 | 0 | 204-2026 | 100% | 98% | - | 54% | 1% | ok | gaps | backfill-historical --state RI; backfill-geo; enrich --state RI; inspect parser date handling |
+| SC | 22 | 0 | 2026-2026 | 100% | 100% | - | 100% | 0% | ok | gaps | fix geocode / address source; enrich --state SC |
+| SD | 78 | 0 | 2007-2026 | 100% | 99% | 16% | 94% | 0% | ok | gaps | source detail/PDF for real dates; download-pdfs --state SD; backfill-geo; enrich --state SD |
+| TX | 61 | 0 | 2026-2026 | 100% | 100% | - | 100% | 5% | ok | gaps | enrich --state TX; inspect parser date handling |
+| UT | 9 | 0 | 2026-2026 | 100% | 100% | - | 78% | 0% | ok | gaps | source detail/PDF for real dates; backfill-geo; enrich --state UT |
+| VA | 1106 | 0 | 2010-2026 | 100% | 100% | 100% | 85% | 0% | ok | gaps | backfill-geo; enrich --state VA; inspect parser date handling; inspect parser count handling |
+| VT | 4 | 0 | 2026-2026 | 100% | 100% | 100% | 100% | 0% | ok | gaps | source detail/PDF for real dates; enrich --state VT |
+| WA | 15 | 0 | 2026-2026 | 100% | 100% | - | 67% | 0% | ok | gaps | backfill-geo; enrich --state WA |
+| WI | 616 | 0 | 2020-2026 | 100% | 100% | 17% | 94% | 2% | ok | gaps | download-pdfs --state WI; backfill-geo; fix geocode / address source; enrich --state WI; inspect parser date handling |
+| WV | 50 | 0 | 2021-2026 | 100% | 0% | 50% | 2% | 0% | ok | gaps | source detail/PDF for real dates; download-pdfs --state WV; backfill-geo; enrich --state WV |
 <!-- END GENERATED TABLE -->
 
 ## Source notes (hand-curated)
@@ -93,6 +144,22 @@ Findings the DB can't tell us — confirmed against the live sources.
   ~10 fast requests (3s inter-request delay required). `Company Address` is often
   the corporate HQ, not the GA worksite → Census no-match / out-of-state coords.
 - **KY / MT** — county-only sources; geocoded via Tier-4 county centroid.
+- **Data bugs surfaced by the first audit run (2026-06-01):**
+  - **MT** first-year shows `225` and **RI** shows `204` — corrupt `notice_date`
+    values (almost certainly truncated/typo'd years, e.g. `0225`/`0204`). Find and
+    fix these rows; they also distort the year-gap detection.
+  - **GA** scraper `fetch_failed` (TCSG IP block) → status **broken**; recovers
+    when the block lifts or via `heal --state GA`.
+  - **Low-data states** (LA=5, NM=5, MS=7, KS=7, UT=9, ME=2, VT=4, WA=15, NV=11):
+    only the current year is captured — likely current-year-only sources that may
+    have an archive worth a `backfill-historical` extension. Confirm per source.
+  - **Enrichment is low almost everywhere** (mostly 0–5%): the `enrich` cascade
+    has barely been run at scale. A bulk `enrich --recent-years N` pass is the
+    highest-leverage single action.
+  - **`inspect parser date handling`** appears widely — driven by the
+    estimated-date heuristic (effective_date = notice_date + 60d). That's the
+    expected WARN-Act fallback for many states, not necessarily a bug; treat as
+    "real date unavailable at source" unless the source actually provides one.
 - **Blocked (not registered scrapers; appear in the audit only if legacy rows
   exist):** AR (confidential by law), NH (no public listing), OK
   (Salesforce/Aura auth wall), TN (scraper built; tn.gov blocks container IPs),
