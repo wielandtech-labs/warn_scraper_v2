@@ -35,10 +35,28 @@ def scrape(state: str) -> None:
 
 @main.command(name="scrape-all")
 @click.option("--states", default=None, help="Comma-separated subset, e.g. CA,TX")
-def scrape_all(states: str | None) -> None:
-    """Run all registered scrapers and exit non-zero if any failed."""
+@click.option(
+    "--tolerate",
+    default=None,
+    help=(
+        "Comma-separated states whose failure should NOT fail the run "
+        "(known-blocked or chronically-flaky sources, e.g. GA). They are still "
+        "scraped and their ScraperRun row still records the failure; they just "
+        "don't flip the job's exit code. Prevents one flaky state from marking "
+        "every nightly Job as Failed (which churns CronJob history and pod logs)."
+    ),
+)
+def scrape_all(states: str | None, tolerate: str | None) -> None:
+    """Run all registered scrapers.
+
+    Exits non-zero only if a *non-tolerated* state failed. Tolerated-state
+    failures are reported on stderr but don't fail the run — sustained outages
+    are caught by alerting off the scraper_runs table, not the job exit code.
+    """
     targets = [s.strip().upper() for s in states.split(",")] if states else all_states()
+    tolerated = {s.strip().upper() for s in tolerate.split(",")} if tolerate else set()
     failed: list[str] = []
+    tolerated_failures: list[str] = []
     for state in targets:
         scraper = get_scraper(state)
         run = run_state(scraper)
@@ -46,7 +64,12 @@ def scrape_all(states: str | None) -> None:
             f"{run.state} status={run.status} rows={run.rows_scraped} new={run.rows_new}"
         )
         if run.status != "ok":
-            failed.append(run.state)
+            (tolerated_failures if run.state in tolerated else failed).append(run.state)
+    if tolerated_failures:
+        click.echo(
+            f"tolerated failures (not failing run): {', '.join(tolerated_failures)}",
+            err=True,
+        )
     if failed:
         click.echo(f"failed: {', '.join(failed)}", err=True)
         sys.exit(1)
