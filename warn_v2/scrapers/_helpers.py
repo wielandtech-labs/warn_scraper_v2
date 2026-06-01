@@ -39,6 +39,18 @@ def is_blank(value: Any) -> bool:
     return False
 
 
+# Plausible WARN-notice year range. The federal WARN Act took effect in 1989,
+# so anything earlier — or more than a couple of years in the future — is almost
+# certainly a source typo (e.g. a year cell of "0225" or "0204" that pandas
+# happily parses as the years 225 / 204). Reject these so a malformed row is
+# dropped rather than stored with a corrupt date.
+_MIN_YEAR = 1988
+
+
+def _max_year() -> int:
+    return date.today().year + 2
+
+
 def as_date(value: Any) -> date | None:
     if is_blank(value):
         return None
@@ -48,7 +60,10 @@ def as_date(value: Any) -> date | None:
         return None
     if pd.isna(ts):
         return None
-    return ts.date()
+    d = ts.date()
+    if not (_MIN_YEAR <= d.year <= _max_year()):
+        return None
+    return d
 
 
 def as_int(value: Any) -> int | None:
