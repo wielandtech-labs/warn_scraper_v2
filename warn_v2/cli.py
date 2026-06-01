@@ -518,8 +518,11 @@ def download_pdfs_cmd(state: str | None, limit: int | None, pdf_dir: Path, dry_r
         f"fetched={stats['fetched']} enriched={stats['enriched']} "
         f"skipped={stats['skipped']} errors={stats['errors']}{suffix}"
     )
-    if stats["errors"]:
-        sys.exit(1)
+    # Individual HTTP/storage errors (404s, bad URLs, stale links) are expected
+    # and retryable — the notice keeps pdf_path=NULL and will be retried next run.
+    # Exiting non-zero on any error would mark the CronJob Failed every time a
+    # single URL is broken, the same pattern that plagued scrape-all with GA.
+    # The error count is visible in the logs; alerting belongs on the DB side.
 
 
 @main.command("audit")
