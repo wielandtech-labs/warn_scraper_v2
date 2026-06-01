@@ -256,3 +256,41 @@ def test_location_created_from_pdf_city_zip(db, tmp_path):
     assert loc.city == "Anchorage"
     assert loc.zip == "99501"
     assert stats["enriched"] == 1
+
+
+# ---------------------------------------------------------------------------
+# mkdir hardening
+# ---------------------------------------------------------------------------
+
+@respx.mock
+def test_stale_file_at_state_dir_path_is_counted_as_error(db, tmp_path):
+    """Regression: an earlier run wrote a PDF directly to /var/pdfs/<state> (the
+    state directory path itself).  mkdir(..., exist_ok=True) raises FileExistsError
+    because exist_ok only suppresses the error when the path is already a directory,
+    not when it is a regular file.  The hardened code detects this, logs an error,
+    and returns 'errors' rather than crashing the entire job."""
+    notice = _insert_notice(db, state="WI", raw_notice_url=_PDF_URL)
+    db.commit()
+
+    # Simulate the legacy bug: create a regular file where the state dir should be.
+    stale_file = tmp_path / "wi"
+    stale_file.write_bytes(b"stale pdf data")
+    assert stale_file.is_file()
+
+    respx.get(_PDF_URL).mock(return_value=httpx.Response(200, content=_FAKE_PDF))
+
+    with patch("warn_v2.scripts.download_pdfs.session_scope") as mock_scope:
+        mock_scope.return_value.__enter__ = lambda _: db
+        mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+        with patch("warn_v2.scripts.download_pdfs.extract_warn_fields", return_value={}):
+            stats = download_pdfs("WI", pdf_dir=tmp_path)
+
+    # Should not crash; the notice is counted as an error (retriable next run).
+    assert stats["errors"] == 1
+    assert stats["fetched"] == 0
+    # The stale file must be untouched — we don't silently remove production data.
+    assert stale_file.is_file()
+    assert stale_file.read_bytes() == b"stale pdf data"
+    # pdf_path must not be set — the notice is retryable.
+    db.refresh(notice)
+    assert notice.pdf_path is None
