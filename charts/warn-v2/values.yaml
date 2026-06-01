@@ -30,6 +30,12 @@ snapshotStorage:
 
 scraper:
   schedule: "17 7 * * *"  # daily 07:17 local — off the :00 + :30 herd
+  # States whose failure should NOT fail the nightly Job (known-blocked or
+  # chronically-flaky sources). They are still scraped and their scraper_runs
+  # row still records the failure; they just don't flip the exit code, so one
+  # flaky source doesn't mark every Job Failed and churn CronJob/pod-log history.
+  # Sustained outages are caught by alerting off scraper_runs, not the exit code.
+  tolerateFailures: "GA"  # GA: Playwright source is timeout-prone
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 1000m, memory: 1Gi }

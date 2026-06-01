@@ -12,6 +12,7 @@ Registered in warn_v2.api at startup:
 from __future__ import annotations
 
 import logging
+from datetime import UTC
 
 from prometheus_client.core import (
     CounterMetricFamily,
@@ -127,3 +128,30 @@ class WarnCollector(Collector):
                 # add_metric(labels, quantiles, sum_value, count_value)
                 c.add_metric([state], {}, float(dur_sum or 0.0), float(count))
             yield c
+
+            # ------------------------------------------------------------------
+            # 6. Last *successful* scrape timestamp per state (unix seconds).
+            #    Emitted as an absolute timestamp so alerting can do
+            #    `time() - warn_scrape_last_success_timestamp_seconds > N`,
+            #    mirroring kube_cronjob_status_last_successful_time. A state with
+            #    no ok run ever (blocked source) is simply absent — no false page.
+            # ------------------------------------------------------------------
+            rows = s.execute(
+                select(ScraperRun.state, func.max(ScraperRun.started_at))
+                .where(ScraperRun.status == "ok")
+                .group_by(ScraperRun.state)
+            ).all()
+            g = GaugeMetricFamily(
+                "warn_scrape_last_success_timestamp_seconds",
+                "Unix timestamp of the most recent successful (status=ok) scrape, per state.",
+                labels=["state"],
+            )
+            for state, ts in rows:
+                if ts is not None:
+                    # started_at is stored in UTC. Postgres returns it tz-aware;
+                    # some drivers/SQLite return it naive — normalize so
+                    # .timestamp() doesn't silently apply the host's local offset.
+                    if ts.tzinfo is None:
+                        ts = ts.replace(tzinfo=UTC)
+                    g.add_metric([state], ts.timestamp())
+            yield g

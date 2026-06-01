@@ -23,7 +23,12 @@ spec:
             - name: scraper
               image: {{ include "warn-v2.image" . }}
               imagePullPolicy: {{ .Values.image.pullPolicy }}
-              args: ["scrape-all"]
+              args:
+                - scrape-all
+                {{- if .Values.scraper.tolerateFailures }}
+                - --tolerate
+                - {{ .Values.scraper.tolerateFailures | quote }}
+                {{- end }}
               env:
                 {{- include "warn-v2.envSecrets" . | nindent 16 }}
               volumeMounts:
