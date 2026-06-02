@@ -6,6 +6,19 @@ tried that" finding.
 
 ---
 
+## Before pushing
+
+Run ruff before committing or pushing to avoid CI failures:
+
+```bash
+.venv\Scripts\ruff check --fix .
+```
+
+Common violations to watch for: unused imports (`F401`), unsorted inline import
+blocks inside test functions (`I001`). Both are auto-fixable with `--fix`.
+
+---
+
 ## Kubernetes access
 
 `kubectl` is not configured in the Windows shell but works via WSL:
