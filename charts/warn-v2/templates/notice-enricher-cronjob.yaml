@@ -1,0 +1,50 @@
+{{- if .Values.noticeEnricher.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "warn-v2.fullname" . }}-notice-enricher
+  labels:
+    {{- include "warn-v2.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.noticeEnricher.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            {{- include "warn-v2.labels" . | nindent 12 }}
+            app.kubernetes.io/component: notice-enricher
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: notice-enricher
+              image: {{ include "warn-v2.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              args:
+                - enrich-notices
+                - --request-delay
+                - {{ .Values.noticeEnricher.requestDelay | quote }}
+                {{- if .Values.noticeEnricher.limit }}
+                - --limit
+                - {{ .Values.noticeEnricher.limit | quote }}
+                {{- end }}
+              env:
+                {{- include "warn-v2.envSecrets" . | nindent 16 }}
+              {{- if .Values.pdfStorage.enabled }}
+              volumeMounts:
+                - name: pdfs
+                  mountPath: /var/pdfs
+              {{- end }}
+              resources:
+                {{- toYaml .Values.noticeEnricher.resources | nindent 16 }}
+          {{- if .Values.pdfStorage.enabled }}
+          volumes:
+            - name: pdfs
+              persistentVolumeClaim:
+                claimName: {{ include "warn-v2.fullname" . }}-pdfs
+          {{- end }}
+{{- end }}
