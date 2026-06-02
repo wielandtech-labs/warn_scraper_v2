@@ -485,6 +485,93 @@ def enrich_ga_cmd(limit: int | None, pdf_dir: Path, dry_run: bool) -> None:
         sys.exit(1)
 
 
+@main.command("enrich-notices")
+@click.option(
+    "--state",
+    default=None,
+    help="Limit to one state (default: run every registered enricher)",
+)
+@click.option("--limit", type=int, default=None, help="Max notices per state per run")
+@click.option(
+    "--pdf-dir",
+    default="/var/pdfs",
+    show_default=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Root directory for PDF storage",
+)
+@click.option(
+    "--request-delay",
+    type=float,
+    default=3.0,
+    show_default=True,
+    metavar="SECONDS",
+    help="Base delay between detail-page requests; also seeds 429/503 backoff",
+)
+@click.option(
+    "--dry-run", is_flag=True, help="Fetch and parse but do not write to DB or disk"
+)
+def enrich_notices_cmd(
+    state: str | None,
+    limit: int | None,
+    pdf_dir: Path,
+    request_delay: float,
+    dry_run: bool,
+) -> None:
+    """Enrich notices from per-state detail pages / attachments.
+
+    Some state sources publish only a thin list view (employer, date, count);
+    this throttled second pass fills location, closure type, effective date and
+    PDFs from each notice's detail page. Runs every registered state enricher, or
+    just one with --state.
+
+    \b
+    Examples:
+      warn-v2 enrich-notices                     # all registered states
+      warn-v2 enrich-notices --state GA          # GA only
+      warn-v2 enrich-notices --request-delay 5   # gentler on rate limits
+      warn-v2 enrich-notices --dry-run           # preview without writing
+    """
+    from warn_v2.enrich_notices.base import STAT_KEYS
+    from warn_v2.enrich_notices.registry import all_enrichers, get_enricher
+
+    if state:
+        try:
+            enrichers = [get_enricher(state)]
+        except KeyError as e:
+            raise click.BadParameter(str(e), param_hint="--state") from e
+    else:
+        enrichers = all_enrichers()
+
+    if not enrichers:
+        click.echo("No notice enrichers registered.")
+        return
+
+    totals = dict.fromkeys(STAT_KEYS, 0)
+    for enricher in enrichers:
+        stats = enricher.run(
+            limit=limit, dry_run=dry_run, pdf_dir=pdf_dir, request_delay=request_delay
+        )
+        for k in STAT_KEYS:
+            totals[k] += stats.get(k, 0)
+        click.echo(
+            f"[{enricher.state}] "
+            f"considered={stats.get('considered', 0)} "
+            f"enriched={stats.get('enriched', 0)} "
+            f"pdf_fetched={stats.get('pdf_fetched', 0)} "
+            f"skipped={stats.get('skipped', 0)} "
+            f"errors={stats.get('errors', 0)}"
+        )
+
+    suffix = " (dry run — nothing written)" if dry_run else ""
+    click.echo(
+        f"TOTAL considered={totals['considered']} enriched={totals['enriched']} "
+        f"pdf_fetched={totals['pdf_fetched']} skipped={totals['skipped']} "
+        f"errors={totals['errors']}{suffix}"
+    )
+    if totals["errors"]:
+        sys.exit(1)
+
+
 @main.command("download-pdfs")
 @click.option("--state", default=None, help="State abbreviation (default: all PDF-bearing states)")
 @click.option("--limit", type=int, default=None, help="Max PDFs to fetch per run")

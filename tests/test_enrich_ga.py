@@ -4,7 +4,17 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
-from warn_v2.scripts.enrich_ga import _find_pdf_url, _parse_detail_fields, _parse_mdY
+import httpx
+import pytest
+
+from warn_v2.scripts import enrich_ga as ega
+from warn_v2.scripts.enrich_ga import (
+    _find_pdf_url,
+    _get_with_backoff,
+    _parse_detail_fields,
+    _parse_mdY,
+    _parse_retry_after,
+)
 
 ENTRY_FIXTURE = (
     Path(__file__).resolve().parent.parent
@@ -101,3 +111,66 @@ def test_parse_detail_fields_first_zip_wins() -> None:
     soup = BeautifulSoup(html, "html.parser")
     fields = _parse_detail_fields(soup)
     assert fields["Zip Code"] == "30301"
+
+
+# ---------------------------------------------------------------------------
+# Rate-limit backoff
+# ---------------------------------------------------------------------------
+
+
+class _FakeResp:
+    def __init__(self, status_code: int, headers: dict | None = None) -> None:
+        self.status_code = status_code
+        self.headers = headers or {}
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            raise httpx.HTTPStatusError(
+                f"HTTP {self.status_code}",
+                request=httpx.Request("GET", "http://example.test"),
+                response=httpx.Response(self.status_code),
+            )
+
+
+def test_parse_retry_after() -> None:
+    assert _parse_retry_after("7") == 7.0
+    assert _parse_retry_after(" 12 ") == 12.0
+    assert _parse_retry_after(None) is None
+    assert _parse_retry_after("") is None
+    assert _parse_retry_after("Wed, 21 Oct 2026 07:28:00 GMT") is None  # HTTP-date
+
+
+def test_get_with_backoff_retries_then_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
+    responses = iter([_FakeResp(429), _FakeResp(200)])
+    sleeps: list[float] = []
+    monkeypatch.setattr(ega.httpx, "get", lambda *a, **k: next(responses))
+    monkeypatch.setattr(ega.time, "sleep", lambda s: sleeps.append(s))
+
+    r = _get_with_backoff("http://x", timeout=5, request_delay=3.0)
+
+    assert r.status_code == 200
+    assert sleeps == [3.0]  # one backoff: request_delay * 2**0
+
+
+def test_get_with_backoff_honors_retry_after(monkeypatch: pytest.MonkeyPatch) -> None:
+    responses = iter([_FakeResp(503, {"Retry-After": "9"}), _FakeResp(200)])
+    sleeps: list[float] = []
+    monkeypatch.setattr(ega.httpx, "get", lambda *a, **k: next(responses))
+    monkeypatch.setattr(ega.time, "sleep", lambda s: sleeps.append(s))
+
+    r = _get_with_backoff("http://x", timeout=5, request_delay=3.0)
+
+    assert r.status_code == 200
+    assert sleeps == [9.0]  # Retry-After wins over computed backoff
+
+
+def test_get_with_backoff_exhausts_and_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    sleeps: list[float] = []
+    monkeypatch.setattr(ega.httpx, "get", lambda *a, **k: _FakeResp(429))
+    monkeypatch.setattr(ega.time, "sleep", lambda s: sleeps.append(s))
+
+    with pytest.raises(httpx.HTTPStatusError):
+        _get_with_backoff("http://x", timeout=5, request_delay=2.0)
+
+    # _MAX_ATTEMPTS attempts → backs off on all but the last: 2.0, 4.0
+    assert sleeps == [2.0, 4.0]

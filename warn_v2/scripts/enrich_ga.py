@@ -36,6 +36,8 @@ log = logging.getLogger(__name__)
 
 _BATCH_COMMIT = 50
 _REQUEST_DELAY = 3.0   # seconds between requests — TCSG rate-limits after ~10 fast requests
+_RETRY_STATUS = frozenset({429, 503})  # transient — back off and retry
+_MAX_ATTEMPTS = 3
 _UA = {
     "User-Agent": (
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -44,13 +46,62 @@ _UA = {
 }
 
 
+def _parse_retry_after(value: str | None) -> float | None:
+    """Parse a Retry-After header (delta-seconds form) to float seconds, else None."""
+    if not value:
+        return None
+    try:
+        return max(0.0, float(value.strip()))
+    except (ValueError, AttributeError):
+        return None
+
+
+def _get_with_backoff(
+    url: str,
+    *,
+    timeout: float,
+    request_delay: float,
+    max_attempts: int = _MAX_ATTEMPTS,
+) -> httpx.Response:
+    """GET *url*, retrying on 429/503 with exponential backoff.
+
+    Honors a numeric Retry-After header when present; otherwise sleeps
+    ``request_delay * 2**attempt``. Non-retryable error statuses raise
+    immediately (via ``raise_for_status``), matching prior behavior.
+    """
+    for attempt in range(1, max_attempts + 1):
+        r = httpx.get(url, headers=_UA, timeout=timeout, follow_redirects=True)
+        if r.status_code in _RETRY_STATUS and attempt < max_attempts:
+            retry_after = _parse_retry_after(r.headers.get("Retry-After"))
+            wait = (
+                retry_after
+                if retry_after is not None
+                else request_delay * (2 ** (attempt - 1))
+            )
+            log.warning(
+                "GA: HTTP %s on %s — backing off %.1fs (attempt %d/%d)",
+                r.status_code, url, wait, attempt, max_attempts,
+            )
+            time.sleep(wait)
+            continue
+        r.raise_for_status()
+        return r
+    # Unreachable: the final attempt either returns or raises above.
+    raise RuntimeError("backoff loop exited without a response")
+
+
 def enrich_ga(
     *,
     limit: int | None = None,
     dry_run: bool = False,
     pdf_dir: Path = Path("/var/pdfs"),
+    request_delay: float = _REQUEST_DELAY,
 ) -> dict[str, int]:
-    """Enrich GA notices from TCSG entry detail pages. Returns stats dict."""
+    """Enrich GA notices from TCSG entry detail pages. Returns stats dict.
+
+    *request_delay* is the base inter-request sleep (seconds); it also seeds the
+    exponential backoff applied on 429/503 responses.
+    """
     stats = {
         "considered": 0,
         "enriched": 0,
@@ -86,9 +137,12 @@ def enrich_ga(
         pending = 0
         for i, notice in enumerate(notices):
             if i > 0:
-                time.sleep(_REQUEST_DELAY)
+                time.sleep(request_delay)
 
-            result = _process_one(session, notice, pdf_dir=pdf_dir, dry_run=dry_run)
+            result = _process_one(
+                session, notice, pdf_dir=pdf_dir, dry_run=dry_run,
+                request_delay=request_delay,
+            )
             stats[result] += 1
 
             if result in ("enriched", "pdf_fetched"):
@@ -113,7 +167,8 @@ def enrich_ga(
 
 
 def _process_one(
-    session, notice: Notice, *, pdf_dir: Path, dry_run: bool
+    session, notice: Notice, *, pdf_dir: Path, dry_run: bool,
+    request_delay: float = _REQUEST_DELAY,
 ) -> str:
     """Fetch one entry page, apply fields, download PDF. Returns result key."""
     url = notice.raw_notice_url
@@ -121,8 +176,7 @@ def _process_one(
         return "skipped"
 
     try:
-        r = httpx.get(url, headers=_UA, timeout=30, follow_redirects=True)
-        r.raise_for_status()
+        r = _get_with_backoff(url, timeout=30, request_delay=request_delay)
     except httpx.HTTPError as e:
         log.warning("GA %s: page fetch failed: %s", notice.notice_id[:10], e)
         return "errors"
@@ -136,7 +190,8 @@ def _process_one(
 
     if pdf_url and not notice.pdf_path:
         pdf_stored = _download_pdf(
-            session, notice, pdf_url, pdf_dir=pdf_dir, dry_run=dry_run
+            session, notice, pdf_url, pdf_dir=pdf_dir, dry_run=dry_run,
+            request_delay=request_delay,
         )
 
     if pdf_stored:
@@ -252,12 +307,12 @@ def _apply_text_fields(
 
 
 def _download_pdf(
-    session, notice: Notice, pdf_url: str, *, pdf_dir: Path, dry_run: bool
+    session, notice: Notice, pdf_url: str, *, pdf_dir: Path, dry_run: bool,
+    request_delay: float = _REQUEST_DELAY,
 ) -> bool:
     """Download a gk-download PDF and store it. Returns True if stored."""
     try:
-        r = httpx.get(pdf_url, headers=_UA, timeout=60, follow_redirects=True)
-        r.raise_for_status()
+        r = _get_with_backoff(pdf_url, timeout=60, request_delay=request_delay)
     except httpx.HTTPError as e:
         log.warning("GA %s: PDF download failed: %s", notice.notice_id[:10], e)
         return False

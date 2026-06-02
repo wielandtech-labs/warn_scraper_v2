@@ -91,5 +91,18 @@ geoBackfill:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 500m, memory: 512Mi }
 
+# Second-pass per-notice enrichment from state detail pages (currently GA's TCSG
+# entry pages; new states register a NoticeEnricher and are picked up here).
+# Runs between the scraper and geoBackfill so freshly-added addresses get geocoded
+# the same night: scrape (07:17) → enrich-notices (08:15) → backfill-geo (08:47).
+noticeEnricher:
+  enabled: false          # flip on in HelmRelease
+  schedule: "15 8 * * *"  # after scraper 07:17, before geoBackfill 08:47
+  requestDelay: 5         # seconds between detail-page requests (TCSG rate-limit safe)
+  limit: ""               # blank = all notices missing data; set an int to cap per run
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+
 migrations:
   enabled: true   # set false only if you manage migrations out-of-band
