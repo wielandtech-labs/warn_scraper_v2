@@ -1,7 +1,7 @@
 """Tests for backfill_notice_dates — clamp future notice_date to scrape date."""
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 from warn_v2.db.models import Notice
 from warn_v2.scripts.backfill_notice_dates import backfill_notice_dates

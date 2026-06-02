@@ -185,9 +185,10 @@ def test_process_one_returns_timeout_on_timeout_exception(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """_process_one returns 'timeout' (not 'errors') on httpx.TimeoutException."""
-    from warn_v2.scripts.enrich_ga import _process_one
-    from warn_v2.db.models import Notice
     from datetime import date
+
+    from warn_v2.db.models import Notice
+    from warn_v2.scripts.enrich_ga import _process_one
 
     monkeypatch.setattr(
         ega.httpx,
@@ -213,9 +214,10 @@ def test_enrich_ga_aborts_on_consecutive_timeouts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """enrich_ga aborts early and returns errors > 0 after _MAX_CONSECUTIVE_TIMEOUTS."""
+    from datetime import date
+
     from warn_v2.db.models import Notice
     from warn_v2.scripts import enrich_ga as ega_mod
-    from datetime import date
 
     # Build fake notices
     fake_notices = [
