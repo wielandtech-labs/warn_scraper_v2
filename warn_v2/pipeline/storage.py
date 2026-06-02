@@ -208,7 +208,10 @@ def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None
         result = _geocode(None, None, state, None, row.county)
         if result is not None:
             lat, lon, geocode_source = result
-        loc = Location(state=state, county=row.county, lat=lat, lon=lon, geocode_source=geocode_source)
+        loc = Location(
+            state=state, county=row.county,
+            lat=lat, lon=lon, geocode_source=geocode_source,
+        )
         session.add(loc)
         session.flush()
         return loc
