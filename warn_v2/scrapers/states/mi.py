@@ -191,6 +191,13 @@ def _parse_card(html: str) -> NoticeRow | None:
     # We store it as both notice_date (for the content-hash dedup key) and
     # effective_date (the semantically correct field).  A separate filing date
     # is not available from this source.
+    #
+    # The layoff date is frequently in the future, but a notice can't be *filed*
+    # in the future.  We deliberately keep notice_date == the layoff date here so
+    # the dedup hash stays stable across nightly re-scrapes; storage
+    # (warn_v2.pipeline.storage.upsert_notices) clamps the *stored* notice_date to
+    # the scrape date on first insert when it's in the future, leaving the real
+    # layoff date in effective_date.
     return NoticeRow(
         state="MI",
         employer=employer,

@@ -402,6 +402,31 @@ def backfill_effective_dates_cmd(dry_run: bool, state: str | None) -> None:
     click.echo(f"updated={stats['updated']}{suffix}")
 
 
+@main.command("backfill-notice-dates")
+@click.option("--dry-run", is_flag=True, help="Preview count without writing")
+@click.option("--state", default=None, help="Limit to one state abbreviation, e.g. MI")
+def backfill_notice_dates_cmd(dry_run: bool, state: str | None) -> None:
+    """Clamp future notice_date values to the scrape (first-seen) date.
+
+    A WARN notice can't be filed in the future. Some sources (e.g. MI) publish
+    only the layoff/effective date, which gets stored as notice_date. This
+    rewrites those rows: the forward-looking date is preserved in effective_date
+    (when it's NULL) and notice_date is set to scraped_at::date. New inserts are
+    already corrected at storage time; this fixes pre-existing rows.
+
+    \b
+    Examples:
+      warn-v2 backfill-notice-dates --dry-run        # preview count
+      warn-v2 backfill-notice-dates                  # commit all states
+      warn-v2 backfill-notice-dates --state MI       # one state only
+    """
+    from warn_v2.scripts.backfill_notice_dates import backfill_notice_dates
+
+    stats = backfill_notice_dates(dry_run=dry_run, state_filter=state)
+    suffix = " (dry run — nothing written)" if dry_run else ""
+    click.echo(f"updated={stats['updated']}{suffix}")
+
+
 @main.command("backfill-historical")
 @click.option(
     "--state", required=True,

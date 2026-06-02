@@ -1,9 +1,10 @@
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
 from warn_v2.db.models import Company, Location, Notice
 from warn_v2.geo import zip_centroids
+from warn_v2.pipeline.dedup import notice_id
 from warn_v2.pipeline.storage import upsert_notices
 from warn_v2.scrapers.base import NoticeRow
 
@@ -136,6 +137,54 @@ def test_reupsert_updates_effective_date_on_amendment(db) -> None:
     upsert_notices(db, [_row(effective_date=date(2026, 4, 1))])
     db.commit()
     assert db.query(Notice).one().effective_date == date(2026, 4, 1)
+
+
+def test_future_notice_date_clamped_to_scrape_date(db) -> None:
+    """A future notice_date is stored as the scrape date; the original moves to
+    effective_date (MI-style sources publish only the layoff date)."""
+    future = date.today() + timedelta(days=120)
+    # MI carries the same date in both fields.
+    row = _row(notice_date=future, effective_date=future)
+    upsert_notices(db, [row])
+    db.commit()
+
+    notice = db.query(Notice).one()
+    today = datetime.now(UTC).date()
+    assert notice.notice_date == today
+    assert notice.effective_date == future  # forward-looking date preserved
+
+
+def test_future_notice_date_keeps_hash_stable_no_duplicate(db) -> None:
+    """Clamping the stored date must not change the content hash, so re-scrapes
+    map to the same row instead of churning a new one each night."""
+    future = date.today() + timedelta(days=200)
+    row = _row(notice_date=future, effective_date=future)
+
+    seen1, new1 = upsert_notices(db, [row])
+    db.commit()
+    assert (seen1, new1) == (1, 1)
+
+    notice = db.query(Notice).one()
+    # PK is the hash of the ORIGINAL (future-dated) row, not the stored date.
+    assert notice.notice_id == notice_id(row)
+
+    # Re-scrape the same source row → update, not a new insert.
+    seen2, new2 = upsert_notices(db, [row])
+    db.commit()
+    assert (seen2, new2) == (1, 0)
+    assert db.query(Notice).count() == 1
+
+
+def test_past_notice_date_is_not_clamped(db) -> None:
+    """A normal past notice_date is stored unchanged."""
+    past = date(2020, 6, 1)
+    upsert_notices(db, [_row(notice_date=past, effective_date=None)])
+    db.commit()
+
+    notice = db.query(Notice).one()
+    assert notice.notice_date == past
+    # 60-day fallback still applies since effective_date was None.
+    assert notice.effective_date == past + timedelta(days=60)
 
 
 def test_location_zip_merged_in_place(db) -> None:
