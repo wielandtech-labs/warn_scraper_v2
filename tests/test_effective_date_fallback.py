@@ -89,13 +89,18 @@ def test_derivation_is_exactly_sixty_days(db):
 
 
 def test_derivation_crosses_month_boundary(db):
-    """60-day offset that crosses a month boundary is calculated correctly."""
-    nd = date(2026, 11, 15)  # + 60 days → 2027-01-14
+    """60-day offset that crosses a month/year boundary is calculated correctly.
+
+    Uses a past notice_date: a *future* notice_date is now clamped to the scrape
+    date by upsert_notices (treated as a layoff date), so it would not exercise
+    the 60-day fallback.
+    """
+    nd = date(2025, 11, 15)  # + 60 days → 2026-01-14 (crosses month + year)
     upsert_notices(db, [_make_row(notice_date=nd, employer="Winter Corp")])
     db.commit()
 
     notice = db.query(Notice).one()
-    assert notice.effective_date == date(2027, 1, 14)
+    assert notice.effective_date == date(2026, 1, 14)
 
 
 # ---------------------------------------------------------------------------
