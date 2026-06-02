@@ -38,7 +38,7 @@ def test_ca_golden_fixture_passes_validation(ca_golden_xlsx_bytes) -> None:
 def test_ca_numeric_summary_rows_are_dropped() -> None:
     """Purely-numeric company cells (EDD summary section) must be skipped."""
     # Simulates a sheet slice where two real-looking rows have bare numbers in
-    # the company column — as seen in production (companies 8831–8837).
+    # the company column — as seen in production (companies 8831-8837).
     data = {
         "Company": ["Acme Corp", "134", "1,292"],
         "Notice Date": [date(2026, 1, 15), date(2024, 4, 1), None],

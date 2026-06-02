@@ -83,5 +83,13 @@ pdfDownloader:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 500m, memory: 512Mi }
 
+geoBackfill:
+  enabled: false       # flip on in HelmRelease; runs nightly to fill NULL coordinates
+  schedule: "47 8 * * *"  # daily ~1.5h after the scraper; weekly rerunAddress pass below
+  rerunAddress: false  # set true in a separate weekly CronJob to upgrade ZIP→street-level
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+
 migrations:
   enabled: true   # set false only if you manage migrations out-of-band
