@@ -64,6 +64,24 @@ def upsert_notices(session: Session, rows: Iterable[NoticeRow]) -> tuple[int, in
         # can't rely on it for the rows_new counter.
         existing = session.get(Notice, nid)
 
+        # A WARN notice cannot be filed in the future.  Some sources (e.g. MI)
+        # publish only the layoff/effective date, which we also store in
+        # notice_date; that date is typically months ahead.  On first insert,
+        # treat the scrape date as the notice (first-seen) date and preserve the
+        # forward-looking date as effective_date.  `nid` was computed from the
+        # original row above, so re-scrapes still map to this same row — the
+        # stored notice_date diverging from the hashed value does NOT cause
+        # duplicate churn.  Runs before the 60-day fallback so MI (which already
+        # carries effective_date == layoff date) keeps its real layoff date.
+        if (
+            existing is None
+            and payload["notice_date"] is not None
+            and payload["notice_date"] > now.date()
+        ):
+            if payload["effective_date"] is None:
+                payload["effective_date"] = payload["notice_date"]
+            payload["notice_date"] = now.date()
+
         # Apply 60-day WARN Act fallback for effective_date on new inserts only.
         # We deliberately do NOT apply it on re-upserts so that a real
         # source-provided date stored from a previous scrape is never overwritten
