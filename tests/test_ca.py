@@ -1,8 +1,11 @@
 from datetime import date
 
+import pandas as pd
+
 from warn_v2.pipeline.storage import upsert_notices
 from warn_v2.pipeline.validate import validate
 from warn_v2.scrapers.registry import get_scraper
+from warn_v2.scrapers.states.ca import _parse_df
 
 
 def test_ca_parses_golden_fixture(ca_golden_xlsx_bytes, ca_golden_expected) -> None:
@@ -30,6 +33,27 @@ def test_ca_golden_fixture_passes_validation(ca_golden_xlsx_bytes) -> None:
     rows = scraper.parse(ca_golden_xlsx_bytes)
     result = validate(scraper, rows)
     assert result.ok, result.reason
+
+
+def test_ca_numeric_summary_rows_are_dropped() -> None:
+    """Purely-numeric company cells (EDD summary section) must be skipped."""
+    # Simulates a sheet slice where two real-looking rows have bare numbers in
+    # the company column — as seen in production (companies 8831–8837).
+    data = {
+        "Company": ["Acme Corp", "134", "1,292"],
+        "Notice Date": [date(2026, 1, 15), date(2024, 4, 1), None],
+        "Effective Date": [date(2026, 3, 15), date(2024, 5, 31), None],
+        "No. Of Employees": [250, 0, None],
+        "County/Parish": ["Alameda", "0", None],
+        "City": ["Oakland", None, None],
+        "Address": ["1 Main St", "3", None],
+    }
+    df = pd.DataFrame(data)
+    rows = _parse_df(df)
+
+    # Only "Acme Corp" survives; "134" and "1,292" are dropped.
+    assert len(rows) == 1
+    assert rows[0].employer == "Acme Corp"
 
 
 def test_ca_end_to_end_persists(ca_golden_xlsx_bytes, db) -> None:

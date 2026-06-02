@@ -10,6 +10,7 @@ so a column reorder or extra blank top rows doesn't break it.
 from __future__ import annotations
 
 import io
+import re
 
 import httpx
 import pandas as pd
@@ -71,6 +72,21 @@ def _discover_archive_urls() -> list[str]:
 # Keep the old name as an alias so existing code / tests don't break.
 _discover_archive_xlsx_urls = _discover_archive_urls
 
+# Purely-numeric token pattern — used to reject summary/total rows where the
+# "Company" cell contains a count or total (e.g. "134", "1,292") rather than a
+# real company name.  Real names always contain at least one letter.
+_NUMERIC_RE = re.compile(r"^[\d,.\s]+$")
+
+
+def _is_numeric_token(s: str) -> bool:
+    """Return True if *s* consists only of digits, commas, dots, and spaces.
+
+    Used to skip EDD XLSX summary rows where the company cell holds a case-count
+    or employee-total rather than an employer name.
+    """
+    return bool(_NUMERIC_RE.fullmatch(s))
+
+
 # Tolerate minor renames; first match wins.
 _COMPANY_KEYS = ("company", "employer", "company name")
 _NOTICE_DATE_KEYS = ("notice date", "received date", "date received")
@@ -113,6 +129,12 @@ def _parse_df(df: pd.DataFrame) -> list[NoticeRow]:
         employer = col.get(r, _COMPANY_KEYS)
         employer_str = as_str(employer)
         if not employer_str:
+            continue
+        # Reject rows whose "company" cell is a bare number (digits/commas/dots).
+        # These come from EDD summary/totals sections at the bottom of the sheet
+        # (e.g. county case-counts "134", employee totals "1,292").  Real company
+        # names always contain at least one letter.
+        if _is_numeric_token(employer_str):
             continue
         notice_date = as_date(col.get(r, _NOTICE_DATE_KEYS))
         layoff_count = as_int(col.get(r, _LAYOFF_COUNT_KEYS))

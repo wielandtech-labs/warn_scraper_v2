@@ -123,6 +123,25 @@ def test_geo_coverage_and_out_of_state(db) -> None:
     assert "low_geo" in ca.flags
 
 
+def test_geo_by_source_breakdown(db) -> None:
+    """geo_by_source counts geocoded notices by tier; null source → 'unknown'."""
+    loc_zip = Location(state="CA", city="Oakland", lat=37.8, lon=-122.27, geocode_source="zip")
+    loc_city = Location(state="CA", city="LA", lat=34.0, lon=-118.2, geocode_source="city")
+    loc_old = Location(state="CA", city="SF", lat=37.77, lon=-122.41)  # pre-migration, no source
+    db.add_all([loc_zip, loc_city, loc_old])
+    db.flush()
+    _notice(db, nid="gs1", state="CA", location_id=loc_zip.id)
+    _notice(db, nid="gs2", state="CA", location_id=loc_city.id)
+    _notice(db, nid="gs3", state="CA", location_id=loc_old.id)
+    db.commit()
+
+    ca = _one(audit_states(db, state_filter="CA", today=REF), "CA")
+    assert ca.geocoded == 3
+    assert ca.geo_by_source == {"zip": 1, "city": 1, "unknown": 1}
+    d = ca.to_dict()
+    assert d["geo_by_source"] == {"zip": 1, "city": 1, "unknown": 1}
+
+
 # ---------------------------------------------------------------------------
 # Per-year gap detection
 # ---------------------------------------------------------------------------

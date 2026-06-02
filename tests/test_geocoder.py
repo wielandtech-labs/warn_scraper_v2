@@ -28,6 +28,7 @@ def test_geocode_zip_tier_used_when_no_address():
     pair = geocode(None, "Oakland", "CA", "94607")
     assert pair is not None
     assert pair[0] == pytest.approx(Decimal("37.79"), abs=Decimal("0.01"))
+    assert pair.source == "zip"
 
 
 def test_geocode_city_tier_fallback_when_no_zip(monkeypatch):
@@ -37,6 +38,7 @@ def test_geocode_city_tier_fallback_when_no_zip(monkeypatch):
     assert pair is not None
     assert pair[0] == pytest.approx(Decimal("30.27"), abs=Decimal("0.01"))
     assert pair[1] == pytest.approx(Decimal("-97.74"), abs=Decimal("0.01"))
+    assert pair.source == "city"
 
 
 def test_geocode_city_tier_fallback_when_zip_unknown():
@@ -44,6 +46,7 @@ def test_geocode_city_tier_fallback_when_zip_unknown():
     pair = geocode(None, "Boston", "MA", "99999")  # 99999 not in fixture
     assert pair is not None
     assert pair[0] == pytest.approx(Decimal("42.36"), abs=Decimal("0.01"))
+    assert pair.source == "city"
 
 
 def test_geocode_returns_none_when_all_tiers_miss():
