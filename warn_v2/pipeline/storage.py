@@ -159,9 +159,9 @@ def enrich_notice_location(
         # Re-geocode with the now-known zip
         from warn_v2.geo.geocoder import geocode as _geocode
         if existing_loc.lat is None:
-            pair = _geocode(address, existing_loc.city, notice.state, zip_, existing_loc.county)
-            if pair is not None:
-                existing_loc.lat, existing_loc.lon = pair
+            result = _geocode(address, existing_loc.city, notice.state, zip_, existing_loc.county)
+            if result is not None:
+                existing_loc.lat, existing_loc.lon, existing_loc.geocode_source = result
         session.flush()
         return True
     return False
@@ -200,15 +200,15 @@ def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None
         ).scalar_one_or_none()
         if existing is not None:
             if existing.lat is None and existing.lon is None:
-                pair = _geocode(None, None, state, None, row.county)
-                if pair is not None:
-                    existing.lat, existing.lon = pair
+                result = _geocode(None, None, state, None, row.county)
+                if result is not None:
+                    existing.lat, existing.lon, existing.geocode_source = result
             return existing
-        lat, lon = (None, None)
-        pair = _geocode(None, None, state, None, row.county)
-        if pair is not None:
-            lat, lon = pair
-        loc = Location(state=state, county=row.county, lat=lat, lon=lon)
+        lat, lon, geocode_source = (None, None, None)
+        result = _geocode(None, None, state, None, row.county)
+        if result is not None:
+            lat, lon, geocode_source = result
+        loc = Location(state=state, county=row.county, lat=lat, lon=lon, geocode_source=geocode_source)
         session.add(loc)
         session.flush()
         return loc
@@ -233,9 +233,9 @@ def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None
             exact.county = row.county
         # Backfill lat/lon if missing — try address first, ZIP centroid fallback.
         if exact.lat is None and exact.lon is None:
-            pair = _geocode(row.address, row.city, row.state, exact.zip, row.county)
-            if pair is not None:
-                exact.lat, exact.lon = pair
+            result = _geocode(row.address, row.city, row.state, exact.zip, row.county)
+            if result is not None:
+                exact.lat, exact.lon, exact.geocode_source = result
         return exact
 
     # 2. promote a single zip-less candidate in place
@@ -253,17 +253,17 @@ def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None
             if row.county and not loc.county:
                 loc.county = row.county
             if loc.lat is None and loc.lon is None:
-                pair = _geocode(row.address, row.city, row.state, incoming_zip, row.county)
-                if pair is not None:
-                    loc.lat, loc.lon = pair
+                result = _geocode(row.address, row.city, row.state, incoming_zip, row.county)
+                if result is not None:
+                    loc.lat, loc.lon, loc.geocode_source = result
             session.flush()
             return loc
 
     # 3. fall through to insert
-    lat, lon = (None, None)
-    pair = _geocode(row.address, row.city, row.state, incoming_zip, row.county)
-    if pair is not None:
-        lat, lon = pair
+    lat, lon, geocode_source = (None, None, None)
+    result = _geocode(row.address, row.city, row.state, incoming_zip, row.county)
+    if result is not None:
+        lat, lon, geocode_source = result
     loc = Location(
         state=state,
         city=row.city,
@@ -271,6 +271,7 @@ def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None
         zip=incoming_zip,
         lat=lat,
         lon=lon,
+        geocode_source=geocode_source,
     )
     session.add(loc)
     session.flush()
