@@ -38,6 +38,7 @@ _BATCH_COMMIT = 50
 _REQUEST_DELAY = 3.0   # seconds between requests — TCSG rate-limits after ~10 fast requests
 _RETRY_STATUS = frozenset({429, 503})  # transient — back off and retry
 _MAX_ATTEMPTS = 3
+_MAX_CONSECUTIVE_TIMEOUTS = 3   # abort early if TCSG blocks this many fetches in a row
 _UA = {
     "User-Agent": (
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -135,6 +136,7 @@ def enrich_ga(
         log.info("enrich-ga: %d notice(s) to process", len(notices))
 
         pending = 0
+        consecutive_timeouts = 0
         for i, notice in enumerate(notices):
             if i > 0:
                 time.sleep(request_delay)
@@ -143,7 +145,23 @@ def enrich_ga(
                 session, notice, pdf_dir=pdf_dir, dry_run=dry_run,
                 request_delay=request_delay,
             )
-            stats[result] += 1
+
+            if result == "timeout":
+                # Count as an error but also track the run of consecutive timeouts.
+                # A sustained run means TCSG is blocking the pod — abort early rather
+                # than burning 30s per remaining notice.
+                stats["errors"] += 1
+                consecutive_timeouts += 1
+                if consecutive_timeouts >= _MAX_CONSECUTIVE_TIMEOUTS:
+                    log.error(
+                        "enrich-ga: %d consecutive timeouts — TCSG appears to be blocking; "
+                        "aborting early (%d/%d notices processed)",
+                        consecutive_timeouts, i + 1, stats["considered"],
+                    )
+                    break
+            else:
+                consecutive_timeouts = 0
+                stats[result] += 1
 
             if result in ("enriched", "pdf_fetched"):
                 pending += 1
@@ -177,6 +195,9 @@ def _process_one(
 
     try:
         r = _get_with_backoff(url, timeout=30, request_delay=request_delay)
+    except httpx.TimeoutException:
+        log.warning("GA %s: page fetch timed out", notice.notice_id[:10])
+        return "timeout"
     except httpx.HTTPError as e:
         log.warning("GA %s: page fetch failed: %s", notice.notice_id[:10], e)
         return "errors"

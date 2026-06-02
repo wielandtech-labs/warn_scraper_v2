@@ -174,3 +174,89 @@ def test_get_with_backoff_exhausts_and_raises(monkeypatch: pytest.MonkeyPatch) -
 
     # _MAX_ATTEMPTS attempts → backs off on all but the last: 2.0, 4.0
     assert sleeps == [2.0, 4.0]
+
+
+# ---------------------------------------------------------------------------
+# Consecutive-timeout abort
+# ---------------------------------------------------------------------------
+
+
+def test_process_one_returns_timeout_on_timeout_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """_process_one returns 'timeout' (not 'errors') on httpx.TimeoutException."""
+    from warn_v2.scripts.enrich_ga import _process_one
+    from warn_v2.db.models import Notice
+    from datetime import date
+
+    monkeypatch.setattr(
+        ega.httpx,
+        "get",
+        lambda *a, **k: (_ for _ in ()).throw(
+            httpx.TimeoutException("timed out")
+        ),
+    )
+    monkeypatch.setattr(ega.time, "sleep", lambda s: None)
+
+    notice = Notice(
+        notice_id="abc123",
+        state="GA",
+        employer="Acme",
+        notice_date=date(2026, 1, 1),
+        raw_notice_url="https://www.tcsg.edu/warn-public-view/entry/12345/",
+    )
+    result = _process_one(None, notice, pdf_dir=ega.Path("/tmp"), dry_run=True)
+    assert result == "timeout"
+
+
+def test_enrich_ga_aborts_on_consecutive_timeouts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """enrich_ga aborts early and returns errors > 0 after _MAX_CONSECUTIVE_TIMEOUTS."""
+    from warn_v2.db.models import Notice
+    from warn_v2.scripts import enrich_ga as ega_mod
+    from datetime import date
+
+    # Build fake notices
+    fake_notices = [
+        Notice(
+            notice_id=f"ga{i:04d}",
+            state="GA",
+            employer=f"Co {i}",
+            notice_date=date(2026, 1, 1),
+            raw_notice_url=f"https://www.tcsg.edu/warn-public-view/entry/{i}/",
+        )
+        for i in range(10)
+    ]
+
+    # Patch the DB query to return our fake notices without a real DB
+    class _FakeScalars:
+        def all(self):
+            return fake_notices
+
+    class _FakeSession:
+        def scalars(self, _stmt):
+            return _FakeScalars()
+        def commit(self):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            pass
+
+    monkeypatch.setattr(ega_mod, "session_scope", lambda: _FakeSession())
+
+    # All requests time out
+    monkeypatch.setattr(
+        ega.httpx,
+        "get",
+        lambda *a, **k: (_ for _ in ()).throw(httpx.TimeoutException("timed out")),
+    )
+    monkeypatch.setattr(ega.time, "sleep", lambda s: None)
+
+    stats = ega_mod.enrich_ga(limit=None, dry_run=True)
+
+    # Should have aborted after _MAX_CONSECUTIVE_TIMEOUTS attempts
+    assert stats["errors"] == ega_mod._MAX_CONSECUTIVE_TIMEOUTS
+    # Far fewer than the full 10 notices processed
+    assert stats["considered"] == len(fake_notices)
