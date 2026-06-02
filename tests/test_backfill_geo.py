@@ -43,12 +43,14 @@ def test_backfill_fills_null_coords(db) -> None:
     _notice(db, loc=loc)
     db.commit()
 
-    with patch("warn_v2.scripts.backfill_geo.geocode", return_value=(29.76, -95.36)):
+    with patch("warn_v2.scripts.backfill_geo.geocode", return_value=(29.76, -95.36, "zip")):
         result = backfill(dry_run=False)
 
     assert result["considered"] == 1
     db.expire_all()
-    assert float(db.get(Location, loc.id).lat) == pytest.approx(29.76)
+    refreshed = db.get(Location, loc.id)
+    assert float(refreshed.lat) == pytest.approx(29.76)
+    assert refreshed.geocode_source == "zip"
 
 
 def test_backfill_skips_already_geocoded(db) -> None:
@@ -68,7 +70,7 @@ def test_backfill_dry_run_no_write(db) -> None:
     _notice(db, loc=loc)
     db.commit()
 
-    with patch("warn_v2.scripts.backfill_geo.geocode", return_value=(29.76, -95.36)):
+    with patch("warn_v2.scripts.backfill_geo.geocode", return_value=(29.76, -95.36, "zip")):
         backfill(dry_run=True)
 
     db.expire_all()
@@ -82,7 +84,7 @@ def test_backfill_state_filter(db) -> None:
     _notice(db, loc=ca_loc)
     db.commit()
 
-    with patch("warn_v2.scripts.backfill_geo.geocode", return_value=(29.76, -95.36)):
+    with patch("warn_v2.scripts.backfill_geo.geocode", return_value=(29.76, -95.36, "zip")):
         result = backfill(dry_run=False, state_filter="TX")
 
     assert result["considered"] == 1
@@ -132,7 +134,7 @@ def test_backfill_processes_many_locations(db) -> None:
         locs.append(loc)
     db.commit()
 
-    with patch("warn_v2.scripts.backfill_geo.geocode", return_value=(30.0, -95.0)):
+    with patch("warn_v2.scripts.backfill_geo.geocode", return_value=(30.0, -95.0, "city")):
         result = backfill(dry_run=False, batch_size=5)
 
     assert result["considered"] == 20

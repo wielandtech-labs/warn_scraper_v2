@@ -114,6 +114,8 @@ class StateAudit:
     null_coords: int = 0       # active notices linked to a location lacking coords
     addr_available: int = 0    # active notices carrying a street address
     out_of_state: int = 0      # active notices geocoded outside the state bbox
+    geo_by_source: dict[str, int] = field(default_factory=dict)
+    # Counts of geocoded notices by tier: 'census'|'zip'|'city'|'county'|'unknown'
     # Enrichment
     company_enriched: int = 0
     # Scraper health
@@ -277,6 +279,7 @@ def audit_states(
             Notice.is_superseded,
             Location.lat,
             Location.lon,
+            Location.geocode_source,
             Company.enriched_at,
             Company.naics_code,
         )
@@ -290,7 +293,7 @@ def audit_states(
         (
             state, notice_date, effective_date, layoff_count, closure_type,
             address, raw_notice_url, pdf_path, location_id, is_superseded,
-            lat, lon, enriched_at, naics_code,
+            lat, lon, geocode_source, enriched_at, naics_code,
         ) = row
         state = (state or "").upper()
         sa = _ensure(state)
@@ -339,6 +342,8 @@ def audit_states(
                 sa.geocoded += 1
                 if _out_of_bbox(state, float(lat), float(lon)):
                     sa.out_of_state += 1
+                src = geocode_source or "unknown"
+                sa.geo_by_source[src] = sa.geo_by_source.get(src, 0) + 1
             else:
                 sa.null_coords += 1
 

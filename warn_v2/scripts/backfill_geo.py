@@ -123,18 +123,18 @@ def backfill(
                         )
                         stats["skipped_no_address"] += 1
                         continue
+                    loc.lat, loc.lon = pair
+                    loc.geocode_source = "census"
                 else:
-                    pair = geocode(address, loc.city, loc.state, loc.zip)
-
-                if pair is None:
-                    stats["no_coords"] += 1
-                    log.debug(
-                        "No coordinates for location %d (city=%r zip=%r address=%r)",
-                        loc.id, loc.city, loc.zip, address,
-                    )
-                    continue
-
-                loc.lat, loc.lon = pair
+                    result = geocode(address, loc.city, loc.state, loc.zip)
+                    if result is None:
+                        stats["no_coords"] += 1
+                        log.debug(
+                            "No coordinates for location %d (city=%r zip=%r address=%r)",
+                            loc.id, loc.city, loc.zip, address,
+                        )
+                        continue
+                    loc.lat, loc.lon, loc.geocode_source = result
                 # Flush this individual change *before* the finally-block expunge
                 # so pending writes aren't silently discarded on expunge.
                 if not dry_run:

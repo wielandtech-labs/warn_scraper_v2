@@ -20,20 +20,34 @@ so callers always get a best-effort result without raising.
 Typical usage in storage.py::
 
     from warn_v2.geo.geocoder import geocode as _geocode
-    pair = _geocode(row.address, row.city, row.state, row.zip, row.county)
-    if pair:
-        loc.lat, loc.lon = pair
+    result = _geocode(row.address, row.city, row.state, row.zip, row.county)
+    if result:
+        loc.lat, loc.lon, loc.geocode_source = result
 """
 from __future__ import annotations
 
 import logging
 from decimal import Decimal
+from typing import NamedTuple
 
 from warn_v2.geo.city_centroids import lookup_decimal as _city_lookup
 from warn_v2.geo.county_centroids import lookup_decimal as _county_lookup
 from warn_v2.geo.zip_centroids import lookup_decimal
 
 log = logging.getLogger(__name__)
+
+
+class GeoResult(NamedTuple):
+    """Return type of :func:`geocode`.
+
+    ``source`` records which tier produced the coordinates:
+    ``'census'`` | ``'zip'`` | ``'city'`` | ``'county'``.
+    """
+
+    lat: Decimal
+    lon: Decimal
+    source: str  # "census" | "zip" | "city" | "county"
+
 
 _CENSUS_URL = "https://geocoding.geo.census.gov/geocoder/locations/address"
 _TIMEOUT = 8  # seconds
@@ -88,30 +102,34 @@ def geocode(
     state: str | None,
     zip_code: str | None,
     county: str | None = None,
-) -> tuple[Decimal, Decimal] | None:
-    """Best-effort geocode returning ``(lat, lon)`` as Decimal pair, or ``None``.
+) -> GeoResult | None:
+    """Best-effort geocode returning a :class:`GeoResult` ``(lat, lon, source)``, or ``None``.
 
     Priority:
-      1. Census street-level geocoding (when *address* is given)
-      2. ZIP centroid (fast local lookup, ~city-block radius)
-      3. City centroid (fast local lookup, ~city-level / ~11 km)
-      4. County centroid (fast local lookup, ~county-level / ~30 km)
+      1. Census street-level geocoding (when *address* is given) → source ``'census'``
+      2. ZIP centroid (fast local lookup, ~city-block radius)     → source ``'zip'``
+      3. City centroid (fast local lookup, ~city-level / ~11 km)  → source ``'city'``
+      4. County centroid (fast local lookup, ~county-level / ~30 km) → source ``'county'``
     """
     # 1. Full street address via Census geocoder
     if address:
-        result = _census_geocode(address, city, state, zip_code)
-        if result is not None:
-            return result
+        pair = _census_geocode(address, city, state, zip_code)
+        if pair is not None:
+            return GeoResult(pair[0], pair[1], "census")
 
     # 2. ZIP centroid fallback
-    result = lookup_decimal(zip_code)
-    if result is not None:
-        return result
+    pair = lookup_decimal(zip_code)
+    if pair is not None:
+        return GeoResult(pair[0], pair[1], "zip")
 
     # 3. City centroid fallback (handles states that report city but not ZIP)
-    result = _city_lookup(state, city)
-    if result is not None:
-        return result
+    pair = _city_lookup(state, city)
+    if pair is not None:
+        return GeoResult(pair[0], pair[1], "city")
 
     # 4. County centroid fallback (handles states that report only county, e.g. KY, MT)
-    return _county_lookup(state, county)
+    pair = _county_lookup(state, county)
+    if pair is not None:
+        return GeoResult(pair[0], pair[1], "county")
+
+    return None

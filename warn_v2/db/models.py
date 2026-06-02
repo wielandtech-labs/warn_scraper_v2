@@ -38,6 +38,8 @@ class Location(Base):
     zip: Mapped[str | None] = mapped_column(String(10))
     lat: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
     lon: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    geocode_source: Mapped[str | None] = mapped_column(String(16))
+    # Values: 'census' | 'zip' | 'city' | 'county'. Null for pre-migration rows.
 
     __table_args__ = (
         UniqueConstraint("state", "city", "zip", name="uq_locations_state_city_zip"),

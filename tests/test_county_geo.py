@@ -47,9 +47,9 @@ def test_geocode_county_fallback_returns_centroid():
     """geocode() should return county centroid when city and zip are absent."""
     result = geocode(None, None, "KY", None, "Madison")
     assert result is not None
-    lat, lon = result
-    assert float(lat) == pytest.approx(37.7123, abs=0.001)
-    assert float(lon) == pytest.approx(-84.3012, abs=0.001)
+    assert float(result.lat) == pytest.approx(37.7123, abs=0.001)
+    assert float(result.lon) == pytest.approx(-84.3012, abs=0.001)
+    assert result.source == "county"
 
 
 def test_geocode_county_suffix_stripped():

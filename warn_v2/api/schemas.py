@@ -17,6 +17,7 @@ class LocationOut(BaseModel):
     zip: str | None
     lat: Decimal | None
     lon: Decimal | None
+    geocode_source: str | None
 
 
 class CompanyOut(BaseModel):
