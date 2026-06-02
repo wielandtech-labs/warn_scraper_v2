@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: homelab-dind-warn-v2
+    runs-on: homelab-dind
     permissions:
       contents: read
       packages: write
@@ -40,7 +40,7 @@ jobs:
       id: meta
       uses: docker/metadata-action@v6
       with:
-        images: ghcr.io/wielandtech/warn-v2
+        images: ghcr.io/wielandtech-labs/warn-v2
         tags: |
           type=ref,event=branch
           type=ref,event=pr
