@@ -32,6 +32,10 @@ jobs:
       with:
         driver: remote
         endpoint: tcp://buildkitd.buildkit.svc.cluster.local:1234
+        driver-opts: |
+          cacert=/etc/buildkit/certs/ca.crt
+          cert=/etc/buildkit/certs/tls.crt
+          key=/etc/buildkit/certs/tls.key
 
     - name: Log in to GitHub Container Registry
       uses: docker/login-action@v4
