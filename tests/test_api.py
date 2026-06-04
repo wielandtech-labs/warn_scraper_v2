@@ -46,6 +46,7 @@ def _notice(
     employer: str = "Acme Inc",
     notice_date: date = date(2026, 1, 15),
     layoff_count: int = 100,
+    closure_category: str | None = None,
 ) -> Notice:
     nid = f"test_{state}_{notice_date}_{employer[:8]}"
     n = Notice(
@@ -54,6 +55,7 @@ def _notice(
         employer=employer,
         notice_date=notice_date,
         layoff_count=layoff_count,
+        closure_category=closure_category,
         company_id=company.id if company else None,
     )
     db.add(n)
@@ -125,6 +127,24 @@ def test_notices_employer_filter_ilike(api_client, db):
     body = resp.json()
     assert body["total"] == 1
     assert "Acme" in body["items"][0]["employer"]
+
+
+def test_notices_closure_category_filter(api_client, db):
+    _notice(db, employer="Closing Co", closure_category="Closure")
+    _notice(
+        db,
+        employer="Layoff Co",
+        notice_date=date(2026, 2, 1),
+        closure_category="Layoff",
+    )
+    _notice(db, employer="Unknown Co", notice_date=date(2026, 3, 1))
+    db.commit()
+
+    resp = api_client.get("/api/notices?closure_category=Closure")
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["items"][0]["employer"] == "Closing Co"
+    assert body["items"][0]["closure_category"] == "Closure"
 
 
 def test_notices_pagination(api_client, db):

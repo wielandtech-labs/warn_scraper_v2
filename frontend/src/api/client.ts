@@ -46,6 +46,7 @@ async function get<T>(path: string): Promise<T> {
 export interface NoticesQuery {
   state?: string;
   employer?: string;
+  closure_category?: string;
   after?: string;
   before?: string;
   geocoded_only?: boolean;
