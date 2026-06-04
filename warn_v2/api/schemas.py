@@ -46,6 +46,7 @@ class NoticeOut(BaseModel):
     effective_date: date | None
     layoff_count: int | None
     closure_type: str | None
+    closure_category: str | None
     address: str | None
     source_url: str | None
     raw_notice_url: str | None

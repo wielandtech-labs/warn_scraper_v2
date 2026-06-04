@@ -8,13 +8,19 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from warn_v2.closure import normalize_closure_category
 from warn_v2.db.models import Company, Location, Notice
 from warn_v2.geo.geocoder import geocode as _geocode
 from warn_v2.pipeline.dedup import notice_id
 from warn_v2.scrapers.base import NoticeRow
 
 # First non-null wins: once set, don't overwrite (geocoded location, address, type).
-_FILL_IN_FIELDS: tuple[str, ...] = ("address", "closure_type", "location_id")
+_FILL_IN_FIELDS: tuple[str, ...] = (
+    "address",
+    "closure_type",
+    "closure_category",
+    "location_id",
+)
 
 # Last non-null wins: amendments may update these fields, so prefer incoming value.
 _UPDATE_FIELDS: tuple[str, ...] = ("layoff_count", "effective_date", "raw_notice_url")
@@ -51,6 +57,7 @@ def upsert_notices(session: Session, rows: Iterable[NoticeRow]) -> tuple[int, in
             "effective_date": row.effective_date,
             "layoff_count": row.layoff_count,
             "closure_type": row.closure_type,
+            "closure_category": normalize_closure_category(row.closure_type),
             "address": row.address,
             "source_url": row.source_url,
             "raw_notice_url": row.raw_notice_url,
