@@ -91,7 +91,7 @@ The scraper runs in a K3s homelab cluster managed by Flux GitOps (see
 `w_homelab` repo at `wielandtech/w_homelab`).
 
 **Infrastructure stack:**
-- **Image**: `ghcr.io/wielandtech/warn-v2` — built by `.github/workflows/docker.yml`,
+- **Image**: `ghcr.io/wielandtech-labs/warn-v2` — built by `.github/workflows/docker.yml`,
   tagged `YYYYMMDD-HHMMSS-{sha}` for Flux Image Automation auto-upgrades
 - **GitOps source**: `GitRepository` → `HelmRelease` using `charts/warn-v2`
   from this repo directly (not an OCI/HelmRepository)
@@ -129,12 +129,12 @@ The scraper runs in a K3s homelab cluster managed by Flux GitOps (see
 ```bash
 # Alembic upgrade (run from a shell with kubectl access)
 kubectl run alembic-init -n warn-v2 \
-  --image=ghcr.io/wielandtech/warn-v2:LATEST_TAG \
+  --image=ghcr.io/wielandtech-labs/warn-v2:LATEST_TAG \
   --restart=Never \
   --overrides='{
     "spec":{"containers":[{
       "name":"alembic-init",
-      "image":"ghcr.io/wielandtech/warn-v2:LATEST_TAG",
+      "image":"ghcr.io/wielandtech-labs/warn-v2:LATEST_TAG",
       "command":["uv","run","alembic","upgrade","head"],
       "env":[{"name":"DATABASE_URL","valueFrom":{"secretKeyRef":{"name":"warn-v2-db","key":"url"}}}]
     }]}
@@ -145,12 +145,12 @@ kubectl create job --from=cronjob/warn-v2-warn-v2-scraper manual-$(date +%s) -n 
 
 # Or targeted:
 kubectl run scrape-tx -n warn-v2 \
-  --image=ghcr.io/wielandtech/warn-v2:LATEST_TAG \
+  --image=ghcr.io/wielandtech-labs/warn-v2:LATEST_TAG \
   --restart=Never \
   --overrides='{
     "spec":{"containers":[{
       "name":"scrape-tx",
-      "image":"ghcr.io/wielandtech/warn-v2:LATEST_TAG",
+      "image":"ghcr.io/wielandtech-labs/warn-v2:LATEST_TAG",
       "command":["uv","run","warn-v2","scrape-all","--states","TX"],
       "env":[
         {"name":"DATABASE_URL","valueFrom":{"secretKeyRef":{"name":"warn-v2-db","key":"url"}}},
