@@ -5,6 +5,10 @@ on:
     branches: [main, master]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: homelab-warn-v2
@@ -32,15 +36,10 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "20"
-          # Skip npm cache until package-lock.json is committed (first build
-          # generates it). setup-node errors hard on a missing lockfile.
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
       - name: Install
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
+        run: npm ci
       - name: Lint
         run: npm run lint
       - name: Type-check + build
