@@ -34,6 +34,37 @@ def _row(**kw) -> NoticeRow:
     return NoticeRow(**base)
 
 
+def test_upsert_derives_closure_category(db) -> None:
+    """Freeform closure_type is batched into a normalized closure_category."""
+    upsert_notices(db, [
+        _row(employer="Plant Co", closure_type="Plant Closure"),
+        _row(employer="Cut Co", closure_type="Temporary Layoff",
+             notice_date=date(2026, 2, 1)),
+        _row(employer="Vague Co", closure_type="Layoff and Closure",
+             notice_date=date(2026, 3, 1)),
+        _row(employer="None Co", closure_type=None, notice_date=date(2026, 4, 1)),
+    ])
+    db.commit()
+
+    by_employer = {n.employer: n for n in db.query(Notice).all()}
+    assert by_employer["Plant Co"].closure_category == "Closure"
+    assert by_employer["Cut Co"].closure_category == "Layoff"
+    assert by_employer["Vague Co"].closure_category is None  # ambiguous
+    assert by_employer["None Co"].closure_category is None
+
+
+def test_reupsert_fills_in_null_closure_category(db) -> None:
+    """A re-scrape that adds closure_type backfills the normalized category."""
+    upsert_notices(db, [_row(closure_type=None)])
+    db.commit()
+    assert db.query(Notice).one().closure_category is None
+
+    seen, new = upsert_notices(db, [_row(closure_type="Closure")])
+    db.commit()
+    assert (seen, new) == (1, 0)  # fill-in, not a new row
+    assert db.query(Notice).one().closure_category == "Closure"
+
+
 def test_upsert_is_idempotent(db) -> None:
     rows = [_row(), _row(employer="Beta Inc"), _row(employer="Cascade")]
     seen1, new1 = upsert_notices(db, rows)

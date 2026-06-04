@@ -31,6 +31,9 @@ _SORT_COLUMNS = {
 def list_notices(
     state: str | None = Query(None, description="Two-letter state code, e.g. CA"),
     employer: str | None = Query(None, description="Employer name (case-insensitive substring)"),
+    closure_category: str | None = Query(
+        None, description="Normalized closure type: Closure | Layoff"
+    ),
     after: date | None = Query(None, description="Only notices on or after this date"),
     before: date | None = Query(None, description="Only notices on or before this date"),
     geocoded_only: bool = Query(False, description="Only return notices with latitude/longitude"),
@@ -58,6 +61,9 @@ def list_notices(
         pattern = f"%{employer}%"
         stmt = stmt.where(Notice.employer.ilike(pattern))
         count_stmt = count_stmt.where(Notice.employer.ilike(pattern))
+    if closure_category:
+        stmt = stmt.where(Notice.closure_category == closure_category)
+        count_stmt = count_stmt.where(Notice.closure_category == closure_category)
     if after:
         stmt = stmt.where(Notice.notice_date >= after)
         count_stmt = count_stmt.where(Notice.notice_date >= after)

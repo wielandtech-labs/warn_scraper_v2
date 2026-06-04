@@ -3,9 +3,12 @@ import { daysAgoIso, US_STATES } from "../lib/format";
 export interface FilterValues {
   state?: string;
   employer?: string;
+  closure_category?: string;
   after?: string;
   before?: string;
 }
+
+const CLOSURE_TYPES = ["Closure", "Layoff"] as const;
 
 export interface FilterBarProps {
   values: FilterValues;
@@ -31,7 +34,7 @@ export function FilterBar({ values, onChange, showEmployer = true }: FilterBarPr
   };
 
   return (
-    <div className="card mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="card mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
       <label className="flex flex-col gap-1">
         <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
           State
@@ -45,6 +48,24 @@ export function FilterBar({ values, onChange, showEmployer = true }: FilterBarPr
           {US_STATES.map((s) => (
             <option key={s} value={s}>
               {s}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          Closure type
+        </span>
+        <select
+          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+          value={values.closure_category || ""}
+          onChange={(e) => update({ closure_category: e.target.value || undefined })}
+        >
+          <option value="">All types</option>
+          {CLOSURE_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {t}
             </option>
           ))}
         </select>

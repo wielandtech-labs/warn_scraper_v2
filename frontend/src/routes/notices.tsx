@@ -26,6 +26,7 @@ export function NoticesPage() {
       api.listNotices({
         state: search.state,
         employer: search.employer,
+        closure_category: search.closure_category,
         after: search.after,
         before: search.before,
         sort_by: sortBy,
