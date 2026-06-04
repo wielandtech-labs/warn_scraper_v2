@@ -74,6 +74,9 @@ class Notice(Base):
     effective_date: Mapped[date | None] = mapped_column(Date)
     layoff_count: Mapped[int | None] = mapped_column(Integer)
     closure_type: Mapped[str | None] = mapped_column(Text)
+    # Normalized bucket derived from closure_type: 'Closure' | 'Layoff' | None.
+    # See warn_v2.closure.normalize_closure_category.
+    closure_category: Mapped[str | None] = mapped_column(String(16), index=True)
     address: Mapped[str | None] = mapped_column(Text)
     source_url: Mapped[str | None] = mapped_column(String(1024))
     raw_notice_url: Mapped[str | None] = mapped_column(String(1024))

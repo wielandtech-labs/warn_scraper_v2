@@ -31,6 +31,7 @@ export interface NoticeOut {
   effective_date: string | null;
   layoff_count: number | null;
   closure_type: string | null;
+  closure_category: string | null;
   address: string | null;
   source_url: string | null;
   raw_notice_url: string | null;

@@ -27,6 +27,7 @@ import httpx
 from bs4 import BeautifulSoup
 from sqlalchemy import or_, select
 
+from warn_v2.closure import normalize_closure_category
 from warn_v2.db.models import Location, Notice
 from warn_v2.db.session import session_scope
 from warn_v2.pdf_extract import extract_warn_fields
@@ -273,6 +274,8 @@ def _apply_text_fields(
     if closure and not notice.closure_type:
         if not dry_run:
             notice.closure_type = closure
+            if not notice.closure_category:
+                notice.closure_category = normalize_closure_category(closure)
         changed = True
         log.debug("GA %s: closure_type=%r", notice.notice_id[:10], closure)
 
