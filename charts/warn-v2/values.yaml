@@ -2,7 +2,7 @@
 # Override in the homelab w_homelab repo's HelmRelease.
 
 image:
-  repository: ghcr.io/wielandtech/warn-v2
+  repository: ghcr.io/wielandtech-labs/warn-v2
   tag: ""  # defaults to .Chart.AppVersion
   pullPolicy: IfNotPresent
 
