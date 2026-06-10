@@ -45,9 +45,30 @@ enricher:
   schedule: "23 */6 * * *"  # every 6h
   limit: 10       # max companies to enrich per CronJob run
   recentYears: 2  # only enrich companies with notices in the last N years
+  # D&B Hoovers provider (private, derived image). When providerImage is set, the
+  # enricher runs that image instead of the public app image, with the Hoovers
+  # credentials + a warm-session PVC. Leave blank to run the cascade without the
+  # provider tier (EDGAR + Claude only).
+  providerImage: ""   # e.g. ghcr.io/wielandtech-labs/warn-enrich-dnb:<tag>
+  providerModule: ""  # override ENRICHMENT_PROVIDER_MODULE (baked into the image ENV by default)
+  imagePullSecrets: []  # e.g. [{ name: ghcr-wielandtech-labs }] for the private image
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 500m, memory: 512Mi }
+
+# D&B Hoovers seat credentials (only used when enricher.providerImage is set).
+dnb:
+  secretName: warn-v2-dnb   # SealedSecret with username + password keys
+  usernameKey: username
+  passwordKey: password
+
+# Persistent warm-session profile for the Hoovers provider. Strongly recommended
+# in prod so the authenticated session survives between runs (re-login every run
+# raises reCAPTCHA risk). Requires enricher.providerImage to be set.
+hooversStorage:
+  enabled: false
+  storageClass: nfs-client
+  size: 1Gi
 
 api:
   enabled: true
