@@ -366,3 +366,57 @@ def test_scraper_runs_state_filter(api_client, db):
     body = resp.json()
     assert body["total"] == 1
     assert body["items"][0]["state"] == "TX"
+
+
+# ---------------------------------------------------------------------------
+# company consolidation rollup
+# ---------------------------------------------------------------------------
+
+def _merged_pair(db):
+    canon = _company(db, name="Acme Inc")
+    db.flush()
+    dupe = _company(db, name="Acme LLC")
+    dupe.canonical_company_id = canon.id
+    db.flush()
+    return canon, dupe
+
+
+def test_companies_hide_merged_by_default(api_client, db):
+    _merged_pair(db)
+    db.commit()
+
+    body = api_client.get("/api/companies").json()
+    names = [i["name"] for i in body["items"]]
+    assert body["total"] == 1
+    assert "Acme Inc" in names and "Acme LLC" not in names
+
+    allbody = api_client.get("/api/companies?include_merged=true").json()
+    assert allbody["total"] == 2
+
+
+def test_top_employers_rolls_up_duplicates(api_client, db):
+    canon, dupe = _merged_pair(db)
+    _notice(db, company=canon, employer="Acme Inc", layoff_count=100,
+            notice_date=date(2026, 1, 1))
+    _notice(db, company=dupe, employer="Acme LLC", layoff_count=50,
+            notice_date=date(2026, 2, 1))
+    db.commit()
+
+    body = api_client.get("/api/stats/top-employers").json()
+    rows = [r for r in body if r["company_id"] == canon.id]
+    assert len(rows) == 1
+    assert rows[0]["notice_count"] == 2
+    assert rows[0]["layoff_total"] == 150
+    assert rows[0]["employer"] == "Acme Inc"  # canonical name, not the dupe's
+
+
+def test_company_notices_rolls_up_merged_and_excludes_superseded(api_client, db):
+    canon, dupe = _merged_pair(db)
+    _notice(db, company=canon, employer="Acme Inc", notice_date=date(2026, 1, 1))
+    _notice(db, company=dupe, employer="Acme LLC", notice_date=date(2026, 2, 1))
+    sup = _notice(db, company=dupe, employer="Acme LLC", notice_date=date(2026, 3, 1))
+    sup.is_superseded = True
+    db.commit()
+
+    body = api_client.get(f"/api/companies/{canon.id}/notices").json()
+    assert body["total"] == 2  # canon's + dupe's active notice; superseded excluded

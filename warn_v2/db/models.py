@@ -68,6 +68,14 @@ class Company(Base):
     enrichment_source: Mapped[str | None] = mapped_column(String(16))
     # Values: 'provider' | 'edgar' | 'claude'. Null for rows enriched before this field existed.
 
+    # --- consolidation (see warn_v2/scripts/consolidate_companies.py) ---
+    canonical_company_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("companies.id", ondelete="SET NULL"), index=True
+    )  # set => duplicate of the canonical (same legal entity); canonical row = NULL
+    name_normalized: Mapped[str | None] = mapped_column(String(512), index=True)
+    global_ultimate_duns: Mapped[str | None] = mapped_column(String(16), index=True)
+    parent_group_key: Mapped[str | None] = mapped_column(String(512), index=True)
+
 
 class Notice(Base):
     __tablename__ = "notices"

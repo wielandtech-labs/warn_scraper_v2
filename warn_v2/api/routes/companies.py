@@ -16,11 +16,19 @@ router = APIRouter(prefix="/companies", tags=["companies"])
 def list_companies(
     enriched: bool | None = Query(None, description="Filter by enrichment status"),
     sic_code: str | None = Query(None, description="Exact SIC code match"),
+    include_merged: bool = Query(
+        False, description="Include rows consolidated into another company"
+    ),
     pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ) -> Page[CompanyOut]:
     stmt = select(Company).order_by(Company.name)
     count_stmt = select(func.count()).select_from(Company)
+
+    if not include_merged:
+        # Hide duplicates that were consolidated into a canonical company.
+        stmt = stmt.where(Company.canonical_company_id.is_(None))
+        count_stmt = count_stmt.where(Company.canonical_company_id.is_(None))
 
     if enriched is True:
         stmt = stmt.where(Company.enriched_at.is_not(None))
@@ -58,16 +66,19 @@ def list_company_notices(
     if db.get(Company, company_id) is None:
         raise HTTPException(status_code=404, detail="Company not found")
 
+    # Roll up notices from companies consolidated into this one, and exclude
+    # superseded notices (so totals match the rest of the API).
+    merged_ids = select(Company.id).where(Company.canonical_company_id == company_id)
+    notice_filter = (
+        Notice.company_id.in_(merged_ids) | (Notice.company_id == company_id)
+    ) & Notice.is_superseded.is_(False)
+
     stmt = (
         select(Notice)
-        .where(Notice.company_id == company_id)
+        .where(notice_filter)
         .order_by(Notice.notice_date.desc().nullslast())
     )
-    count_stmt = (
-        select(func.count())
-        .select_from(Notice)
-        .where(Notice.company_id == company_id)
-    )
+    count_stmt = select(func.count()).select_from(Notice).where(notice_filter)
     total = db.scalar(count_stmt) or 0
     items = list(db.scalars(stmt.offset(pagination.offset).limit(pagination.limit)))
     return Page(items=items, total=total, limit=pagination.limit, offset=pagination.offset)
