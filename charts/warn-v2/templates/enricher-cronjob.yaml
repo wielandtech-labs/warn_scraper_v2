@@ -58,6 +58,14 @@ spec:
                 - name: HOOVERS_STATE_PATH
                   value: /var/hoovers/profile
                 {{- end }}
+                {{- if .Values.enricher.maxPerRun }}
+                - name: HOOVERS_MAX_PER_RUN
+                  value: {{ .Values.enricher.maxPerRun | quote }}
+                {{- end }}
+                {{- if .Values.enricher.maxPerDay }}
+                - name: HOOVERS_MAX_PER_DAY
+                  value: {{ .Values.enricher.maxPerDay | quote }}
+                {{- end }}
                 {{- end }}
               {{- if and .Values.enricher.providerImage .Values.hooversStorage.enabled }}
               volumeMounts:
