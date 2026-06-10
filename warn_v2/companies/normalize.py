@@ -22,13 +22,20 @@ _LEGAL_SUFFIXES: frozenset[str] = frozenset({
 
 _PUNCT = re.compile(r"[^\w\s]")
 _WS = re.compile(r"\s+")
+# Store/location-number markers that distinguish branches of ONE company:
+#   "(1045) San Diego LGBT Community Center"  -> drop the leading "(1045)"
+#   "Food 4 Less #364"                        -> drop the "#364"
+# Stripped before tokenizing so all branches collapse to the same key.
+_LEADING_STORE_NO = re.compile(r"^\s*\(\s*\d+\s*\)\s*")
+_HASH_STORE_NO = re.compile(r"#\s*\d+")
 
 
 def canonical_name(name: str | None) -> str:
     """Return the normalized comparison key for a company name (may be "")."""
     if not name:
         return ""
-    s = _PUNCT.sub(" ", name.lower())
+    cleaned = _HASH_STORE_NO.sub(" ", _LEADING_STORE_NO.sub("", name))
+    s = _PUNCT.sub(" ", cleaned.lower())
     tokens = _WS.sub(" ", s).split()
     # Strip trailing legal suffixes (there can be more than one, e.g. "co inc").
     while tokens and tokens[-1] in _LEGAL_SUFFIXES:

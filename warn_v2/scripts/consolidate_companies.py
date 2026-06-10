@@ -47,6 +47,10 @@ def _survivor_key(c: Company, notice_counts: dict[int, int]) -> tuple:
 
 
 def _parent_group_key(c: Company) -> str:
+    # Prefer exact identifiers (D&B id of the global ultimate, then DUNS) over the
+    # fuzzy name; fall back to self when the company has no parent linkage.
+    if c.global_ultimate_id:
+        return "ult:" + c.global_ultimate_id
     if c.global_ultimate_duns:
         return "duns:" + c.global_ultimate_duns
     if c.parent_duns:
