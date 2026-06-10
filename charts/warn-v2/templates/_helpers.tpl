@@ -19,6 +19,16 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version }}
 {{- printf "%s:%s" .Values.image.repository (default .Chart.AppVersion .Values.image.tag) -}}
 {{- end -}}
 
+{{/* The enricher may run a derived PRIVATE image (the D&B Hoovers provider).
+     Falls back to the public app image when no provider image is configured. */}}
+{{- define "warn-v2.enricherImage" -}}
+{{- if .Values.enricher.providerImage -}}
+{{- .Values.enricher.providerImage -}}
+{{- else -}}
+{{- include "warn-v2.image" . -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "warn-v2.envSecrets" -}}
 - name: DATABASE_URL
   valueFrom:

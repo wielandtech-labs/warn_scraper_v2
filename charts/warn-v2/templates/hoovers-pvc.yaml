@@ -1,0 +1,18 @@
+{{- if and .Values.enricher.providerImage .Values.hooversStorage.enabled }}
+# Persists the authenticated D&B Hoovers browser profile (the "warm session")
+# between enricher CronJob runs, so we don't re-login every run. ReadWriteOnce is
+# intentional — the single-session invariant means only one pod mounts it at a
+# time (enforced by concurrencyPolicy: Forbid on the enricher CronJob).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "warn-v2.fullname" . }}-hoovers
+  labels:
+    {{- include "warn-v2.labels" . | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ .Values.hooversStorage.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.hooversStorage.size }}
+{{- end }}
