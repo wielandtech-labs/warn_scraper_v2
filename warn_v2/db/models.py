@@ -74,6 +74,9 @@ class Company(Base):
     )  # set => duplicate of the canonical (same legal entity); canonical row = NULL
     name_normalized: Mapped[str | None] = mapped_column(String(512), index=True)
     global_ultimate_duns: Mapped[str | None] = mapped_column(String(16), index=True)
+    global_ultimate_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    # D&B's stable id for the global ultimate (from its profile href) — exact,
+    # free sibling-grouping key shared by all subsidiaries of one parent.
     parent_group_key: Mapped[str | None] = mapped_column(String(512), index=True)
 
 
