@@ -7,6 +7,8 @@ metadata:
     {{- include "warn-v2.labels" . | nindent 4 }}
 spec:
   schedule: {{ .Values.enricher.schedule | quote }}
+  # Forbid: never overlap runs. Critical when the provider image is used —
+  # the provider locks the seat (~1h) on a second concurrent session.
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 5
@@ -20,9 +22,13 @@ spec:
             app.kubernetes.io/component: enricher
         spec:
           restartPolicy: OnFailure
+          {{- with .Values.enricher.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           containers:
             - name: enricher
-              image: {{ include "warn-v2.image" . }}
+              image: {{ include "warn-v2.enricherImage" . }}
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               args:
                 - enrich
@@ -32,6 +38,38 @@ spec:
                 - {{ .Values.enricher.recentYears | quote }}
               env:
                 {{- include "warn-v2.envSecrets" . | nindent 16 }}
+                {{- if .Values.enricher.providerImage }}
+                {{- if .Values.enricher.providerModule }}
+                # Usually baked into the provider image's ENV; set here to override.
+                - name: ENRICHMENT_PROVIDER_MODULE
+                  value: {{ .Values.enricher.providerModule | quote }}
+                {{- end }}
+                - name: PROVIDER_USERNAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.dnb.secretName }}
+                      key: {{ .Values.dnb.usernameKey }}
+                - name: PROVIDER_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.dnb.secretName }}
+                      key: {{ .Values.dnb.passwordKey }}
+                {{- if .Values.providerStorage.enabled }}
+                - name: PROVIDER_STATE_PATH
+                  value: /var/provider-profile/profile
+                {{- end }}
+                {{- end }}
+              {{- if and .Values.enricher.providerImage .Values.providerStorage.enabled }}
+              volumeMounts:
+                - name: provider-profile
+                  mountPath: /var/provider-profile
+              {{- end }}
               resources:
                 {{- toYaml .Values.enricher.resources | nindent 16 }}
+          {{- if and .Values.enricher.providerImage .Values.providerStorage.enabled }}
+          volumes:
+            - name: provider-profile
+              persistentVolumeClaim:
+                claimName: {{ include "warn-v2.fullname" . }}-provider-profile
+          {{- end }}
 {{- end }}
