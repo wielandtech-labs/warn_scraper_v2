@@ -52,6 +52,11 @@ enricher:
   providerImage: ""   # e.g. ghcr.io/wielandtech-labs/warn-enrich-dnb:<tag>
   providerModule: ""  # override ENRICHMENT_PROVIDER_MODULE (baked into the image ENV by default)
   imagePullSecrets: []  # e.g. [{ name: ghcr-wielandtech-labs }] for the private image
+  # Provider throttle overrides (HOOVERS_MAX_PER_RUN / HOOVERS_MAX_PER_DAY).
+  # Blank => the image defaults (25 / 60). Raise maxPerDay if limit*runs/day
+  # would otherwise hit the daily cap and fall through to EDGAR/Claude.
+  maxPerRun: ""
+  maxPerDay: ""
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 500m, memory: 512Mi }
@@ -69,6 +74,16 @@ hooversStorage:
   enabled: false
   storageClass: nfs-client
   size: 1Gi
+
+# Periodic duplicate-company consolidation (consolidate-companies). Uses the
+# public app image; non-destructive + idempotent.
+consolidator:
+  enabled: false          # flip on in HelmRelease
+  schedule: "30 4 * * *"  # daily 04:30, after the overnight enricher runs
+  force: false            # bypass the 50% guardrail (leave false)
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
 
 api:
   enabled: true
