@@ -41,6 +41,8 @@ class ProviderResult:
     parent_company_name: str | None = None
     parent_duns: str | None = None
     global_ultimate_name: str | None = None
+    global_ultimate_duns: str | None = None
+    global_ultimate_id: str | None = None
     hq_address: str | None = None
     confidence: float = 0.0
     sources: list[str] = field(default_factory=list)

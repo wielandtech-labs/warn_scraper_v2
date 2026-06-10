@@ -70,13 +70,28 @@ def test_survivor_prefers_enriched(db) -> None:
     assert db.get(Company, plain.id).canonical_company_id == rich.id
 
 
-def test_parent_group_key_prefers_gu_duns(db) -> None:
+def test_parent_group_key_prefers_gu_id(db) -> None:
+    # Two siblings of one ultimate share the global_ultimate_id -> same group key.
+    a = _company(db, "Sub One", duns="555000001",
+                 global_ultimate_id="uuid-mega", global_ultimate_duns="999000111")
+    b = _company(db, "Sub Two", duns="555000002",
+                 global_ultimate_id="uuid-mega", global_ultimate_name="Mega Corp")
+    db.commit()
+    consolidate_companies(dry_run=False, force=True)
+    db.expire_all()
+    assert db.get(Company, a.id).parent_group_key == "ult:uuid-mega"
+    assert db.get(Company, b.id).parent_group_key == "ult:uuid-mega"
+
+
+def test_parent_group_key_falls_back_to_gu_duns_then_name(db) -> None:
     c = _company(db, "Sub Co", duns="555555555",
                  global_ultimate_duns="999000111", global_ultimate_name="Mega Corp")
+    d = _company(db, "Other Sub", duns="555555556", global_ultimate_name="Mega Corp")
     db.commit()
     consolidate_companies(dry_run=False, force=True)
     db.expire_all()
     assert db.get(Company, c.id).parent_group_key == "duns:999000111"
+    assert db.get(Company, d.id).parent_group_key == "name:mega"  # 'corp' stripped
 
 
 def test_parent_group_key_name_fallback(db) -> None:

@@ -139,6 +139,8 @@ def _persist_provider_result(
     company.parent_company_name = result.parent_company_name
     company.parent_duns = result.parent_duns
     company.global_ultimate_name = result.global_ultimate_name
+    company.global_ultimate_duns = result.global_ultimate_duns
+    company.global_ultimate_id = result.global_ultimate_id
     company.hq_address = result.hq_address
     company.enrichment_confidence = Decimal(str(round(result.confidence, 2)))
     company.enrichment_sources = json.dumps(result.sources) if result.sources else None
