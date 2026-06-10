@@ -133,3 +133,19 @@ one sheet).
 `FileResponse`. A HEAD request returns `content-type: text/html` (Starlette
 quirk) — the GET response correctly returns `application/pdf`. Confirmed by
 inspecting the first bytes of the body (`%PDF-1.6%`). Not a bug.
+
+---
+
+## Deployment: merging to main IS a production deploy
+
+CI publishes `ghcr.io/wielandtech-labs/warn-v2:YYYYMMDD-HHMMSS-<sha>` on every
+main push (doc-only changes are path-ignored); Flux image automation in
+`wielandtech-labs/w_homelab` auto-deploys that tag to the `warn-v2` namespace
+(see CLAUDE.md for the exact chain). There is no dev/QA tier and no review
+apps for this app — main is the only gate, so verify locally and run
+`/code-review` before merging.
+
+Deployment manifests: `w_homelab` `clusters/prod/apps/warn-v2/` (plus the
+chart in this repo under `charts/warn-v2/`). Rollback = revert the HelmRelease
+image tag in w_homelab via PR. Platform-wide conventions:
+`docs/onboarding-new-app.md` in w_homelab.
