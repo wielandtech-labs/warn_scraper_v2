@@ -58,6 +58,14 @@ spec:
                 - name: PROVIDER_STATE_PATH
                   value: /var/provider-profile/profile
                 {{- end }}
+                {{- if .Values.enricher.maxPerRun }}
+                - name: PROVIDER_MAX_PER_RUN
+                  value: {{ .Values.enricher.maxPerRun | quote }}
+                {{- end }}
+                {{- if .Values.enricher.maxPerDay }}
+                - name: PROVIDER_MAX_PER_DAY
+                  value: {{ .Values.enricher.maxPerDay | quote }}
+                {{- end }}
                 {{- end }}
               {{- if and .Values.enricher.providerImage .Values.providerStorage.enabled }}
               volumeMounts:

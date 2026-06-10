@@ -1,0 +1,39 @@
+{{- if .Values.consolidator.enabled }}
+# Periodically merge duplicate Company rows (DUNS-first, name fallback). Uses the
+# public app image (no browser needed) and is non-destructive/idempotent, so it's
+# safe to run on a schedule — it sharpens as enrichment fills DUNS / GU ids.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "warn-v2.fullname" . }}-consolidator
+  labels:
+    {{- include "warn-v2.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.consolidator.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            {{- include "warn-v2.labels" . | nindent 12 }}
+            app.kubernetes.io/component: consolidator
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: consolidator
+              image: {{ include "warn-v2.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              args:
+                - consolidate-companies
+                {{- if .Values.consolidator.force }}
+                - --force
+                {{- end }}
+              env:
+                {{- include "warn-v2.envSecrets" . | nindent 16 }}
+              resources:
+                {{- toYaml .Values.consolidator.resources | nindent 16 }}
+{{- end }}
