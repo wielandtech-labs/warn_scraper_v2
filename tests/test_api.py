@@ -280,6 +280,41 @@ def test_company_detail_not_found(api_client, db):
     assert resp.status_code == 404
 
 
+def test_company_detail_hides_internal_enrichment_fields(api_client, db):
+    """D&B-sourced fields are stored but must not be exposed by the public API.
+
+    Redistribution of DUNS / employee counts / corporate hierarchy is restricted
+    by D&B terms, so CompanyOut deliberately omits them.
+    """
+    c = _company(
+        db,
+        name="Enriched Co",
+        duns="123456789",
+        employee_count=5000,
+        parent_company_name="Parent Holdings",
+        parent_duns="987654321",
+        global_ultimate_name="Global Ultimate Ltd",
+        hq_address="1 Main St, Anytown, USA",
+        website="https://enriched.example.com",
+        sic_code="3559",
+    )
+    db.commit()
+
+    body = api_client.get(f"/api/companies/{c.id}").json()
+    for hidden in (
+        "duns",
+        "employee_count",
+        "parent_company_name",
+        "parent_duns",
+        "global_ultimate_name",
+        "hq_address",
+    ):
+        assert hidden not in body, f"{hidden} must not be exposed publicly"
+    # Low-risk fields are still surfaced.
+    assert body["website"] == "https://enriched.example.com"
+    assert body["sic_code"] == "3559"
+
+
 def test_company_notices(api_client, db):
     c = _company(db)
     _notice(db, company=c)

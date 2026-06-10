@@ -25,7 +25,11 @@ class CompanyOut(BaseModel):
 
     id: int
     name: str
-    duns: str | None
+    # NOTE: enrichment fields duns, employee_count, parent_company_name,
+    # parent_duns, global_ultimate_name, and hq_address are deliberately NOT
+    # exposed here. They are stored for internal use only; publishing D&B-sourced
+    # data would conflict with its redistribution terms. Surface only low-risk
+    # fields (website, industry codes) publicly.
     sic_code: str | None
     sic_desc: str | None
     naics_code: str | None
