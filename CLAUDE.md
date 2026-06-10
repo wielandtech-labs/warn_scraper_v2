@@ -50,3 +50,10 @@ break-glass operation.
 Run with: `cd warn_scrapper_v2 && .venv\Scripts\pytest` (uv not on PATH here;
 use the local venv). All 500+ tests should pass with 0 failures before opening
 a PR.
+
+## Production gate
+
+Merging to main is a production deploy (the image-tag chain above runs
+unattended). No dev/QA tier exists for this app — verify locally and run
+`/code-review` before merging. Rollback = revert the image tag in
+`wielandtech-labs/w_homelab` `clusters/prod/apps/warn-v2/` via PR.
