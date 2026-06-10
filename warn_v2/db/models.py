@@ -57,6 +57,11 @@ class Company(Base):
     naics_code: Mapped[str | None] = mapped_column(String(8))
     naics_desc: Mapped[str | None] = mapped_column(String(256))
     website: Mapped[str | None] = mapped_column(String(512))
+    employee_count: Mapped[int | None] = mapped_column(Integer)
+    parent_company_name: Mapped[str | None] = mapped_column(String(512))
+    parent_duns: Mapped[str | None] = mapped_column(String(16), index=True)
+    global_ultimate_name: Mapped[str | None] = mapped_column(String(512))
+    hq_address: Mapped[str | None] = mapped_column(Text)
     enriched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     enrichment_confidence: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))
     enrichment_sources: Mapped[str | None] = mapped_column(Text)  # JSON-encoded list

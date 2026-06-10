@@ -37,6 +37,11 @@ class ProviderResult:
     naics_code: str | None = None
     naics_desc: str | None = None
     website: str | None = None
+    employee_count: int | None = None
+    parent_company_name: str | None = None
+    parent_duns: str | None = None
+    global_ultimate_name: str | None = None
+    hq_address: str | None = None
     confidence: float = 0.0
     sources: list[str] = field(default_factory=list)
 
