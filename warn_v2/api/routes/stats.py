@@ -11,7 +11,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import String, cast, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from warn_v2.api.deps import get_db
 from warn_v2.db.models import Company, Notice
@@ -138,15 +138,25 @@ def top_employers(
     before: date | None = Query(None),
     db: Session = Depends(get_db),
 ) -> list[EmployerStat]:
+    # Roll duplicate companies up to their canonical row: group by
+    # coalesce(canonical_company_id, company_id) and label by the canonical
+    # company's name, so "Acme Inc" + "Acme, LLC" collapse into one row.
     layoff_sum = func.coalesce(func.sum(Notice.layoff_count), 0)
+    canon_id = func.coalesce(Company.canonical_company_id, Notice.company_id)
+    canon = aliased(Company)
     stmt = (
         select(
-            Notice.employer,
-            Notice.company_id,
+            func.coalesce(func.min(canon.name), func.min(Notice.employer)).label("employer"),
+            canon_id.label("company_id"),
             func.count(Notice.notice_id),
             layoff_sum,
         )
-        .group_by(Notice.employer, Notice.company_id)
+        .select_from(Notice)
+        .join(Company, Notice.company_id == Company.id, isouter=True)
+        .join(canon, canon.id == canon_id, isouter=True)
+        # Roll linked dups up to their canonical company id; fall back to the
+        # employer string for notices with no linked company (company_id NULL).
+        .group_by(func.coalesce(cast(canon_id, String), Notice.employer))
         .order_by(layoff_sum.desc())
         .limit(limit)
     )
@@ -154,10 +164,6 @@ def top_employers(
     stmt = _apply_date_filters(stmt, after, before)
     if state:
         stmt = stmt.where(Notice.state == state.upper())
-
-    # Prevent Company from being garbage-collected from the query if we ever
-    # add a join — currently we only use the FK column.
-    _ = Company
 
     rows = db.execute(stmt).all()
     return [
