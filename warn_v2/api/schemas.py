@@ -25,6 +25,9 @@ class CompanyOut(BaseModel):
 
     id: int
     name: str
+    # Set when this row was consolidated into another (the canonical/survivor).
+    # Null on canonical rows. Just a pointer — not D&B data — so safe to expose.
+    canonical_company_id: int | None
     # NOTE: enrichment fields duns, employee_count, parent_company_name,
     # parent_duns, global_ultimate_name, and hq_address are deliberately NOT
     # exposed here. They are stored for internal use only; publishing D&B-sourced

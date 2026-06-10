@@ -9,6 +9,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from warn_v2.closure import normalize_closure_category
+from warn_v2.companies.normalize import canonical_name
 from warn_v2.db.models import Company, Location, Notice
 from warn_v2.geo.geocoder import geocode as _geocode
 from warn_v2.pipeline.dedup import notice_id
@@ -136,13 +137,33 @@ def upsert_notices(session: Session, rows: Iterable[NoticeRow]) -> tuple[int, in
 def _get_or_create_company(
     session: Session, name: str, naics_code: str | None = None
 ) -> Company:
-    stmt = select(Company).where(Company.name == name).limit(1)
-    company = session.execute(stmt).scalar_one_or_none()
+    # Match on the normalized name so legal-form variants ("Acme Inc" / "Acme,
+    # LLC" / "ACME") attach to one row instead of spawning duplicates. If the
+    # match was already consolidated into a canonical row, attach to that
+    # canonical so new notices accrue to the survivor.
+    normalized = canonical_name(name)
+    company = session.execute(
+        select(Company).where(Company.name_normalized == normalized).limit(1)
+    ).scalar_one_or_none()
     if company is None:
-        company = Company(name=name, naics_code=naics_code)
+        # Backstop for rows predating name_normalized backfill.
+        company = session.execute(
+            select(Company).where(Company.name == name).limit(1)
+        ).scalar_one_or_none()
+
+    if company is None:
+        company = Company(name=name, name_normalized=normalized, naics_code=naics_code)
         session.add(company)
         session.flush()
-    elif naics_code and not company.naics_code:
+        return company
+
+    if company.canonical_company_id is not None:
+        canonical = session.get(Company, company.canonical_company_id)
+        if canonical is not None:
+            company = canonical
+    if not company.name_normalized:
+        company.name_normalized = normalized
+    if naics_code and not company.naics_code:
         # First non-null wins: fill in a missing NAICS from the WARN filing.
         # An existing enrichment-provided code is preserved.
         company.naics_code = naics_code

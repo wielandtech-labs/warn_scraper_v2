@@ -343,6 +343,32 @@ def mark_superseded_cmd(dry_run: bool, state: str | None, force: bool) -> None:
     click.echo(f"marked={stats['marked']} skipped={stats['skipped']}{suffix}")
 
 
+@main.command("consolidate-companies")
+@click.option("--dry-run", is_flag=True, help="Preview merges without writing")
+@click.option("--force", is_flag=True, help="Bypass the 50%% guardrail")
+def consolidate_companies_cmd(dry_run: bool, force: bool) -> None:
+    """Merge duplicate Company rows (DUNS-first, name-normalization fallback).
+
+    \b
+    Non-destructive: sets canonical_company_id on duplicates (never touches
+    Notice.company_id or deletes rows), so it's fully reversible. Survivors also
+    get a parent_group_key for sibling-under-parent rollup. Re-run safely as
+    enrichment fills in more DUNS over time.
+
+    Always run with --dry-run first and review the counts.
+    """
+    from warn_v2.scripts.consolidate_companies import consolidate_companies
+
+    stats = consolidate_companies(dry_run=dry_run, force=force)
+    suffix = " (dry run — nothing written)" if dry_run else ""
+    if stats.get("aborted"):
+        suffix = " (ABORTED by guardrail — re-run with --force)"
+    click.echo(
+        f"merged={stats['merged']} duns_groups={stats['duns_groups']} "
+        f"name_groups={stats['name_groups']} total={stats['total']}{suffix}"
+    )
+
+
 @main.command("backfill-geo")
 @click.option("--dry-run", is_flag=True, help="Preview impact without writing")
 @click.option(
