@@ -89,6 +89,11 @@ def test_provider_result_defaults():
     assert r.duns is None
     assert r.sic_code is None
     assert r.naics_code is None
+    assert r.employee_count is None
+    assert r.parent_company_name is None
+    assert r.parent_duns is None
+    assert r.global_ultimate_name is None
+    assert r.hq_address is None
     assert r.confidence == 0.0
     assert r.sources == []
 
@@ -102,10 +107,20 @@ def test_provider_result_full():
         naics_code="333249",
         naics_desc="Other Industrial Machinery Manufacturing",
         website="https://acme.com",
+        employee_count=1200,
+        parent_company_name="Acme Holdings Inc",
+        parent_duns="987654321",
+        global_ultimate_name="Acme Global Ltd",
+        hq_address="1 Acme Way, Springfield, IL 62704",
         confidence=0.90,
         sources=["https://provider.example.com/company/acme"],
     )
     assert r.duns == "123456789"
     assert r.sic_code == "3559"
     assert r.naics_code == "333249"
+    assert r.employee_count == 1200
+    assert r.parent_company_name == "Acme Holdings Inc"
+    assert r.parent_duns == "987654321"
+    assert r.global_ultimate_name == "Acme Global Ltd"
+    assert r.hq_address == "1 Acme Way, Springfield, IL 62704"
     assert r.confidence == 0.90

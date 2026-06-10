@@ -279,6 +279,11 @@ def test_enrich_batch_provider_hit_skips_edgar_and_claude(db, monkeypatch) -> No
                 naics_desc="Aircraft Manufacturing",
                 duns="009867000",
                 website="https://boeing.com",
+                employee_count=170000,
+                parent_company_name="The Boeing Company",
+                parent_duns="009867123",
+                global_ultimate_name="The Boeing Company",
+                hq_address="929 Long Bridge Dr, Arlington, VA 22202",
                 confidence=0.95,
                 sources=["https://provider.example.com"],
             )
@@ -301,6 +306,11 @@ def test_enrich_batch_provider_hit_skips_edgar_and_claude(db, monkeypatch) -> No
     assert c.naics_code == "336411"
     assert c.duns == "009867000"
     assert c.website == "https://boeing.com"
+    assert c.employee_count == 170000
+    assert c.parent_company_name == "The Boeing Company"
+    assert c.parent_duns == "009867123"
+    assert c.global_ultimate_name == "The Boeing Company"
+    assert c.hq_address == "929 Long Bridge Dr, Arlington, VA 22202"
     assert c.enriched_at is not None
 
 

@@ -141,7 +141,6 @@ export function NoticeDetail() {
                   : "—"
               }
             />
-            <DescriptionItem label="DUNS" value={n.company.duns ?? "—"} />
             <DescriptionItem
               label="Enrichment confidence"
               value={

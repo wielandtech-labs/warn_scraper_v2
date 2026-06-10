@@ -135,6 +135,11 @@ def _persist_provider_result(
     company.duns = result.duns
     company.naics_code = result.naics_code
     company.naics_desc = result.naics_desc
+    company.employee_count = result.employee_count
+    company.parent_company_name = result.parent_company_name
+    company.parent_duns = result.parent_duns
+    company.global_ultimate_name = result.global_ultimate_name
+    company.hq_address = result.hq_address
     company.enrichment_confidence = Decimal(str(round(result.confidence, 2)))
     company.enrichment_sources = json.dumps(result.sources) if result.sources else None
     company.enrichment_source = "provider"

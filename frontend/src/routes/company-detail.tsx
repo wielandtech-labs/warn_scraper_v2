@@ -61,7 +61,6 @@ export function CompanyDetail() {
             />
           )}
           <Item label="SIC" value={c.sic_code ? `${c.sic_code} · ${c.sic_desc ?? ""}` : "—"} />
-          <Item label="DUNS" value={c.duns ?? "—"} />
           <Item
             label="Enriched"
             value={

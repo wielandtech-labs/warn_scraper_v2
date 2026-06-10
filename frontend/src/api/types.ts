@@ -15,7 +15,6 @@ export interface LocationOut {
 export interface CompanyOut {
   id: number;
   name: string;
-  duns: string | null;
   sic_code: string | null;
   sic_desc: string | null;
   website: string | null;
