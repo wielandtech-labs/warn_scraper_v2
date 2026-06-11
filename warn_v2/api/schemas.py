@@ -43,6 +43,21 @@ class CompanyOut(BaseModel):
     enrichment_source: str | None
 
 
+class CompanyEnrichedOut(CompanyOut):
+    """CompanyOut + D&B enrichment fields. Served only to paid/admin sessions.
+
+    Anonymous and free-tier responses use CompanyOut, so these keys are absent
+    (not null) for them — the public shape is byte-identical to before auth.
+    """
+
+    duns: str | None
+    parent_duns: str | None
+    parent_company_name: str | None
+    global_ultimate_name: str | None
+    hq_address: str | None
+    employee_count: int | None
+
+
 class FamilyMemberOut(BaseModel):
     """One company in a corporate family (siblings sharing a parent_group_key).
 
@@ -77,6 +92,13 @@ class NoticeOut(BaseModel):
     scraped_at: datetime
     company: CompanyOut | None
     location: LocationOut | None
+
+
+class NoticeEnrichedOut(NoticeOut):
+    # Annotation override is required: Pydantic v2 serializes nested models by
+    # annotation, so a CompanyEnrichedOut inside plain NoticeOut would be
+    # stripped back down to CompanyOut's fields.
+    company: CompanyEnrichedOut | None
 
 
 class ScraperRunOut(BaseModel):

@@ -5,6 +5,7 @@
 // In dev, vite.config.ts proxies these paths to the local FastAPI server.
 
 import type {
+  AuthUser,
   CompanyOut,
   EmployerStat,
   FamilyMemberOut,
@@ -37,6 +38,20 @@ function qs(params: Record<string, string | number | undefined | null>): string 
 
 async function get<T>(path: string): Promise<T> {
   const resp = await fetch(path, { headers: { Accept: "application/json" } });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new ApiError(resp.status, text || resp.statusText);
+  }
+  return (await resp.json()) as T;
+}
+
+// Same-origin fetch sends the session cookie by default; no credentials flag needed.
+async function post<T>(path: string, body?: unknown): Promise<T> {
+  const resp = await fetch(path, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
   if (!resp.ok) {
     const text = await resp.text().catch(() => "");
     throw new ApiError(resp.status, text || resp.statusText);
@@ -87,6 +102,12 @@ export interface MapPinQuery {
 }
 
 export const api = {
+  // ---------- Auth ----------
+  login: (email: string, password: string) =>
+    post<AuthUser>("/api/auth/login", { email, password }),
+  logout: () => post<{ status: string }>("/api/auth/logout"),
+  me: () => get<AuthUser>("/api/auth/me"),
+
   listNotices: (q: NoticesQuery = {}) =>
     get<Page<NoticeOut>>("/api/notices" + qs(q as Record<string, string | number | undefined>)),
   getNotice: (id: string) =>

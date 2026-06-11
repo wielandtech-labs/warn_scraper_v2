@@ -717,5 +717,136 @@ def audit_cmd(state: str | None, as_json: bool, markdown: bool, check_links: boo
         click.echo(render_table(audits))
 
 
+_ROLES = click.Choice(["admin", "paid", "free"])
+_MIN_PASSWORD_LEN = 12
+
+
+@main.command("create-user")
+@click.option("--email", required=True)
+@click.option("--role", type=_ROLES, default="free", show_default=True)
+@click.option(
+    "--password-stdin",
+    is_flag=True,
+    help="Read the password from stdin (for k8s Jobs); default prompts interactively",
+)
+def create_user_cmd(email: str, role: str, password_stdin: bool) -> None:
+    """Create an account. Accounts are admin-provisioned only (no self-signup).
+
+    \b
+    Examples:
+      warn-v2 create-user --email a@b.com --role paid
+      printf '%s' "$PW" | warn-v2 create-user --email a@b.com --role admin --password-stdin
+    """
+    from sqlalchemy.exc import IntegrityError
+
+    from warn_v2.auth import hash_password
+    from warn_v2.db.models import User
+    from warn_v2.db.session import session_scope
+
+    if password_stdin:
+        password = sys.stdin.readline().rstrip("\n")
+    else:
+        password = click.prompt("Password", hide_input=True, confirmation_prompt=True)
+    if len(password) < _MIN_PASSWORD_LEN:
+        click.echo(f"password must be at least {_MIN_PASSWORD_LEN} characters", err=True)
+        sys.exit(1)
+
+    email = email.strip().lower()
+    try:
+        with session_scope() as session:
+            session.add(User(email=email, password_hash=hash_password(password), role=role))
+    except IntegrityError:
+        click.echo(f"user already exists: {email}", err=True)
+        sys.exit(1)
+    click.echo(f"created {email} role={role}")
+
+
+@main.command("set-password")
+@click.option("--email", required=True)
+@click.option(
+    "--password-stdin",
+    is_flag=True,
+    help="Read the password from stdin (for k8s Jobs); default prompts interactively",
+)
+def set_password_cmd(email: str, password_stdin: bool) -> None:
+    """Change a user's password and revoke all their active sessions."""
+    from sqlalchemy import delete, select
+
+    from warn_v2.auth import hash_password
+    from warn_v2.db.models import User, UserSession
+    from warn_v2.db.session import session_scope
+
+    if password_stdin:
+        password = sys.stdin.readline().rstrip("\n")
+    else:
+        password = click.prompt("Password", hide_input=True, confirmation_prompt=True)
+    if len(password) < _MIN_PASSWORD_LEN:
+        click.echo(f"password must be at least {_MIN_PASSWORD_LEN} characters", err=True)
+        sys.exit(1)
+
+    with session_scope() as session:
+        user = session.scalar(select(User).where(User.email == email.strip().lower()))
+        if user is None:
+            click.echo(f"no such user: {email}", err=True)
+            sys.exit(1)
+        user.password_hash = hash_password(password)
+        # Compromise response: invalidate every outstanding session too.
+        session.execute(delete(UserSession).where(UserSession.user_id == user.id))
+    click.echo(f"password updated for {email}; active sessions revoked")
+
+
+@main.command("set-role")
+@click.option("--email", required=True)
+@click.option("--role", type=_ROLES, required=True)
+def set_role_cmd(email: str, role: str) -> None:
+    """Change an existing user's role (admin | paid | free)."""
+    from sqlalchemy import select
+
+    from warn_v2.db.models import User
+    from warn_v2.db.session import session_scope
+
+    with session_scope() as session:
+        user = session.scalar(select(User).where(User.email == email.strip().lower()))
+        if user is None:
+            click.echo(f"no such user: {email}", err=True)
+            sys.exit(1)
+        user.role = role
+    click.echo(f"{email} role={role}")
+
+
+@main.command("list-users")
+def list_users_cmd() -> None:
+    """List accounts (email, role, created_at)."""
+    from sqlalchemy import select
+
+    from warn_v2.db.models import User
+    from warn_v2.db.session import session_scope
+
+    with session_scope() as session:
+        for u in session.scalars(select(User).order_by(User.email)):
+            click.echo(f"{u.email}\t{u.role}\t{u.created_at:%Y-%m-%d}")
+
+
+@main.command("delete-user")
+@click.option("--email", required=True)
+def delete_user_cmd(email: str) -> None:
+    """Delete an account and its sessions."""
+    from sqlalchemy import delete, select
+
+    from warn_v2.db.models import User, UserSession
+    from warn_v2.db.session import session_scope
+
+    with session_scope() as session:
+        user = session.scalar(select(User).where(User.email == email.strip().lower()))
+        if user is None:
+            click.echo(f"no such user: {email}", err=True)
+            sys.exit(1)
+        # Explicit session delete: SQLite (tests) doesn't enforce FK CASCADE
+        # without the foreign_keys pragma; explicit works on both backends.
+        session.execute(delete(UserSession).where(UserSession.user_id == user.id))
+        session.delete(user)
+    click.echo(f"deleted {email}")
+
+
 if __name__ == "__main__":
     main()
