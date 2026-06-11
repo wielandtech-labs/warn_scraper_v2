@@ -230,8 +230,8 @@ function FamiliesView() {
     <div>
       <p className="mb-3 text-sm text-slate-500">
         Companies grouped into corporate families, ranked by total layoffs across all
-        their subsidiaries. Each family is labeled by its largest member. Families
-        appear as company enrichment links subsidiaries to a shared parent.
+        their subsidiaries. Each family is labeled by its largest member, and the
+        list grows as enrichment links subsidiaries to a shared parent.
       </p>
 
       {query.isLoading && <div className="card text-sm text-slate-500">Loading…</div>}
