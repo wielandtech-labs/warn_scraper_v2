@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, or_, select
@@ -25,6 +26,13 @@ _FILL_IN_FIELDS: tuple[str, ...] = (
 
 # Last non-null wins: amendments may update these fields, so prefer incoming value.
 _UPDATE_FIELDS: tuple[str, ...] = ("layoff_count", "effective_date", "raw_notice_url")
+
+# Single-locality jurisdictions: the source publishes no worksite city/ZIP, but
+# every notice is in one place by definition (DC = the District of Columbia).
+# Default the *location* city so these geocode at city level — same spirit as the
+# KY/MT county-centroid fallback. Applied only inside location creation, so it
+# never touches notice_id (hashed from the original row before location lookup).
+_DEFAULT_CITY: dict[str, str] = {"DC": "Washington"}
 
 
 def upsert_notices(session: Session, rows: Iterable[NoticeRow]) -> tuple[int, int]:
@@ -230,7 +238,18 @@ def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None
     County-only path: states like KY and MT report only a county name (no
     city, no ZIP).  These notices get a Location keyed on (state, county)
     with county-centroid coordinates as a best-effort lat/lon.
+
+    Single-locality default: for sources with no worksite locality but a single
+    covering city (DC), default the city so the notice geocodes at city level.
+    This rebinds the local ``row`` only; ``notice_id`` was already hashed from the
+    original row by the caller, so existing rows keep their id (no re-key / churn)
+    and get the location filled in on the next scrape via the COALESCE path.
     """
+    if not row.city and not row.zip and not row.county:
+        default_city = _DEFAULT_CITY.get(row.state.upper())
+        if default_city:
+            row = replace(row, city=default_city)
+
     if not row.city and not row.zip and not row.county:
         return None
 
