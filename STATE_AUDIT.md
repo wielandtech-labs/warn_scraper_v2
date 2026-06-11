@@ -163,13 +163,17 @@ recover only a few messy CO/CT rows — low value.
   `_derive_location_city` hook. 65/70 backfilled; the 5 misses are out-of-state HQ
   cities the source lists (Bentonville, San Francisco, Omaha, …) or a truncated
   city — correctly left un-geocoded.
-- **WV / HI — BLOCKED on OCR (not pursued).** Both states' per-notice PDFs are
-  **scanned images with no text layer** (`pdfplumber` extracts 0 chars on every
-  page), so `extract_warn_fields` returns `{}`. The listing/source pages carry only
-  employer + date. Recovering worksite locality would require an OCR engine
-  (Tesseract) for ~63 low-value notices that often only carry an HQ address anyway —
-  judged not worth the heavy image dependency. Unlike DC, neither is single-locality
-  (WV spans the state; HI spans islands), so no centroid default applies.
+- **WV — FIXED via OCR** (geo 4% → 75%). **HI — FIXED via OCR** (geo 8% → 50%).
+  Both states' per-notice PDFs are scanned images with no text layer, so
+  `pdf_extract` now falls back to OCR (tesseract + poppler in the image) when
+  `pdfplumber` yields no text. WARN letters address state officials, so naive
+  extraction pins the recipient (WV → the WorkForce WV DOL at "Charleston, WV
+  25305"; HI → the DLIR at "Honolulu, HI 96813"); `_choose_city_zip` excludes
+  recipient-agency ZIPs + recipient-marker contexts (Rapid Response, Dislocated
+  Worker, Director, Bldg/Room, PO Box), prefers worksite-cued matches, and takes
+  the most-frequent in-state survivor — else leaves the notice un-geocoded rather
+  than placing a false capital/HQ pin. Backfilled: WV 38/51, HI 6/12 to real
+  worksites; the remainder are recipient-only letters with no parseable worksite.
 
 ## Source notes (hand-curated)
 
@@ -212,9 +216,8 @@ Findings the DB can't tell us — confirmed against the live sources.
 - ~~**MN geo**~~ — DONE (`scrapers/mn_city`; 4% → ~87%).
 - ~~**GA tail**~~ — DONE (durable commits + never-enriched-first ordering; clears
   over nightly runs).
-- **WV / HI geo** — PARKED: per-notice PDFs are scanned images (no text layer);
-  requires OCR (Tesseract) for ~63 low-value notices. Not worth the dependency
-  unless a structured locality source appears.
+- ~~**WV / HI geo**~~ — DONE via OCR fallback (tesseract) + recipient-aware
+  address selection (WV 4%→75%, HI 8%→50%; recipient-only letters stay unlocated).
 - **AK** URL-pattern fix (see Source notes).
 - Any state the audit flags `dead_links`, `row_drift`, or persistent `scraper_*`.
 - Bulk company enrichment is low (0–18%) almost everywhere; the D&B + EDGAR + Claude
