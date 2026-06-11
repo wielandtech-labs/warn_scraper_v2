@@ -375,7 +375,7 @@ def _download_pdf(
         notice.pdf_path = str(rel_path)
 
         # Also try to pull extra fields from the PDF itself
-        pdf_fields = extract_warn_fields(r.content)
+        pdf_fields = extract_warn_fields(r.content, notice.state)
         if pdf_fields and notice.layoff_count is None and pdf_fields.get("layoff_count"):
             notice.layoff_count = pdf_fields["layoff_count"]
 

@@ -114,6 +114,7 @@ def test_extract_warn_fields_returns_empty_on_pdfplumber_error():
 
 
 def test_extract_warn_fields_returns_empty_on_empty_pdf():
+    # No text layer AND OCR unavailable in the test env -> {}.
     with patch("warn_v2.pdf_extract.pdfplumber") as mock_pp:
         page = MagicMock()
         page.extract_text.return_value = None
@@ -122,3 +123,79 @@ def test_extract_warn_fields_returns_empty_on_empty_pdf():
         result = extract_warn_fields(_make_fake_pdf_bytes())
 
     assert result == {}
+
+
+# ---------------------------------------------------------------------------
+# State-aware city/ZIP selection (skip recipient block + out-of-state HQ)
+# ---------------------------------------------------------------------------
+
+def test_city_zip_prefers_in_state_most_frequent():
+    # A WARN letter: addressed to the state capital, repeats the worksite city,
+    # and lists an out-of-state corporate HQ.
+    text = (
+        "The Honorable Governor\nCharleston, WV 25305\n"
+        "Affected employees at the Mine:\nLorado, WV 25630\nLorado, WV 25630\n"
+        "Corporate HQ: Dallas, TX 75201\n"
+    )
+    result = _parse_text(text, "WV")
+    assert result["city"] == "Lorado"
+    assert result["zip"] == "25630"
+
+
+def test_city_zip_skips_out_of_state_hq():
+    text = "Worksite: Kailua, HI 96734\nHQ: Rancho Santa Margarita, CA 92688\n"
+    result = _parse_text(text, "HI")
+    assert result["city"] == "Kailua"
+    assert result["zip"] == "96734"
+
+
+def test_city_zip_no_state_falls_back_to_first():
+    text = "Charleston, WV 25305\nLorado, WV 25630\n"
+    result = _parse_text(text, None)
+    assert result["city"] == "Charleston"  # legacy first-match behavior
+
+
+def test_city_zip_no_in_state_match_falls_back_to_first():
+    text = "Dallas, TX 75201\n"
+    result = _parse_text(text, "WV")
+    assert result["city"] == "Dallas"  # no WV match -> first overall
+
+
+# ---------------------------------------------------------------------------
+# OCR fallback for scanned-image PDFs
+# ---------------------------------------------------------------------------
+
+def test_ocr_fallback_used_when_no_text_layer():
+    with patch("warn_v2.pdf_extract.pdfplumber") as mock_pp, patch(
+        "warn_v2.pdf_extract._ocr_text",
+        return_value="affecting 12 employees\nLorado, WV 25630",
+    ) as mock_ocr:
+        page = MagicMock()
+        page.extract_text.return_value = None
+        mock_pp.open.return_value.__enter__.return_value.pages = [page]
+
+        result = extract_warn_fields(_make_fake_pdf_bytes(), "WV")
+
+    mock_ocr.assert_called_once()
+    assert result["layoff_count"] == 12
+    assert result["zip"] == "25630"
+
+
+def test_ocr_not_called_when_text_layer_present():
+    with patch("warn_v2.pdf_extract.pdfplumber") as mock_pp, patch(
+        "warn_v2.pdf_extract._ocr_text"
+    ) as mock_ocr:
+        page = MagicMock()
+        page.extract_text.return_value = "affecting 5 employees"
+        mock_pp.open.return_value.__enter__.return_value.pages = [page]
+
+        extract_warn_fields(_make_fake_pdf_bytes(), "WV")
+
+    mock_ocr.assert_not_called()
+
+
+def test_ocr_text_degrades_to_empty_without_libs():
+    # pytesseract/pdf2image are not installed in the test env -> "" (never raises).
+    from warn_v2.pdf_extract import _ocr_text
+
+    assert _ocr_text(b"%PDF-1.4 fake") == ""

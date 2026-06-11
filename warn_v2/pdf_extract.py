@@ -12,6 +12,7 @@ from __future__ import annotations
 import io
 import logging
 import re
+from collections import Counter
 from datetime import date
 
 import pdfplumber
@@ -58,18 +59,28 @@ _ADDR_RE = re.compile(
 
 _ZIP_RE = re.compile(r"\b(\d{5})(?:-\d{4})?\b")
 
-# City-state-zip at end of address line: "Anchorage, AK 99501"
+# City-state-zip at end of address line: "Anchorage, AK 99501".
+# Captures (city, state, zip) so callers can prefer in-state worksite matches over
+# the state-official recipient block at the top of a WARN letter.
 _CITY_STATE_ZIP_RE = re.compile(
-    r"([A-Za-z][A-Za-z ]{1,30}),\s*[A-Z]{2}\s+(\d{5})(?:-\d{4})?\b"
+    r"([A-Za-z][A-Za-z .]{1,30}),\s*([A-Z]{2})\s+(\d{5})(?:-\d{4})?\b"
 )
 
+# Cap OCR to the first few pages — the worksite/recipient addresses are always on
+# the opening page(s), and OCR is slow (~seconds/page).
+_OCR_MAX_PAGES = 3
 
-def extract_warn_fields(pdf_bytes: bytes) -> dict:
+
+def extract_warn_fields(pdf_bytes: bytes, state: str | None = None) -> dict:
     """Extract WARN notice fields from raw PDF bytes.
 
     Returns a dict with any subset of:
       layoff_count (int), effective_date (date),
       address (str), city (str), zip (str)
+
+    *state* (the notice's 2-letter state) biases city/ZIP selection toward an
+    in-state worksite, avoiding the state-official recipient block (e.g. the
+    capital) and out-of-state corporate HQ a WARN letter also lists.
 
     Returns ``{}`` on any failure (never raises).
     """
@@ -77,24 +88,81 @@ def extract_warn_fields(pdf_bytes: bytes) -> dict:
         text = _extract_text(pdf_bytes)
         if not text:
             return {}
-        return _parse_text(text)
+        return _parse_text(text, state)
     except Exception as e:
         log.debug("pdf_extract: failed to parse PDF: %s", e)
         return {}
 
 
 def _extract_text(pdf_bytes: bytes) -> str:
-    """Extract all text from a PDF using pdfplumber."""
+    """Extract all text from a PDF, falling back to OCR for scanned-image PDFs."""
     parts: list[str] = []
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
         for page in pdf.pages:
             t = page.extract_text()
             if t:
                 parts.append(t)
-    return "\n".join(parts)
+    text = "\n".join(parts)
+    if text.strip():
+        return text
+    # No embedded text layer (scanned image, e.g. WV/HI) → OCR fallback.
+    return _ocr_text(pdf_bytes)
 
 
-def _parse_text(text: str) -> dict:
+def _ocr_text(pdf_bytes: bytes, max_pages: int = _OCR_MAX_PAGES) -> str:
+    """OCR the first *max_pages* pages of a scanned PDF; "" if OCR is unavailable.
+
+    Lazy-imports pdf2image/pytesseract (and relies on the poppler + tesseract
+    binaries in the image) so a missing OCR stack degrades to "" rather than raising.
+    """
+    try:
+        import pytesseract
+        from pdf2image import convert_from_bytes
+    except Exception as e:  # libs not installed (e.g. local test env)
+        log.debug("pdf_extract: OCR libraries unavailable: %s", e)
+        return ""
+    try:
+        images = convert_from_bytes(
+            pdf_bytes, dpi=200, first_page=1, last_page=max_pages
+        )
+    except Exception as e:  # poppler missing / unrasterizable
+        log.debug("pdf_extract: OCR rasterize failed: %s", e)
+        return ""
+    out: list[str] = []
+    for img in images:
+        try:
+            out.append(pytesseract.image_to_string(img))
+        except Exception as e:
+            log.debug("pdf_extract: OCR failed on a page: %s", e)
+    log.info("pdf_extract: OCR fallback produced %d chars", sum(len(o) for o in out))
+    return "\n".join(out)
+
+
+def _choose_city_zip(text: str, state: str | None) -> tuple[str, str] | None:
+    """Pick the best (city, zip) from a letter's "City, ST ZIP" lines.
+
+    WARN letters open with a recipient block (Governor, state DOL — often the
+    capital) and may list a corporate HQ, so the first match is unreliable. When
+    *state* is known, restrict to in-state matches and take the most frequent
+    (the worksite city/ZIP repeats across the letter); fall back to the first match
+    overall when there's no state hint or no in-state match.
+    """
+    matches = _CITY_STATE_ZIP_RE.findall(text)  # [(city, st, zip), ...]
+    if not matches:
+        return None
+    norm = [(c.strip().title(), st.upper(), z) for c, st, z in matches]
+    if state:
+        in_state = [(c, z) for c, st, z in norm if st == state.upper()]
+        if in_state:
+            counts = Counter(in_state)
+            top = max(counts.values())
+            for cz in in_state:  # first-seen among the most frequent
+                if counts[cz] == top:
+                    return cz
+    return norm[0][0], norm[0][2]
+
+
+def _parse_text(text: str, state: str | None = None) -> dict:
     result: dict = {}
 
     # --- layoff_count ---
@@ -121,10 +189,9 @@ def _parse_text(text: str) -> dict:
 
     # --- address + city + zip ---
     # Try "City, ST ZIP" pattern first — most reliable city extraction
-    city_m = _CITY_STATE_ZIP_RE.search(text)
-    if city_m:
-        result["city"] = city_m.group(1).strip().title()
-        result["zip"] = city_m.group(2)
+    city_zip = _choose_city_zip(text, state)
+    if city_zip:
+        result["city"], result["zip"] = city_zip
 
     # Street address
     addr_m = _ADDR_RE.search(text)
