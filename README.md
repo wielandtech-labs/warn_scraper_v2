@@ -88,7 +88,7 @@ install WSL2 (`wsl --install`), or build and `docker run` the image.
 ### Production deployment (as of 2026-05-26)
 
 The scraper runs in a K3s homelab cluster managed by Flux GitOps (see
-`w_homelab` repo at `wielandtech/w_homelab`).
+`w_homelab` repo at `wielandtech-labs/w_homelab`).
 
 **Infrastructure stack:**
 - **Image**: `ghcr.io/wielandtech-labs/warn-v2` — built by `.github/workflows/docker.yml`,
