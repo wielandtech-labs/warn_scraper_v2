@@ -10,8 +10,12 @@ NoticeOut. This lets the map fetch every geocoded notice in the selected
 time frame in a single request instead of being capped at the 500-item
 limit that applies to the general /notices endpoint.
 
-The limit ceiling (10 000) is a safety cap, not a practical constraint:
-the DB currently has ~3 400 geocoded notices.
+The geocoded set has outgrown a single screenful (~22 500 and climbing), so
+the map sends the current viewport (``min_lat``/``min_lon``/``max_lat``/
+``max_lon``) and we filter to it — zooming in returns only what's visible.
+The 50 000 ``limit`` ceiling is a safety cap on the zoomed-all-the-way-out
+case; as the dataset grows past it, zooming in still loads each region's pins
+in full.
 """
 from __future__ import annotations
 
@@ -43,7 +47,11 @@ def list_map_pins(
     ),
     after: date | None = Query(None, description="Only notices on or after this date"),
     before: date | None = Query(None, description="Only notices on or before this date"),
-    limit: int = Query(10_000, ge=1, le=10_000, description="Max pins to return (ceiling 10 000)"),
+    min_lat: float | None = Query(None, description="Viewport south bound (with the other 3)"),
+    min_lon: float | None = Query(None, description="Viewport west bound (with the other 3)"),
+    max_lat: float | None = Query(None, description="Viewport north bound (with the other 3)"),
+    max_lon: float | None = Query(None, description="Viewport east bound (with the other 3)"),
+    limit: int = Query(50_000, ge=1, le=50_000, description="Max pins to return (ceiling 50 000)"),
     db: Session = Depends(get_db),
 ) -> list[MapPinOut]:
     """Return lightweight pin objects for every geocoded notice matching the filters.
@@ -84,6 +92,16 @@ def list_map_pins(
         stmt = stmt.where(Notice.notice_date >= after)
     if before:
         stmt = stmt.where(Notice.notice_date <= before)
+    # Viewport filter: only applied when the full box is provided. Lets the map
+    # request just the visible pins as the user pans/zooms (antimeridian-crossing
+    # boxes aren't handled — irrelevant for the contiguous US + mainland AK).
+    if None not in (min_lat, min_lon, max_lat, max_lon):
+        stmt = stmt.where(
+            Location.lat >= min_lat,
+            Location.lat <= max_lat,
+            Location.lon >= min_lon,
+            Location.lon <= max_lon,
+        )
 
     rows = db.execute(stmt.limit(limit)).all()
     return [MapPinOut(**r._mapping) for r in rows]

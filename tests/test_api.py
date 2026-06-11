@@ -574,9 +574,9 @@ def test_companies_subsector_filter(api_client, db):
     assert body["items"][0]["name"] == "Food Co"
 
 
-def _geocoded_notice(db, company, employer, closure_category=None):
+def _geocoded_notice(db, company, employer, closure_category=None, lat=34.0, lon=-118.0):
     """A notice with a geocoded Location so it appears on /api/map-pins."""
-    loc = Location(state="CA", lat=34.0, lon=-118.0)
+    loc = Location(state="CA", lat=lat, lon=lon)
     db.add(loc)
     db.flush()
     n = _notice(
@@ -588,6 +588,30 @@ def _geocoded_notice(db, company, employer, closure_category=None):
     )
     n.location_id = loc.id
     return n
+
+
+def test_map_pins_bbox_filter(api_client, db):
+    # Three pins across the country: LA, NYC, Chicago.
+    _geocoded_notice(db, None, "LA Co", lat=34.0, lon=-118.2)
+    _geocoded_notice(db, None, "NYC Co", lat=40.7, lon=-74.0)
+    _geocoded_notice(db, None, "CHI Co", lat=41.8, lon=-87.6)
+    db.commit()
+
+    # No bbox -> all three.
+    assert {p["employer"] for p in api_client.get("/api/map-pins").json()} == {
+        "LA Co", "NYC Co", "CHI Co"
+    }
+    # East/Midwest box excludes LA.
+    emps = {p["employer"] for p in api_client.get(
+        "/api/map-pins?min_lat=39&max_lat=43&min_lon=-90&max_lon=-70").json()}
+    assert emps == {"NYC Co", "CHI Co"}
+    # Tight box around NYC only.
+    emps = {p["employer"] for p in api_client.get(
+        "/api/map-pins?min_lat=40&max_lat=41&min_lon=-75&max_lon=-73").json()}
+    assert emps == {"NYC Co"}
+    # Partial box (missing max_lon) is ignored, not half-applied -> all three.
+    assert len(api_client.get(
+        "/api/map-pins?min_lat=39&max_lat=43&min_lon=-90").json()) == 3
 
 
 def test_map_pins_industry_filter(api_client, db):
