@@ -7,6 +7,8 @@ from the code and gives a bounded, stable set of ~20 buckets.
 """
 from __future__ import annotations
 
+from sqlalchemy import func
+
 from warn_v2.companies.naics_subsectors import NAICS_SUBSECTORS
 
 # (sector_id, display name, 2-digit code prefixes) — 2022 NAICS sectors. The
@@ -75,3 +77,20 @@ def subsector_name(code: str | None) -> str | None:
     if not code:
         return None
     return NAICS_SUBSECTORS.get(code)
+
+
+def naics_filter(column, industry: str | None, subsector: str | None):
+    """Build a SQLAlchemy WHERE clause on a NAICS-code column, or None.
+
+    `column` is the code column to filter (e.g. ``Company.naics_code``). A valid
+    3-digit ``subsector`` is more specific and wins over the 2-digit ``industry``
+    sector; an unknown/empty pair yields None (caller applies no industry filter).
+    Shared by every endpoint that filters by industry so the precedence rules
+    stay in one place.
+    """
+    if subsector and subsector_name(subsector):
+        return func.substr(column, 1, 3) == subsector
+    prefixes = sector_prefixes(industry)
+    if prefixes:
+        return func.substr(column, 1, 2).in_(prefixes)
+    return None
