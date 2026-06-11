@@ -35,7 +35,10 @@ from warn_v2.pipeline.storage import enrich_notice_location
 
 log = logging.getLogger(__name__)
 
-_BATCH_COMMIT = 50
+# Commit frequently: TCSG rate-limits and the run aborts mid-way, so a large
+# batch would discard everything fetched before the block. Small batches make
+# each nightly run durably bank whatever it managed before TCSG cut it off.
+_BATCH_COMMIT = 5
 _REQUEST_DELAY = 3.0   # seconds between requests — TCSG rate-limits after ~10 fast requests
 _RETRY_STATUS = frozenset({429, 503})  # transient — back off and retry
 _MAX_ATTEMPTS = 3
@@ -126,7 +129,14 @@ def enrich_ga(
                 Location.county.is_(None),
             ),
         )
-        .order_by(Notice.notice_date.desc().nullslast())
+        # Never-enriched notices (no closure_type → never successfully fetched)
+        # first: they're the ones that gain a Location/address, and TCSG may block
+        # before we get through the whole list, so spend the budget on them before
+        # re-fetching notices that only lack a pdf_path/county.
+        .order_by(
+            Notice.closure_type.is_(None).desc(),
+            Notice.notice_date.desc().nullslast(),
+        )
     )
     if limit is not None:
         stmt = stmt.limit(limit)
@@ -142,10 +152,17 @@ def enrich_ga(
             if i > 0:
                 time.sleep(request_delay)
 
-            result = _process_one(
-                session, notice, pdf_dir=pdf_dir, dry_run=dry_run,
-                request_delay=request_delay,
-            )
+            try:
+                result = _process_one(
+                    session, notice, pdf_dir=pdf_dir, dry_run=dry_run,
+                    request_delay=request_delay,
+                )
+            except Exception:  # one bad notice must not lose the whole run
+                log.exception(
+                    "GA %s: unexpected error; banking progress and stopping",
+                    notice.notice_id[:10],
+                )
+                break
 
             if result == "timeout":
                 # Count as an error but also track the run of consecutive timeouts.
