@@ -1,9 +1,11 @@
+import type { IndustryStat } from "../api/types";
 import { daysAgoIso, US_STATES } from "../lib/format";
 
 export interface FilterValues {
   state?: string;
   employer?: string;
   closure_category?: string;
+  industry?: string;
   after?: string;
   before?: string;
 }
@@ -14,6 +16,8 @@ export interface FilterBarProps {
   values: FilterValues;
   onChange: (next: FilterValues) => void;
   showEmployer?: boolean;
+  /** When provided, render an Industry (NAICS sector) dropdown of these options. */
+  industries?: IndustryStat[];
 }
 
 const PRESETS = [
@@ -23,7 +27,12 @@ const PRESETS = [
   { label: "All", days: null },
 ] as const;
 
-export function FilterBar({ values, onChange, showEmployer = true }: FilterBarProps) {
+export function FilterBar({
+  values,
+  onChange,
+  showEmployer = true,
+  industries,
+}: FilterBarProps) {
   const update = (patch: Partial<FilterValues>) => {
     const next: FilterValues = { ...values, ...patch };
     // Strip empty strings so they don't end up in the URL.
@@ -70,6 +79,26 @@ export function FilterBar({ values, onChange, showEmployer = true }: FilterBarPr
           ))}
         </select>
       </label>
+
+      {industries && (
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            Industry
+          </span>
+          <select
+            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            value={values.industry || ""}
+            onChange={(e) => update({ industry: e.target.value || undefined })}
+          >
+            <option value="">All industries</option>
+            {industries.map((i) => (
+              <option key={i.sector} value={i.sector}>
+                {i.name} ({i.notice_count})
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       {showEmployer && (
         <label className="flex flex-col gap-1 lg:col-span-2">

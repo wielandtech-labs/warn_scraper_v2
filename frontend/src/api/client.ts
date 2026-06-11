@@ -8,6 +8,7 @@ import type {
   CompanyOut,
   EmployerStat,
   FamilyMemberOut,
+  IndustryStat,
   MonthStat,
   NoticeOut,
   Page,
@@ -49,6 +50,7 @@ export interface NoticesQuery {
   state?: string;
   employer?: string;
   closure_category?: string;
+  industry?: string;
   after?: string;
   before?: string;
   geocoded_only?: boolean;
@@ -89,6 +91,7 @@ export const api = {
   listCompanies: (q: {
     enriched?: boolean;
     sic_code?: string;
+    industry?: string;
     limit?: number;
     offset?: number;
   } = {}) =>
@@ -97,6 +100,7 @@ export const api = {
         qs({
           enriched: q.enriched === undefined ? undefined : String(q.enriched),
           sic_code: q.sic_code,
+          industry: q.industry,
           limit: q.limit,
           offset: q.offset,
         }),
@@ -123,4 +127,5 @@ export const api = {
   statsByParentGroup: (
     q: { limit?: number; state?: string; after?: string; before?: string } = {},
   ) => get<ParentGroupStat[]>("/api/stats/by-parent-group" + qs(q)),
+  statsIndustries: () => get<IndustryStat[]>("/api/stats/industries"),
 };
