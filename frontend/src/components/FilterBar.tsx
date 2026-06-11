@@ -6,6 +6,7 @@ export interface FilterValues {
   employer?: string;
   closure_category?: string;
   industry?: string;
+  subsector?: string;
   after?: string;
   before?: string;
 }
@@ -41,6 +42,11 @@ export function FilterBar({
     });
     onChange(next);
   };
+
+  // Subsectors of the currently-selected sector (drives the drill-down dropdown).
+  // Empty when no sector is selected (no match), so the dropdown stays hidden.
+  const selectedSubsectors =
+    industries?.find((i) => i.sector === values.industry)?.subsectors ?? [];
 
   return (
     <div className="card mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
@@ -88,12 +94,35 @@ export function FilterBar({
           <select
             className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
             value={values.industry || ""}
-            onChange={(e) => update({ industry: e.target.value || undefined })}
+            // Changing the sector clears any subsector selection.
+            onChange={(e) =>
+              update({ industry: e.target.value || undefined, subsector: undefined })
+            }
           >
             <option value="">All industries</option>
             {industries.map((i) => (
               <option key={i.sector} value={i.sector}>
                 {i.name} ({i.notice_count})
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      {industries && selectedSubsectors.length > 0 && (
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            Subsector
+          </span>
+          <select
+            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            value={values.subsector || ""}
+            onChange={(e) => update({ subsector: e.target.value || undefined })}
+          >
+            <option value="">All subsectors</option>
+            {selectedSubsectors.map((s) => (
+              <option key={s.code} value={s.code}>
+                {s.name} ({s.notice_count})
               </option>
             ))}
           </select>

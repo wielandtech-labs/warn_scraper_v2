@@ -39,6 +39,7 @@ const noticesRoute = createRoute({
     employer?: string;
     closure_category?: string;
     industry?: string;
+    subsector?: string;
     after?: string;
     before?: string;
     page?: number;
@@ -49,6 +50,7 @@ const noticesRoute = createRoute({
     employer: (search.employer as string) || undefined,
     closure_category: (search.closure_category as string) || undefined,
     industry: (search.industry as string) || undefined,
+    subsector: (search.subsector as string) || undefined,
     after: (search.after as string) || undefined,
     before: (search.before as string) || undefined,
     page: search.page ? Number(search.page) : undefined,
@@ -72,6 +74,7 @@ const companiesRoute = createRoute({
   ): {
     enriched?: "true" | "false" | undefined;
     industry?: string;
+    subsector?: string;
     page?: number;
   } => ({
     enriched:
@@ -79,6 +82,7 @@ const companiesRoute = createRoute({
         ? (search.enriched as "true" | "false")
         : undefined,
     industry: (search.industry as string) || undefined,
+    subsector: (search.subsector as string) || undefined,
     page: search.page ? Number(search.page) : undefined,
   }),
   component: CompaniesPage,

@@ -28,6 +28,7 @@ export function NoticesPage() {
         employer: search.employer,
         closure_category: search.closure_category,
         industry: search.industry,
+        subsector: search.subsector,
         after: search.after,
         before: search.before,
         sort_by: sortBy,

@@ -23,6 +23,7 @@ export function CompaniesPage() {
         enriched:
           search.enriched === "true" ? true : search.enriched === "false" ? false : undefined,
         industry: search.industry,
+        subsector: search.subsector,
         limit: PAGE_SIZE,
         offset,
       }),
@@ -33,12 +34,21 @@ export function CompaniesPage() {
     queryFn: () => api.statsIndustries(),
   });
 
+  // Subsectors of the currently-selected sector (drives the drill-down dropdown).
+  const selectedSubsectors =
+    industriesQuery.data?.find((i) => i.sector === search.industry)?.subsectors ?? [];
+
   const setEnriched = (val: "true" | "false" | undefined) => {
     navigate({ search: (prev) => ({ ...prev, enriched: val, page: 1 }) });
   };
 
+  // Changing the sector clears any subsector selection.
   const setIndustry = (val: string | undefined) => {
-    navigate({ search: (prev) => ({ ...prev, industry: val, page: 1 }) });
+    navigate({ search: (prev) => ({ ...prev, industry: val, subsector: undefined, page: 1 }) });
+  };
+
+  const setSubsector = (val: string | undefined) => {
+    navigate({ search: (prev) => ({ ...prev, subsector: val, page: 1 }) });
   };
 
   const handlePageChange = (newOffset: number) => {
@@ -122,6 +132,20 @@ export function CompaniesPage() {
               </option>
             ))}
           </select>
+          {selectedSubsectors.length > 0 && (
+            <select
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              value={search.subsector || ""}
+              onChange={(e) => setSubsector(e.target.value || undefined)}
+            >
+              <option value="">All subsectors</option>
+              {selectedSubsectors.map((s) => (
+                <option key={s.code} value={s.code}>
+                  {s.name} ({s.notice_count})
+                </option>
+              ))}
+            </select>
+          )}
           <div className="flex gap-1">
             <FilterChip active={!search.enriched} onClick={() => setEnriched(undefined)} label="All" />
             <FilterChip

@@ -51,6 +51,7 @@ export interface NoticesQuery {
   employer?: string;
   closure_category?: string;
   industry?: string;
+  subsector?: string;
   after?: string;
   before?: string;
   geocoded_only?: boolean;
@@ -92,6 +93,7 @@ export const api = {
     enriched?: boolean;
     sic_code?: string;
     industry?: string;
+    subsector?: string;
     limit?: number;
     offset?: number;
   } = {}) =>
@@ -101,6 +103,7 @@ export const api = {
           enriched: q.enriched === undefined ? undefined : String(q.enriched),
           sic_code: q.sic_code,
           industry: q.industry,
+          subsector: q.subsector,
           limit: q.limit,
           offset: q.offset,
         }),

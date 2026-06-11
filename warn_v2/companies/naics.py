@@ -7,6 +7,8 @@ from the code and gives a bounded, stable set of ~20 buckets.
 """
 from __future__ import annotations
 
+from warn_v2.companies.naics_subsectors import NAICS_SUBSECTORS
+
 # (sector_id, display name, 2-digit code prefixes) — 2022 NAICS sectors. The
 # range-form ids (31-33, 44-45, 48-49) each cover several 2-digit prefixes.
 NAICS_SECTORS: list[tuple[str, str, tuple[str, ...]]] = [
@@ -53,3 +55,23 @@ def sector_prefixes(sector_id: str | None) -> list[str] | None:
     if not sector_id:
         return None
     return _SECTOR_PREFIXES.get(sector_id)
+
+
+def subsector_for_code(naics_code: str | None) -> str | None:
+    """Return the 3-digit subsector for a NAICS code, or None.
+
+    Only returns a value when the code is >=3 digits and its 2-digit prefix maps
+    to a known sector (so junk codes don't produce phantom subsectors).
+    """
+    if not naics_code or len(naics_code) < 3:
+        return None
+    if naics_code[:2] not in _PREFIX_TO_SECTOR:
+        return None
+    return naics_code[:3]
+
+
+def subsector_name(code: str | None) -> str | None:
+    """Return the title for a 3-digit NAICS subsector code, or None."""
+    if not code:
+        return None
+    return NAICS_SUBSECTORS.get(code)
