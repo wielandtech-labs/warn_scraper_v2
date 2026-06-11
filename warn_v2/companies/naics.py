@@ -1,0 +1,55 @@
+"""NAICS sector grouping for industry filtering.
+
+Enrichment stores a full NAICS code (e.g. "311999") on Company, but the
+description (`naics_desc`) is often missing from the provider. Filtering and
+the UI therefore work off the 2-digit **sector**, which is always derivable
+from the code and gives a bounded, stable set of ~20 buckets.
+"""
+from __future__ import annotations
+
+# (sector_id, display name, 2-digit code prefixes) — 2022 NAICS sectors. The
+# range-form ids (31-33, 44-45, 48-49) each cover several 2-digit prefixes.
+NAICS_SECTORS: list[tuple[str, str, tuple[str, ...]]] = [
+    ("11", "Agriculture, Forestry, Fishing & Hunting", ("11",)),
+    ("21", "Mining, Quarrying, Oil & Gas Extraction", ("21",)),
+    ("22", "Utilities", ("22",)),
+    ("23", "Construction", ("23",)),
+    ("31-33", "Manufacturing", ("31", "32", "33")),
+    ("42", "Wholesale Trade", ("42",)),
+    ("44-45", "Retail Trade", ("44", "45")),
+    ("48-49", "Transportation & Warehousing", ("48", "49")),
+    ("51", "Information", ("51",)),
+    ("52", "Finance & Insurance", ("52",)),
+    ("53", "Real Estate, Rental & Leasing", ("53",)),
+    ("54", "Professional, Scientific & Technical Services", ("54",)),
+    ("55", "Management of Companies & Enterprises", ("55",)),
+    ("56", "Administrative, Support & Waste Management", ("56",)),
+    ("61", "Educational Services", ("61",)),
+    ("62", "Health Care & Social Assistance", ("62",)),
+    ("71", "Arts, Entertainment & Recreation", ("71",)),
+    ("72", "Accommodation & Food Services", ("72",)),
+    ("81", "Other Services (except Public Administration)", ("81",)),
+    ("92", "Public Administration", ("92",)),
+]
+
+_PREFIX_TO_SECTOR: dict[str, str] = {
+    p: sid for sid, _name, prefixes in NAICS_SECTORS for p in prefixes
+}
+_SECTOR_PREFIXES: dict[str, list[str]] = {
+    sid: list(prefixes) for sid, _name, prefixes in NAICS_SECTORS
+}
+SECTOR_NAME: dict[str, str] = {sid: name for sid, name, _ in NAICS_SECTORS}
+
+
+def sector_for_code(naics_code: str | None) -> str | None:
+    """Return the sector id for a NAICS code (by 2-digit prefix), or None."""
+    if not naics_code or len(naics_code) < 2:
+        return None
+    return _PREFIX_TO_SECTOR.get(naics_code[:2])
+
+
+def sector_prefixes(sector_id: str | None) -> list[str] | None:
+    """Return the 2-digit prefixes for a sector id, or None if unknown."""
+    if not sector_id:
+        return None
+    return _SECTOR_PREFIXES.get(sector_id)
