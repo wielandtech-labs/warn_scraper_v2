@@ -262,3 +262,55 @@ def test_enrich_ga_aborts_on_consecutive_timeouts(
     assert stats["errors"] == ega_mod._MAX_CONSECUTIVE_TIMEOUTS
     # Far fewer than the full 10 notices processed
     assert stats["considered"] == len(fake_notices)
+
+
+def test_enrich_ga_unexpected_error_banks_progress(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unexpected (non-httpx) error must stop the run gracefully, not propagate.
+
+    Committed batches survive; the run returns normally so the CronJob doesn't
+    flap and the next run resumes from the durably-banked progress.
+    """
+    from datetime import date
+
+    from warn_v2.db.models import Notice
+    from warn_v2.scripts import enrich_ga as ega_mod
+
+    fake_notices = [
+        Notice(
+            notice_id=f"ga{i:04d}",
+            state="GA",
+            employer=f"Co {i}",
+            notice_date=date(2026, 1, 1),
+            raw_notice_url=f"https://www.tcsg.edu/warn-public-view/entry/{i}/",
+        )
+        for i in range(3)
+    ]
+
+    class _FakeScalars:
+        def all(self):
+            return fake_notices
+
+    class _FakeSession:
+        def scalars(self, _stmt):
+            return _FakeScalars()
+        def commit(self):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            pass
+
+    monkeypatch.setattr(ega_mod, "session_scope", lambda: _FakeSession())
+    monkeypatch.setattr(ega.time, "sleep", lambda s: None)
+    monkeypatch.setattr(
+        ega_mod,
+        "_process_one",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+
+    # Must not raise.
+    stats = ega_mod.enrich_ga(limit=None, dry_run=False)
+    assert stats["considered"] == len(fake_notices)
+    assert stats["enriched"] == 0
