@@ -10,8 +10,8 @@ from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
-from warn_v2.api.deps import PaginationParams, get_db
-from warn_v2.api.schemas import NoticeOut, Page
+from warn_v2.api.deps import PaginationParams, ViewerSchemas, get_db
+from warn_v2.api.schemas import Page
 from warn_v2.companies.naics import naics_filter
 from warn_v2.db.models import Company, Location, Notice
 
@@ -28,7 +28,10 @@ _SORT_COLUMNS = {
 }
 
 
-@router.get("", response_model=Page[NoticeOut])
+# response_model=None on the notice-shaped routes: the output schema depends
+# on the viewer's role (ViewerSchemas), so a static response_model would strip
+# the enriched company fields for paid/admin sessions.
+@router.get("", response_model=None)
 def list_notices(
     state: str | None = Query(None, description="Two-letter state code, e.g. CA"),
     employer: str | None = Query(None, description="Employer name (case-insensitive substring)"),
@@ -49,8 +52,9 @@ def list_notices(
     ),
     sort_dir: str | None = Query("desc", description="asc or desc"),
     pagination: PaginationParams = Depends(),
+    view: ViewerSchemas = Depends(),
     db: Session = Depends(get_db),
-) -> Page[NoticeOut]:
+) -> Page:
     col = _SORT_COLUMNS.get(sort_by or "notice_date", Notice.notice_date)
     order_expr = col.asc().nullslast() if sort_dir == "asc" else col.desc().nullslast()
     stmt = (
@@ -94,14 +98,15 @@ def list_notices(
 
     total = db.scalar(count_stmt) or 0
     items = list(db.scalars(stmt.offset(pagination.offset).limit(pagination.limit)))
-    return Page(items=items, total=total, limit=pagination.limit, offset=pagination.offset)
+    return view.notice_page(items, total, pagination.limit, pagination.offset)
 
 
-@router.get("/{notice_id}", response_model=NoticeOut)
+@router.get("/{notice_id}", response_model=None)
 def get_notice(
     notice_id: str,
+    view: ViewerSchemas = Depends(),
     db: Session = Depends(get_db),
-) -> NoticeOut:
+):
     notice = db.scalar(
         select(Notice)
         .options(joinedload(Notice.company), joinedload(Notice.location))
@@ -109,7 +114,7 @@ def get_notice(
     )
     if notice is None:
         raise HTTPException(status_code=404, detail="Notice not found")
-    return notice
+    return view.notice.model_validate(notice)
 
 
 @router.get("/{notice_id}/pdf")

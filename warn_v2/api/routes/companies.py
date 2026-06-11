@@ -5,15 +5,18 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from warn_v2.api.deps import PaginationParams, get_db
-from warn_v2.api.schemas import CompanyOut, FamilyMemberOut, NoticeOut, Page
+from warn_v2.api.deps import PaginationParams, ViewerSchemas, get_db
+from warn_v2.api.schemas import FamilyMemberOut, Page
 from warn_v2.companies.naics import naics_filter
 from warn_v2.db.models import Company, Notice
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
 
-@router.get("", response_model=Page[CompanyOut])
+# response_model=None on the company/notice-shaped routes: the output schema
+# depends on the viewer's role (ViewerSchemas), so a static response_model
+# would strip the enriched fields for paid/admin sessions.
+@router.get("", response_model=None)
 def list_companies(
     enriched: bool | None = Query(None, description="Filter by enrichment status"),
     sic_code: str | None = Query(None, description="Exact SIC code match"),
@@ -25,8 +28,9 @@ def list_companies(
         False, description="Include rows consolidated into another company"
     ),
     pagination: PaginationParams = Depends(),
+    view: ViewerSchemas = Depends(),
     db: Session = Depends(get_db),
-) -> Page[CompanyOut]:
+) -> Page:
     stmt = select(Company).order_by(Company.name)
     count_stmt = select(func.count()).select_from(Company)
 
@@ -53,26 +57,28 @@ def list_companies(
 
     total = db.scalar(count_stmt) or 0
     items = list(db.scalars(stmt.offset(pagination.offset).limit(pagination.limit)))
-    return Page(items=items, total=total, limit=pagination.limit, offset=pagination.offset)
+    return view.company_page(items, total, pagination.limit, pagination.offset)
 
 
-@router.get("/{company_id}", response_model=CompanyOut)
+@router.get("/{company_id}", response_model=None)
 def get_company(
     company_id: int,
+    view: ViewerSchemas = Depends(),
     db: Session = Depends(get_db),
-) -> CompanyOut:
+):
     company = db.get(Company, company_id)
     if company is None:
         raise HTTPException(status_code=404, detail="Company not found")
-    return company
+    return view.company.model_validate(company)
 
 
-@router.get("/{company_id}/notices", response_model=Page[NoticeOut])
+@router.get("/{company_id}/notices", response_model=None)
 def list_company_notices(
     company_id: int,
     pagination: PaginationParams = Depends(),
+    view: ViewerSchemas = Depends(),
     db: Session = Depends(get_db),
-) -> Page[NoticeOut]:
+) -> Page:
     if db.get(Company, company_id) is None:
         raise HTTPException(status_code=404, detail="Company not found")
 
@@ -91,7 +97,7 @@ def list_company_notices(
     count_stmt = select(func.count()).select_from(Notice).where(notice_filter)
     total = db.scalar(count_stmt) or 0
     items = list(db.scalars(stmt.offset(pagination.offset).limit(pagination.limit)))
-    return Page(items=items, total=total, limit=pagination.limit, offset=pagination.offset)
+    return view.notice_page(items, total, pagination.limit, pagination.offset)
 
 
 @router.get("/{company_id}/family", response_model=list[FamilyMemberOut])
