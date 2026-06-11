@@ -11,6 +11,7 @@ import { NoticesPage } from "./routes/notices";
 import { NoticeDetail } from "./routes/notice-detail";
 import { CompaniesPage } from "./routes/companies";
 import { CompanyDetail } from "./routes/company-detail";
+import { FamiliesPage } from "./routes/families";
 import { MapPage } from "./routes/map";
 import { StatsPage } from "./routes/stats";
 
@@ -82,6 +83,19 @@ const companyDetailRoute = createRoute({
   component: CompanyDetail,
 });
 
+const familiesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/families",
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { state?: string; after?: string; before?: string } => ({
+    state: (search.state as string) || undefined,
+    after: (search.after as string) || undefined,
+    before: (search.before as string) || undefined,
+  }),
+  component: FamiliesPage,
+});
+
 const mapRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/map",
@@ -114,6 +128,7 @@ const routeTree = rootRoute.addChildren([
   noticeDetailRoute,
   companiesRoute,
   companyDetailRoute,
+  familiesRoute,
   mapRoute,
   statsRoute,
 ]);

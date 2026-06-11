@@ -42,6 +42,16 @@ class EmployerStat(BaseModel):
     layoff_total: int
 
 
+class ParentGroupStat(BaseModel):
+    # Anonymous: a corporate family is identified only by a representative member
+    # WARN company, never by the D&B parent name or the internal grouping key.
+    representative_company_id: int
+    representative_company_name: str
+    member_count: int
+    notice_count: int
+    layoff_total: int
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -175,3 +185,68 @@ def top_employers(
         )
         for r in rows
     ]
+
+
+@router.get("/by-parent-group", response_model=list[ParentGroupStat])
+def by_parent_group(
+    limit: int = Query(10, ge=1, le=100),
+    state: str | None = Query(None),
+    after: date | None = Query(None),
+    before: date | None = Query(None),
+    db: Session = Depends(get_db),
+) -> list[ParentGroupStat]:
+    """Rank corporate families by total layoffs across all their subsidiaries.
+
+    A family is the set of canonical companies sharing a non-self parent_group_key.
+    Singleton families (one member) are dropped — they add nothing over
+    top-employers. Each family is labeled anonymously by its largest member.
+    """
+    # One row per (family, member company): roll notices up to their canonical
+    # company, then group by the canonical's parent_group_key. The inner join to
+    # Company drops notices with no linked company; the alias join resolves the
+    # canonical row that carries parent_group_key.
+    canon_id = func.coalesce(Company.canonical_company_id, Notice.company_id)
+    canon = aliased(Company)
+    stmt = (
+        select(
+            canon.parent_group_key.label("gkey"),
+            canon_id.label("cid"),
+            func.min(canon.name).label("name"),
+            func.count(Notice.notice_id).label("notices"),
+            func.coalesce(func.sum(Notice.layoff_count), 0).label("layoffs"),
+        )
+        .select_from(Notice)
+        .join(Company, Notice.company_id == Company.id)
+        .join(canon, canon.id == canon_id)
+        .where(canon.parent_group_key.is_not(None))
+        .where(~canon.parent_group_key.like("self:%"))
+        .group_by(canon.parent_group_key, canon_id)
+    )
+    stmt = _not_superseded(stmt)
+    stmt = _apply_date_filters(stmt, after, before)
+    if state:
+        stmt = stmt.where(Notice.state == state.upper())
+
+    families: dict[str, list[tuple[int, str, int, int]]] = {}
+    for gkey, cid, name, notices, layoffs in db.execute(stmt).all():
+        families.setdefault(gkey, []).append(
+            (cid, name, _coerce_int(notices), _coerce_int(layoffs))
+        )
+
+    out: list[ParentGroupStat] = []
+    for members in families.values():
+        if len(members) < 2:
+            continue
+        # Representative = largest member by layoffs, tiebreak by name ascending.
+        rep = min(members, key=lambda m: (-m[3], m[1]))
+        out.append(
+            ParentGroupStat(
+                representative_company_id=rep[0],
+                representative_company_name=rep[1],
+                member_count=len(members),
+                notice_count=sum(m[2] for m in members),
+                layoff_total=sum(m[3] for m in members),
+            )
+        )
+    out.sort(key=lambda s: s.layoff_total, reverse=True)
+    return out[:limit]

@@ -77,3 +77,21 @@ export interface EmployerStat {
   notice_count: number;
   layoff_total: number;
 }
+
+// A member of a corporate family (siblings sharing a parent). Anonymous by
+// design — identified only by the member WARN company, never the D&B parent name.
+export interface FamilyMemberOut {
+  company_id: number;
+  name: string;
+  notice_count: number;
+  layoff_total: number;
+  is_self: boolean;
+}
+
+export interface ParentGroupStat {
+  representative_company_id: number;
+  representative_company_name: string;
+  member_count: number;
+  notice_count: number;
+  layoff_total: number;
+}
