@@ -20,6 +20,19 @@ export interface CompanyOut {
   website: string | null;
   enriched_at: string | null;
   enrichment_confidence: number | null;
+  // D&B enrichment fields — present only for paid/admin sessions; the API
+  // omits the keys entirely for anonymous/free viewers.
+  duns?: string | null;
+  parent_duns?: string | null;
+  parent_company_name?: string | null;
+  global_ultimate_name?: string | null;
+  hq_address?: string | null;
+  employee_count?: number | null;
+}
+
+export interface AuthUser {
+  email: string;
+  role: "admin" | "paid" | "free";
 }
 
 export interface NoticeOut {

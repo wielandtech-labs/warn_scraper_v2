@@ -13,6 +13,7 @@ import { CompaniesPage } from "./routes/companies";
 import { CompanyDetail } from "./routes/company-detail";
 import { MapPage } from "./routes/map";
 import { StatsPage } from "./routes/stats";
+import { LoginPage } from "./routes/login";
 
 const rootRoute = createRootRoute({
   component: () => (
@@ -141,6 +142,12 @@ const statsRoute = createRoute({
   component: StatsPage,
 });
 
+const loginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/login",
+  component: LoginPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   noticesRoute,
@@ -149,6 +156,7 @@ const routeTree = rootRoute.addChildren([
   companyDetailRoute,
   mapRoute,
   statsRoute,
+  loginRoute,
 ]);
 
 export const router = createRouter({ routeTree });

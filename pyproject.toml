@@ -28,6 +28,7 @@ dependencies = [
     "click>=8.1",
     "pdfplumber>=0.11.9",
     "anthropic>=0.40",
+    "argon2-cffi>=25.1.0",
 ]
 
 [project.optional-dependencies]

@@ -119,6 +119,43 @@ class Notice(Base):
     )
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(BigIntPK, primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True, index=True)
+    # Stored lowercase; login lookups normalize the same way.
+    password_hash: Mapped[str] = mapped_column(String(256), nullable=False)  # argon2 PHC string
+    role: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="free", server_default="free"
+    )
+    # Values: 'admin' | 'paid' | 'free'. Plain String (no PG ENUM) so SQLite
+    # tests work and adding roles needs no migration.
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class UserSession(Base):
+    """Server-side login session; the cookie holds the raw token, we store only its hash."""
+
+    __tablename__ = "user_sessions"
+
+    id: Mapped[int] = mapped_column(BigIntPK, primary_key=True, autoincrement=True)
+    token_sha256: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+
+    user: Mapped[User] = relationship("User")
+
+
 class ScraperRun(Base):
     __tablename__ = "scraper_runs"
 
