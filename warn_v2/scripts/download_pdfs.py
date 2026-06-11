@@ -187,7 +187,7 @@ def _process_one(
         notice.state, notice.notice_id[:8], len(pdf_bytes) // 1024, rel_path,
     )
 
-    fields = extract_warn_fields(pdf_bytes)
+    fields = extract_warn_fields(pdf_bytes, notice.state)
     enriched = _apply_fields(session, notice, fields, dry_run=dry_run)
 
     log.info(
