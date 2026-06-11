@@ -179,10 +179,11 @@ recover only a few messy CO/CT rows — low value.
 
 Findings the DB can't tell us — confirmed against the live sources.
 
-- **AK** — `raw_notice_url` values are stale 2016-pattern links
-  (`labor.alaska.gov/RR/notices/<Name>_WARN_notice.pdf`) that 404. Needs the
-  current AK URL pattern; until fixed, `download-pdfs` can't refresh AK PDFs.
-  Quantify with `warn-v2 audit --state AK --check-links`.
+- **AK** — the stale-2016-link 404 issue is **fixed** (the scraper uses
+  `jobs.alaska.gov/RR/notices/…`; verified 2026-06-11: stored `raw_notice_url`s
+  and live source anchors all return 200, 49/64 notices have downloaded PDFs).
+  AK's residual is a geo tail (66%): older notices without a PDF link + remote
+  AK localities not in the city gazetteer — a hard tail, not a scraper bug.
 - **CO** — Google Sheets export is cumulative since 2019; excluded from
   `backfill-historical` by design (re-ingest would duplicate).
 - **CA / DC / AZ / DE** — current-year-only sources; historical years come from
@@ -218,7 +219,8 @@ Findings the DB can't tell us — confirmed against the live sources.
   over nightly runs).
 - ~~**WV / HI geo**~~ — DONE via OCR fallback (tesseract) + recipient-aware
   address selection (WV 4%→75%, HI 8%→50%; recipient-only letters stay unlocated).
-- **AK** URL-pattern fix (see Source notes).
+- ~~**AK** URL-pattern fix~~ — already fixed (`jobs.alaska.gov`); residual is a
+  geo tail (remote localities / PDF-less older notices), not a scraper bug.
 - Any state the audit flags `dead_links`, `row_drift`, or persistent `scraper_*`.
 - Bulk company enrichment is low (0–18%) almost everywhere; the D&B + EDGAR + Claude
   enricher runs nightly (25/run, 100/day) and climbs over time.
