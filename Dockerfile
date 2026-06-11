@@ -22,10 +22,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Cache apt package downloads across builds.
+# tesseract-ocr + poppler-utils power the OCR fallback in warn_v2/pdf_extract for
+# scanned-image WARN PDFs that carry no text layer (e.g. WV/HI).
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
         curl \
+        tesseract-ocr \
+        poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /usr/local/bin/uv
@@ -37,6 +41,12 @@ COPY pyproject.toml uv.lock* README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --extra browser \
     && uv run playwright install chromium --with-deps
+
+# OCR Python libs for the scanned-PDF fallback (pdf2image needs poppler, pytesseract
+# needs the tesseract binary — both installed above). Added via `uv pip install`
+# rather than the lockfile so `uv sync --frozen` stays valid without a uv.lock bump.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install pytesseract pdf2image pillow
 
 COPY warn_v2 ./warn_v2
 COPY alembic.ini ./alembic.ini
