@@ -1,7 +1,8 @@
+import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import L from "leaflet";
-import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
+import { MapContainer, Marker, Popup, TileLayer, useMapEvents } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
 
 import { api } from "../api/client";
@@ -20,25 +21,70 @@ const DefaultIcon = L.icon({
 L.Marker.prototype.options.icon = DefaultIcon;
 
 const CENTER_US: [number, number] = [39.5, -98.35];
+const PIN_CAP = 50_000; // mirrors the /map-pins ceiling
+
+interface Bbox {
+  min_lat: number;
+  min_lon: number;
+  max_lat: number;
+  max_lon: number;
+}
+
+// ~11 m precision; keeps the query key stable so tiny float jitter doesn't refetch.
+const round = (n: number) => Math.round(n * 1e4) / 1e4;
+
+const boundsToBbox = (b: L.LatLngBounds): Bbox => ({
+  min_lat: round(b.getSouth()),
+  min_lon: round(b.getWest()),
+  max_lat: round(b.getNorth()),
+  max_lon: round(b.getEast()),
+});
+
+// Reports the current map viewport up to the parent. Lives inside MapContainer
+// (react-leaflet hooks require the map context). moveend/zoomend fire once at
+// the end of a pan/zoom gesture, so this is naturally throttled — no debounce
+// needed. A mount effect seeds the bounds so the first fetch is viewport-scoped.
+function ViewportWatcher({ onChange }: { onChange: (b: Bbox) => void }) {
+  const map = useMapEvents({
+    moveend: () => onChange(boundsToBbox(map.getBounds())),
+    zoomend: () => onChange(boundsToBbox(map.getBounds())),
+  });
+  useEffect(() => {
+    onChange(boundsToBbox(map.getBounds()));
+  }, [map, onChange]);
+  return null;
+}
 
 export function MapPage() {
   const navigate = useNavigate({ from: "/map" });
   const search = useSearch({ from: "/map" });
+  const [bbox, setBbox] = useState<Bbox | null>(null);
+  const handleBounds = useCallback((b: Bbox) => setBbox(b), []);
 
-  // Use the lightweight /api/map-pins endpoint — it pre-filters to geocoded
-  // notices only and returns just the 7 fields the map needs, so the full
-  // 3 000+ geocoded notices fit in a single ~400 KB fetch.
+  const filters = {
+    state: search.state,
+    closure_category: search.closure_category,
+    industry: search.industry,
+    subsector: search.subsector,
+    after: search.after,
+    before: search.before,
+  };
+
+  // Pins for the current viewport. As the user zooms/pans, the bbox shrinks and
+  // the API returns only what's visible — so the map scales past the cap.
   const query = useQuery({
-    queryKey: ["map-pins", search],
+    queryKey: ["map-pins", filters, bbox],
+    queryFn: () => api.listMapPins({ ...filters, ...(bbox ?? {}) }),
+    enabled: bbox !== null,
+    placeholderData: (prev) => prev, // keep old pins on screen during a refetch
+  });
+
+  // Total geocoded notices matching the (non-spatial) filters, for an honest
+  // "showing X of Y" — Page.total from /notices mirrors the map-pins filters.
+  const totalQuery = useQuery({
+    queryKey: ["map-pins-total", filters],
     queryFn: () =>
-      api.listMapPins({
-        state: search.state,
-        closure_category: search.closure_category,
-        industry: search.industry,
-        subsector: search.subsector,
-        after: search.after,
-        before: search.before,
-      }),
+      api.listNotices({ ...filters, geocoded_only: true, limit: 1 }).then((p) => p.total),
   });
 
   const industriesQuery = useQuery({
@@ -52,6 +98,8 @@ export function MapPage() {
 
   // Every item from listMapPins is guaranteed to have lat/lon — no client filter needed.
   const points = query.data ?? [];
+  const total = totalQuery.data;
+  const capped = points.length >= PIN_CAP;
 
   return (
     <div>
@@ -70,6 +118,7 @@ export function MapPage() {
           scrollWheelZoom
           style={{ height: "70vh", width: "100%", position: "relative" }}
         >
+          <ViewportWatcher onChange={handleBounds} />
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -104,7 +153,9 @@ export function MapPage() {
       </div>
 
       <div className="mt-2 text-xs text-slate-500">
-        Showing {fmtNum(points.length)} geocoded notices.
+        Showing {fmtNum(points.length)}
+        {total != null && ` of ${fmtNum(total)}`} geocoded notices in view.
+        {capped && " Zoom in to load all pins in a region."}
       </div>
     </div>
   );

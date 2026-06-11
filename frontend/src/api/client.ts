@@ -79,6 +79,11 @@ export interface MapPinQuery {
   subsector?: string;
   after?: string;
   before?: string;
+  // Viewport bounds — sent together so the API returns only visible pins.
+  min_lat?: number;
+  min_lon?: number;
+  max_lat?: number;
+  max_lon?: number;
 }
 
 export const api = {
@@ -87,9 +92,9 @@ export const api = {
   getNotice: (id: string) =>
     get<NoticeOut>(`/api/notices/${encodeURIComponent(id)}`),
 
-  /** All geocoded notices for the map — lightweight DTO, up to 10 000 per fetch. */
+  /** Geocoded notices for the map — lightweight DTO, viewport-scoped, up to 50 000 per fetch. */
   listMapPins: (q: MapPinQuery = {}) =>
-    get<MapPin[]>("/api/map-pins" + qs(q as Record<string, string | undefined>)),
+    get<MapPin[]>("/api/map-pins" + qs(q as Record<string, string | number | undefined>)),
 
   // ---------- Companies ----------
   listCompanies: (q: {
