@@ -7,10 +7,51 @@ import { api } from "../api/client";
 import { DataTable } from "../components/DataTable";
 import { Pagination } from "../components/Pagination";
 import type { CompanyOut } from "../api/types";
+import { fmtNum } from "../lib/format";
 
 const PAGE_SIZE = 50;
 
 export function CompaniesPage() {
+  const navigate = useNavigate({ from: "/companies" });
+  const search = useSearch({ from: "/companies" });
+  const view = search.view ?? "companies";
+
+  const setView = (next: "companies" | "families") => {
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        view: next === "families" ? "families" : undefined,
+        page: 1,
+      }),
+    });
+  };
+
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold">
+          {view === "families" ? "Corporate families" : "Companies"}
+        </h1>
+        <div className="flex gap-1 rounded-md border border-slate-300 p-0.5">
+          <ViewTab active={view === "companies"} onClick={() => setView("companies")} label="Companies" />
+          <ViewTab
+            active={view === "families"}
+            onClick={() => setView("families")}
+            label="Corporate families"
+          />
+        </div>
+      </div>
+
+      {view === "families" ? <FamiliesView /> : <CompaniesView />}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Companies list view
+// ---------------------------------------------------------------------------
+
+function CompaniesView() {
   const navigate = useNavigate({ from: "/companies" });
   const search = useSearch({ from: "/companies" });
   const page = search.page ?? 1;
@@ -117,48 +158,45 @@ export function CompaniesPage() {
 
   return (
     <div>
-      <div className="mb-3 flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold">Companies</h1>
-        <div className="flex items-center gap-3">
+      <div className="mb-3 flex flex-wrap items-center justify-end gap-3">
+        <select
+          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+          value={search.industry || ""}
+          onChange={(e) => setIndustry(e.target.value || undefined)}
+        >
+          <option value="">All industries</option>
+          {(industriesQuery.data ?? []).map((i) => (
+            <option key={i.sector} value={i.sector}>
+              {i.name} ({i.notice_count})
+            </option>
+          ))}
+        </select>
+        {selectedSubsectors.length > 0 && (
           <select
             className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-            value={search.industry || ""}
-            onChange={(e) => setIndustry(e.target.value || undefined)}
+            value={search.subsector || ""}
+            onChange={(e) => setSubsector(e.target.value || undefined)}
           >
-            <option value="">All industries</option>
-            {(industriesQuery.data ?? []).map((i) => (
-              <option key={i.sector} value={i.sector}>
-                {i.name} ({i.notice_count})
+            <option value="">All subsectors</option>
+            {selectedSubsectors.map((s) => (
+              <option key={s.code} value={s.code}>
+                {s.name} ({s.notice_count})
               </option>
             ))}
           </select>
-          {selectedSubsectors.length > 0 && (
-            <select
-              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-              value={search.subsector || ""}
-              onChange={(e) => setSubsector(e.target.value || undefined)}
-            >
-              <option value="">All subsectors</option>
-              {selectedSubsectors.map((s) => (
-                <option key={s.code} value={s.code}>
-                  {s.name} ({s.notice_count})
-                </option>
-              ))}
-            </select>
-          )}
-          <div className="flex gap-1">
-            <FilterChip active={!search.enriched} onClick={() => setEnriched(undefined)} label="All" />
-            <FilterChip
-              active={search.enriched === "true"}
-              onClick={() => setEnriched("true")}
-              label="Enriched"
-            />
-            <FilterChip
-              active={search.enriched === "false"}
-              onClick={() => setEnriched("false")}
-              label="Pending"
-            />
-          </div>
+        )}
+        <div className="flex gap-1">
+          <FilterChip active={!search.enriched} onClick={() => setEnriched(undefined)} label="All" />
+          <FilterChip
+            active={search.enriched === "true"}
+            onClick={() => setEnriched("true")}
+            label="Enriched"
+          />
+          <FilterChip
+            active={search.enriched === "false"}
+            onClick={() => setEnriched("false")}
+            label="Pending"
+          />
         </div>
       </div>
 
@@ -175,6 +213,91 @@ export function CompaniesPage() {
         </>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Corporate families view (formerly the standalone /families page)
+// ---------------------------------------------------------------------------
+
+function FamiliesView() {
+  const query = useQuery({
+    queryKey: ["stats", "by-parent-group"],
+    queryFn: () => api.statsByParentGroup({ limit: 50 }),
+  });
+
+  return (
+    <div>
+      <p className="mb-3 text-sm text-slate-500">
+        Companies grouped into corporate families, ranked by total layoffs across all
+        their subsidiaries. Each family is labeled by its largest member, and the
+        list grows as enrichment links subsidiaries to a shared parent.
+      </p>
+
+      {query.isLoading && <div className="card text-sm text-slate-500">Loading…</div>}
+      {query.data && query.data.length === 0 && (
+        <div className="card text-sm text-slate-500">No corporate families found yet.</div>
+      )}
+      {query.data && query.data.length > 0 && (
+        <div className="card overflow-x-auto p-0">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+                <th className="px-4 py-2 font-medium">#</th>
+                <th className="px-4 py-2 font-medium">Family (largest member)</th>
+                <th className="px-4 py-2 text-right font-medium">Members</th>
+                <th className="px-4 py-2 text-right font-medium">Notices</th>
+                <th className="px-4 py-2 text-right font-medium">Workers affected</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {query.data.map((f, i) => (
+                <tr key={f.representative_company_id} className="hover:bg-slate-50">
+                  <td className="px-4 py-2 text-slate-400">{i + 1}</td>
+                  <td className="px-4 py-2">
+                    <Link
+                      to="/companies/$companyId"
+                      params={{ companyId: String(f.representative_company_id) }}
+                      className="font-medium text-sky-700 hover:underline"
+                    >
+                      {f.representative_company_name}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums">{fmtNum(f.member_count)}</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{fmtNum(f.notice_count)}</td>
+                  <td className="px-4 py-2 text-right font-medium tabular-nums">
+                    {fmtNum(f.layoff_total)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ViewTab({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={
+        active
+          ? "rounded px-3 py-1 text-sm font-medium bg-sky-600 text-white"
+          : "rounded px-3 py-1 text-sm font-medium text-slate-600 hover:bg-slate-100"
+      }
+    >
+      {label}
+    </button>
   );
 }
 

@@ -33,9 +33,16 @@ export function MapPage() {
     queryFn: () =>
       api.listMapPins({
         state: search.state,
+        industry: search.industry,
+        subsector: search.subsector,
         after: search.after,
         before: search.before,
       }),
+  });
+
+  const industriesQuery = useQuery({
+    queryKey: ["stats", "industries"],
+    queryFn: () => api.statsIndustries(),
   });
 
   const handleFilterChange = (next: FilterValues) => {
@@ -48,7 +55,12 @@ export function MapPage() {
   return (
     <div>
       <h1 className="mb-3 text-2xl font-semibold">Map</h1>
-      <FilterBar values={search} onChange={handleFilterChange} showEmployer={false} />
+      <FilterBar
+        values={search}
+        onChange={handleFilterChange}
+        showEmployer={false}
+        industries={industriesQuery.data}
+      />
 
       <div className="overflow-hidden rounded-lg border border-slate-200">
         <MapContainer

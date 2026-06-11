@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session, aliased
 from warn_v2.api.deps import get_db
 from warn_v2.companies.naics import (
     SECTOR_NAME,
+    naics_filter,
     sector_for_code,
     subsector_for_code,
     subsector_name,
@@ -96,12 +97,29 @@ def _coerce_int(value) -> int:
     return int(value)
 
 
+def _apply_industry_filter(stmt, industry, subsector, *, joined: bool = False):
+    """Filter a Notice-based stmt by the linked company's NAICS sector/subsector.
+
+    Joins Company (Notice.company_id) unless the caller already has it joined.
+    An inner join drops notices with no linked company, which is correct: an
+    un-enriched notice has no NAICS and so matches no industry.
+    """
+    clause = naics_filter(Company.naics_code, industry, subsector)
+    if clause is None:
+        return stmt
+    if not joined:
+        stmt = stmt.join(Company, Notice.company_id == Company.id)
+    return stmt.where(clause)
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
 
 @router.get("/by-state", response_model=list[StateStat])
 def by_state(
+    industry: str | None = Query(None, description="NAICS sector id (e.g. 31-33)"),
+    subsector: str | None = Query(None, description="3-digit NAICS subsector (e.g. 311)"),
     after: date | None = Query(None, description="Only notices on or after this date"),
     before: date | None = Query(None, description="Only notices on or before this date"),
     db: Session = Depends(get_db),
@@ -117,6 +135,7 @@ def by_state(
     )
     stmt = _not_superseded(stmt)
     stmt = _apply_date_filters(stmt, after, before)
+    stmt = _apply_industry_filter(stmt, industry, subsector)
     rows = db.execute(stmt).all()
     return [
         StateStat(state=r[0], notice_count=_coerce_int(r[1]), layoff_total=_coerce_int(r[2]))
@@ -127,6 +146,8 @@ def by_state(
 @router.get("/by-month", response_model=list[MonthStat])
 def by_month(
     state: str | None = Query(None, description="Restrict to one state"),
+    industry: str | None = Query(None, description="NAICS sector id (e.g. 31-33)"),
+    subsector: str | None = Query(None, description="3-digit NAICS subsector (e.g. 311)"),
     after: date | None = Query(None),
     before: date | None = Query(None),
     db: Session = Depends(get_db),
@@ -151,6 +172,7 @@ def by_month(
     stmt = _apply_date_filters(stmt, after, before)
     if state:
         stmt = stmt.where(Notice.state == state.upper())
+    stmt = _apply_industry_filter(stmt, industry, subsector)
 
     rows = db.execute(stmt).all()
     return [
@@ -163,6 +185,8 @@ def by_month(
 def top_employers(
     limit: int = Query(10, ge=1, le=100),
     state: str | None = Query(None),
+    industry: str | None = Query(None, description="NAICS sector id (e.g. 31-33)"),
+    subsector: str | None = Query(None, description="3-digit NAICS subsector (e.g. 311)"),
     after: date | None = Query(None),
     before: date | None = Query(None),
     db: Session = Depends(get_db),
@@ -176,7 +200,10 @@ def top_employers(
     stmt = (
         select(
             func.coalesce(func.min(canon.name), func.min(Notice.employer)).label("employer"),
-            canon_id.label("company_id"),
+            # Aggregated so Postgres accepts it: within each group canon_id is a
+            # single value (or NULL for employer-string-only groups), so min() is
+            # exact. Selecting the bare canon_id triggers a GROUP BY error on PG.
+            func.min(canon_id).label("company_id"),
             func.count(Notice.notice_id),
             layoff_sum,
         )
@@ -193,6 +220,8 @@ def top_employers(
     stmt = _apply_date_filters(stmt, after, before)
     if state:
         stmt = stmt.where(Notice.state == state.upper())
+    # Company is already (outer-)joined above, so just add the WHERE clause.
+    stmt = _apply_industry_filter(stmt, industry, subsector, joined=True)
 
     rows = db.execute(stmt).all()
     return [

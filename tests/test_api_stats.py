@@ -419,5 +419,72 @@ def test_by_parent_group_empty_when_no_families(api_client, db):
     assert api_client.get("/api/stats/by-parent-group").json() == []
 
 
+def test_top_employers_returns_canonical_company_id(api_client, db):
+    """company_id must be the canonical id, and null for unlinked notices.
+
+    Regression: company_id was selected un-aggregated, which raises a GROUP BY
+    error on Postgres (SQLite tolerates it). The fix wraps it in min(); this
+    asserts the value is still correct after that change.
+    """
+    c = _company(db, name="Acme Inc")
+    _notice(db, state="CA", employer="Acme Inc", notice_date=date(2026, 1, 1),
+            layoff_count=100, company_id=c.id)
+    _notice(db, state="CA", employer="Unlinked", notice_date=date(2026, 1, 2),
+            layoff_count=50)  # no company_id -> grouped by employer string
+    db.commit()
+
+    body = api_client.get("/api/stats/top-employers").json()
+    by_emp = {r["employer"]: r for r in body}
+    assert by_emp["Acme Inc"]["company_id"] == c.id
+    assert by_emp["Unlinked"]["company_id"] is None
+
+
+def test_top_employers_industry_filter(api_client, db):
+    mfg = _company(db, name="Mfg Co", naics_code="311999")
+    ret = _company(db, name="Ret Co", naics_code="445110")
+    _notice(db, state="CA", employer="Mfg Co", notice_date=date(2026, 1, 1),
+            layoff_count=100, company_id=mfg.id)
+    _notice(db, state="CA", employer="Ret Co", notice_date=date(2026, 1, 2),
+            layoff_count=200, company_id=ret.id)
+    db.commit()
+
+    assert [r["employer"] for r in
+            api_client.get("/api/stats/top-employers?industry=31-33").json()] == ["Mfg Co"]
+    # subsector narrows; and wins over a conflicting sector
+    assert [r["employer"] for r in
+            api_client.get("/api/stats/top-employers?subsector=311").json()] == ["Mfg Co"]
+    assert [r["employer"] for r in api_client.get(
+        "/api/stats/top-employers?industry=44-45&subsector=311").json()] == ["Mfg Co"]
+
+
+def test_by_state_industry_filter(api_client, db):
+    mfg = _company(db, name="Mfg Co", naics_code="311999")
+    ret = _company(db, name="Ret Co", naics_code="445110")
+    _notice(db, state="CA", employer="Mfg Co", notice_date=date(2026, 1, 1),
+            layoff_count=100, company_id=mfg.id)
+    _notice(db, state="TX", employer="Ret Co", notice_date=date(2026, 1, 2),
+            layoff_count=200, company_id=ret.id)
+    db.commit()
+
+    body = api_client.get("/api/stats/by-state?industry=31-33").json()
+    assert len(body) == 1
+    assert body[0]["state"] == "CA"
+    assert body[0]["layoff_total"] == 100
+
+
+def test_by_month_industry_filter(api_client, db):
+    mfg = _company(db, name="Mfg Co", naics_code="311999")
+    ret = _company(db, name="Ret Co", naics_code="445110")
+    _notice(db, state="CA", employer="Mfg Co", notice_date=date(2026, 1, 1),
+            layoff_count=100, company_id=mfg.id)
+    _notice(db, state="CA", employer="Ret Co", notice_date=date(2026, 1, 2),
+            layoff_count=200, company_id=ret.id)
+    db.commit()
+
+    body = api_client.get("/api/stats/by-month?industry=44-45").json()
+    assert len(body) == 1
+    assert body[0]["layoff_total"] == 200
+
+
 # Ensure unused imports don't break ruff
 _ = (UTC, datetime, Decimal)

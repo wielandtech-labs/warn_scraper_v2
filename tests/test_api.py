@@ -7,7 +7,7 @@ from decimal import Decimal
 import pytest
 from fastapi.testclient import TestClient
 
-from warn_v2.db.models import Company, Notice, ScraperRun
+from warn_v2.db.models import Company, Location, Notice, ScraperRun
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -572,3 +572,36 @@ def test_companies_subsector_filter(api_client, db):
     body = api_client.get("/api/companies?subsector=311").json()
     assert body["total"] == 1
     assert body["items"][0]["name"] == "Food Co"
+
+
+def _geocoded_notice(db, company, employer):
+    """A notice with a geocoded Location so it appears on /api/map-pins."""
+    loc = Location(state="CA", lat=34.0, lon=-118.0)
+    db.add(loc)
+    db.flush()
+    n = _notice(db, company=company, employer=employer, notice_date=date(2026, 1, 1))
+    n.location_id = loc.id
+    return n
+
+
+def test_map_pins_industry_filter(api_client, db):
+    mfg = _company(db, name="Mfg Co", naics_code="311999")
+    bev = _company(db, name="Bev Co", naics_code="312111")  # 312, same sector 31-33
+    ret = _company(db, name="Ret Co", naics_code="445110")
+    _geocoded_notice(db, mfg, "Mfg Co")
+    _geocoded_notice(db, bev, "Bev Co")
+    _geocoded_notice(db, ret, "Ret Co")
+    db.commit()
+
+    # No filter: all three geocoded pins.
+    assert {p["employer"] for p in api_client.get("/api/map-pins").json()} == {
+        "Mfg Co", "Bev Co", "Ret Co"
+    }
+    # Sector filter: only the two manufacturing pins.
+    assert {p["employer"] for p in
+            api_client.get("/api/map-pins?industry=31-33").json()} == {"Mfg Co", "Bev Co"}
+    # Subsector narrows to one; and wins over a conflicting sector.
+    assert [p["employer"] for p in
+            api_client.get("/api/map-pins?subsector=311").json()] == ["Mfg Co"]
+    assert [p["employer"] for p in api_client.get(
+        "/api/map-pins?industry=44-45&subsector=311").json()] == ["Mfg Co"]
