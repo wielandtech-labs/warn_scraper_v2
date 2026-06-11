@@ -338,6 +338,43 @@ def test_by_parent_group_state_and_date_filters(api_client, db):
     assert recent == []
 
 
+def test_industries_rolls_up_to_sectors(api_client, db):
+    mfg = _company(db, name="Mfg", naics_code="311999")
+    mfg2 = _company(db, name="Mfg2", naics_code="332000")
+    ret = _company(db, name="Ret", naics_code="445110")
+    noind = _company(db, name="NoInd")  # no naics_code -> omitted
+    _notice(db, state="CA", employer="Mfg", notice_date=date(2026, 1, 1),
+            layoff_count=1, company_id=mfg.id)
+    _notice(db, state="CA", employer="Mfg2", notice_date=date(2026, 1, 2),
+            layoff_count=1, company_id=mfg2.id)
+    _notice(db, state="CA", employer="Ret", notice_date=date(2026, 1, 3),
+            layoff_count=1, company_id=ret.id)
+    _notice(db, state="CA", employer="NoInd", notice_date=date(2026, 1, 4),
+            layoff_count=1, company_id=noind.id)
+    db.commit()
+
+    body = api_client.get("/api/stats/industries").json()
+    sectors = {r["sector"]: r for r in body}
+    assert sectors["31-33"]["notice_count"] == 2  # both manufacturing codes
+    assert sectors["31-33"]["name"] == "Manufacturing"
+    assert sectors["44-45"]["notice_count"] == 1
+    # ordered by count desc; no sector for the un-enriched company
+    assert body[0]["sector"] == "31-33"
+
+
+def test_industries_excludes_superseded(api_client, db):
+    mfg = _company(db, name="Mfg", naics_code="311999")
+    _notice(db, state="CA", employer="Mfg", notice_date=date(2026, 1, 1),
+            layoff_count=1, company_id=mfg.id)
+    sup = _notice(db, state="CA", employer="Mfg", notice_date=date(2026, 1, 2),
+                  layoff_count=1, company_id=mfg.id)
+    sup.is_superseded = True
+    db.commit()
+
+    body = api_client.get("/api/stats/industries").json()
+    assert {r["sector"]: r["notice_count"] for r in body} == {"31-33": 1}
+
+
 def test_by_parent_group_empty_when_no_families(api_client, db):
     c = _company(db, name="Independent Co", parent_group_key="self:independent co")
     _notice(db, state="CA", employer="Indie", notice_date=date(2026, 1, 1),

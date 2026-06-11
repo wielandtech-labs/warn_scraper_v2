@@ -12,7 +12,8 @@ from sqlalchemy.orm import Session, joinedload
 
 from warn_v2.api.deps import PaginationParams, get_db
 from warn_v2.api.schemas import NoticeOut, Page
-from warn_v2.db.models import Location, Notice
+from warn_v2.companies.naics import sector_prefixes
+from warn_v2.db.models import Company, Location, Notice
 
 router = APIRouter(prefix="/notices", tags=["notices"])
 
@@ -33,6 +34,9 @@ def list_notices(
     employer: str | None = Query(None, description="Employer name (case-insensitive substring)"),
     closure_category: str | None = Query(
         None, description="Normalized closure type: Closure | Layoff"
+    ),
+    industry: str | None = Query(
+        None, description="NAICS sector id (e.g. 31-33) of the linked company"
     ),
     after: date | None = Query(None, description="Only notices on or after this date"),
     before: date | None = Query(None, description="Only notices on or before this date"),
@@ -64,6 +68,14 @@ def list_notices(
     if closure_category:
         stmt = stmt.where(Notice.closure_category == closure_category)
         count_stmt = count_stmt.where(Notice.closure_category == closure_category)
+    if industry:
+        prefixes = sector_prefixes(industry)
+        if prefixes:
+            sector_filter = func.substr(Company.naics_code, 1, 2).in_(prefixes)
+            stmt = stmt.join(Company, Notice.company_id == Company.id).where(sector_filter)
+            count_stmt = count_stmt.join(
+                Company, Notice.company_id == Company.id
+            ).where(sector_filter)
     if after:
         stmt = stmt.where(Notice.notice_date >= after)
         count_stmt = count_stmt.where(Notice.notice_date >= after)

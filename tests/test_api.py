@@ -502,3 +502,38 @@ def test_company_family_from_merged_dupe_resolves_to_canonical(api_client, db):
 def test_company_family_404(api_client, db):
     db.commit()
     assert api_client.get("/api/companies/999999/family").status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# industry (NAICS sector) filter
+# ---------------------------------------------------------------------------
+
+def test_notices_industry_filter(api_client, db):
+    mfg = _company(db, name="Mfg Co", naics_code="311999")
+    ret = _company(db, name="Ret Co", naics_code="445110")
+    _notice(db, company=mfg, employer="Mfg Co", notice_date=date(2026, 1, 1))
+    _notice(db, company=ret, employer="Ret Co", notice_date=date(2026, 1, 2))
+    db.commit()
+
+    body = api_client.get("/api/notices?industry=31-33").json()
+    assert body["total"] == 1
+    assert body["items"][0]["employer"] == "Mfg Co"
+
+
+def test_notices_industry_filter_unknown_sector_ignored(api_client, db):
+    mfg = _company(db, name="Mfg Co", naics_code="311999")
+    _notice(db, company=mfg, employer="Mfg Co", notice_date=date(2026, 1, 1))
+    db.commit()
+    # An unknown sector id is ignored (no filter applied), not an error.
+    body = api_client.get("/api/notices?industry=bogus").json()
+    assert body["total"] == 1
+
+
+def test_companies_industry_filter(api_client, db):
+    _company(db, name="Mfg Co", naics_code="332710")
+    _company(db, name="Ret Co", naics_code="448140")
+    db.commit()
+
+    body = api_client.get("/api/companies?industry=31-33").json()
+    assert body["total"] == 1
+    assert body["items"][0]["name"] == "Mfg Co"

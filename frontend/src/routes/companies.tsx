@@ -22,13 +22,23 @@ export function CompaniesPage() {
       api.listCompanies({
         enriched:
           search.enriched === "true" ? true : search.enriched === "false" ? false : undefined,
+        industry: search.industry,
         limit: PAGE_SIZE,
         offset,
       }),
   });
 
+  const industriesQuery = useQuery({
+    queryKey: ["stats", "industries"],
+    queryFn: () => api.statsIndustries(),
+  });
+
   const setEnriched = (val: "true" | "false" | undefined) => {
-    navigate({ search: () => ({ enriched: val, page: 1 }) });
+    navigate({ search: (prev) => ({ ...prev, enriched: val, page: 1 }) });
+  };
+
+  const setIndustry = (val: string | undefined) => {
+    navigate({ search: (prev) => ({ ...prev, industry: val, page: 1 }) });
   };
 
   const handlePageChange = (newOffset: number) => {
@@ -99,18 +109,32 @@ export function CompaniesPage() {
     <div>
       <div className="mb-3 flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold">Companies</h1>
-        <div className="flex gap-1">
-          <FilterChip active={!search.enriched} onClick={() => setEnriched(undefined)} label="All" />
-          <FilterChip
-            active={search.enriched === "true"}
-            onClick={() => setEnriched("true")}
-            label="Enriched"
-          />
-          <FilterChip
-            active={search.enriched === "false"}
-            onClick={() => setEnriched("false")}
-            label="Pending"
-          />
+        <div className="flex items-center gap-3">
+          <select
+            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            value={search.industry || ""}
+            onChange={(e) => setIndustry(e.target.value || undefined)}
+          >
+            <option value="">All industries</option>
+            {(industriesQuery.data ?? []).map((i) => (
+              <option key={i.sector} value={i.sector}>
+                {i.name} ({i.notice_count})
+              </option>
+            ))}
+          </select>
+          <div className="flex gap-1">
+            <FilterChip active={!search.enriched} onClick={() => setEnriched(undefined)} label="All" />
+            <FilterChip
+              active={search.enriched === "true"}
+              onClick={() => setEnriched("true")}
+              label="Enriched"
+            />
+            <FilterChip
+              active={search.enriched === "false"}
+              onClick={() => setEnriched("false")}
+              label="Pending"
+            />
+          </div>
         </div>
       </div>
 

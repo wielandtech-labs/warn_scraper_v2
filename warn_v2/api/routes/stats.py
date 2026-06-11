@@ -14,6 +14,7 @@ from sqlalchemy import String, cast, func, select
 from sqlalchemy.orm import Session, aliased
 
 from warn_v2.api.deps import get_db
+from warn_v2.companies.naics import SECTOR_NAME, sector_for_code
 from warn_v2.db.models import Company, Notice
 
 router = APIRouter(prefix="/stats", tags=["stats"])
@@ -40,6 +41,12 @@ class EmployerStat(BaseModel):
     company_id: int | None
     notice_count: int
     layoff_total: int
+
+
+class IndustryStat(BaseModel):
+    sector: str  # NAICS sector id, e.g. "31-33"
+    name: str
+    notice_count: int
 
 
 class ParentGroupStat(BaseModel):
@@ -184,6 +191,33 @@ def top_employers(
             layoff_total=_coerce_int(r[3]),
         )
         for r in rows
+    ]
+
+
+@router.get("/industries", response_model=list[IndustryStat])
+def industries(db: Session = Depends(get_db)) -> list[IndustryStat]:
+    """NAICS sectors present among (non-superseded) notices, with counts.
+
+    Rolls each enriched company's NAICS code up to its 2-digit sector. Only
+    populated sectors are returned, so the UI dropdown grows as enrichment fills
+    in more companies. Notices whose company has no NAICS code are omitted.
+    """
+    sector2 = func.substr(Company.naics_code, 1, 2)
+    stmt = (
+        select(sector2, func.count(Notice.notice_id))
+        .select_from(Notice)
+        .join(Company, Notice.company_id == Company.id)
+        .where(Notice.is_superseded.is_(False), Company.naics_code.is_not(None))
+        .group_by(sector2)
+    )
+    counts: dict[str, int] = {}
+    for prefix, n in db.execute(stmt).all():
+        sector = sector_for_code(prefix)  # prefix is the 2-digit code already
+        if sector:
+            counts[sector] = counts.get(sector, 0) + _coerce_int(n)
+    return [
+        IndustryStat(sector=sid, name=SECTOR_NAME[sid], notice_count=c)
+        for sid, c in sorted(counts.items(), key=lambda kv: kv[1], reverse=True)
     ]
 
 

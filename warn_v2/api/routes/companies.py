@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from warn_v2.api.deps import PaginationParams, get_db
 from warn_v2.api.schemas import CompanyOut, FamilyMemberOut, NoticeOut, Page
+from warn_v2.companies.naics import sector_prefixes
 from warn_v2.db.models import Company, Notice
 
 router = APIRouter(prefix="/companies", tags=["companies"])
@@ -16,6 +17,7 @@ router = APIRouter(prefix="/companies", tags=["companies"])
 def list_companies(
     enriched: bool | None = Query(None, description="Filter by enrichment status"),
     sic_code: str | None = Query(None, description="Exact SIC code match"),
+    industry: str | None = Query(None, description="NAICS sector id (e.g. 31-33)"),
     include_merged: bool = Query(
         False, description="Include rows consolidated into another company"
     ),
@@ -40,6 +42,12 @@ def list_companies(
     if sic_code:
         stmt = stmt.where(Company.sic_code == sic_code)
         count_stmt = count_stmt.where(Company.sic_code == sic_code)
+
+    prefixes = sector_prefixes(industry)
+    if prefixes:
+        sector_filter = func.substr(Company.naics_code, 1, 2).in_(prefixes)
+        stmt = stmt.where(sector_filter)
+        count_stmt = count_stmt.where(sector_filter)
 
     total = db.scalar(count_stmt) or 0
     items = list(db.scalars(stmt.offset(pagination.offset).limit(pagination.limit)))

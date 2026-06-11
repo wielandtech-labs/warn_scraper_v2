@@ -27,6 +27,7 @@ export function NoticesPage() {
         state: search.state,
         employer: search.employer,
         closure_category: search.closure_category,
+        industry: search.industry,
         after: search.after,
         before: search.before,
         sort_by: sortBy,
@@ -34,6 +35,11 @@ export function NoticesPage() {
         limit: PAGE_SIZE,
         offset,
       }),
+  });
+
+  const industriesQuery = useQuery({
+    queryKey: ["stats", "industries"],
+    queryFn: () => api.statsIndustries(),
   });
 
   const handleFilterChange = (next: FilterValues) => {
@@ -102,7 +108,11 @@ export function NoticesPage() {
   return (
     <div>
       <h1 className="mb-3 text-2xl font-semibold">Notices</h1>
-      <FilterBar values={search} onChange={handleFilterChange} />
+      <FilterBar
+        values={search}
+        onChange={handleFilterChange}
+        industries={industriesQuery.data}
+      />
 
       {query.isLoading && <div className="card text-center text-sm text-slate-500">Loading…</div>}
       {query.isError && (

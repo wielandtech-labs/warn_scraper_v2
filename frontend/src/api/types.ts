@@ -95,3 +95,9 @@ export interface ParentGroupStat {
   notice_count: number;
   layoff_total: number;
 }
+
+export interface IndustryStat {
+  sector: string; // NAICS sector id, e.g. "31-33"
+  name: string;
+  notice_count: number;
+}
