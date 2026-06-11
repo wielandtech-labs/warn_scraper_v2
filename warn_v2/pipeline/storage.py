@@ -35,6 +35,28 @@ _UPDATE_FIELDS: tuple[str, ...] = ("layoff_count", "effective_date", "raw_notice
 _DEFAULT_CITY: dict[str, str] = {"DC": "Washington"}
 
 
+def _derive_location_city(row: NoticeRow) -> str | None:
+    """Best-effort worksite city when the source row carries none.
+
+    Used only when a row has no city/zip/county. Derives a city for the Location
+    without touching the (already-computed) notice_id, so existing rows fill in
+    location_id on the next scrape via the COALESCE path — no re-key, no churn.
+
+    - DC: every notice is in the District -> Washington.
+    - MN: the 2025 wide-format report concatenates the City column into the
+      employer string ("Upsher-Smith 2025 Maple Grove Manufacturing"); recover it
+      (see scrapers/mn_city). Out-of-state HQ cities the source sometimes lists
+      (Bentonville, San Francisco) return None and stay un-geocoded — correct.
+    """
+    state = row.state.upper()
+    if state in _DEFAULT_CITY:
+        return _DEFAULT_CITY[state]
+    if state == "MN":
+        from warn_v2.scrapers.mn_city import split_city_from_label
+        return split_city_from_label(row.employer)
+    return None
+
+
 def upsert_notices(session: Session, rows: Iterable[NoticeRow]) -> tuple[int, int]:
     """Insert new notices; fill in nullable fields on existing rows.
 
@@ -239,16 +261,18 @@ def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None
     city, no ZIP).  These notices get a Location keyed on (state, county)
     with county-centroid coordinates as a best-effort lat/lon.
 
-    Single-locality default: for sources with no worksite locality but a single
-    covering city (DC), default the city so the notice geocodes at city level.
-    This rebinds the local ``row`` only; ``notice_id`` was already hashed from the
-    original row by the caller, so existing rows keep their id (no re-key / churn)
-    and get the location filled in on the next scrape via the COALESCE path.
+    Derived-city fallback: for sources that publish no worksite locality but where
+    a city is implied (DC → Washington) or recoverable (MN's wide-format report
+    concatenates the City column into the employer string), derive it via
+    ``_derive_location_city`` so the notice geocodes at city level. This rebinds the
+    local ``row`` only; ``notice_id`` was already hashed from the original row by the
+    caller, so existing rows keep their id (no re-key / churn) and get the location
+    filled in on the next scrape via the COALESCE path.
     """
     if not row.city and not row.zip and not row.county:
-        default_city = _DEFAULT_CITY.get(row.state.upper())
-        if default_city:
-            row = replace(row, city=default_city)
+        derived_city = _derive_location_city(row)
+        if derived_city:
+            row = replace(row, city=derived_city)
 
     if not row.city and not row.zip and not row.county:
         return None
