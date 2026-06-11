@@ -151,15 +151,25 @@ PA 79 are descriptive multi-site strings ("Two locations in Breinigsville, PA…
 not single geocodable points. So a "geocode the notice address" backfill would
 recover only a few messy CO/CT rows — low value.
 
-**What would actually move each:**
-- **DC** — assign the Washington, DC city centroid to every DC notice (the source
-  guarantees all are in-District; same tier as the KY/MT county-centroid fallback).
-  Note: `dedup.notice_id` hashes `city`, so setting `city="Washington"` in the
-  scraper would re-key all DC notices → must pair the scraper change with a one-time
-  re-key of the existing 141 rows.
-- **MN** — improve the 2025 wide-format parser to split city, or accept the
-  historical gap (no new 2026 rows yet).
-- **WV / HI** — extract worksite address from the per-notice PDFs (deeper PDF work).
+**Status of each (2026-06-11):**
+- **DC — FIXED** (geo 0% → 100%). `storage._derive_location_city` defaults the
+  *location* city to "Washington" (the source guarantees all are in-District). It
+  derives the city for the Location only, so `notice_id` (hashed from the original
+  row) is unchanged — existing rows fill in `location_id` on the next scrape via
+  COALESCE; no re-key. Existing 141 backfilled.
+- **MN — FIXED** (geo 4% → ~87%). `scrapers/mn_city.split_city_from_label` recovers
+  the worksite city from the wide-format `Name City Industry` string (strip the DEED
+  industry label, then longest trailing gazetteer match), wired through the same
+  `_derive_location_city` hook. 65/70 backfilled; the 5 misses are out-of-state HQ
+  cities the source lists (Bentonville, San Francisco, Omaha, …) or a truncated
+  city — correctly left un-geocoded.
+- **WV / HI — BLOCKED on OCR (not pursued).** Both states' per-notice PDFs are
+  **scanned images with no text layer** (`pdfplumber` extracts 0 chars on every
+  page), so `extract_warn_fields` returns `{}`. The listing/source pages carry only
+  employer + date. Recovering worksite locality would require an OCR engine
+  (Tesseract) for ~63 low-value notices that often only carry an HQ address anyway —
+  judged not worth the heavy image dependency. Unlike DC, neither is single-locality
+  (WV spans the state; HI spans islands), so no centroid default applies.
 
 ## Source notes (hand-curated)
 
@@ -175,10 +185,12 @@ Findings the DB can't tell us — confirmed against the live sources.
   `backfill-historical`. CA archive = 11 PDFs + 1 XLSX (FY2014–2025).
 - **GA** — `raw_notice_url` is a TCSG GravityView HTML entry page, not a PDF
   (`raw_notice_url_is_pdf=False`); enriched by `enrich-notices --state GA`. TCSG
-  **rate-limits aggressively**: the enricher aborts after 3 consecutive timeouts,
-  so a tail of ~71 notices (out of 262) has never been fetched and stays
-  location-less (geo 72%). Re-running hits the same wall — do **not** hammer TCSG.
-  The nightly notice-enricher chips away opportunistically when TCSG cooperates.
+  **rate-limits aggressively**: the enricher aborts after 3 consecutive timeouts, so
+  a tail of ~71 notices (out of 262) stays location-less (geo 72%). **Hardened
+  2026-06-11** so this clears over nightly runs *without* hammering TCSG: commits
+  every 5 (was 50) so each run durably banks what it fetched before the block;
+  orders never-enriched (`closure_type IS NULL`) notices first so the budget buys
+  new locations; an unexpected error banks progress instead of crashing the Job.
   `Company Address`, when fetched, is often the corporate HQ, not the GA worksite →
   Census no-match / out-of-state coords.
 - **KY / MT** — county-only sources; geocoded via Tier-4 county centroid.
@@ -196,10 +208,13 @@ Findings the DB can't tell us — confirmed against the live sources.
 
 ## Backlog (genuinely new code, not just a command)
 
-- **DC geo** — Washington-centroid assignment + one-time notice_id re-key (see
-  Geocoding root cause). High value (141 notices → ~100% DC geo).
-- **MN geo** — split city out of the 2025 wide-format PDF parser.
-- **WV / HI geo** — extract worksite address from per-notice PDFs.
+- ~~**DC geo**~~ — DONE (storage `_derive_location_city`; 0% → 100%).
+- ~~**MN geo**~~ — DONE (`scrapers/mn_city`; 4% → ~87%).
+- ~~**GA tail**~~ — DONE (durable commits + never-enriched-first ordering; clears
+  over nightly runs).
+- **WV / HI geo** — PARKED: per-notice PDFs are scanned images (no text layer);
+  requires OCR (Tesseract) for ~63 low-value notices. Not worth the dependency
+  unless a structured locality source appears.
 - **AK** URL-pattern fix (see Source notes).
 - Any state the audit flags `dead_links`, `row_drift`, or persistent `scraper_*`.
 - Bulk company enrichment is low (0–18%) almost everywhere; the D&B + EDGAR + Claude
