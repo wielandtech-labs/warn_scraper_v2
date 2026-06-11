@@ -25,7 +25,9 @@ def _company(db, name="Acme Inc", **kw) -> Company:
     return c
 
 
-def _notice(db, company_id: int, state="CA", notice_date=date(2026, 1, 15)) -> Notice:
+def _notice(
+    db, company_id: int, state="CA", notice_date=date(2026, 1, 15), layoff_count=None
+) -> Notice:
     # Simple unique ID for test purposes
     nid = f"test_{state}_{notice_date}_{company_id}"
     n = Notice(
@@ -33,6 +35,7 @@ def _notice(db, company_id: int, state="CA", notice_date=date(2026, 1, 15)) -> N
         state=state,
         employer="Acme Inc",
         notice_date=notice_date,
+        layoff_count=layoff_count,
         company_id=company_id,
     )
     db.add(n)
@@ -144,6 +147,49 @@ def test_find_pending_limit(db) -> None:
 
     pending = find_pending(db, limit=3)
     assert len(pending) <= 3
+
+
+def test_find_pending_orders_by_workers_affected(db) -> None:
+    small = _company(db, name="Small Co")
+    big = _company(db, name="Big Co")
+    mid = _company(db, name="Mid Co")
+    none = _company(db, name="No Notices Co")  # zero impact -> last
+    db.flush()
+    _notice(db, small.id, layoff_count=10)
+    _notice(db, big.id, layoff_count=500)
+    _notice(db, big.id, notice_date=date(2026, 2, 1), layoff_count=300)  # big sums to 800
+    _notice(db, mid.id, layoff_count=100)
+    db.commit()
+
+    ids = [p.id for p in find_pending(db)]
+    # Big (800) > Mid (100) > Small (10) > None (0)
+    assert ids.index(big.id) < ids.index(mid.id) < ids.index(small.id) < ids.index(none.id)
+
+
+def test_find_pending_limit_takes_highest_impact(db) -> None:
+    small = _company(db, name="Small Co")
+    big = _company(db, name="Big Co")
+    db.flush()
+    _notice(db, small.id, layoff_count=10)
+    _notice(db, big.id, layoff_count=9000)
+    db.commit()
+
+    assert [p.id for p in find_pending(db, limit=1)] == [big.id]
+
+
+def test_find_pending_impact_excludes_superseded(db) -> None:
+    # A big layoff that's been superseded must not inflate the company's priority.
+    sup_heavy = _company(db, name="Superseded-heavy Co")
+    active_small = _company(db, name="Active-small Co")
+    db.flush()
+    big_sup = _notice(db, sup_heavy.id, layoff_count=9000)
+    big_sup.is_superseded = True
+    _notice(db, active_small.id, layoff_count=50)
+    db.commit()
+
+    ids = [p.id for p in find_pending(db)]
+    # active_small (50) outranks sup_heavy (0 after excluding the superseded 9000)
+    assert ids.index(active_small.id) < ids.index(sup_heavy.id)
 
 
 # ---------------------------------------------------------------------------

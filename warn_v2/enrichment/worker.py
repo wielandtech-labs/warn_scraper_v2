@@ -13,7 +13,7 @@ import time
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from warn_v2.db.models import Company, Notice
@@ -37,7 +37,7 @@ def find_pending(
     rerun_below: float | None = None,
     recent_years: int | None = None,
 ) -> list[Company]:
-    """Return companies that need enrichment.
+    """Return companies that need enrichment, highest-impact first.
 
     Selects companies with ``enriched_at IS NULL``.  If ``rerun_below`` is set,
     also includes companies whose ``enrichment_confidence < rerun_below``.
@@ -45,6 +45,10 @@ def find_pending(
     for that state are returned.
     If ``recent_years`` is set, only companies that have at least one notice
     within the last N years are returned (focuses the backlog on active companies).
+
+    Companies are ordered by total **workers affected** across their
+    (non-superseded) WARN notices, descending — so the scarce DUNS/provider
+    lookups are spent on the biggest layoffs first.
     """
     stmt = select(Company)
 
@@ -81,6 +85,20 @@ def find_pending(
                 )
             )
         )
+
+    # Rank by total workers affected across the company's own (non-superseded)
+    # notices. coalesce -> 0 sorts companies with no/blank layoff counts last.
+    # Tie-break on id for a deterministic order across runs.
+    affected = (
+        select(func.coalesce(func.sum(Notice.layoff_count), 0))
+        .where(
+            Notice.company_id == Company.id,
+            Notice.is_superseded.is_(False),
+        )
+        .correlate(Company)
+        .scalar_subquery()
+    )
+    stmt = stmt.order_by(affected.desc(), Company.id)
 
     stmt = stmt.limit(limit)
     return list(session.scalars(stmt))
