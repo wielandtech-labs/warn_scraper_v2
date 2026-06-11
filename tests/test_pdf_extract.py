@@ -155,10 +155,33 @@ def test_city_zip_no_state_falls_back_to_first():
     assert result["city"] == "Charleston"  # legacy first-match behavior
 
 
-def test_city_zip_no_in_state_match_falls_back_to_first():
+def test_city_zip_no_in_state_match_returns_nothing():
+    # Only an out-of-state address for a WV notice -> no city (no false HQ pin).
     text = "Dallas, TX 75201\n"
     result = _parse_text(text, "WV")
-    assert result["city"] == "Dallas"  # no WV match -> first overall
+    assert "city" not in result and "zip" not in result
+
+
+def test_city_zip_excludes_known_recipient_zip():
+    # WorkForce WV recipient (25305) is excluded; the located-at worksite wins.
+    text = (
+        "Rapid Response, Bldg. 3, Room 312\nCharleston, WV 25305\n"
+        "a total closure of the plant located at 1 Moore Ave, Buckhannon, WV 26201\n"
+    )
+    result = _parse_text(text, "WV")
+    assert result["city"] == "Buckhannon"
+    assert result["zip"] == "26201"
+
+
+def test_city_zip_excludes_recipient_by_marker():
+    text = (
+        "Dear Dislocated Worker Unit Director:\n4 Randolph Ave., Suite 102\n"
+        "Elkins, WV 26241\n"
+        "Our facility is located at 100 Main St, Moorefield, WV 26836.\n"
+    )
+    result = _parse_text(text, "WV")
+    assert result["city"] == "Moorefield"
+    assert result["zip"] == "26836"
 
 
 # ---------------------------------------------------------------------------

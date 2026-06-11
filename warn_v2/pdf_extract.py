@@ -70,6 +70,27 @@ _CITY_STATE_ZIP_RE = re.compile(
 # the opening page(s), and OCR is slow (~seconds/page).
 _OCR_MAX_PAGES = 3
 
+# A WARN letter addresses state officials (often at the capital) and may list a
+# corporate HQ, so the worksite must be told apart from these. Worksite cues sit
+# near the real address ("located at 1 Moore Ave, Buckhannon, WV 26201"); recipient
+# cues mark the agency block ("Rapid Response ... Bldg. 3, Room 312, Charleston").
+_WORKSITE_CUE = re.compile(
+    r"locat|facilit|\bplant\b|worksite|work\s+site|operat|premises|"
+    r"affect|lay(?:ing|-?off)|clos(?:e|ing|ure)|reduction|\bsite\b",
+    re.I,
+)
+_RECIPIENT_CUE = re.compile(
+    r"rapid\s+response|dislocated\s+worker|workforce|department\s+of\s+labor|"
+    r"\bdirector\b|governor|honorable|\bmayor\b|commissioner|secretary|"
+    r"\bbureau\b|\bbldg\b|\broom\s*\d|p\.?\s*o\.?\s*box",
+    re.I,
+)
+# Known WARN-recipient agency addresses (state DOL / Rapid Response HQ) by
+# (state, zip) — these recur verbatim across that state's letters.
+_RECIPIENT_ZIPS: frozenset[tuple[str, str]] = frozenset(
+    {("WV", "25305"), ("HI", "96813")}
+)
+
 
 def extract_warn_fields(pdf_bytes: bytes, state: str | None = None) -> dict:
     """Extract WARN notice fields from raw PDF bytes.
@@ -138,28 +159,51 @@ def _ocr_text(pdf_bytes: bytes, max_pages: int = _OCR_MAX_PAGES) -> str:
     return "\n".join(out)
 
 
+def _most_frequent_cz(pool: list[tuple[str, str]]) -> tuple[str, str] | None:
+    """Most frequent (city, zip) in *pool*; ties broken by first appearance."""
+    if not pool:
+        return None
+    counts = Counter(pool)
+    top = max(counts.values())
+    for cz in pool:  # first-seen among the most frequent
+        if counts[cz] == top:
+            return cz
+    return None
+
+
 def _choose_city_zip(text: str, state: str | None) -> tuple[str, str] | None:
-    """Pick the best (city, zip) from a letter's "City, ST ZIP" lines.
+    """Pick the worksite (city, zip) from a letter's "City, ST ZIP" lines.
 
     WARN letters open with a recipient block (Governor, state DOL — often the
-    capital) and may list a corporate HQ, so the first match is unreliable. When
-    *state* is known, restrict to in-state matches and take the most frequent
-    (the worksite city/ZIP repeats across the letter); fall back to the first match
-    overall when there's no state hint or no in-state match.
+    capital) and may list a corporate HQ, so first-match is unreliable. With the
+    notice *state* known, we keep only **in-state, non-recipient** matches, prefer
+    those carrying a worksite cue, and take the most frequent. If nothing survives,
+    return None (better un-geocoded than a false capital/HQ pin). Without a state
+    hint we fall back to the first match (legacy callers / non-letter PDFs).
     """
-    matches = _CITY_STATE_ZIP_RE.findall(text)  # [(city, st, zip), ...]
-    if not matches:
+    lines = text.splitlines()
+    cands: list[tuple[str, str, str, bool, bool]] = []  # city, st, zip, worksite, recip
+    for i, line in enumerate(lines):
+        # Narrow window: the match's own line plus the line above (a city often sits
+        # on its own line under a street/agency line). A wider window bleeds the
+        # recipient block's markers onto a nearby worksite line.
+        window = " ".join(lines[max(0, i - 1): i + 1])
+        for m in _CITY_STATE_ZIP_RE.finditer(line):
+            c, st, z = m.group(1).strip().title(), m.group(2).upper(), m.group(3)
+            recip = (st, z) in _RECIPIENT_ZIPS or bool(_RECIPIENT_CUE.search(window))
+            worksite = bool(_WORKSITE_CUE.search(window))
+            cands.append((c, st, z, worksite, recip))
+    if not cands:
         return None
-    norm = [(c.strip().title(), st.upper(), z) for c, st, z in matches]
+
     if state:
-        in_state = [(c, z) for c, st, z in norm if st == state.upper()]
-        if in_state:
-            counts = Counter(in_state)
-            top = max(counts.values())
-            for cz in in_state:  # first-seen among the most frequent
-                if counts[cz] == top:
-                    return cz
-    return norm[0][0], norm[0][2]
+        s = state.upper()
+        in_state = [(c, z, w) for c, st, z, w, r in cands if st == s and not r]
+        cued = [(c, z) for c, z, w in in_state if w]
+        plain = [(c, z) for c, z, w in in_state]
+        return _most_frequent_cz(cued) or _most_frequent_cz(plain)
+
+    return cands[0][0], cands[0][2]
 
 
 def _parse_text(text: str, state: str | None = None) -> dict:
@@ -198,8 +242,10 @@ def _parse_text(text: str, state: str | None = None) -> dict:
     if addr_m:
         result["address"] = addr_m.group(0).strip()
 
-    # ZIP fallback: if no city-state-zip match, grab the last 5-digit ZIP
-    if "zip" not in result:
+    # ZIP fallback: if no city-state-zip match, grab the last 5-digit ZIP. Only when
+    # the state is unknown — with a state, a bare last-ZIP would likely be the
+    # recipient/HQ ZIP that state-aware selection just (correctly) rejected.
+    if "zip" not in result and state is None:
         zips = _ZIP_RE.findall(text)
         if zips:
             result["zip"] = zips[-1]
