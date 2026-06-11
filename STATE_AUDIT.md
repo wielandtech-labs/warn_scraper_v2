@@ -72,8 +72,8 @@ enrichment.
 > it from a trusted run._
 
 <!-- BEGIN GENERATED TABLE -->
-_Generated 2026-06-11 from prod via `warn-v2 audit --markdown`
-(image `20260610-233140-d9ca666`)._
+_Generated 2026-06-11 (post geo-fixes) from prod via `warn-v2 audit --markdown`
+(image `20260611-030821-bb56303`)._
 
 | State | Active | Superseded | Years | Eff% | Count% | PDF% | Geo% | Enrich% | Scraper | Status | Next action |
 |-------|-------:|-----------:|-------|-----:|-------:|-----:|-----:|--------:|---------|--------|-------------|
@@ -83,11 +83,11 @@ _Generated 2026-06-11 from prod via `warn-v2 audit --markdown`
 | CA | 15751 | 0 | 2008-2026 | 100% | 72% | - | 100% | 1% | ok | gaps | backfill-historical --state CA; fix geocode / address source; enrich --state CA; inspect parser date handling |
 | CO | 44 | 0 | 1957-2021 | 100% | 86% | - | 25% | 0% | ok | gaps | backfill-historical --state CO; backfill-geo; enrich --state CO; inspect parser date handling |
 | CT | 284 | 0 | 2019-2026 | 100% | 17% | 100% | 81% | 2% | ok | gaps | source detail/PDF for real dates; backfill-geo; fix geocode / address source; enrich --state CT; inspect parser date handling |
-| DC | 141 | 0 | 2005-2026 | 100% | 56% | - | 0% | 4% | ok | gaps | backfill-historical --state DC; backfill-geo; enrich --state DC; inspect parser date handling |
+| DC | 141 | 0 | 2005-2026 | 100% | 56% | - | 100% | 4% | ok | gaps | backfill-historical --state DC; enrich --state DC; inspect parser date handling |
 | DE | 41 | 0 | 2016-2026 | 100% | 100% | 100% | 29% | 2% | ok | gaps | backfill-historical --state DE; source detail/PDF for real dates; backfill-geo; fix geocode / address source; enrich --state DE |
 | FL | 101 | 0 | 2026-2026 | 100% | 100% | 100% | 100% | 1% | ok | gaps | enrich --state FL; inspect parser date handling |
 | GA | 262 | 0 | 2023-2026 | 100% | 100% | n/a | 72% | 5% | ok | gaps | backfill-geo; fix geocode / address source; enrich --state GA; inspect parser date handling |
-| HI | 12 | 0 | 2026-2026 | 100% | 0% | 100% | 8% | 8% | ok | gaps | source detail/PDF for real dates; backfill-geo; enrich --state HI |
+| HI | 12 | 0 | 2026-2026 | 100% | 0% | 100% | 50% | 8% | ok | gaps | source detail/PDF for real dates; backfill-geo; enrich --state HI |
 | IA | 486 | 479 | 2021-2026 | 100% | 100% | - | 100% | 4% | ok | gaps | fix geocode / address source; enrich --state IA; mark-superseded --state IA; inspect parser date handling |
 | ID | 193 | 0 | 2009-2026 | 100% | 99% | - | 99% | 1% | ok | gaps | fix geocode / address source; enrich --state ID; inspect parser date handling |
 | IL | 29 | 14 | 2025-2026 | 100% | 100% | - | 100% | 3% | ok | gaps | fix geocode / address source; enrich --state IL; mark-superseded --state IL; inspect parser date handling; inspect parser count handling |
@@ -99,7 +99,7 @@ _Generated 2026-06-11 from prod via `warn-v2 audit --markdown`
 | MD | 70 | 0 | 2026-2026 | 100% | 99% | - | 100% | 10% | ok | gaps | fix geocode / address source; enrich --state MD; inspect parser date handling |
 | ME | 3 | 0 | 2026-2026 | 100% | 100% | 100% | 100% | 33% | ok | gaps | source detail/PDF for real dates; fix geocode / address source; enrich --state ME |
 | MI | 101 | 0 | 2024-2026 | 100% | 95% | - | 90% | 3% | ok | gaps | backfill-geo; enrich --state MI |
-| MN | 75 | 0 | 2023-2025 | 100% | 100% | - | 4% | 1% | ok | gaps | backfill-geo; enrich --state MN; inspect parser date handling |
+| MN | 75 | 0 | 2023-2025 | 100% | 100% | - | 91% | 1% | ok | gaps | backfill-geo; enrich --state MN; inspect parser date handling |
 | MO | 320 | 0 | 2019-2026 | 100% | 99% | - | 68% | 5% | ok | gaps | backfill-geo; enrich --state MO; inspect parser date handling |
 | MS | 7 | 0 | 2025-2026 | 100% | 100% | - | 100% | 29% | ok | gaps | enrich --state MS |
 | MT | 43 | 0 | 2015-2026 | 100% | 91% | - | 60% | 2% | ok | gaps | backfill-historical --state MT; backfill-geo; enrich --state MT; inspect parser date handling |
@@ -122,7 +122,7 @@ _Generated 2026-06-11 from prod via `warn-v2 audit --markdown`
 | VT | 4 | 0 | 2026-2026 | 100% | 100% | 100% | 100% | 0% | ok | gaps | source detail/PDF for real dates; enrich --state VT |
 | WA | 21 | 0 | 2026-2026 | 100% | 100% | - | 62% | 0% | ok | gaps | backfill-geo; enrich --state WA |
 | WI | 617 | 0 | 2020-2026 | 100% | 100% | 100% | 97% | 3% | ok | gaps | fix geocode / address source; enrich --state WI; inspect parser date handling |
-| WV | 51 | 0 | 2021-2026 | 100% | 0% | 100% | 4% | 0% | ok | gaps | source detail/PDF for real dates; backfill-geo; fix geocode / address source; enrich --state WV |
+| WV | 51 | 0 | 2021-2026 | 100% | 0% | 100% | 75% | 0% | ok | gaps | source detail/PDF for real dates; backfill-geo; enrich --state WV |
 <!-- END GENERATED TABLE -->
 
 ## Geocoding root cause (investigated 2026-06-11)
