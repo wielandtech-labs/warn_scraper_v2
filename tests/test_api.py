@@ -420,3 +420,85 @@ def test_company_notices_rolls_up_merged_and_excludes_superseded(api_client, db)
 
     body = api_client.get(f"/api/companies/{canon.id}/notices").json()
     assert body["total"] == 2  # canon's + dupe's active notice; superseded excluded
+
+
+# ---------------------------------------------------------------------------
+# parent/sibling family rollup  (/companies/{id}/family)
+# ---------------------------------------------------------------------------
+
+def test_company_family_returns_siblings_sorted(api_client, db):
+    a = _company(db, name="Pixar", parent_group_key="ult:disney")
+    b = _company(db, name="Marvel Studios", parent_group_key="ult:disney")
+    c = _company(db, name="Lucasfilm", parent_group_key="ult:disney")
+    _notice(db, company=a, employer="Pixar", layoff_count=100, notice_date=date(2026, 1, 1))
+    _notice(db, company=b, employer="Marvel", layoff_count=300, notice_date=date(2026, 1, 2))
+    _notice(db, company=c, employer="Lucasfilm", layoff_count=50, notice_date=date(2026, 1, 3))
+    db.commit()
+
+    body = api_client.get(f"/api/companies/{a.id}/family").json()
+    assert [m["name"] for m in body] == ["Marvel Studios", "Pixar", "Lucasfilm"]
+    self_rows = [m for m in body if m["is_self"]]
+    assert len(self_rows) == 1 and self_rows[0]["name"] == "Pixar"
+    pixar = next(m for m in body if m["name"] == "Pixar")
+    assert pixar["notice_count"] == 1 and pixar["layoff_total"] == 100
+
+
+def test_company_family_rolls_up_member_dupes_and_excludes_superseded(api_client, db):
+    a = _company(db, name="Pixar", parent_group_key="ult:disney")
+    b = _company(db, name="Marvel Studios", parent_group_key="ult:disney")
+    # A dupe merged into Pixar — dupes carry no parent_group_key of their own.
+    dupe = _company(db, name="Pixar Animation")
+    dupe.canonical_company_id = a.id
+    db.flush()
+    _notice(db, company=a, employer="Pixar", layoff_count=100, notice_date=date(2026, 1, 1))
+    _notice(db, company=dupe, employer="PixarAnim", layoff_count=40, notice_date=date(2026, 1, 2))
+    sup = _notice(db, company=dupe, employer="PixarAnim", layoff_count=999,
+                  notice_date=date(2026, 1, 3))
+    sup.is_superseded = True
+    _notice(db, company=b, employer="Marvel", layoff_count=10, notice_date=date(2026, 1, 4))
+    db.commit()
+
+    body = api_client.get(f"/api/companies/{a.id}/family").json()
+    # Only canonical members are listed; the dupe folds into Pixar's totals.
+    assert sorted(m["name"] for m in body) == ["Marvel Studios", "Pixar"]
+    pixar = next(m for m in body if m["name"] == "Pixar")
+    assert pixar["notice_count"] == 2  # canon's + dupe's active; superseded excluded
+    assert pixar["layoff_total"] == 140
+
+
+def test_company_family_self_or_no_key_is_empty(api_client, db):
+    a = _company(db, name="Solo Co", parent_group_key="self:solo co")
+    b = _company(db, name="No Key Co")  # parent_group_key is None
+    db.commit()
+
+    assert api_client.get(f"/api/companies/{a.id}/family").json() == []
+    assert api_client.get(f"/api/companies/{b.id}/family").json() == []
+
+
+def test_company_family_singleton_returns_self_only(api_client, db):
+    a = _company(db, name="Lonely Sub", parent_group_key="ult:lonelyparent")
+    db.commit()
+
+    body = api_client.get(f"/api/companies/{a.id}/family").json()
+    assert len(body) == 1
+    assert body[0]["name"] == "Lonely Sub" and body[0]["is_self"]
+
+
+def test_company_family_from_merged_dupe_resolves_to_canonical(api_client, db):
+    a = _company(db, name="Pixar", parent_group_key="ult:disney")
+    _company(db, name="Marvel Studios", parent_group_key="ult:disney")
+    dupe = _company(db, name="Pixar Animation")
+    dupe.canonical_company_id = a.id
+    db.flush()
+    db.commit()
+
+    # Requesting the dupe's id resolves through canonical to Pixar's family.
+    body = api_client.get(f"/api/companies/{dupe.id}/family").json()
+    assert sorted(m["name"] for m in body) == ["Marvel Studios", "Pixar"]
+    self_rows = [m for m in body if m["is_self"]]
+    assert len(self_rows) == 1 and self_rows[0]["name"] == "Pixar"
+
+
+def test_company_family_404(api_client, db):
+    db.commit()
+    assert api_client.get("/api/companies/999999/family").status_code == 404

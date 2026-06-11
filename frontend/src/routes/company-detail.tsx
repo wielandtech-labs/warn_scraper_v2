@@ -21,6 +21,12 @@ export function CompanyDetail() {
     enabled: !Number.isNaN(id),
   });
 
+  const family = useQuery({
+    queryKey: ["company", id, "family"],
+    queryFn: () => api.getCompanyFamily(id),
+    enabled: !Number.isNaN(id),
+  });
+
   if (Number.isNaN(id)) {
     return <div className="card text-red-600">Invalid company ID.</div>;
   }
@@ -75,6 +81,42 @@ export function CompanyDetail() {
           />
         </dl>
       </div>
+
+      {family.data && family.data.length >= 2 && (
+        <section>
+          <h2 className="mb-2 text-lg font-semibold">
+            Corporate family ({family.data.length})
+          </h2>
+          <p className="mb-2 text-xs text-slate-500">
+            Companies in the same corporate family, with layoffs rolled up across
+            each one.
+          </p>
+          <div className="card divide-y divide-slate-100 p-0">
+            {family.data.map((m) => (
+              <Link
+                key={m.company_id}
+                to="/companies/$companyId"
+                params={{ companyId: String(m.company_id) }}
+                className={`flex items-baseline justify-between gap-4 px-4 py-3 hover:bg-slate-50 ${
+                  m.is_self ? "bg-sky-50" : ""
+                }`}
+              >
+                <div className="text-sm font-medium">
+                  {m.name}
+                  {m.is_self && (
+                    <span className="ml-2 text-xs font-normal text-sky-700">
+                      this company
+                    </span>
+                  )}
+                </div>
+                <div className="text-sm text-slate-600">
+                  {fmtNum(m.layoff_total)} affected · {fmtNum(m.notice_count)} notices
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section>
         <h2 className="mb-2 text-lg font-semibold">Notices ({notices.data?.total ?? 0})</h2>

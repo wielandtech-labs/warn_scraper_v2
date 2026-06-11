@@ -43,6 +43,22 @@ class CompanyOut(BaseModel):
     enrichment_source: str | None
 
 
+class FamilyMemberOut(BaseModel):
+    """One company in a corporate family (siblings sharing a parent_group_key).
+
+    Anonymous by design: identifies the family only by its member WARN companies,
+    never by the D&B-derived parent name or the internal grouping key, per the
+    selective-exposure policy on CompanyOut.
+    """
+
+    company_id: int
+    name: str
+    notice_count: int
+    layoff_total: int
+    # True for the canonical row the requested company rolls up into.
+    is_self: bool
+
+
 class NoticeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
