@@ -23,7 +23,8 @@ from sqlalchemy.orm import Session
 
 from warn_v2.api.deps import get_db
 from warn_v2.api.schemas import MapPinOut
-from warn_v2.db.models import Location, Notice
+from warn_v2.companies.naics import naics_filter
+from warn_v2.db.models import Company, Location, Notice
 
 router = APIRouter(prefix="/map-pins", tags=["map"])
 
@@ -31,6 +32,12 @@ router = APIRouter(prefix="/map-pins", tags=["map"])
 @router.get("", response_model=list[MapPinOut])
 def list_map_pins(
     state: str | None = Query(None, description="Two-letter state code, e.g. CA"),
+    industry: str | None = Query(
+        None, description="NAICS sector id (e.g. 31-33) of the linked company"
+    ),
+    subsector: str | None = Query(
+        None, description="3-digit NAICS subsector (e.g. 311); narrows within a sector"
+    ),
     after: date | None = Query(None, description="Only notices on or after this date"),
     before: date | None = Query(None, description="Only notices on or before this date"),
     limit: int = Query(10_000, ge=1, le=10_000, description="Max pins to return (ceiling 10 000)"),
@@ -63,6 +70,11 @@ def list_map_pins(
 
     if state:
         stmt = stmt.where(Notice.state == state.upper())
+    industry_filter = naics_filter(Company.naics_code, industry, subsector)
+    if industry_filter is not None:
+        # Inner-join the linked company; un-enriched notices (no NAICS) are
+        # correctly excluded when an industry filter is active.
+        stmt = stmt.join(Company, Notice.company_id == Company.id).where(industry_filter)
     if after:
         stmt = stmt.where(Notice.notice_date >= after)
     if before:

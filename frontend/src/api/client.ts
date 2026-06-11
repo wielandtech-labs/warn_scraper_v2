@@ -74,6 +74,8 @@ export interface MapPin {
 
 export interface MapPinQuery {
   state?: string;
+  industry?: string;
+  subsector?: string;
   after?: string;
   before?: string;
 }
@@ -120,12 +122,27 @@ export const api = {
     get<Page<ScraperRunOut>>("/api/scraper-runs" + qs(q)),
 
   // ---------- Stats ----------
-  statsByState: (q: { after?: string; before?: string } = {}) =>
-    get<StateStat[]>("/api/stats/by-state" + qs(q)),
-  statsByMonth: (q: { state?: string; after?: string; before?: string } = {}) =>
-    get<MonthStat[]>("/api/stats/by-month" + qs(q)),
+  statsByState: (
+    q: { industry?: string; subsector?: string; after?: string; before?: string } = {},
+  ) => get<StateStat[]>("/api/stats/by-state" + qs(q)),
+  statsByMonth: (
+    q: {
+      state?: string;
+      industry?: string;
+      subsector?: string;
+      after?: string;
+      before?: string;
+    } = {},
+  ) => get<MonthStat[]>("/api/stats/by-month" + qs(q)),
   statsTopEmployers: (
-    q: { limit?: number; state?: string; after?: string; before?: string } = {},
+    q: {
+      limit?: number;
+      state?: string;
+      industry?: string;
+      subsector?: string;
+      after?: string;
+      before?: string;
+    } = {},
   ) => get<EmployerStat[]>("/api/stats/top-employers" + qs(q)),
   statsByParentGroup: (
     q: { limit?: number; state?: string; after?: string; before?: string } = {},

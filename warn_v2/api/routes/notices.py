@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from warn_v2.api.deps import PaginationParams, get_db
 from warn_v2.api.schemas import NoticeOut, Page
-from warn_v2.companies.naics import sector_prefixes, subsector_name
+from warn_v2.companies.naics import naics_filter
 from warn_v2.db.models import Company, Location, Notice
 
 router = APIRouter(prefix="/notices", tags=["notices"])
@@ -71,14 +71,7 @@ def list_notices(
     if closure_category:
         stmt = stmt.where(Notice.closure_category == closure_category)
         count_stmt = count_stmt.where(Notice.closure_category == closure_category)
-    # Industry: a valid 3-digit subsector is more specific than the sector.
-    if subsector and subsector_name(subsector):
-        industry_filter = func.substr(Company.naics_code, 1, 3) == subsector
-    else:
-        prefixes = sector_prefixes(industry)
-        industry_filter = (
-            func.substr(Company.naics_code, 1, 2).in_(prefixes) if prefixes else None
-        )
+    industry_filter = naics_filter(Company.naics_code, industry, subsector)
     if industry_filter is not None:
         stmt = stmt.join(Company, Notice.company_id == Company.id).where(industry_filter)
         count_stmt = count_stmt.join(

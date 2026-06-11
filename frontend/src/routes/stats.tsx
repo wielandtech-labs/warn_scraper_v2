@@ -30,12 +30,22 @@ export function StatsPage() {
   const byState = useQuery({
     queryKey: ["stats", "by-state", search],
     queryFn: () =>
-      api.statsByState({ after: search.after, before: search.before }),
+      api.statsByState({
+        industry: search.industry,
+        subsector: search.subsector,
+        after: search.after,
+        before: search.before,
+      }),
   });
 
   const top = useQuery({
     queryKey: ["stats", "top-employers", search, 20],
     queryFn: () => api.statsTopEmployers({ ...search, limit: 20 }),
+  });
+
+  const industriesQuery = useQuery({
+    queryKey: ["stats", "industries"],
+    queryFn: () => api.statsIndustries(),
   });
 
   const handleFilterChange = (next: FilterValues) => {
@@ -50,7 +60,12 @@ export function StatsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Statistics</h1>
-      <FilterBar values={search} onChange={handleFilterChange} showEmployer={false} />
+      <FilterBar
+        values={search}
+        onChange={handleFilterChange}
+        showEmployer={false}
+        industries={industriesQuery.data}
+      />
 
       <ChartCard title="Notices and layoffs by month">
         {byMonth.isLoading ? (
