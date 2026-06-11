@@ -375,6 +375,41 @@ def test_industries_excludes_superseded(api_client, db):
     assert {r["sector"]: r["notice_count"] for r in body} == {"31-33": 1}
 
 
+def test_industries_nests_subsectors(api_client, db):
+    food = _company(db, name="Food", naics_code="311999")
+    food2 = _company(db, name="Food2", naics_code="311111")  # same subsector 311
+    mach = _company(db, name="Mach", naics_code="333120")     # 333, same sector 31-33
+    _notice(db, state="CA", employer="Food", notice_date=date(2026, 1, 1),
+            layoff_count=1, company_id=food.id)
+    _notice(db, state="CA", employer="Food2", notice_date=date(2026, 1, 2),
+            layoff_count=1, company_id=food2.id)
+    _notice(db, state="CA", employer="Mach", notice_date=date(2026, 1, 3),
+            layoff_count=1, company_id=mach.id)
+    db.commit()
+
+    body = api_client.get("/api/stats/industries").json()
+    mfg = next(r for r in body if r["sector"] == "31-33")
+    assert mfg["notice_count"] == 3  # sector total = sum of subsectors
+    subs = {s["code"]: s for s in mfg["subsectors"]}
+    assert subs["311"]["notice_count"] == 2
+    assert subs["311"]["name"] == "Food Manufacturing"
+    assert subs["333"]["notice_count"] == 1
+    # populated-only: a subsector with no notices is absent
+    assert "312" not in subs
+
+
+def test_industries_omits_empty_sectors_and_subsectors(api_client, db):
+    food = _company(db, name="Food", naics_code="311999")
+    _notice(db, state="CA", employer="Food", notice_date=date(2026, 1, 1),
+            layoff_count=1, company_id=food.id)
+    db.commit()
+
+    body = api_client.get("/api/stats/industries").json()
+    # exactly the one populated sector, with exactly its one populated subsector
+    assert [r["sector"] for r in body] == ["31-33"]
+    assert [s["code"] for r in body for s in r["subsectors"]] == ["311"]
+
+
 def test_by_parent_group_empty_when_no_families(api_client, db):
     c = _company(db, name="Independent Co", parent_group_key="self:independent co")
     _notice(db, state="CA", employer="Indie", notice_date=date(2026, 1, 1),

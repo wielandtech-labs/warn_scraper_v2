@@ -537,3 +537,38 @@ def test_companies_industry_filter(api_client, db):
     body = api_client.get("/api/companies?industry=31-33").json()
     assert body["total"] == 1
     assert body["items"][0]["name"] == "Mfg Co"
+
+
+def test_notices_subsector_filter(api_client, db):
+    food = _company(db, name="Food Co", naics_code="311999")
+    bev = _company(db, name="Bev Co", naics_code="312111")  # 312, same sector 31-33
+    _notice(db, company=food, employer="Food Co", notice_date=date(2026, 1, 1))
+    _notice(db, company=bev, employer="Bev Co", notice_date=date(2026, 1, 2))
+    db.commit()
+
+    body = api_client.get("/api/notices?subsector=311").json()
+    assert body["total"] == 1
+    assert body["items"][0]["employer"] == "Food Co"
+
+
+def test_notices_subsector_overrides_industry(api_client, db):
+    food = _company(db, name="Food Co", naics_code="311999")
+    bev = _company(db, name="Bev Co", naics_code="312111")  # same sector, diff subsector
+    _notice(db, company=food, employer="Food Co", notice_date=date(2026, 1, 1))
+    _notice(db, company=bev, employer="Bev Co", notice_date=date(2026, 1, 2))
+    db.commit()
+
+    # Both are sector 31-33; the 311 subsector narrows to Food only.
+    body = api_client.get("/api/notices?industry=31-33&subsector=311").json()
+    assert body["total"] == 1
+    assert body["items"][0]["employer"] == "Food Co"
+
+
+def test_companies_subsector_filter(api_client, db):
+    _company(db, name="Food Co", naics_code="311999")
+    _company(db, name="Bev Co", naics_code="312111")
+    db.commit()
+
+    body = api_client.get("/api/companies?subsector=311").json()
+    assert body["total"] == 1
+    assert body["items"][0]["name"] == "Food Co"
