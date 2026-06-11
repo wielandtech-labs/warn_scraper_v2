@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from warn_v2 import auth
@@ -16,9 +16,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 class LoginIn(BaseModel):
     # Plain str, not EmailStr — EmailStr would pull in the email-validator dep
-    # for no gain on admin-provisioned accounts.
-    email: str
-    password: str
+    # for no gain on admin-provisioned accounts. Length bounds cap the only
+    # body-accepting endpoint (argon2 hashes the full password otherwise).
+    email: str = Field(max_length=320)
+    password: str = Field(min_length=1, max_length=1024)
 
 
 class MeOut(BaseModel):

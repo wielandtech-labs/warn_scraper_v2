@@ -761,6 +761,40 @@ def create_user_cmd(email: str, role: str, password_stdin: bool) -> None:
     click.echo(f"created {email} role={role}")
 
 
+@main.command("set-password")
+@click.option("--email", required=True)
+@click.option(
+    "--password-stdin",
+    is_flag=True,
+    help="Read the password from stdin (for k8s Jobs); default prompts interactively",
+)
+def set_password_cmd(email: str, password_stdin: bool) -> None:
+    """Change a user's password and revoke all their active sessions."""
+    from sqlalchemy import delete, select
+
+    from warn_v2.auth import hash_password
+    from warn_v2.db.models import User, UserSession
+    from warn_v2.db.session import session_scope
+
+    if password_stdin:
+        password = sys.stdin.readline().rstrip("\n")
+    else:
+        password = click.prompt("Password", hide_input=True, confirmation_prompt=True)
+    if len(password) < _MIN_PASSWORD_LEN:
+        click.echo(f"password must be at least {_MIN_PASSWORD_LEN} characters", err=True)
+        sys.exit(1)
+
+    with session_scope() as session:
+        user = session.scalar(select(User).where(User.email == email.strip().lower()))
+        if user is None:
+            click.echo(f"no such user: {email}", err=True)
+            sys.exit(1)
+        user.password_hash = hash_password(password)
+        # Compromise response: invalidate every outstanding session too.
+        session.execute(delete(UserSession).where(UserSession.user_id == user.id))
+    click.echo(f"password updated for {email}; active sessions revoked")
+
+
 @main.command("set-role")
 @click.option("--email", required=True)
 @click.option("--role", type=_ROLES, required=True)

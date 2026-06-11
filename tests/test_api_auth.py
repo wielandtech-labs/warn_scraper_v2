@@ -210,6 +210,42 @@ def test_logout_drops_back_to_public_shape(api_client, db):
     assert "duns" not in api_client.get(f"/api/companies/{c.id}").json()
 
 
+def _assert_no_dnb_anywhere(payload) -> None:
+    """Recursively assert no D&B field key appears anywhere in a JSON payload."""
+    if isinstance(payload, dict):
+        for field in DNB_FIELDS:
+            assert field not in payload
+        for v in payload.values():
+            _assert_no_dnb_anywhere(v)
+    elif isinstance(payload, list):
+        for v in payload:
+            _assert_no_dnb_anywhere(v)
+
+
+def test_paid_session_gets_no_dnb_on_non_reshaped_endpoints(api_client, db):
+    """Policy pin: only the 5 reshaped endpoints may serve D&B fields.
+
+    family/stats/map-pins keep static response models and must stay
+    public-shaped even for paid sessions — this test fails if a future change
+    widens the surface without deliberately updating the policy.
+    """
+    c = _enriched_company(db)
+    _notice(db, c)
+    _user(db, "p@example.com", role="paid")
+    _login(api_client, "p@example.com")
+
+    for path in (
+        f"/api/companies/{c.id}/family",
+        "/api/stats/top-employers",
+        "/api/stats/by-parent-group",
+        "/api/stats/by-state",
+        "/api/map-pins",
+    ):
+        resp = api_client.get(path)
+        assert resp.status_code == 200, path
+        _assert_no_dnb_anywhere(resp.json())
+
+
 # ---------------------------------------------------------------------------
 # require_admin (no admin-only routes yet; unit-test the dependency)
 # ---------------------------------------------------------------------------

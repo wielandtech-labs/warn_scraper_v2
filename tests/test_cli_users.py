@@ -73,6 +73,44 @@ def test_create_user_duplicate_email(runner, db_session_factory):
     assert "already exists" in result.output
 
 
+def test_set_password_revokes_sessions(runner, db_session_factory):
+    runner.invoke(
+        main,
+        ["create-user", "--email", "rot@example.com", "--password-stdin"],
+        input=f"{PASSWORD}\n",
+    )
+    with db_session_factory() as session:
+        user = session.scalar(select(User).where(User.email == "rot@example.com"))
+        old_hash = user.password_hash
+        session.add(
+            UserSession(
+                token_sha256="y" * 64,
+                user_id=user.id,
+                expires_at=datetime.now(UTC) + timedelta(days=1),
+            )
+        )
+        session.commit()
+
+    result = runner.invoke(
+        main,
+        ["set-password", "--email", "rot@example.com", "--password-stdin"],
+        input="new-password-much-longer\n",
+    )
+    assert result.exit_code == 0, result.output
+    with db_session_factory() as session:
+        user = session.scalar(select(User).where(User.email == "rot@example.com"))
+        assert user.password_hash != old_hash
+        assert auth.verify_password(user.password_hash, "new-password-much-longer")
+        assert session.scalar(select(UserSession)) is None  # sessions revoked
+
+    missing = runner.invoke(
+        main,
+        ["set-password", "--email", "ghost@example.com", "--password-stdin"],
+        input="new-password-much-longer\n",
+    )
+    assert missing.exit_code == 1
+
+
 def test_set_role(runner, db_session_factory):
     runner.invoke(
         main,
