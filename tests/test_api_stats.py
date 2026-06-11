@@ -32,6 +32,7 @@ def _notice(
     notice_date: date,
     layoff_count: int,
     company_id: int | None = None,
+    closure_category: str | None = None,
 ) -> Notice:
     nid = f"test_{state}_{notice_date}_{employer[:10]}_{layoff_count}"
     n = Notice(
@@ -41,6 +42,7 @@ def _notice(
         notice_date=notice_date,
         layoff_count=layoff_count,
         company_id=company_id,
+        closure_category=closure_category,
     )
     db.add(n)
     db.flush()
@@ -484,6 +486,46 @@ def test_by_month_industry_filter(api_client, db):
     body = api_client.get("/api/stats/by-month?industry=44-45").json()
     assert len(body) == 1
     assert body[0]["layoff_total"] == 200
+
+
+def test_by_state_closure_category_filter(api_client, db):
+    _notice(db, state="CA", employer="Closing Co", notice_date=date(2026, 1, 1),
+            layoff_count=100, closure_category="Closure")
+    _notice(db, state="TX", employer="Layoff Co", notice_date=date(2026, 1, 2),
+            layoff_count=200, closure_category="Layoff")
+    _notice(db, state="NY", employer="Unknown Co", notice_date=date(2026, 1, 3),
+            layoff_count=50)
+    db.commit()
+
+    body = api_client.get("/api/stats/by-state?closure_category=Closure").json()
+    assert len(body) == 1
+    assert body[0]["state"] == "CA"
+    assert body[0]["layoff_total"] == 100
+
+
+def test_by_month_closure_category_filter(api_client, db):
+    _notice(db, state="CA", employer="Closing Co", notice_date=date(2026, 1, 1),
+            layoff_count=100, closure_category="Closure")
+    _notice(db, state="CA", employer="Layoff Co", notice_date=date(2026, 1, 2),
+            layoff_count=200, closure_category="Layoff")
+    db.commit()
+
+    body = api_client.get("/api/stats/by-month?closure_category=Layoff").json()
+    assert len(body) == 1
+    assert body[0]["month"] == "2026-01"
+    assert body[0]["layoff_total"] == 200
+
+
+def test_top_employers_closure_category_filter(api_client, db):
+    _notice(db, state="CA", employer="Closing Co", notice_date=date(2026, 1, 1),
+            layoff_count=100, closure_category="Closure")
+    _notice(db, state="CA", employer="Layoff Co", notice_date=date(2026, 1, 2),
+            layoff_count=200, closure_category="Layoff")
+    db.commit()
+
+    assert [r["employer"] for r in
+            api_client.get("/api/stats/top-employers?closure_category=Closure").json()
+            ] == ["Closing Co"]
 
 
 # Ensure unused imports don't break ruff

@@ -84,6 +84,12 @@ def _apply_date_filters(stmt, after: date | None, before: date | None):
     return stmt
 
 
+def _apply_closure_filter(stmt, closure_category: str | None):
+    if closure_category:
+        stmt = stmt.where(Notice.closure_category == closure_category)
+    return stmt
+
+
 def _not_superseded(stmt):
     return stmt.where(Notice.is_superseded.is_(False))
 
@@ -118,6 +124,9 @@ def _apply_industry_filter(stmt, industry, subsector, *, joined: bool = False):
 
 @router.get("/by-state", response_model=list[StateStat])
 def by_state(
+    closure_category: str | None = Query(
+        None, description="Normalized closure type: Closure | Layoff"
+    ),
     industry: str | None = Query(None, description="NAICS sector id (e.g. 31-33)"),
     subsector: str | None = Query(None, description="3-digit NAICS subsector (e.g. 311)"),
     after: date | None = Query(None, description="Only notices on or after this date"),
@@ -135,6 +144,7 @@ def by_state(
     )
     stmt = _not_superseded(stmt)
     stmt = _apply_date_filters(stmt, after, before)
+    stmt = _apply_closure_filter(stmt, closure_category)
     stmt = _apply_industry_filter(stmt, industry, subsector)
     rows = db.execute(stmt).all()
     return [
@@ -146,6 +156,9 @@ def by_state(
 @router.get("/by-month", response_model=list[MonthStat])
 def by_month(
     state: str | None = Query(None, description="Restrict to one state"),
+    closure_category: str | None = Query(
+        None, description="Normalized closure type: Closure | Layoff"
+    ),
     industry: str | None = Query(None, description="NAICS sector id (e.g. 31-33)"),
     subsector: str | None = Query(None, description="3-digit NAICS subsector (e.g. 311)"),
     after: date | None = Query(None),
@@ -170,6 +183,7 @@ def by_month(
     )
     stmt = _not_superseded(stmt)
     stmt = _apply_date_filters(stmt, after, before)
+    stmt = _apply_closure_filter(stmt, closure_category)
     if state:
         stmt = stmt.where(Notice.state == state.upper())
     stmt = _apply_industry_filter(stmt, industry, subsector)
@@ -185,6 +199,9 @@ def by_month(
 def top_employers(
     limit: int = Query(10, ge=1, le=100),
     state: str | None = Query(None),
+    closure_category: str | None = Query(
+        None, description="Normalized closure type: Closure | Layoff"
+    ),
     industry: str | None = Query(None, description="NAICS sector id (e.g. 31-33)"),
     subsector: str | None = Query(None, description="3-digit NAICS subsector (e.g. 311)"),
     after: date | None = Query(None),
@@ -218,6 +235,7 @@ def top_employers(
     )
     stmt = _not_superseded(stmt)
     stmt = _apply_date_filters(stmt, after, before)
+    stmt = _apply_closure_filter(stmt, closure_category)
     if state:
         stmt = stmt.where(Notice.state == state.upper())
     # Company is already (outer-)joined above, so just add the WHERE clause.

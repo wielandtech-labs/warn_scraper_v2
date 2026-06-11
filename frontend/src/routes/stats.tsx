@@ -31,6 +31,7 @@ export function StatsPage() {
     queryKey: ["stats", "by-state", search],
     queryFn: () =>
       api.statsByState({
+        closure_category: search.closure_category,
         industry: search.industry,
         subsector: search.subsector,
         after: search.after,
