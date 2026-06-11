@@ -574,12 +574,18 @@ def test_companies_subsector_filter(api_client, db):
     assert body["items"][0]["name"] == "Food Co"
 
 
-def _geocoded_notice(db, company, employer):
+def _geocoded_notice(db, company, employer, closure_category=None):
     """A notice with a geocoded Location so it appears on /api/map-pins."""
     loc = Location(state="CA", lat=34.0, lon=-118.0)
     db.add(loc)
     db.flush()
-    n = _notice(db, company=company, employer=employer, notice_date=date(2026, 1, 1))
+    n = _notice(
+        db,
+        company=company,
+        employer=employer,
+        notice_date=date(2026, 1, 1),
+        closure_category=closure_category,
+    )
     n.location_id = loc.id
     return n
 
@@ -605,3 +611,18 @@ def test_map_pins_industry_filter(api_client, db):
             api_client.get("/api/map-pins?subsector=311").json()] == ["Mfg Co"]
     assert [p["employer"] for p in api_client.get(
         "/api/map-pins?industry=44-45&subsector=311").json()] == ["Mfg Co"]
+
+
+def test_map_pins_closure_category_filter(api_client, db):
+    _geocoded_notice(db, None, "Closing Co", closure_category="Closure")
+    _geocoded_notice(db, None, "Layoff Co", closure_category="Layoff")
+    _geocoded_notice(db, None, "Unknown Co")
+    db.commit()
+
+    # No filter: all three geocoded pins.
+    assert {p["employer"] for p in api_client.get("/api/map-pins").json()} == {
+        "Closing Co", "Layoff Co", "Unknown Co"
+    }
+    # Closure filter: only the matching pin.
+    assert [p["employer"] for p in
+            api_client.get("/api/map-pins?closure_category=Closure").json()] == ["Closing Co"]

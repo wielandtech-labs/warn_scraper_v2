@@ -102,12 +102,14 @@ const mapRoute = createRoute({
     search: Record<string, unknown>,
   ): {
     state?: string;
+    closure_category?: string;
     industry?: string;
     subsector?: string;
     after?: string;
     before?: string;
   } => ({
     state: (search.state as string) || undefined,
+    closure_category: (search.closure_category as string) || undefined,
     industry: (search.industry as string) || undefined,
     subsector: (search.subsector as string) || undefined,
     after: (search.after as string) || undefined,
@@ -123,12 +125,14 @@ const statsRoute = createRoute({
     search: Record<string, unknown>,
   ): {
     state?: string;
+    closure_category?: string;
     industry?: string;
     subsector?: string;
     after?: string;
     before?: string;
   } => ({
     state: (search.state as string) || undefined,
+    closure_category: (search.closure_category as string) || undefined,
     industry: (search.industry as string) || undefined,
     subsector: (search.subsector as string) || undefined,
     after: (search.after as string) || undefined,

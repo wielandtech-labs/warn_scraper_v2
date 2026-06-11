@@ -33,6 +33,7 @@ export function MapPage() {
     queryFn: () =>
       api.listMapPins({
         state: search.state,
+        closure_category: search.closure_category,
         industry: search.industry,
         subsector: search.subsector,
         after: search.after,

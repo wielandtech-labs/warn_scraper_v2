@@ -32,6 +32,9 @@ router = APIRouter(prefix="/map-pins", tags=["map"])
 @router.get("", response_model=list[MapPinOut])
 def list_map_pins(
     state: str | None = Query(None, description="Two-letter state code, e.g. CA"),
+    closure_category: str | None = Query(
+        None, description="Normalized closure type: Closure | Layoff"
+    ),
     industry: str | None = Query(
         None, description="NAICS sector id (e.g. 31-33) of the linked company"
     ),
@@ -70,6 +73,8 @@ def list_map_pins(
 
     if state:
         stmt = stmt.where(Notice.state == state.upper())
+    if closure_category:
+        stmt = stmt.where(Notice.closure_category == closure_category)
     industry_filter = naics_filter(Company.naics_code, industry, subsector)
     if industry_filter is not None:
         # Inner-join the linked company; un-enriched notices (no NAICS) are

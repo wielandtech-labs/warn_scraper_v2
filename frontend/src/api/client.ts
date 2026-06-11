@@ -74,6 +74,7 @@ export interface MapPin {
 
 export interface MapPinQuery {
   state?: string;
+  closure_category?: string;
   industry?: string;
   subsector?: string;
   after?: string;
@@ -123,11 +124,18 @@ export const api = {
 
   // ---------- Stats ----------
   statsByState: (
-    q: { industry?: string; subsector?: string; after?: string; before?: string } = {},
+    q: {
+      closure_category?: string;
+      industry?: string;
+      subsector?: string;
+      after?: string;
+      before?: string;
+    } = {},
   ) => get<StateStat[]>("/api/stats/by-state" + qs(q)),
   statsByMonth: (
     q: {
       state?: string;
+      closure_category?: string;
       industry?: string;
       subsector?: string;
       after?: string;
@@ -138,6 +146,7 @@ export const api = {
     q: {
       limit?: number;
       state?: string;
+      closure_category?: string;
       industry?: string;
       subsector?: string;
       after?: string;
