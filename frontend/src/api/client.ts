@@ -7,9 +7,11 @@
 import type {
   CompanyOut,
   EmployerStat,
+  FamilyMemberOut,
   MonthStat,
   NoticeOut,
   Page,
+  ParentGroupStat,
   ScraperRunOut,
   StateStat,
 } from "./types";
@@ -102,6 +104,9 @@ export const api = {
   getCompany: (id: number) => get<CompanyOut>(`/api/companies/${id}`),
   listCompanyNotices: (id: number, q: { limit?: number; offset?: number } = {}) =>
     get<Page<NoticeOut>>(`/api/companies/${id}/notices` + qs(q)),
+  /** Sibling companies sharing this company's corporate family (empty if none). */
+  getCompanyFamily: (id: number) =>
+    get<FamilyMemberOut[]>(`/api/companies/${id}/family`),
 
   // ---------- Scraper runs ----------
   listRuns: (q: { state?: string; status?: string; limit?: number; offset?: number } = {}) =>
@@ -115,4 +120,7 @@ export const api = {
   statsTopEmployers: (
     q: { limit?: number; state?: string; after?: string; before?: string } = {},
   ) => get<EmployerStat[]>("/api/stats/top-employers" + qs(q)),
+  statsByParentGroup: (
+    q: { limit?: number; state?: string; after?: string; before?: string } = {},
+  ) => get<ParentGroupStat[]>("/api/stats/by-parent-group" + qs(q)),
 };

@@ -215,5 +215,137 @@ def test_superseded_notices_excluded_from_all_endpoints(api_client, db):
     assert body[0]["employer"] == "Active"
 
 
+# ---------------------------------------------------------------------------
+# /stats/by-parent-group
+# ---------------------------------------------------------------------------
+
+def _company(db, name: str, **kw) -> Company:
+    c = Company(name=name, **kw)
+    db.add(c)
+    db.flush()
+    return c
+
+
+def test_by_parent_group_ranks_families_by_layoffs(api_client, db):
+    # Two families; Disney (sum 400) should outrank Comcast (sum 150).
+    pix = _company(db, name="Pixar", parent_group_key="ult:disney")
+    mar = _company(db, name="Marvel Studios", parent_group_key="ult:disney")
+    dwm = _company(db, name="DreamWorks", parent_group_key="ult:comcast")
+    foc = _company(db, name="Focus Features", parent_group_key="ult:comcast")
+    _notice(db, state="CA", employer="Pixar", notice_date=date(2026, 1, 1),
+            layoff_count=100, company_id=pix.id)
+    _notice(db, state="CA", employer="Marvel", notice_date=date(2026, 1, 2),
+            layoff_count=300, company_id=mar.id)
+    _notice(db, state="CA", employer="DreamWorks", notice_date=date(2026, 1, 3),
+            layoff_count=100, company_id=dwm.id)
+    _notice(db, state="CA", employer="Focus", notice_date=date(2026, 1, 4),
+            layoff_count=50, company_id=foc.id)
+    db.commit()
+
+    body = api_client.get("/api/stats/by-parent-group").json()
+    assert len(body) == 2
+    assert body[0]["layoff_total"] == 400
+    assert body[0]["member_count"] == 2
+    # Representative = largest member (Marvel, 300).
+    assert body[0]["representative_company_name"] == "Marvel Studios"
+    assert body[0]["representative_company_id"] == mar.id
+    assert body[0]["notice_count"] == 2
+    assert body[1]["layoff_total"] == 150
+
+
+def test_by_parent_group_excludes_singletons_and_self_keys(api_client, db):
+    # A real 2-member family, a singleton real family, and a self-keyed company.
+    a = _company(db, name="Pixar", parent_group_key="ult:disney")
+    b = _company(db, name="Marvel Studios", parent_group_key="ult:disney")
+    solo = _company(db, name="Lonely Sub", parent_group_key="ult:lonelyparent")
+    selfc = _company(db, name="Independent Co", parent_group_key="self:independent co")
+    _notice(db, state="CA", employer="Pixar", notice_date=date(2026, 1, 1),
+            layoff_count=10, company_id=a.id)
+    _notice(db, state="CA", employer="Marvel", notice_date=date(2026, 1, 2),
+            layoff_count=20, company_id=b.id)
+    _notice(db, state="CA", employer="Lonely", notice_date=date(2026, 1, 3),
+            layoff_count=999, company_id=solo.id)
+    _notice(db, state="CA", employer="Indie", notice_date=date(2026, 1, 4),
+            layoff_count=999, company_id=selfc.id)
+    db.commit()
+
+    body = api_client.get("/api/stats/by-parent-group").json()
+    assert len(body) == 1  # only the 2-member Disney family
+    assert body[0]["representative_company_name"] == "Marvel Studios"
+
+
+def test_by_parent_group_rolls_up_merged_dupes(api_client, db):
+    canon = _company(db, name="Pixar", parent_group_key="ult:disney")
+    mar = _company(db, name="Marvel Studios", parent_group_key="ult:disney")
+    dupe = _company(db, name="Pixar Animation")
+    dupe.canonical_company_id = canon.id
+    db.flush()
+    _notice(db, state="CA", employer="Pixar", notice_date=date(2026, 1, 1),
+            layoff_count=100, company_id=canon.id)
+    _notice(db, state="CA", employer="PixarAnim", notice_date=date(2026, 1, 2),
+            layoff_count=40, company_id=dupe.id)
+    _notice(db, state="CA", employer="Marvel", notice_date=date(2026, 1, 3),
+            layoff_count=10, company_id=mar.id)
+    db.commit()
+
+    body = api_client.get("/api/stats/by-parent-group").json()
+    assert len(body) == 1
+    # Pixar canonical = 140 (own + dupe), Marvel = 10, family total 150, 2 members.
+    assert body[0]["layoff_total"] == 150
+    assert body[0]["member_count"] == 2
+    assert body[0]["representative_company_name"] == "Pixar"
+
+
+def test_by_parent_group_excludes_superseded(api_client, db):
+    a = _company(db, name="Pixar", parent_group_key="ult:disney")
+    b = _company(db, name="Marvel Studios", parent_group_key="ult:disney")
+    _notice(db, state="CA", employer="Pixar", notice_date=date(2026, 1, 1),
+            layoff_count=100, company_id=a.id)
+    sup = _notice(db, state="CA", employer="Pixar", notice_date=date(2026, 1, 2),
+                  layoff_count=999, company_id=a.id)
+    sup.is_superseded = True
+    _notice(db, state="CA", employer="Marvel", notice_date=date(2026, 1, 3),
+            layoff_count=50, company_id=b.id)
+    db.commit()
+
+    body = api_client.get("/api/stats/by-parent-group").json()
+    assert len(body) == 1
+    assert body[0]["layoff_total"] == 150  # superseded 999 excluded
+
+
+def test_by_parent_group_state_and_date_filters(api_client, db):
+    a = _company(db, name="Pixar", parent_group_key="ult:disney")
+    b = _company(db, name="Marvel Studios", parent_group_key="ult:disney")
+    _notice(db, state="CA", employer="Pixar", notice_date=date(2026, 6, 1),
+            layoff_count=100, company_id=a.id)
+    _notice(db, state="TX", employer="Marvel", notice_date=date(2026, 6, 1),
+            layoff_count=200, company_id=b.id)
+    _notice(db, state="CA", employer="Marvel", notice_date=date(2020, 1, 1),
+            layoff_count=999, company_id=b.id)
+    db.commit()
+
+    # State filter: only CA notices -> Pixar(100) + Marvel old(999) in CA; both
+    # members present so the family survives, but TX notice is excluded.
+    ca = api_client.get("/api/stats/by-parent-group?state=CA").json()
+    assert len(ca) == 1
+    assert ca[0]["layoff_total"] == 1099  # 100 + 999 (both CA), TX 200 excluded
+
+    # Date filter drops the 2020 notice -> only Pixar(100) remains in CA -> the
+    # family collapses to a singleton and is excluded.
+    recent = api_client.get(
+        "/api/stats/by-parent-group?state=CA&after=2026-01-01"
+    ).json()
+    assert recent == []
+
+
+def test_by_parent_group_empty_when_no_families(api_client, db):
+    c = _company(db, name="Independent Co", parent_group_key="self:independent co")
+    _notice(db, state="CA", employer="Indie", notice_date=date(2026, 1, 1),
+            layoff_count=10, company_id=c.id)
+    db.commit()
+
+    assert api_client.get("/api/stats/by-parent-group").json() == []
+
+
 # Ensure unused imports don't break ruff
 _ = (UTC, datetime, Decimal)
