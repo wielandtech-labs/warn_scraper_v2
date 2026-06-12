@@ -155,6 +155,59 @@ def _parse_pdf(pdf_bytes: bytes, url: str) -> list[NoticeRow]:
         return []
 
 
+# ---------------------------------------------------------------------------
+# Historical backfill (2018+)
+#
+# DEED report naming drifted: monthly PDFs are "plant-closing-*" (2022) or
+# "plant-closing-mass-layoff-warn-*" (2023+); 2018-2021 published one annual
+# summary each ("mass-layoff-summary-2018", "2019-mass-layoffs",
+# "2020-mass-layoff-report", "plant-closing-mass-layoff-2021"). One broad CDX
+# query catches all eras; non-report PDFs parse to 0 rows and are skipped.
+# ---------------------------------------------------------------------------
+
+_ARCHIVE_NAME_RE = re.compile(r"(plant-closing|mass-layoff)", re.I)
+# Annual-era PDFs glue the report year onto the employer cell
+# ("National Recoveries 2021") — strip it so rows hash like monthly-era rows.
+_TRAILING_YEAR_RE = re.compile(r"\s+20\d{2}$")
+
+
+def _discover_archive_pdf_urls() -> list[str]:
+    """All DEED plant-closing/mass-layoff PDF URLs ever archived, oldest first."""
+    try:
+        r = httpx.get(
+            _CDX_API,
+            params={
+                "url": "mn.gov/deed/assets/*",
+                "output": "json",
+                "fl": "original",
+                "filter": "statuscode:200",
+                "collapse": "urlkey",
+                "limit": 5000,
+            },
+            headers=_UA,
+            timeout=60,
+        )
+        r.raise_for_status()
+        entries = r.json()
+    except Exception as exc:
+        raise ScrapeFailed(f"MN: CDX API error: {exc}") from exc
+
+    urls: list[str] = []
+    for entry in entries[1:]:  # skip header row
+        url = entry[0] if entry else ""
+        if url.endswith(".pdf") and _ARCHIVE_NAME_RE.search(url) and url not in urls:
+            urls.append(url)
+    return sorted(urls)
+
+
+def _parse_archive_pdf(pdf_bytes: bytes, url: str) -> list[NoticeRow]:
+    """Parse a historical DEED PDF, normalizing annual-era employer names."""
+    rows = _parse_pdf(pdf_bytes, url)
+    for row in rows:
+        row.employer = _TRAILING_YEAR_RE.sub("", row.employer)
+    return rows
+
+
 def _parse_clean_table(pdf: pdfplumber.PDF, url: str) -> list[NoticeRow]:  # type: ignore[name-defined]
     """Try the 2026-style clean 10-column table format."""
     rows: list[NoticeRow] = []

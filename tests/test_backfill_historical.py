@@ -236,7 +236,10 @@ def test_backfill_historical_ca_upserts_rows_xlsx(db) -> None:
 
 @pytest.mark.parametrize(
     "state",
-    ["CA", "DC", "AZ", "DE", "KS", "ME", "VT", "TX", "FL", "HI", "KY", "NM"],
+    [
+        "CA", "DC", "AZ", "DE", "KS", "ME", "VT", "TX", "FL", "HI", "KY", "NM",
+        "MD", "WI", "MN", "MS", "IL",
+    ],
 )
 def test_supported_states_in_registry(state) -> None:
     from warn_v2.scripts.backfill_historical import _BACKFILL, _SUPPORTED
@@ -461,6 +464,203 @@ def test_dry_run_reports_near_miss(db, caplog) -> None:
     assert stats["rows_seen"] == 1
     assert "near_miss=1" in caplog.text
     assert db.query(Notice).count() == 1  # only the seeded row
+
+
+# ---------------------------------------------------------------------------
+# Wave 2A fetch/parse helpers — MD / WI / MN / MS / IL
+# ---------------------------------------------------------------------------
+
+_MD_ARCHIVE_HTML = (
+    b"<table>"
+    b"<tr><td><strong>Notice Date</strong></td><td><strong>NAICS Code</strong></td>"
+    b"<td><strong>Company</strong></td><td><strong>Location</strong></td>"
+    b"<td><strong>WIA Code</strong></td><td><strong>Total Employees</strong></td>"
+    b"<td><strong>Effective Date</strong></td><td><strong>Type Code</strong></td></tr>"
+    b"<tr><td>3/15/2010</td><td>336399</td><td>Marada Industries</td>"
+    b"<td>100 Main St Westminster, MD 21157</td><td>9</td><td>84</td>"
+    b"<td>5/14/2010</td><td>CL</td></tr>"
+    b"</table>"
+)
+
+
+@respx.mock
+def test_md_fetch_year_200_and_404():
+    from warn_v2.scrapers.states.md import _fetch_md_year
+
+    respx.get("https://www.dllr.state.md.us/employment/warn2010.shtml").mock(
+        return_value=httpx.Response(200, content=_MD_ARCHIVE_HTML)
+    )
+    respx.get("https://www.dllr.state.md.us/employment/warn2005.shtml").mock(
+        return_value=httpx.Response(404)
+    )
+
+    assert _fetch_md_year(2010) == _MD_ARCHIVE_HTML
+    assert _fetch_md_year(2005) is None
+
+
+def test_md_parse_handles_archive_header_aliases():
+    """2010-era pages use 'WIA Code'/'Type Code' instead of 'Local Area'/'Type'."""
+    from warn_v2.scrapers.states.md import MDScraper
+
+    rows = MDScraper().parse(_MD_ARCHIVE_HTML)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.employer == "Marada Industries"
+    assert row.notice_date == date(2010, 3, 15)
+    assert row.closure_type == "CL"
+    assert row.city == "Westminster"
+    assert row.zip == "21157"
+
+
+_WI_ARCHIVE_HTML = (
+    b"<html><table><tr>"
+    b"<th>Company</th><th>City</th><th>Affected Workers</th>"
+    b"<th>Notice Received</th><th>Original Notice Type / Update Type</th>"
+    b"<th>Layoff Begin Date</th><th>County</th>"
+    b"<th>Workforce Development Area</th></tr>"
+    b"<tr><td>Prinsco</td><td>Appleton</td><td>33</td><td>12/5/2018</td>"
+    b"<td>CL</td><td>02/04/2019 Plastics Pipe Mfg</td><td>Outagamie</td>"
+    b"<td>Bay Area</td></tr></table>"
+    b"<table><tr><td>nav junk</td></tr></table></html>"
+)
+
+
+@respx.mock
+def test_wi_fetch_archive_year_bounds_and_http():
+    from warn_v2.scrapers.states.wi import _fetch_wi_archive_year
+
+    respx.get("https://dwd.wisconsin.gov/dislocatedworker/warn/2018/default.htm").mock(
+        return_value=httpx.Response(200, content=_WI_ARCHIVE_HTML)
+    )
+
+    assert _fetch_wi_archive_year(2018) == _WI_ARCHIVE_HTML
+    # Outside the static-page era: no HTTP call, just None.
+    assert _fetch_wi_archive_year(2015) is None
+    assert _fetch_wi_archive_year(2020) is None
+
+
+def test_parse_wi_archive_html_extracts_rows():
+    from warn_v2.scrapers.states.wi import parse_wi_archive_html
+
+    rows = parse_wi_archive_html(_WI_ARCHIVE_HTML, 2018)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.employer == "Prinsco"
+    assert row.notice_date == date(2018, 12, 5)
+    # Leading date is split off the glued "date + industry" cell.
+    assert row.effective_date == date(2019, 2, 4)
+    assert row.layoff_count == 33
+    assert row.city == "Appleton"
+    assert row.county == "Outagamie"
+    assert row.closure_type == "CL"
+    assert "2018" in row.source_url
+
+
+@respx.mock
+def test_backfill_historical_wi_year_routes_archive_parser(db) -> None:
+    """WI registry entry wires _fetch_wi_archive_year + parse_wi_archive_html."""
+    respx.get("https://dwd.wisconsin.gov/dislocatedworker/warn/2018/default.htm").mock(
+        return_value=httpx.Response(200, content=_WI_ARCHIVE_HTML)
+    )
+
+    stats = backfill_historical("WI", year_start=2018, year_end=2018, dry_run=True)
+
+    assert stats["years_ok"] == 1
+    assert stats["rows_seen"] == 1
+    assert db.query(Notice).count() == 0
+
+
+@respx.mock
+def test_mn_discover_archive_pdf_urls_filters_and_sorts():
+    from warn_v2.scrapers.states.mn import _CDX_API, _discover_archive_pdf_urls
+
+    cdx = [
+        ["original"],
+        ["https://mn.gov/deed/assets/plant-closing-mass-layoff-warn-2026-january_x.pdf"],
+        ["https://mn.gov/deed/assets/mass-layoff-summary-2018_y.pdf"],
+        ["https://mn.gov/deed/assets/unrelated-budget-report.pdf"],
+        ["https://mn.gov/deed/assets/plant-closing-april-2022_z.pdf"],
+        ["https://mn.gov/deed/assets/plant-closing-april-2022_z.pdf"],
+        ["https://mn.gov/deed/assets/some-page.html"],
+    ]
+    respx.get(_CDX_API).mock(return_value=httpx.Response(200, json=cdx))
+
+    urls = _discover_archive_pdf_urls()
+    assert urls == [
+        "https://mn.gov/deed/assets/mass-layoff-summary-2018_y.pdf",
+        "https://mn.gov/deed/assets/plant-closing-april-2022_z.pdf",
+        "https://mn.gov/deed/assets/plant-closing-mass-layoff-warn-2026-january_x.pdf",
+    ]
+
+
+def test_mn_parse_archive_pdf_strips_trailing_year():
+    """Annual-era PDFs glue the report year onto employer names."""
+    from warn_v2.scrapers.states import mn
+
+    fake = [
+        NoticeRow(state="MN", employer="National Recoveries 2021", notice_date=date(2021, 10, 15)),
+        NoticeRow(state="MN", employer="Coleman", notice_date=date(2021, 8, 31)),
+    ]
+    with patch.object(mn, "_parse_pdf", return_value=fake):
+        rows = mn._parse_archive_pdf(b"%PDF-1.4", "https://mn.gov/x.pdf")
+
+    assert [r.employer for r in rows] == ["National Recoveries", "Coleman"]
+
+
+@respx.mock
+def test_backfill_historical_ms_ingests_all_discovered_pdfs(db) -> None:
+    """MS ingests every discovered quarterly PDF (the live scraper takes only [0])."""
+    from pathlib import Path
+
+    pdf_bytes = (
+        Path(__file__).resolve().parents[1]
+        / "warn_v2" / "scrapers" / "fixtures" / "ms" / "sample.pdf"
+    ).read_bytes()
+
+    urls = [
+        "https://mdes.ms.gov/media/1/warn-py2021-qtr-1.pdf",
+        "https://mdes.ms.gov/media/2/warn-py2021-qtr-2.pdf",
+    ]
+    for u in urls:
+        respx.get(u).mock(return_value=httpx.Response(200, content=pdf_bytes))
+
+    with patch(
+        "warn_v2.scripts.backfill_historical._discover_ms_pdf_urls", return_value=urls
+    ):
+        stats = backfill_historical("MS", dry_run=True)
+
+    assert stats["years_attempted"] == 2
+    assert stats["years_ok"] == 2
+    assert stats["rows_seen"] > 0
+    assert db.query(Notice).count() == 0
+
+
+@respx.mock
+def test_il_discover_archive_xlsx_urls_unwraps_and_excludes_pdfs():
+    from warn_v2.scrapers.states.il import _ARCHIVE_URL, _discover_archive_xlsx_urls
+
+    html = (
+        b"<html>"
+        b"<a href='/_layouts/15/download.aspx?SourceUrl=https://www.illinoisworknet.com"
+        b"/DownloadPrint/Jan2026MonthlyWARNReport.xlsx'>Jan 2026</a>"
+        b"<a href='/_layouts/download.aspx?SourceUrl=https://www.illinoisworknet.com"
+        b"/DownloadPrint/April%202020%20Monthly%20WARN%20Report.xlsx'>Apr 2020</a>"
+        b"<a href='/_layouts/download.aspx?SourceUrl=https://www.illinoisworknet.com"
+        b"/DownloadPrint/April%202005%20WARN.pdf'>Apr 2005 (PDF)</a>"
+        b"<a href='/DownloadPrint/Direct.xls'>direct</a>"
+        b"<a href='/_layouts/15/download.aspx?SourceUrl=https://www.illinoisworknet.com"
+        b"/DownloadPrint/Jan2026MonthlyWARNReport.xlsx'>dup</a>"
+        b"</html>"
+    )
+    respx.get(_ARCHIVE_URL).mock(return_value=httpx.Response(200, content=html))
+
+    urls = _discover_archive_xlsx_urls()
+    assert urls == [
+        "https://www.illinoisworknet.com/DownloadPrint/Jan2026MonthlyWARNReport.xlsx",
+        # Percent-encoding preserved (filename contains spaces).
+        "https://www.illinoisworknet.com/DownloadPrint/April%202020%20Monthly%20WARN%20Report.xlsx",
+        "https://www.illinoisworknet.com/DownloadPrint/Direct.xls",
+    ]
 
 
 @respx.mock

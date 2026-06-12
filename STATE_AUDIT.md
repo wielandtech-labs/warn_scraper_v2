@@ -75,6 +75,11 @@ enrichment.
 _Generated 2026-06-11 (post geo-fixes) from prod via `warn-v2 audit --markdown`
 (image `20260611-030821-bb56303`)._
 
+> ⚠ **Stale rows**: KS/ME/VT were backfilled 2026-06-12 *after* this table was
+> generated (now KS 549 active 1999–2026, ME 79 2012–2026, VT 96 2003–2026 —
+> see [docs/historical-sources.md](docs/historical-sources.md) Progress).
+> Regenerate on the next trusted audit run.
+
 | State | Active | Superseded | Years | Eff% | Count% | PDF% | Geo% | Enrich% | Scraper | Status | Next action |
 |-------|-------:|-----------:|-------|-----:|-------:|-----:|-----:|--------:|---------|--------|-------------|
 | AK | 64 | 0 | 2006-2025 | 100% | 97% | 100% | 66% | 2% | ok | gaps | backfill-historical --state AK; backfill-geo; fix geocode / address source; enrich --state AK; inspect parser date handling |

@@ -70,6 +70,36 @@ def _discover_latest_url() -> str:
     raise ScrapeFailed("IL: could not find monthly WARN Excel link on archive page")
 
 
+def _discover_archive_xlsx_urls() -> list[str]:
+    """All monthly WARN Excel URLs from the archive page (2020+; page order).
+
+    The archive also lists monthly PDFs back to 1999 — those need a dedicated
+    PDF parser and are deliberately excluded here (Wave 3).
+    """
+    try:
+        r = httpx.get(_ARCHIVE_URL, headers=_UA, timeout=60, follow_redirects=True)
+        r.raise_for_status()
+    except httpx.HTTPError as e:
+        raise ScrapeFailed(f"IL: archive page fetch error: {e}") from e
+
+    soup = BeautifulSoup(r.content, "lxml")
+    urls: list[str] = []
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        # SharePoint wraps files in /_layouts/[15/]download.aspx?SourceUrl=<url>;
+        # keep the percent-encoded form (filenames contain spaces).
+        m = re.search(r"SourceUrl=([^&\"']+\.xlsx?)(?:&|$)", href, re.I)
+        url = m.group(1) if m else None
+        if url is None:
+            if re.search(r"\.xlsx?$", href, re.I):
+                url = href if href.startswith("http") else _BASE_URL + href
+            else:
+                continue
+        if url not in urls:
+            urls.append(url)
+    return urls
+
+
 def _as_date(val: object) -> date | None:
     """Convert an openpyxl cell value (datetime or None) to a date."""
     if val is None:

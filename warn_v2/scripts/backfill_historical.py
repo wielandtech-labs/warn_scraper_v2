@@ -51,9 +51,19 @@ from warn_v2.scrapers.states.ca import _discover_archive_urls, parse_ca_pdf
 from warn_v2.scrapers.states.dc import _fetch_dc_year
 from warn_v2.scrapers.states.fl import _fetch_fl_year
 from warn_v2.scrapers.states.hi import _fetch_hi_year
+from warn_v2.scrapers.states.il import _discover_archive_xlsx_urls as _discover_il_xlsx_urls
 from warn_v2.scrapers.states.ky import _fetch_ky_year
+from warn_v2.scrapers.states.md import _fetch_md_year
+from warn_v2.scrapers.states.mn import (
+    _discover_archive_pdf_urls as _discover_mn_pdf_urls,
+)
+from warn_v2.scrapers.states.mn import (
+    _parse_archive_pdf as _parse_mn_archive_pdf,
+)
+from warn_v2.scrapers.states.ms import _discover_pdf_urls as _discover_ms_pdf_urls
 from warn_v2.scrapers.states.nm import _discover_archive_pdf_urls as _discover_nm_pdf_urls
 from warn_v2.scrapers.states.tx import _fetch_tx_year
+from warn_v2.scrapers.states.wi import _fetch_wi_archive_year, parse_wi_archive_html
 
 log = logging.getLogger(__name__)
 
@@ -101,6 +111,29 @@ _BACKFILL: dict[str, BackfillSpec] = {
     "KY": BackfillSpec(year_start=2021, fetch_year=lambda s, y: _fetch_ky_year(y)),
     # NM: yearly PDFs back to 2016 with irregular filenames — discover from hub.
     "NM": BackfillSpec(discover_urls=lambda: _discover_nm_pdf_urls()),
+    # MD: archived per-year pages warn{year}.shtml verified back to 2010; old
+    # pages use 'WIA Code'/'Type Code' headers, which MDScraper.parse aliases.
+    "MD": BackfillSpec(year_start=2010, fetch_year=lambda s, y: _fetch_md_year(y)),
+    # WI: static per-year pages exist only 2016-2019; the cumulative Google
+    # Sheet covers 2020+ via the regular scraper.
+    "WI": BackfillSpec(
+        year_start=2016,
+        fetch_year=lambda s, y: _fetch_wi_archive_year(y),
+        parse_year=lambda b, y: parse_wi_archive_html(b, y),
+    ),
+    # MN: DEED PDFs discovered via Wayback CDX (annual 2018-2021, monthly
+    # 2022+). MNScraper.parse expects a JSON envelope — route raw PDF bytes
+    # to the archive parser instead.
+    "MN": BackfillSpec(
+        discover_urls=lambda: _discover_mn_pdf_urls(),
+        parse_for_url=lambda u: (lambda raw, _u=u: _parse_mn_archive_pdf(raw, _u)),
+    ),
+    # MS: the landing page lists every quarterly PDF back to PY2020; the
+    # regular scraper ingests only the most recent one.
+    "MS": BackfillSpec(discover_urls=lambda: _discover_ms_pdf_urls()),
+    # IL: monthly Excel files 2020+ from the archive page (the 1999-2019 PDF
+    # era needs a dedicated parser — deferred).
+    "IL": BackfillSpec(discover_urls=lambda: _discover_il_xlsx_urls()),
 }
 
 _SUPPORTED = frozenset(_BACKFILL)

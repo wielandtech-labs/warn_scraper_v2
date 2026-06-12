@@ -486,8 +486,8 @@ def backfill_notice_dates_cmd(dry_run: bool, state: str | None) -> None:
 @main.command("backfill-historical")
 @click.option(
     "--state", required=True,
-    help="State to backfill: CA, DC, AZ, DE, FL, HI, KS, KY, ME, NM, TX, VT "
-         "(CO is already cumulative)",
+    help="State to backfill: AZ, CA, DC, DE, FL, HI, IL, KS, KY, MD, ME, MN, "
+         "MS, NM, TX, VT, WI (CO is already cumulative)",
 )
 @click.option("--year-start", type=int, default=None,
               help="First year to fetch (default: per-state earliest; "
@@ -505,7 +505,8 @@ def backfill_historical_cmd(
     the current year.
 
     \b
-    Supported states: CA, DC, AZ, DE, FL, HI, KS, KY, ME, NM, TX, VT
+    Supported states: AZ, CA, DC, DE, FL, HI, IL, KS, KY, MD, ME, MN, MS, NM,
+    TX, VT, WI.
     CO is excluded — its Google Sheets export is cumulative since 2019.
     Per-state earliest years and the dedup protocol: docs/historical-sources.md.
     Dry runs print a duplicate preview (already_exists / near_miss counts).
