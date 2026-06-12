@@ -49,6 +49,11 @@ from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.registry import get_scraper
 from warn_v2.scrapers.states.ca import _discover_archive_urls, parse_ca_pdf
 from warn_v2.scrapers.states.dc import _fetch_dc_year
+from warn_v2.scrapers.states.fl import _fetch_fl_year
+from warn_v2.scrapers.states.hi import _fetch_hi_year
+from warn_v2.scrapers.states.ky import _fetch_ky_year
+from warn_v2.scrapers.states.nm import _discover_archive_pdf_urls as _discover_nm_pdf_urls
+from warn_v2.scrapers.states.tx import _fetch_tx_year
 
 log = logging.getLogger(__name__)
 
@@ -89,6 +94,13 @@ _BACKFILL: dict[str, BackfillSpec] = {
     "KS": BackfillSpec(year_start=1999, fetch_year=_joblink_fetch),
     "ME": BackfillSpec(year_start=2012, fetch_year=_joblink_fetch),
     "VT": BackfillSpec(year_start=2003, fetch_year=_joblink_fetch),
+    # Year-URL sources, earliest years verified by 2026-06-12 probes.
+    "TX": BackfillSpec(year_start=2020, fetch_year=_fetch_tx_year),
+    "FL": BackfillSpec(year_start=2020, fetch_year=_fetch_fl_year),
+    "HI": BackfillSpec(year_start=2019, fetch_year=lambda s, y: _fetch_hi_year(y)),
+    "KY": BackfillSpec(year_start=2021, fetch_year=lambda s, y: _fetch_ky_year(y)),
+    # NM: yearly PDFs back to 2016 with irregular filenames — discover from hub.
+    "NM": BackfillSpec(discover_urls=lambda: _discover_nm_pdf_urls()),
 }
 
 _SUPPORTED = frozenset(_BACKFILL)

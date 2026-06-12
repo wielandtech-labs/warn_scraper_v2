@@ -92,6 +92,23 @@ def _parse_paragraph(p: Tag) -> tuple[str, str, str | None] | None:
     return date_str, employer, None
 
 
+def _fetch_hi_year(year: int) -> bytes | None:
+    """Fetch one year's notices page for backfill-historical.
+
+    Returns None when the page is missing — labor.hawaii.gov publishes
+    per-year pages back to 2019 only (verified 2026-06-12).
+    """
+    url = _source_url(year)
+    try:
+        r = httpx.get(url, headers=_UA, timeout=30, follow_redirects=True)
+        if r.status_code == 404:
+            return None
+        r.raise_for_status()
+        return r.content
+    except httpx.HTTPError as e:
+        raise ScrapeFailed(f"GET {url}: {e}") from e
+
+
 class HIScraper:
     state = "HI"
     source_url = _source_url(date.today().year)

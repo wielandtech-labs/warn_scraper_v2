@@ -98,6 +98,25 @@ class TXScraper:
         return rows
 
 
+def _fetch_tx_year(scraper, year: int) -> bytes | None:
+    """Fetch one year's XLSX for backfill-historical.
+
+    Returns None when TWC has no file for the year — files before 2020 have
+    been removed from twc.texas.gov (verified 2026-06-12; the old
+    `/files/news/` era URLs are dead too).
+    """
+    url = URL_TEMPLATE.format(year=year)
+    try:
+        r = httpx.get(url, timeout=60, follow_redirects=True)
+        if r.status_code == 404:
+            return None
+        r.raise_for_status()
+    except httpx.HTTPError as e:
+        raise ScrapeFailed(f"GET {url}: {e}") from e
+    scraper.source_url = url  # parse() stamps rows with self.source_url
+    return r.content
+
+
 def _read_with_header_detection(raw: bytes) -> pd.DataFrame:
     buf = io.BytesIO(raw)
     probe = pd.read_excel(buf, engine="openpyxl", header=None, nrows=10)

@@ -14,9 +14,11 @@ from __future__ import annotations
 
 import io
 from datetime import date
+from urllib.parse import urljoin
 
 import httpx
 import pdfplumber
+from bs4 import BeautifulSoup
 
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
@@ -35,6 +37,32 @@ _UA = {
 
 def _pdf_url(year: int) -> str:
     return _PDF_TMPL.format(year=year)
+
+
+def _discover_archive_pdf_urls() -> list[str]:
+    """Discover per-year WARN PDF links from the Rapid-Response page (backfill).
+
+    The hub links yearly PDFs back to 2016, but filenames vary by year
+    (2018_WARN10042018.pdf, 2017_WARN_October_.pdf — verified 2026-06-12), so
+    we scrape the anchors rather than templating the URL. Records before 2016
+    are request-only (see docs/foia/nm.md).
+    """
+    try:
+        r = httpx.get(_PAGE_URL, headers=_UA, timeout=60, follow_redirects=True)
+        r.raise_for_status()
+    except httpx.HTTPError as e:
+        raise ScrapeFailed(f"GET {_PAGE_URL}: {e}") from e
+
+    soup = BeautifulSoup(r.content, "html.parser")
+    urls: list[str] = []
+    for a in soup.find_all("a", href=True):
+        href: str = a["href"]
+        if "warn" not in href.lower() or not href.lower().endswith(".pdf"):
+            continue
+        full = href if href.startswith("http") else urljoin(str(r.url), href)
+        if full not in urls:
+            urls.append(full)
+    return urls
 
 
 class NMScraper:
