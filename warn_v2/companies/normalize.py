@@ -30,6 +30,49 @@ _LEADING_STORE_NO = re.compile(r"^\s*\(\s*\d+\s*\)\s*")
 _HASH_STORE_NO = re.compile(r"#\s*\d+")
 
 
+# Site-designator patterns for search_name (display-case query cleaning, distinct
+# from canonical_name's lowercase comparison key):
+#   "10x Genomics, Inc. (6230)"   -> trailing "(6230)"
+#   "MV Transportation 4499"      -> trailing bare site number(s)
+#   "Google - Bordeaux" / "Amazon - SNA 20" -> trailing " - <site>" segment
+# The dash rule requires whitespace around the dash so hyphenated names
+# ("Mercedes-Benz", "Jo-Ann") are untouched.
+_TRAILING_PAREN_NO = re.compile(r"\s*\(\s*\d+\s*\)\s*$")
+_TRAILING_SITE_NO = re.compile(r"(?:\s+\d{3,})+\s*$")
+# u2013 = en dash; some WARN sources use it instead of a hyphen.
+_DASH_SEGMENT = re.compile(r"\s+[-\u2013]\s+(?P<seg>[^-\u2013]+?)\s*$")
+
+
+def search_name(name: str | None) -> str:
+    """Clean a WARN company name into an external-search query.
+
+    WARN filings often carry per-site designators ("Google - Bordeaux",
+    "MV Transportation 4499") that make exact-ish name search miss the actual
+    company. This strips store/site markers while preserving case, so search
+    providers (D&B type-ahead, EDGAR) see the recognizable company name. Over-
+    stripping is low-risk: providers still score candidates against the query,
+    so a wrong strip degrades to today's no-match, not a wrong match.
+    """
+    if not name:
+        return ""
+    s = _HASH_STORE_NO.sub(" ", _LEADING_STORE_NO.sub("", name))
+    s = _TRAILING_PAREN_NO.sub("", s)
+    m = _DASH_SEGMENT.search(s)
+    if m:
+        seg = m.group("seg")
+        # Drop the segment when it looks like a site tag: contains a digit, or
+        # is a short (<=2 word) suffix — never when it has its own legal form.
+        seg_tokens = seg.lower().replace(",", " ").split()
+        looks_like_site = any(ch.isdigit() for ch in seg) or (
+            len(seg_tokens) <= 2 and not (seg_tokens and seg_tokens[-1] in _LEGAL_SUFFIXES)
+        )
+        if looks_like_site:
+            s = s[: m.start()]
+    s = _TRAILING_SITE_NO.sub("", s)
+    s = _WS.sub(" ", s).strip(" ,")
+    return s if s else name
+
+
 def canonical_name(name: str | None) -> str:
     """Return the normalized comparison key for a company name (may be "")."""
     if not name:
