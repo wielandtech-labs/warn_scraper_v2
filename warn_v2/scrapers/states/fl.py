@@ -111,6 +111,42 @@ class FLScraper:
         return rows
 
 
+_PAGE_PARAM_RE = re.compile(r"[?&]page=(\d+)")
+
+
+def _fetch_fl_year(scraper, year: int) -> list[bytes] | None:
+    """Fetch all result pages for one year (backfill-historical).
+
+    The REACT site paginates within a year; each page links its neighbours, so
+    we follow "next page" links until none remain. Returns one chunk per page,
+    or None when the year page itself is missing.
+    """
+    base = URL_TEMPLATE.format(year=year)
+    scraper.source_url = base  # parse() stamps rows with self.source_url
+    chunks: list[bytes] = []
+    page_num = 1
+    while True:
+        url = base if page_num == 1 else f"{base}&page={page_num}"
+        try:
+            r = httpx.get(url, headers=_UA, timeout=60, follow_redirects=True)
+            if r.status_code == 404:
+                return None if page_num == 1 else chunks
+            r.raise_for_status()
+        except httpx.HTTPError as e:
+            raise ScrapeFailed(f"GET {url}: {e}") from e
+        chunks.append(r.content)
+
+        soup = BeautifulSoup(r.content, "html.parser")
+        linked_pages = {
+            int(m.group(1))
+            for a in soup.find_all("a", href=True)
+            if f"year={year}" in a["href"] and (m := _PAGE_PARAM_RE.search(a["href"]))
+        }
+        if page_num + 1 not in linked_pages or page_num >= 200:
+            return chunks
+        page_num += 1
+
+
 def _address_from_cell(cell, employer: str) -> str | None:
     """Drop the leading <b>Employer Name</b> and return the remaining address text.
 

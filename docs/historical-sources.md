@@ -18,14 +18,14 @@ sources only).
 | KS | 2026 | `kansasworks.com/search/warn_lookups?q[notice_on_gteq]=YYYY-01-01` (JobLink date-range search) | **1999** | JobLink `fetch(year=)` registry entry |
 | ME | 2026 | `joblink.maine.gov/search/warn_lookups` (JobLink) | **2012** | JobLink registry entry |
 | VT | 2026 | `vermontjoblink.com/search/warn_lookups` (JobLink) | **2003** | JobLink registry entry |
-| FL | 2026 | `reactwarn.floridajobs.org/WarnList/Records?year=Y` — paginated (e.g. 2020 = 1,337 records) | **2020** (older years return 0 rows) | year loop + page-following; pre-2020 → FOIA |
-| TX | 2026 | `warn-act-listings-{year}-twc.xlsx` (2022+ era) / `twc.texas.gov/files/news/warn-act-listings-{year}.xlsx` (≤2021 era); Socrata `data.texas.gov/dataset/8w53-c4f6` as fallback | ~2004 (per era files) | year loop, both URL eras |
-| NC | 2026 | archive hub `commerce.nc.gov/...warn-summary-report-archives` → `warn-report-{year}/open` | **2014** | year loop |
+| FL | 2026 | `reactwarn.floridajobs.org/WarnList/Records?year=Y` — paginated (e.g. 2020 = 1,337 records); page links followed | **2020** (older years return 0 rows) | year loop + pagination (implemented); pre-2020 → FOIA |
+| TX | 2026 | `warn-act-listings-{year}-twc.xlsx` — **only 2020+ still resolve** (pre-2020 files removed from twc.texas.gov; the old `/files/news/` era is dead; Socrata `data.texas.gov/dataset/8w53-c4f6` starts 2019-01, 2,363 rows — verified 2026-06-12) | **2020** | year loop (implemented); pre-2020 → records request (warn.list@twc.texas.gov) |
+| NC | 2026 | archive hub `commerce.nc.gov/...warn-summary-report-archives` → per-year **PDF** documents with irregular slugs (`warn-report-2019/open` etc.) | **2014** | needs a PDF parser → Wave 2 (hub discovery + `parse_nc_pdf`) |
 | NJ | 2026 | cumulative `nj.gov/labor/assets/PDFs/WARN/WARN_Notice_Archive.xlsx` (year range unknown — parse first); per-year PDF only 2023 | TBD (parse xlsx) | ingest cumulative xlsx |
-| NM | 2025 | per-year PDFs on `dws.nm.gov/Rapid-Response` (filenames vary 2016–2018) | **2016** | year loop w/ link discovery; pre-2016 → request |
-| HI | 2026 | `labor.hawaii.gov/wdc/{year}-warn-notices/`; hub `real-time-warn-updates` lists 2019–2026 | **2019** | year loop; pre-2019 → UIPA request |
-| KY | 2025 | `kyworks.ky.gov/Services/Documents/Prior%20Year%20Warn%20Notices.xlsx` (confirmed 200, range unknown — parse first) | TBD (parse xlsx) | ingest prior-year xlsx |
-| MO | 2019 | `jobs.mo.gov/warn/{year}` (Playwright) | 2019 | year loop; pre-2019 → request |
+| NM | 2025 | per-year PDFs on `dws.nm.gov/Rapid-Response` (filenames vary 2016–2018 → discovered from the hub's anchors) | **2016** | hub-discovery ingest (implemented); pre-2016 → request |
+| HI | 2026 | `labor.hawaii.gov/wdc/{year}-warn-notices/`; hub `real-time-warn-updates` lists 2019–2026 | **2019** | year loop (implemented); pre-2019 → UIPA request |
+| KY | 2025 | SharePoint per-year folders (`WARN Notices {year}`) hold one cumulative CSV each for **2021+** — 2020-and-earlier folders exist but are empty (verified 2026-06-12). Alt: `kyworks.ky.gov/...Prior%20Year%20Warn%20Notices.xlsx` (range unknown; `ingest-file` candidate) | **2021** | year loop (implemented); pre-2021 → prior-year xlsx or request |
+| MO | 2019 | `jobs.mo.gov/warn/{year}` — the regular scraper **already crawls 2019–present every run**; DB is complete | 2019 | **no backfill needed**; pre-2019 → request (drafted) |
 | OH | 2026 | JFS per-year pages | **1996** | new per-year fetch/parse |
 | PA | 2024 | pa.gov AEM accordion | **2001** | new parse; strict dedup (286 superseded rows already) |
 | IL | 2025 | `illinoisworknet.com/LayoffRecovery/` archive — monthly XLSX 2020+, PDFs 2002–2019 | **2002** (PDF era), 1999 partial | `discover_urls` mode + `parse_il_pdf` |
