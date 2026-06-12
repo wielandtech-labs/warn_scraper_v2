@@ -56,6 +56,8 @@ function CompaniesView() {
   const search = useSearch({ from: "/companies" });
   const page = search.page ?? 1;
   const offset = (page - 1) * PAGE_SIZE;
+  const sortBy = search.sort_by ?? "name";
+  const sortDir = search.sort_dir ?? "asc";
 
   const query = useQuery({
     queryKey: ["companies", search, offset],
@@ -63,8 +65,11 @@ function CompaniesView() {
       api.listCompanies({
         enriched:
           search.enriched === "true" ? true : search.enriched === "false" ? false : undefined,
+        has_duns: search.duns === "true" ? true : undefined,
         industry: search.industry,
         subsector: search.subsector,
+        sort_by: sortBy,
+        sort_dir: sortDir,
         limit: PAGE_SIZE,
         offset,
       }),
@@ -79,8 +84,13 @@ function CompaniesView() {
   const selectedSubsectors =
     industriesQuery.data?.find((i) => i.sector === search.industry)?.subsectors ?? [];
 
+  // One status chip group: enriched and duns are mutually exclusive choices.
   const setEnriched = (val: "true" | "false" | undefined) => {
-    navigate({ search: (prev) => ({ ...prev, enriched: val, page: 1 }) });
+    navigate({ search: (prev) => ({ ...prev, enriched: val, duns: undefined, page: 1 }) });
+  };
+
+  const setDuns = () => {
+    navigate({ search: (prev) => ({ ...prev, enriched: undefined, duns: "true", page: 1 }) });
   };
 
   // Changing the sector clears any subsector selection.
@@ -95,6 +105,12 @@ function CompaniesView() {
   const handlePageChange = (newOffset: number) => {
     navigate({
       search: (prev) => ({ ...prev, page: Math.floor(newOffset / PAGE_SIZE) + 1 }),
+    });
+  };
+
+  const handleSortChange = (colId: string, dir: "asc" | "desc") => {
+    navigate({
+      search: (prev) => ({ ...prev, sort_by: colId, sort_dir: dir, page: 1 }),
     });
   };
 
@@ -114,6 +130,8 @@ function CompaniesView() {
         ),
       },
       {
+        id: "sic",
+        enableSorting: false,
         header: "SIC",
         cell: (info) => {
           const c = info.row.original;
@@ -129,6 +147,7 @@ function CompaniesView() {
       {
         header: "Website",
         accessorKey: "website",
+        enableSorting: false,
         cell: (info) => {
           const url = info.getValue() as string | null;
           if (!url) return "—";
@@ -140,8 +159,9 @@ function CompaniesView() {
         },
       },
       {
+        // Sorts server-side by confidence — what the badge actually displays.
+        id: "enrichment_confidence",
         header: "Status",
-        accessorKey: "enriched_at",
         cell: (info) => {
           const c = info.row.original;
           if (!c.enriched_at) return <span className="badge-slate">Pending</span>;
@@ -186,12 +206,17 @@ function CompaniesView() {
           </select>
         )}
         <div className="flex gap-1">
-          <FilterChip active={!search.enriched} onClick={() => setEnriched(undefined)} label="All" />
+          <FilterChip
+            active={!search.enriched && !search.duns}
+            onClick={() => setEnriched(undefined)}
+            label="All"
+          />
           <FilterChip
             active={search.enriched === "true"}
             onClick={() => setEnriched("true")}
             label="Enriched"
           />
+          <FilterChip active={search.duns === "true"} onClick={setDuns} label="DUNS" />
           <FilterChip
             active={search.enriched === "false"}
             onClick={() => setEnriched("false")}
@@ -203,7 +228,14 @@ function CompaniesView() {
       {query.isLoading && <div className="card text-sm text-slate-500">Loading…</div>}
       {query.data && (
         <>
-          <DataTable data={query.data.items} columns={columns} emptyMessage="No companies." />
+          <DataTable
+            data={query.data.items}
+            columns={columns}
+            emptyMessage="No companies."
+            sortBy={sortBy}
+            sortDir={sortDir}
+            onSortChange={handleSortChange}
+          />
           <Pagination
             total={query.data.total}
             limit={query.data.limit}
