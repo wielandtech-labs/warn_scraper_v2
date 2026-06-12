@@ -111,6 +111,14 @@ const companyDetailRoute = createRoute({
   component: CompanyDetail,
 });
 
+// Strict numeric search-param parse: rejects "", booleans, and NaN — without
+// this, ?lat=&lon= would parse to (0, 0) and center the map off West Africa.
+const numParam = (v: unknown): number | undefined => {
+  if (typeof v !== "number" && (typeof v !== "string" || v === "")) return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
+
 const mapRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/map",
@@ -134,10 +142,9 @@ const mapRoute = createRoute({
     after: (search.after as string) || undefined,
     before: (search.before as string) || undefined,
     // Viewport — kept in the URL so back/refresh/share restore the same view.
-    lat: Number.isFinite(Number(search.lat)) && search.lat != null ? Number(search.lat) : undefined,
-    lon: Number.isFinite(Number(search.lon)) && search.lon != null ? Number(search.lon) : undefined,
-    zoom:
-      Number.isFinite(Number(search.zoom)) && search.zoom != null ? Number(search.zoom) : undefined,
+    lat: numParam(search.lat),
+    lon: numParam(search.lon),
+    zoom: numParam(search.zoom),
   }),
   component: MapPage,
 });

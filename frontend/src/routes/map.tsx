@@ -86,6 +86,7 @@ export function MapPage() {
       navigate({
         search: (prev) => ({ ...prev, lat: v.lat, lon: v.lon, zoom: v.zoom }),
         replace: true,
+        resetScroll: false, // panning the map must not scroll the page to top
       });
     },
     [navigate],
