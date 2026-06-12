@@ -74,18 +74,24 @@ const companiesRoute = createRoute({
   ): {
     view?: "families";
     enriched?: "true" | "false" | undefined;
+    duns?: "true";
     industry?: string;
     subsector?: string;
     page?: number;
+    sort_by?: string;
+    sort_dir?: "asc" | "desc";
   } => ({
     view: search.view === "families" ? "families" : undefined,
     enriched:
       search.enriched === "true" || search.enriched === "false"
         ? (search.enriched as "true" | "false")
         : undefined,
+    duns: search.duns === "true" ? "true" : undefined,
     industry: (search.industry as string) || undefined,
     subsector: (search.subsector as string) || undefined,
     page: search.page ? Number(search.page) : undefined,
+    sort_by: (search.sort_by as string) || "name",
+    sort_dir: search.sort_dir === "desc" ? "desc" : "asc",
   }),
   component: CompaniesPage,
 });

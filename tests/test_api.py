@@ -265,6 +265,49 @@ def test_companies_enriched_filter_true(api_client, db):
     assert body["items"][0]["name"] == "Enriched"
 
 
+def test_companies_has_duns_filter(api_client, db):
+    _company(db, name="No DUNS", enriched_at=datetime.now(UTC))  # enriched, but DUNS-less
+    _company(db, name="With DUNS", duns="123456789", enriched_at=datetime.now(UTC))
+    db.commit()
+
+    body = api_client.get("/api/companies?has_duns=true").json()
+    assert body["total"] == 1
+    assert body["items"][0]["name"] == "With DUNS"
+
+    body = api_client.get("/api/companies?has_duns=false").json()
+    assert body["total"] == 1
+    assert body["items"][0]["name"] == "No DUNS"
+
+    # enriched=true alone includes both — has_duns is the narrower filter
+    assert api_client.get("/api/companies?enriched=true").json()["total"] == 2
+    assert api_client.get("/api/companies?enriched=true&has_duns=true").json()["total"] == 1
+
+
+def test_companies_sort_by_confidence(api_client, db):
+    _company(db, name="NoConf")  # never enriched — NULL confidence
+    _company(
+        db, name="Low", enriched_at=datetime.now(UTC), enrichment_confidence=Decimal("0.40")
+    )
+    _company(
+        db, name="High", enriched_at=datetime.now(UTC), enrichment_confidence=Decimal("0.95")
+    )
+    db.commit()
+
+    body = api_client.get(
+        "/api/companies?sort_by=enrichment_confidence&sort_dir=desc"
+    ).json()
+    assert [c["name"] for c in body["items"]] == ["High", "Low", "NoConf"]  # NULLs last
+
+    body = api_client.get(
+        "/api/companies?sort_by=enrichment_confidence&sort_dir=asc"
+    ).json()
+    assert [c["name"] for c in body["items"]] == ["Low", "High", "NoConf"]  # NULLs still last
+
+    # unknown column falls back to the default name sort
+    body = api_client.get("/api/companies?sort_by=bogus").json()
+    assert [c["name"] for c in body["items"]] == ["High", "Low", "NoConf"]
+
+
 def test_company_detail_found(api_client, db):
     c = _company(db)
     db.commit()
