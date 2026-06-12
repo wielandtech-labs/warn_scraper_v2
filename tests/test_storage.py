@@ -288,3 +288,24 @@ def test_location_zip_merge_skipped_when_ambiguous(db) -> None:
     assert (
         db.query(Location).filter(Location.zip == "94607").count() == 1
     )
+
+
+def test_upsert_sanitizes_multi_value_naics(db) -> None:
+    """A source cell holding several NAICS codes must not overflow VARCHAR(8).
+
+    Regression: an IL monthly xlsx carried "423990             321918" in the
+    NAICS column, aborting the whole upsert batch in prod.
+    """
+    upsert_notices(db, [
+        _row(employer="Two Codes Co", naics_code="423990             321918"),
+        _row(employer="Clean Co", naics_code="321918",
+             notice_date=date(2026, 2, 1)),
+        _row(employer="Junk Co", naics_code="n/a",
+             notice_date=date(2026, 3, 1)),
+    ])
+    db.commit()
+
+    by_name = {c.name: c for c in db.query(Company).all()}
+    assert by_name["Two Codes Co"].naics_code == "423990"
+    assert by_name["Clean Co"].naics_code == "321918"
+    assert by_name["Junk Co"].naics_code is None
