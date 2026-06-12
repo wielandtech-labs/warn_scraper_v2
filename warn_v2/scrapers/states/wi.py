@@ -163,4 +163,119 @@ class WIScraper:
         return rows
 
 
+# ---------------------------------------------------------------------------
+# Historical backfill (2016-2019)
+#
+# The Google Sheet behind the live scraper is cumulative from 2020-01 only.
+# Older years are static HTML pages at /dislocatedworker/warn/{year}/default.htm
+# (verified 2016-2019), one small table per notice with the same columns as the
+# sheet: Company | City | Affected Workers | Notice Received | Original Notice
+# Type | Layoff Begin Date | County | Workforce Development Area.
+# ---------------------------------------------------------------------------
+
+_ARCHIVE_FIRST_YEAR = 2016
+_ARCHIVE_LAST_YEAR = 2019  # 2020+ is in the cumulative Sheet the live scraper reads
+
+_MDY_RE = re.compile(r"\b\d{1,2}/\d{1,2}/\d{4}\b")
+
+
+def _archive_url(year: int) -> str:
+    return f"https://dwd.wisconsin.gov/dislocatedworker/warn/{year}/default.htm"
+
+
+def _fetch_wi_archive_year(year: int) -> bytes | None:
+    """Fetch one static archive-year page; None outside the 2016-2019 era."""
+    if not (_ARCHIVE_FIRST_YEAR <= year <= _ARCHIVE_LAST_YEAR):
+        return None
+    url = _archive_url(year)
+    try:
+        r = httpx.get(url, headers=_HDRS, timeout=60, follow_redirects=True)
+        if r.status_code == 404:
+            return None
+        r.raise_for_status()
+        return r.content
+    except httpx.HTTPError as e:
+        raise ScrapeFailed(f"GET {url}: {e}") from e
+
+
+def parse_wi_archive_html(raw: bytes, year: int) -> list[NoticeRow]:
+    """Parse a 2016-2019 static archive page (one table per notice)."""
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(raw, "html.parser")
+    tables = soup.find_all("table")
+    if not tables:
+        raise ParseFailed(f"WI {year}: no tables on archive page")
+
+    source_url = _archive_url(year)
+    rows: list[NoticeRow] = []
+    for table in tables:
+        trs = table.find_all("tr")
+        if len(trs) < 2:
+            continue
+        header = [
+            " ".join(c.get_text(" ", strip=True).split()).lower()
+            for c in trs[0].find_all(["th", "td"])
+        ]
+        col = {name: i for i, name in enumerate(header)}
+
+        def _idx(*needles: str, _col=col) -> int | None:
+            return next(
+                (i for name, i in _col.items() if any(n in name for n in needles)),
+                None,
+            )
+
+        i_company = _idx("company")
+        i_notice = _idx("notice received", "noticercvd")
+        if i_company is None or i_notice is None:
+            continue  # layout/navigation table, not a notice table
+        i_city = _idx("city")
+        i_count = _idx("affected workers")
+        i_type = _idx("notice type")
+        i_begin = _idx("layoff begin")
+        i_county = _idx("county")
+        i_wda = _idx("workforce development")
+
+        for tr in trs[1:]:
+            cells = [
+                " ".join(c.get_text(" ", strip=True).split())
+                for c in tr.find_all(["td", "th"])
+            ]
+
+            def _cell(i: int | None, _cells=cells) -> str:
+                return _cells[i] if i is not None and i < len(_cells) else ""
+
+            employer = as_str(_strip_html(_cell(i_company)))
+            if not employer:
+                continue
+            notice_date = as_date(_cell(i_notice))
+            if notice_date is None:
+                continue
+
+            # The begin-date cell sometimes glues the NAICS description after
+            # the date — take just the leading M/D/YYYY token.
+            begin_match = _MDY_RE.search(_cell(i_begin))
+            effective_date = as_date(begin_match.group(0)) if begin_match else None
+
+            count_raw = _cell(i_count)
+            rows.append(
+                NoticeRow(
+                    state="WI",
+                    employer=employer,
+                    notice_date=notice_date,
+                    effective_date=effective_date,
+                    layoff_count=as_int(count_raw) if count_raw.isdigit() else None,
+                    city=as_str(_cell(i_city)) or None,
+                    county=as_str(_cell(i_county)) or None,
+                    closure_type=as_str(_cell(i_type)) or None,
+                    source_url=source_url,
+                    extra={"wda": _cell(i_wda)} if _cell(i_wda) else {},
+                )
+            )
+
+    if not rows:
+        raise ParseFailed(f"WI {year}: no notice rows parsed from archive page")
+    return rows
+
+
 register(WIScraper())
