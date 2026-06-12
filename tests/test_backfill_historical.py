@@ -572,25 +572,38 @@ def test_backfill_historical_wi_year_routes_archive_parser(db) -> None:
 
 @respx.mock
 def test_mn_discover_archive_pdf_urls_filters_and_sorts():
+    """Monthly PDFs become Wayback replay URLs; annuals and non-reports drop."""
     from warn_v2.scrapers.states.mn import _CDX_API, _discover_archive_pdf_urls
 
+    base = "https://mn.gov/deed/assets"
     cdx = [
-        ["original"],
-        ["https://mn.gov/deed/assets/plant-closing-mass-layoff-warn-2026-january_x.pdf"],
-        ["https://mn.gov/deed/assets/mass-layoff-summary-2018_y.pdf"],
-        ["https://mn.gov/deed/assets/unrelated-budget-report.pdf"],
-        ["https://mn.gov/deed/assets/plant-closing-april-2022_z.pdf"],
-        ["https://mn.gov/deed/assets/plant-closing-april-2022_z.pdf"],
-        ["https://mn.gov/deed/assets/some-page.html"],
+        ["original", "timestamp"],
+        [f"{base}/plant-closing-mass-layoff-warn-2026-january_x.pdf", "20260201000000"],
+        # Annual summary (no month token) — excluded until a parser exists.
+        [f"{base}/mass-layoff-summary-2018_y.pdf", "20190101000000"],
+        [f"{base}/unrelated-budget-report.pdf", "20240101000000"],
+        [f"{base}/plant-closing-april-2022_z.pdf", "20220501000000"],
+        [f"{base}/plant-closing-april-2022_z.pdf", "20220601000000"],
+        [f"{base}/some-page.html", "20240101000000"],
     ]
     respx.get(_CDX_API).mock(return_value=httpx.Response(200, json=cdx))
 
     urls = _discover_archive_pdf_urls()
     assert urls == [
-        "https://mn.gov/deed/assets/mass-layoff-summary-2018_y.pdf",
+        "https://web.archive.org/web/20220501000000id_/"
         "https://mn.gov/deed/assets/plant-closing-april-2022_z.pdf",
+        "https://web.archive.org/web/20260201000000id_/"
         "https://mn.gov/deed/assets/plant-closing-mass-layoff-warn-2026-january_x.pdf",
     ]
+
+
+def test_mn_is_annual_archive_url():
+    from warn_v2.scrapers.states.mn import _is_annual_archive_url
+
+    assert _is_annual_archive_url("https://mn.gov/deed/assets/mass-layoff-summary-2018_y.pdf")
+    assert _is_annual_archive_url("https://mn.gov/deed/assets/plant-closing-mass-layoff-2021_z.pdf")
+    assert not _is_annual_archive_url("https://mn.gov/deed/assets/plant-closing-april-2022_z.pdf")
+    assert not _is_annual_archive_url("https://mn.gov/deed/assets/mass-layoff-summary0715_a.pdf")
 
 
 def test_mn_parse_archive_pdf_strips_trailing_year():
@@ -605,6 +618,29 @@ def test_mn_parse_archive_pdf_strips_trailing_year():
         rows = mn._parse_archive_pdf(b"%PDF-1.4", "https://mn.gov/x.pdf")
 
     assert [r.employer for r in rows] == ["National Recoveries", "Coleman"]
+
+
+def test_ms_parse_old_quarterly_merged_company_city():
+    """PY2020-PY2022 quarterlies merge 'Company Name, City' into one column whose
+    cell ends with a 'City (County)' line — split into employer/city/county."""
+    from pathlib import Path
+
+    from warn_v2.scrapers.states.ms import _parse_pdf
+
+    pdf_bytes = (
+        Path(__file__).resolve().parents[1]
+        / "warn_v2" / "scrapers" / "fixtures" / "ms" / "sample_merged_city.pdf"
+    ).read_bytes()
+
+    rows = _parse_pdf(pdf_bytes)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.employer == "Anthem, Inc./ Beacon Health Options"
+    assert row.notice_date == date(2021, 9, 21)
+    assert row.city == "Hernando"
+    assert row.county == "Desoto"
+    assert row.layoff_count == 4
+    assert row.closure_type == "Layoff"
 
 
 @respx.mock

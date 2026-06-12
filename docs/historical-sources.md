@@ -33,9 +33,13 @@ sources only).
     tabs). 2016–2019 live as static pages `/dislocatedworker/warn/{year}/
     default.htm` → dedicated `parse_wi_archive_html`; run with
     `--year-end 2019`.
-  - **MN**: DEED PDF naming drifted — annual summaries 2018–2021, monthly
-    `plant-closing-*` 2022+. One broad CDX query catches all; annual-era
-    employer cells glue the report year on ("Acme 2021") and are stripped.
+  - **MN — run deferred to Wave 2B.** mn.gov removes old asset files, so
+    discovery now returns Wayback replay URLs; annual summaries (2018–2021,
+    no month token in filename) are excluded. The remaining blockers are
+    parser eras: 2015–2016 monthlies parse 0 rows, and 2022–2024 wide-format
+    monthlies fall into the text fallback that glues employer+city+industry
+    into one string (live 2025+ rows are clean) — a proper multi-era parser
+    rides with the OH/PA wave.
   - **NY**: the Tableau CSV is current-year only and ignores year-filter
     params → no cheap win; per-year PDF route or FOIA (Wave 2C decision).
   - **IL**: archive page also holds monthly **PDFs back to 1999** (not 2002
@@ -73,8 +77,8 @@ delete Jobs after.
 | NY | 2025 | `dol.ny.gov/warn-dashboard` Tableau CSV is **current-year only and ignores year-filter params** (verified 2026-06-12); history = per-year PDF listings | ~2010s | per-year PDF parse (Wave 2C decision) or FOIA |
 | MD | 2026 | archived per-year pages `warn{year}.shtml` (verified 2010–2024; old pages use `WIA Code`/`Type Code` headers) | **2010** | year loop (implemented, Wave 2A) |
 | WI | 2020 | the Google Sheet is **cumulative from 2020-01 only** (no per-year tabs); 2016–2019 are static pages `/dislocatedworker/warn/{year}/default.htm` | **2016** | static-page parse, `--year-end 2019` (implemented, Wave 2A) |
-| MN | 2023 | DEED PDFs via Wayback CDX: annual summaries 2018–2021, monthly `plant-closing-*` 2022+ (naming drifted; annual-era employer cells glue the year on) | **2018** | CDX discovery + archive parse (implemented, Wave 2A) |
-| MS | 2025 | MDES quarterly PDFs — `_discover_pdf_urls()` already returns all 23 (PY2020Q1+); scraper ingests only `[0]` | **PY2020** (Jul 2020) | full-list ingest (implemented, Wave 2A); older → request |
+| MN | 2023 | DEED PDFs via Wayback CDX replay (mn.gov prunes old assets): monthlies 2015–2016 + 2022+, annual summaries 2018–2021 | **2018** (annuals), 2015 (monthlies) | discovery implemented; **run blocked on a multi-era parser** (2015/16 + annual + 2022–24 wide layouts) → Wave 2B |
+| MS | 2025 | MDES quarterly PDFs — `_discover_pdf_urls()` already returns all 23 (PY2020Q1+); old quarterlies merge "Company Name, City" (parser splits the trailing "City (County)" line) | **PY2020** (Jul 2020) | full-list ingest (implemented; old-format fix in follow-up PR); older → request |
 | MA | 2025 | mass.gov WARN page publishes **FY22–FY25 XLSX reports** | FY2022 | ingest FY xlsx; pre-FY22 → email (invited) |
 | WA | 2026 | `fortress.wa.gov/esd/file/warn/Public/SearchWARN.aspx` — ASP.NET `__VIEWSTATE` pagination the scraper doesn't follow (10+ pages; depth unknown) | TBD | implement postback paging, then reassess |
 | OR | 2020 | HECC site states it retains only **six years** of WARN records; `data.oregon.gov` Socrata dataset `ijbz-jpx8` exists (content unverified) | ~mid-2020 | check Socrata dataset; pre-2020 → inquiry |
