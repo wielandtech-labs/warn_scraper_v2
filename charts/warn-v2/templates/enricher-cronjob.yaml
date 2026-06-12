@@ -21,7 +21,7 @@ spec:
             {{- include "warn-v2.labels" . | nindent 12 }}
             app.kubernetes.io/component: enricher
         spec:
-          restartPolicy: OnFailure
+          restartPolicy: Never
           {{- with .Values.enricher.imagePullSecrets }}
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}

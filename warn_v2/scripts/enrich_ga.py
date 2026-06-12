@@ -162,6 +162,9 @@ def enrich_ga(
                     "GA %s: unexpected error; banking progress and stopping",
                     notice.notice_id[:10],
                 )
+                # Count it: a crash with no prior progress must fail the run
+                # (the CLI exits nonzero only on errors with zero work done).
+                stats["errors"] += 1
                 break
 
             if result == "timeout":

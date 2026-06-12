@@ -22,7 +22,7 @@ spec:
             {{- include "warn-v2.labels" . | nindent 12 }}
             app.kubernetes.io/component: consolidator
         spec:
-          restartPolicy: OnFailure
+          restartPolicy: Never
           containers:
             - name: consolidator
               image: {{ include "warn-v2.image" . }}

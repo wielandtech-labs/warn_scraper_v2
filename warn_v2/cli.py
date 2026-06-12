@@ -616,8 +616,23 @@ def enrich_ga_cmd(limit: int | None, pdf_dir: Path, dry_run: bool) -> None:
         f"pdf_fetched={stats['pdf_fetched']} skipped={stats['skipped']} "
         f"errors={stats['errors']}{suffix}"
     )
-    if stats["errors"]:
+    if _enrich_run_failed(stats):
         sys.exit(1)
+
+
+def _enrich_run_failed(stats: dict) -> bool:
+    """True when an enrichment run erred without accomplishing anything.
+
+    Rate-limited sources (TCSG) block before the queue drains on most runs, so
+    errors alongside banked progress are the designed success mode — and once
+    the backlog drains, a healthy run is mostly skips. ``skipped`` counts as
+    progress: it means pages were fetched and parsed, i.e. the source was
+    reachable. Only errors with zero work of any kind is a real failure.
+    """
+    accomplished = (
+        stats.get("enriched", 0) + stats.get("pdf_fetched", 0) + stats.get("skipped", 0)
+    )
+    return bool(stats.get("errors", 0)) and not accomplished
 
 
 @main.command("enrich-notices")
@@ -682,12 +697,17 @@ def enrich_notices_cmd(
         return
 
     totals = dict.fromkeys(STAT_KEYS, 0)
+    failed_states: list[str] = []
     for enricher in enrichers:
         stats = enricher.run(
             limit=limit, dry_run=dry_run, pdf_dir=pdf_dir, request_delay=request_delay
         )
         for k in STAT_KEYS:
             totals[k] += stats.get(k, 0)
+        # Judge each state on its own stats — aggregating first would let one
+        # state's progress mask another state's total failure.
+        if _enrich_run_failed(stats):
+            failed_states.append(enricher.state)
         click.echo(
             f"[{enricher.state}] "
             f"considered={stats.get('considered', 0)} "
@@ -703,7 +723,8 @@ def enrich_notices_cmd(
         f"pdf_fetched={totals['pdf_fetched']} skipped={totals['skipped']} "
         f"errors={totals['errors']}{suffix}"
     )
-    if totals["errors"]:
+    if failed_states:
+        click.echo(f"states with errors and no progress: {', '.join(failed_states)}")
         sys.exit(1)
 
 

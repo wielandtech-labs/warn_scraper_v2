@@ -314,3 +314,6 @@ def test_enrich_ga_unexpected_error_banks_progress(
     stats = ega_mod.enrich_ga(limit=None, dry_run=False)
     assert stats["considered"] == len(fake_notices)
     assert stats["enriched"] == 0
+    # The crash counts as an error, so a run that accomplished nothing before
+    # crashing still fails the CLI's errors-with-zero-progress check.
+    assert stats["errors"] == 1
