@@ -30,6 +30,7 @@ import logging
 from decimal import Decimal
 from typing import NamedTuple
 
+from warn_v2.geo.bbox import in_state_bbox
 from warn_v2.geo.city_centroids import lookup_decimal as _city_lookup
 from warn_v2.geo.county_centroids import lookup_decimal as _county_lookup
 from warn_v2.geo.zip_centroids import lookup_decimal
@@ -110,26 +111,37 @@ def geocode(
       2. ZIP centroid (fast local lookup, ~city-block radius)     → source ``'zip'``
       3. City centroid (fast local lookup, ~city-level / ~11 km)  → source ``'city'``
       4. County centroid (fast local lookup, ~county-level / ~30 km) → source ``'county'``
+
+    A tier's result is rejected when it falls outside *state*'s bounding box
+    (sources sometimes carry the corporate-HQ address/ZIP instead of the
+    worksite — e.g. GA), letting the next tier try with worksite-local data.
     """
+    def _validated(pair, source: str) -> GeoResult | None:
+        if pair is None:
+            return None
+        if not in_state_bbox(state, float(pair[0]), float(pair[1])):
+            log.debug(
+                "geocode: %s result (%.4f, %.4f) outside %s bbox — trying next tier",
+                source, pair[0], pair[1], state,
+            )
+            return None
+        return GeoResult(pair[0], pair[1], source)
+
     # 1. Full street address via Census geocoder
     if address:
-        pair = _census_geocode(address, city, state, zip_code)
-        if pair is not None:
-            return GeoResult(pair[0], pair[1], "census")
+        result = _validated(_census_geocode(address, city, state, zip_code), "census")
+        if result is not None:
+            return result
 
     # 2. ZIP centroid fallback
-    pair = lookup_decimal(zip_code)
-    if pair is not None:
-        return GeoResult(pair[0], pair[1], "zip")
+    result = _validated(lookup_decimal(zip_code), "zip")
+    if result is not None:
+        return result
 
     # 3. City centroid fallback (handles states that report city but not ZIP)
-    pair = _city_lookup(state, city)
-    if pair is not None:
-        return GeoResult(pair[0], pair[1], "city")
+    result = _validated(_city_lookup(state, city), "city")
+    if result is not None:
+        return result
 
     # 4. County centroid fallback (handles states that report only county, e.g. KY, MT)
-    pair = _county_lookup(state, county)
-    if pair is not None:
-        return GeoResult(pair[0], pair[1], "county")
-
-    return None
+    return _validated(_county_lookup(state, county), "county")

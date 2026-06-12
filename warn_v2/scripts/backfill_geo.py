@@ -26,6 +26,7 @@ from sqlalchemy import exists, func, or_, select
 
 from warn_v2.db.models import Location, Notice
 from warn_v2.db.session import session_scope
+from warn_v2.geo.bbox import STATE_BBOX, in_state_bbox
 from warn_v2.geo.geocoder import geocode
 
 log = logging.getLogger(__name__)
@@ -113,12 +114,17 @@ def backfill(
 
                 if rerun_address and address:
                     # Only call Census geocoder (Tier 1) — skip ZIP/city fallback.
-                    # If Census can't resolve the address we keep existing coords.
+                    # If Census can't resolve the address, or resolves it outside
+                    # the state (HQ address instead of worksite), keep existing
+                    # coords rather than degrade them.
                     pair = _census_geocode(address, loc.city, loc.state, loc.zip)
-                    if pair is None:
+                    if pair is None or not in_state_bbox(
+                        loc.state, float(pair[0]), float(pair[1])
+                    ):
                         log.debug(
-                            "Census geocoder returned nothing for location %d "
+                            "Census geocoder returned %s for location %d "
                             "(address=%r) — keeping existing coords",
+                            "nothing" if pair is None else "out-of-state coords",
                             loc.id, address,
                         )
                         stats["skipped_no_address"] += 1
@@ -182,6 +188,86 @@ def backfill(
         "no_coords=%d skipped_no_address=%d total=%d",
         stats["upgraded_address"], stats["filled_address"], stats["filled_zip"],
         stats["no_coords"], stats["skipped_no_address"], stats["considered"],
+    )
+    return stats
+
+
+def fix_out_of_state(
+    *,
+    dry_run: bool = False,
+    state_filter: str | None = None,
+) -> dict[str, int]:
+    """Repair locations whose coordinates fall outside their own state's bbox.
+
+    Re-geocodes through the (now bbox-validating) ``geocode()`` using the most
+    recent linked notice's address. When no in-state result exists, coordinates
+    are cleared — an honest ``low_geo`` row beats a wrong-state pin. Fixing the
+    shared Location row repairs every linked notice at once.
+
+    Returns ``{"considered": N, "fixed": N, "cleared": N}``.
+    """
+    stats = {"considered": 0, "fixed": 0, "cleared": 0}
+
+    with session_scope() as session:
+        stmt = select(Location).where(
+            Location.lat.is_not(None), Location.lon.is_not(None)
+        )
+        if state_filter:
+            stmt = stmt.where(Location.state == state_filter.upper())
+
+        for loc in session.scalars(stmt.execution_options(yield_per=100)):
+            if loc.state not in STATE_BBOX or in_state_bbox(
+                loc.state, float(loc.lat), float(loc.lon)
+            ):
+                session.expunge(loc)
+                continue
+            stats["considered"] += 1
+
+            notice_with_address = session.scalar(
+                select(Notice)
+                .where(
+                    Notice.location_id == loc.id,
+                    Notice.address.is_not(None),
+                    Notice.address != "",
+                )
+                .order_by(Notice.notice_date.desc())
+                .limit(1)
+            )
+            address = notice_with_address.address if notice_with_address else None
+
+            result = geocode(address, loc.city, loc.state, loc.zip, loc.county)
+            if result is not None:
+                log.info(
+                    "location %d (%s): out-of-state (%.4f, %.4f) → (%.4f, %.4f) [%s]",
+                    loc.id, loc.state, loc.lat, loc.lon,
+                    result.lat, result.lon, result.source,
+                )
+                loc.lat, loc.lon, loc.geocode_source = result
+                stats["fixed"] += 1
+            else:
+                log.info(
+                    "location %d (%s): out-of-state (%.4f, %.4f) and no in-state "
+                    "result — clearing coords",
+                    loc.id, loc.state, loc.lat, loc.lon,
+                )
+                loc.lat = loc.lon = loc.geocode_source = None
+                stats["cleared"] += 1
+
+            if not dry_run:
+                session.flush()
+            if notice_with_address is not None:
+                session.expunge(notice_with_address)
+            session.expunge(loc)
+
+        if dry_run:
+            session.rollback()
+            log.info("Dry run — rolling back, no changes written.")
+        else:
+            session.commit()
+
+    log.info(
+        "fix-out-of-state done: considered=%d fixed=%d cleared=%d",
+        stats["considered"], stats["fixed"], stats["cleared"],
     )
     return stats
 
