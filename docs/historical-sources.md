@@ -27,8 +27,17 @@ sources only).
   near-misses; all `mark-superseded --dry-run` passes zero pairs. FL 2026
   page 2 held 15 rows the live scraper had never ingested (it reads page 1
   only) — the backfill picked them up.
-- **Wave 2A code (MD/WI/MN/MS/IL-xlsx) — run after this PR deploys.**
-  Probe outcomes (2026-06-12) that changed the original design:
+- **2026-06-12 — MD / WI / IL / MS backfilled in prod** (images `2b25547` +
+  `9394b9d`): MD +1,257 (2010–2025), WI +320 (2016–2019, `--year-end 2019`),
+  IL +861 on the rerun after the NAICS-overflow fix (2020–2026; first attempt
+  aborted mid-batch and its committed files were skipped idempotently),
+  MS +112 (PY2020+; 19 of 23 quarterlies parse — 4 stragglers, e.g.
+  `py2024-q4` / `py2023-qtr-4`, have yet another layout variation, left as a
+  known gap). All near-miss previews and `mark-superseded --dry-run` passes
+  **zero**. Same day: `download-pdfs --prune-non-pdf` removed 420 stored
+  non-PDF files + 108 dangling refs, and an uncapped `download-pdfs` drain
+  Job re-fetched the real-PDF backlog (1,000+ files).
+- **Wave 2A probe outcomes (2026-06-12)** that changed the original design:
   - **WI**: the Google Sheet is cumulative from 2020-01 only (no per-year
     tabs). 2016–2019 live as static pages `/dislocatedworker/warn/{year}/
     default.htm` → dedicated `parse_wi_archive_html`; run with
@@ -44,8 +53,9 @@ sources only).
     params → no cheap win; per-year PDF route or FOIA (Wave 2C decision).
   - **IL**: archive page also holds monthly **PDFs back to 1999** (not 2002
     as previously noted) — PDF era still deferred.
-- Remaining Wave 2: OH 1996+, PA 2001+ (strict dedup), NC PDFs 2014+, NJ
-  cumulative xlsx, MA FY xlsx; WA pagination fix.
+- Remaining Wave 2: OH 1996+ (code in PR #55), PA 2001+ (Wayback-era parse,
+  strict dedup), MN multi-era parser, NC PDFs 2014+, NJ cumulative xlsx,
+  MA FY xlsx; WA pagination fix.
 - **FOIA drafts in [foia/](foia/) are written but unsent** — tracker in
   foia/README.md; ingest responses with `warn-v2 ingest-file`.
 
@@ -73,12 +83,12 @@ delete Jobs after.
 | MO | 2019 | `jobs.mo.gov/warn/{year}` — the regular scraper **already crawls 2019–present every run**; DB is complete | 2019 | **no backfill needed**; pre-2019 → request (drafted) |
 | OH | 2026 | Three eras (probed 2026-06-12): **1996–2003** per-year PDFs `jfs.ohio.gov/warn/WARN_{year}.pdf` (Wayback only; listed on the 2004 `Archived_Notices.stm` snapshot); **2004–2020** old-site HTML year pages (e.g. `2012WARNNotices.stm`, Wayback; enumerate slugs via CDX); **2020–2024** portal pages with the table embedded as JSON in `<div id="js-placeholder-json-data">` (cols incl. per-notice PDF URL!) — 2021–2024 live (`{y}-public-notices-of-layoffs-and-closures[-sa]/{y}-public-notices-of-layoffs-and-closures`), 2020 live page is an empty shell → use its 2025-06 Wayback snapshot. **No Playwright needed for any era.** 2025 unaccounted for (no live page, not in CDX) — investigate | **1996** | Wave 2B: 3 era parsers (PDF, old HTML, embedded JSON) |
 | PA | 2024 | Live AEM page holds accordion sections **2023–2026 only** (probed 2026-06-12). Pre-2023 → Wayback snapshots of the older dli.pa.gov WARN pages | **2001** | Wave 2B: Wayback-era parse; strict dedup (286 superseded rows already; `--year-end 2022` on the real run) |
-| IL | 2025 | `illinoisworknet.com/LayoffRecovery/` archive — monthly XLSX 2020+, monthly **PDFs 1999–2019** | **1999** (PDF era) | xlsx era: `discover_urls` (implemented, Wave 2A); PDF era: `parse_il_pdf` (deferred) |
+| IL | ~~2025~~ **2020 ✅** | `illinoisworknet.com/LayoffRecovery/` archive — monthly XLSX 2020+, monthly **PDFs 1999–2019** | **1999** (PDF era) | xlsx era **done 2026-06-12** (+861 on rerun); PDF era: `parse_il_pdf` (deferred) |
 | NY | 2025 | `dol.ny.gov/warn-dashboard` Tableau CSV is **current-year only and ignores year-filter params** (verified 2026-06-12); history = per-year PDF listings | ~2010s | per-year PDF parse (Wave 2C decision) or FOIA |
-| MD | 2026 | archived per-year pages `warn{year}.shtml` (verified 2010–2024; old pages use `WIA Code`/`Type Code` headers) | **2010** | year loop (implemented, Wave 2A) |
-| WI | 2020 | the Google Sheet is **cumulative from 2020-01 only** (no per-year tabs); 2016–2019 are static pages `/dislocatedworker/warn/{year}/default.htm` | **2016** | static-page parse, `--year-end 2019` (implemented, Wave 2A) |
+| MD | ~~2026~~ **2010 ✅** | archived per-year pages `warn{year}.shtml` (verified 2010–2024; old pages use `WIA Code`/`Type Code` headers) | **2010** | **done 2026-06-12** (+1,257) |
+| WI | ~~2020~~ **2016 ✅** | the Google Sheet is **cumulative from 2020-01 only** (no per-year tabs); 2016–2019 are static pages `/dislocatedworker/warn/{year}/default.htm` | **2016** | **done 2026-06-12** (+320, `--year-end 2019`) |
 | MN | 2023 | DEED PDFs via Wayback CDX replay (mn.gov prunes old assets): monthlies 2015–2016 + 2022+, annual summaries 2018–2021 | **2018** (annuals), 2015 (monthlies) | discovery implemented; **run blocked on a multi-era parser** (2015/16 + annual + 2022–24 wide layouts) → Wave 2B |
-| MS | 2025 | MDES quarterly PDFs — `_discover_pdf_urls()` already returns all 23 (PY2020Q1+); old quarterlies merge "Company Name, City" (parser splits the trailing "City (County)" line) | **PY2020** (Jul 2020) | full-list ingest (implemented; old-format fix in follow-up PR); older → request |
+| MS | ~~2025~~ **PY2020 ✅** | MDES quarterly PDFs — `_discover_pdf_urls()` already returns all 23 (PY2020Q1+); old quarterlies merge "Company Name, City" (parser splits the trailing "City (County)" line) | **PY2020** (Jul 2020) | **done 2026-06-12** (+112; 4 quarterlies with a third layout variation skipped — known gap); older → request |
 | MA | 2025 | mass.gov WARN page publishes **FY22–FY25 XLSX reports** | FY2022 | ingest FY xlsx; pre-FY22 → email (invited) |
 | WA | 2026 | `fortress.wa.gov/esd/file/warn/Public/SearchWARN.aspx` — ASP.NET `__VIEWSTATE` pagination the scraper doesn't follow (10+ pages; depth unknown) | TBD | implement postback paging, then reassess |
 | OR | 2020 | HECC site states it retains only **six years** of WARN records; `data.oregon.gov` Socrata dataset `ijbz-jpx8` exists (content unverified) | ~mid-2020 | check Socrata dataset; pre-2020 → inquiry |
