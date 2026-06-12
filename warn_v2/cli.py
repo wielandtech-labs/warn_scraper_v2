@@ -410,7 +410,18 @@ def consolidate_companies_cmd(dry_run: bool, force: bool) -> None:
     ),
 )
 @click.option("--state", default=None, help="Limit to one state abbreviation, e.g. AZ")
-def backfill_geo(dry_run: bool, rerun_address: bool, state: str | None) -> None:
+@click.option(
+    "--fix-out-of-state",
+    is_flag=True,
+    help=(
+        "Instead of filling NULLs: re-geocode locations whose coordinates fall "
+        "outside their own state (HQ address/ZIP pins); clears coords when no "
+        "in-state result exists"
+    ),
+)
+def backfill_geo(
+    dry_run: bool, rerun_address: bool, state: str | None, fix_out_of_state: bool
+) -> None:
     """Populate locations.lat/lon using address geocoding + ZIP centroid fallback.
 
     By default only targets locations where coordinates are NULL.
@@ -419,10 +430,25 @@ def backfill_geo(dry_run: bool, rerun_address: bool, state: str | None) -> None:
 
     \b
     Examples:
-      warn-v2 backfill-geo                   # fill NULLs only
-      warn-v2 backfill-geo --rerun-address   # also upgrade existing centroids
-      warn-v2 backfill-geo --dry-run         # preview without writing
+      warn-v2 backfill-geo                     # fill NULLs only
+      warn-v2 backfill-geo --rerun-address     # also upgrade existing centroids
+      warn-v2 backfill-geo --fix-out-of-state  # repair wrong-state pins
+      warn-v2 backfill-geo --dry-run           # preview without writing
     """
+    if fix_out_of_state and rerun_address:
+        raise click.UsageError("--fix-out-of-state and --rerun-address are mutually exclusive")
+
+    if fix_out_of_state:
+        from warn_v2.scripts.backfill_geo import fix_out_of_state as fix_oos
+
+        stats = fix_oos(dry_run=dry_run, state_filter=state)
+        suffix = " (dry run — nothing written)" if dry_run else ""
+        click.echo(
+            f"considered={stats['considered']} fixed={stats['fixed']} "
+            f"cleared={stats['cleared']}{suffix}"
+        )
+        return
+
     from warn_v2.scripts.backfill_geo import backfill
 
     stats = backfill(dry_run=dry_run, rerun_address=rerun_address, state_filter=state)
