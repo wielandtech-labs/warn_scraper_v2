@@ -419,3 +419,33 @@ def test_enrich_batch_falls_through_to_claude(db, monkeypatch) -> None:
     assert c.website == "https://acme.com"
     assert c.sic_code == "3559"
     assert c.enriched_at is not None
+
+
+def test_enrich_batch_provider_gets_cleaned_search_name(db, monkeypatch) -> None:
+    """Site designators are stripped from the name passed to provider + EDGAR."""
+    edgar_calls: list[str] = []
+    monkeypatch.setattr(
+        "warn_v2.enrichment.lookup.edgar_lookup",
+        lambda name, state=None: edgar_calls.append(name) or None,
+    )
+    monkeypatch.setattr(
+        "warn_v2.enrichment.worker.run_enrichment",
+        lambda ctx, client, **kw: EnrichmentResult(proposed=False),
+    )
+
+    provider_calls: list[str] = []
+
+    class _MissProvider:
+        def lookup(self, company_name: str, state):
+            provider_calls.append(company_name)
+            return None
+
+        def close(self) -> None:
+            pass
+
+    _company(db, name="Google - Bordeaux")
+    db.commit()
+
+    enrich_batch(db, _StubClient(), provider=_MissProvider(), inter_delay_s=0)
+    assert provider_calls == ["Google"]
+    assert edgar_calls == ["Google"]

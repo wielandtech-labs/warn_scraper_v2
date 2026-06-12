@@ -4,6 +4,7 @@ import { Link, useParams } from "@tanstack/react-router";
 
 import { api } from "../api/client";
 import { fmtDate, fmtNum } from "../lib/format";
+import { SOURCE_LABEL } from "./companies";
 
 export function CompanyDetail() {
   const { companyId } = useParams({ from: "/companies/$companyId" });
@@ -94,7 +95,9 @@ export function CompanyDetail() {
             label="Enriched"
             value={
               c.enriched_at
-                ? `${fmtDate(c.enriched_at)} · confidence ${
+                ? `${fmtDate(c.enriched_at)} · ${
+                    SOURCE_LABEL[c.enrichment_source ?? ""] ?? "unknown source"
+                  } · confidence ${
                     c.enrichment_confidence != null
                       ? Number(c.enrichment_confidence).toFixed(2)
                       : "?"
