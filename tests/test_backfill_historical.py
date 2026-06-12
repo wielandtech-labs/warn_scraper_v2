@@ -857,8 +857,17 @@ def test_parse_oh_year_archive_html_skips_nav_table():
     assert rows[0].city == "Cincinnati"
 
 
+@pytest.fixture
+def _no_wayback_delays(monkeypatch):
+    """Zero the Wayback politeness delays so fetch tests don't sleep."""
+    from warn_v2.scrapers.states import oh
+
+    monkeypatch.setattr(oh, "_WAYBACK_DELAY", 0.0)
+    monkeypatch.setattr(oh, "_WAYBACK_BACKOFF", 0.0)
+
+
 @respx.mock
-def test_oh_fetch_year_falls_through_candidates():
+def test_oh_fetch_year_falls_through_candidates(_no_wayback_delays):
     """First candidate 404s; the Wayback fallback with valid content wins."""
     from warn_v2.scrapers.states.oh import _fetch_oh_year, _oh_year_sources
 
@@ -870,7 +879,7 @@ def test_oh_fetch_year_falls_through_candidates():
 
 
 @respx.mock
-def test_oh_fetch_year_rejects_shell_pages():
+def test_oh_fetch_year_rejects_shell_pages(_no_wayback_delays):
     """A 200 page without table/JSON markers (soft-404 shell) is not data."""
     from warn_v2.scrapers.states.oh import _fetch_oh_year, _oh_year_sources
 
@@ -878,3 +887,20 @@ def test_oh_fetch_year_rejects_shell_pages():
         respx.get(u).mock(return_value=httpx.Response(200, content=b"<html>shell</html>"))
 
     assert _fetch_oh_year(2020) is None
+
+
+@respx.mock
+def test_oh_fetch_year_retries_throttled_wayback(_no_wayback_delays):
+    """A throttled Wayback response (429) is retried once after a backoff."""
+    from warn_v2.scrapers.states.oh import _fetch_oh_year, _oh_year_sources
+
+    url = _oh_year_sources(2010)[0]
+    respx.get(url).mock(
+        side_effect=[
+            httpx.Response(429),
+            httpx.Response(200, content=b"%PDF-1.4 era pdf"),
+        ]
+    )
+
+    raw = _fetch_oh_year(2010)
+    assert raw == b"%PDF-1.4 era pdf"
