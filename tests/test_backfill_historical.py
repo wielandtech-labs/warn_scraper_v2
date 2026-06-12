@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 from datetime import date
 from unittest.mock import MagicMock, patch
 
@@ -227,6 +228,96 @@ def test_backfill_historical_ca_upserts_rows_xlsx(db) -> None:
     assert stats["years_attempted"] == 1
     assert stats["years_ok"] == 1
     assert stats["rows_seen"] >= 1
+
+
+# ---------------------------------------------------------------------------
+# Registry — JobLink states (KS/ME/VT) and supported set
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("state", ["CA", "DC", "AZ", "DE", "KS", "ME", "VT"])
+def test_supported_states_in_registry(state) -> None:
+    from warn_v2.scripts.backfill_historical import _BACKFILL, _SUPPORTED
+
+    assert state in _SUPPORTED
+    spec = _BACKFILL[state]
+    assert (spec.fetch_year is None) != (spec.discover_urls is None)
+
+
+@respx.mock
+def test_backfill_historical_vt_joblink_year(db) -> None:
+    """VT (JobLink platform) backfills via fetch(year=Y) like AZ/DE."""
+    search_url = (
+        "https://www.vermontjoblink.com/search/warn_lookups"
+        "?utf8=%E2%9C%93&q%5Bnotice_eq%5D=true"
+        "&q%5Bnotice_on_gteq%5D=2003-01-01"
+        "&q%5Bnotice_on_lteq%5D=2003-12-31"
+        "&q%5Bs%5D=notice_on+desc&commit=Search"
+    )
+    # No anchor in the row → no detail-page fetches.
+    html = (
+        b"<html><table><tbody>"
+        b"<tr><td>Vermont Tubbs Inc</td><td>Rutland</td><td>05701</td>"
+        b"<td>Area</td><td>2003-07-31</td><td>Closure</td></tr>"
+        b"</tbody></table></html>"
+    )
+    respx.get(search_url).mock(return_value=httpx.Response(200, content=html))
+
+    stats = backfill_historical("VT", year_start=2003, year_end=2003, dry_run=True)
+
+    assert stats["years_attempted"] == 1
+    assert stats["years_ok"] == 1
+    assert stats["rows_seen"] == 1
+    assert db.query(Notice).count() == 0
+
+
+# ---------------------------------------------------------------------------
+# Year loop — paginated sources (list[bytes] from fetch_year)
+# ---------------------------------------------------------------------------
+
+def test_backfill_historical_paginated_year_ingests_all_chunks(db) -> None:
+    html_p1 = _minimal_dc_html("Agency Alpha", "January 15, 2020")
+    html_p2 = _minimal_dc_html("Agency Beta", "February 20, 2020")
+
+    with patch(
+        "warn_v2.scripts.backfill_historical._fetch_dc_year",
+        return_value=[html_p1, html_p2],
+    ):
+        with patch("warn_v2.scripts.backfill_historical.session_scope") as mock_scope:
+            mock_scope.return_value.__enter__ = lambda _: db
+            mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+
+            stats = backfill_historical("DC", year_start=2020, year_end=2020)
+
+    assert stats["years_attempted"] == 2  # one per chunk
+    assert stats["years_ok"] == 2
+    assert stats["rows_seen"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Dry run — duplicate preview (near misses)
+# ---------------------------------------------------------------------------
+
+def test_dry_run_reports_near_miss(db, caplog) -> None:
+    """A row matching an existing notice on (state, employer, date) but hashing
+    differently (city drift) is flagged as a near miss, and nothing is written."""
+    from warn_v2.pipeline.storage import upsert_notices
+
+    seeded = NoticeRow(
+        state="DC", employer="DC Agency", notice_date=date(2020, 1, 15),
+        city="Anacostia",
+    )
+    upsert_notices(db, [seeded])
+    db.commit()
+
+    html = _minimal_dc_html("DC Agency", "January 15, 2020")  # no city column
+    caplog.set_level(logging.INFO, logger="warn_v2.scripts.backfill_historical")
+
+    with patch("warn_v2.scripts.backfill_historical._fetch_dc_year", return_value=html):
+        stats = backfill_historical("DC", year_start=2020, year_end=2020, dry_run=True)
+
+    assert stats["rows_seen"] == 1
+    assert "near_miss=1" in caplog.text
+    assert db.query(Notice).count() == 1  # only the seeded row
 
 
 @respx.mock

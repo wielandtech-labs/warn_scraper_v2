@@ -148,3 +148,50 @@ def test_case_c_different_employers_not_matched(db) -> None:
 
     result = mark_superseded(dry_run=False, state_filter="IA")
     assert result["marked"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Case D — locationless duplicate (the historical-backfill shape)
+# ---------------------------------------------------------------------------
+
+
+def test_case_d_locationless_duplicate_superseded(db) -> None:
+    """A notice with no location row and no address duplicating a located
+    notice (same employer/date/count) is superseded, regardless of scrape order."""
+    loc = _location(db, zip="50309")
+    located = _notice(db, notice_id="ia-loc", location=loc, scraped_at=_T0)
+    bare = _notice(db, notice_id="ia-bare", address=None, location=None, scraped_at=_T1)
+    db.commit()
+
+    result = mark_superseded(dry_run=False, state_filter="IA", force=True)
+
+    assert result["marked"] == 1
+    db.expire_all()
+    assert db.get(Notice, bare.notice_id).is_superseded is True
+    assert db.get(Notice, located.notice_id).is_superseded is False
+
+
+def test_case_d_row_with_address_not_matched(db) -> None:
+    """A locationless row that still carries an address is NOT Case D — the
+    address may describe a different worksite, so it needs manual review."""
+    loc = _location(db, zip="50309")
+    _notice(db, notice_id="ia-loc", location=loc, scraped_at=_T0)
+    _notice(db, notice_id="ia-addr", address="2 Other St", location=None, scraped_at=_T1)
+    db.commit()
+
+    result = mark_superseded(dry_run=False, state_filter="IA", force=True)
+
+    assert result["marked"] == 0
+
+
+def test_case_d_different_counts_not_matched(db) -> None:
+    """Different layoff_counts could be an amendment — Case D stays out."""
+    loc = _location(db, zip="50309")
+    _notice(db, notice_id="ia-loc", location=loc, layoff_count=100, scraped_at=_T0)
+    _notice(db, notice_id="ia-bare", address=None, location=None, layoff_count=150,
+            scraped_at=_T1)
+    db.commit()
+
+    result = mark_superseded(dry_run=False, state_filter="IA", force=True)
+
+    assert result["marked"] == 0

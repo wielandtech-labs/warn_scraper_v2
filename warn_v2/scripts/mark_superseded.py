@@ -15,7 +15,10 @@ Two patterns are detected:
 
 Both patterns require a location record (location_id IS NOT NULL) on both
 notices — notices without location data are skipped (they can't be reliably
-matched).
+matched).  Two further cases are documented inline: Case C (ZIP-variance where
+both rows carry addresses) and Case D (a locationless, addressless duplicate of
+a located notice — the shape historical backfills produce when the old source
+format lacked city/ZIP).
 
 Guardrail: if more than 20 % of a state's notices would be marked, the run
 aborts unless --force is supplied.  This catches runaway false-positive matches.
@@ -164,6 +167,41 @@ def _find_pairs(session, state_filter: str | None) -> list[tuple[str, str, str, 
             continue
         seen.add(sup_id)
         desc = f"{state} {emp!r} {nd} count={cnt} [zip-variance-addressed]"
+        pairs.append((sup_id, can_id, state, desc))
+
+    # Case D — locationless duplicate: one notice has no location row at all
+    # AND no address (typical of historical-backfill rows whose source format
+    # lacked city/ZIP), the other is located.  Same employer + notice_date +
+    # layoff_count → the locationless row is the redundant copy, regardless of
+    # which was scraped first.
+    result = session.execute(
+        text(f"""
+            SELECT n1.notice_id, n2.notice_id, n1.state,
+                   n1.employer, n1.notice_date, n1.layoff_count
+            FROM notices n1
+            JOIN notices n2 ON (
+                n1.state = n2.state
+                AND lower(trim(n1.employer)) = lower(trim(n2.employer))
+                AND n1.notice_date = n2.notice_date
+                AND n1.notice_id != n2.notice_id
+            )
+            WHERE n1.location_id IS NULL
+              AND n1.address IS NULL
+              AND n2.location_id IS NOT NULL
+              AND n1.layoff_count IS NOT DISTINCT FROM n2.layoff_count
+              AND NOT n1.is_superseded
+              AND NOT n2.is_superseded
+              {state_clause}
+            ORDER BY n1.state, n1.employer, n1.notice_date
+        """),
+        params,
+    )
+    for row in result:
+        sup_id, can_id, state, emp, nd, cnt = row
+        if sup_id in seen or can_id in seen:
+            continue
+        seen.add(sup_id)
+        desc = f"{state} {emp!r} {nd} count={cnt} [locationless]"
         pairs.append((sup_id, can_id, state, desc))
 
     return pairs

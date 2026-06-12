@@ -486,10 +486,11 @@ def backfill_notice_dates_cmd(dry_run: bool, state: str | None) -> None:
 @main.command("backfill-historical")
 @click.option(
     "--state", required=True,
-    help="State to backfill: CA, DC, AZ, or DE (CO is already cumulative)",
+    help="State to backfill: CA, DC, AZ, DE, KS, ME, VT (CO is already cumulative)",
 )
 @click.option("--year-start", type=int, default=None,
-              help="First year to fetch (DC default 2013, AZ/DE default 2016)")
+              help="First year to fetch (default: per-state earliest; "
+                   "see docs/historical-sources.md)")
 @click.option("--year-end", type=int, default=None,
               help="Last year to fetch (default: current year)")
 @click.option("--dry-run", is_flag=True, help="Fetch and parse but do not write to DB")
@@ -503,14 +504,16 @@ def backfill_historical_cmd(
     the current year.
 
     \b
-    Supported states: CA, DC, AZ, DE
+    Supported states: CA, DC, AZ, DE, KS, ME, VT
     CO is excluded — its Google Sheets export is cumulative since 2019.
+    Per-state earliest years and the dedup protocol: docs/historical-sources.md.
+    Dry runs print a duplicate preview (already_exists / near_miss counts).
 
     \b
     Examples:
       warn-v2 backfill-historical --state CA
       warn-v2 backfill-historical --state DC --dry-run
-      warn-v2 backfill-historical --state AZ --year-start 2018 --year-end 2023
+      warn-v2 backfill-historical --state VT --year-start 2003 --year-end 2010
     """
     from warn_v2.scripts.backfill_historical import backfill_historical
 
@@ -527,6 +530,55 @@ def backfill_historical_cmd(
         f"rows_seen={stats['rows_seen']} "
         f"rows_new={stats['rows_new']}"
         f"{suffix}"
+    )
+
+
+@main.command("ingest-file")
+@click.option("--state", required=True, help="State the file's notices belong to")
+@click.option(
+    "--file", "path", required=True,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Local CSV/XLSX/PDF file to ingest (e.g. a records-request response)",
+)
+@click.option(
+    "--parser", "parser_name", default="scraper", show_default=True,
+    help="'scraper' (state's regular parser), 'tabular' (generic CSV/XLSX), "
+         "or a registered per-state FOIA parser",
+)
+@click.option("--source-url", default=None,
+              help="source_url to store on the rows (default: file://<name>)")
+@click.option("--dry-run", is_flag=True, help="Parse and preview but do not write to DB")
+def ingest_file_cmd(
+    state: str,
+    path: str,
+    parser_name: str,
+    source_url: str | None,
+    dry_run: bool,
+) -> None:
+    """Ingest a local WARN-notice file (e.g. a public-records response).
+
+    \b
+    Runs the same upsert path as the scrapers; dry runs print a duplicate
+    preview (already_exists / near_miss counts). Request drafts and per-state
+    notes live in docs/foia/.
+
+    \b
+    Examples:
+      warn-v2 ingest-file --state IA --file response.xlsx --dry-run
+      warn-v2 ingest-file --state SC --file notices.csv --parser tabular
+    """
+    from warn_v2.scripts.ingest_file import ingest_file
+
+    stats = ingest_file(
+        state,
+        path,
+        parser=parser_name,
+        source_url=source_url,
+        dry_run=dry_run,
+    )
+    suffix = " (dry run — nothing written)" if dry_run else ""
+    click.echo(
+        f"rows_seen={stats['rows_seen']} rows_new={stats['rows_new']}{suffix}"
     )
 
 

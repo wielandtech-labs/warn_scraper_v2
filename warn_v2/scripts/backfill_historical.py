@@ -1,48 +1,97 @@
 """Ingest historical WARN data for states where the regular scraper only fetches
 the current year.
 
-Supported states
-----------------
-CA  — EDD publishes per-fiscal-year XLSX files on an archive page; this script
-      discovers all available links and ingests each file.
-DC  — Year-parameterised URL; looped from a configurable start year.
-AZ  — JobLink platform; ``_build_url(host, year=Y)`` already exists.
-DE  — Same JobLink platform as AZ.
+Each supported state has a ``BackfillSpec`` in ``_BACKFILL`` describing one of
+two fetch shapes:
+
+* **year loop** (``fetch_year``) — fetch one year at a time from ``year_start``
+  to the current year. ``fetch_year(scraper, year)`` returns raw bytes, a list
+  of raw chunks (paginated sources), or ``None`` when the year has no data.
+* **archive-file list** (``discover_urls``) — discover historical file URLs
+  from an archive page and ingest each one (CA). ``parse_for_url`` may return
+  an alternate parser for a given URL (e.g. PDF-era files).
+
+Per-state fetch/parse helpers live next to the regular scraper in
+``warn_v2/scrapers/states/<st>.py`` (see ``ca._discover_archive_urls``,
+``dc._fetch_dc_year``); this module holds only the registry and the loops.
 
 CO is excluded: its Google Sheets export is append-only since 2019, so the
 regular scraper already captures all historical CO data in one download.
+
+Dry runs log a duplicate preview: rows already in the DB, rows that would
+insert, and *near misses* — rows matching an existing notice on
+(state, employer, notice_date) but hashing to a different ``notice_id``
+(usually city/ZIP drift between a historical format and the live one). Near
+misses become duplicates on a real run; review them and plan a
+``mark-superseded --state XX`` pass before committing.
 
 Usage::
 
     warn-v2 backfill-historical --state CA
     warn-v2 backfill-historical --state DC --year-start 2013
-    warn-v2 backfill-historical --state AZ --dry-run
+    warn-v2 backfill-historical --state VT --dry-run
 """
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
 
 import httpx
+from sqlalchemy import select
 
-from warn_v2.db.models import ScraperRun
+from warn_v2.db.models import Notice, ScraperRun
 from warn_v2.db.session import session_scope
+from warn_v2.pipeline.dedup import _norm, notice_id
 from warn_v2.pipeline.storage import upsert_notices
-from warn_v2.scrapers.base import ParseFailed, ScrapeFailed
+from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.registry import get_scraper
 from warn_v2.scrapers.states.ca import _discover_archive_urls, parse_ca_pdf
 from warn_v2.scrapers.states.dc import _fetch_dc_year
 
 log = logging.getLogger(__name__)
 
-_SUPPORTED = frozenset({"CA", "DC", "AZ", "DE"})
 
-# Earliest years with data on each platform.
-_DEFAULT_YEAR_START = {
-    "DC": 2013,
-    "AZ": 2016,
-    "DE": 2016,
+@dataclass(frozen=True)
+class BackfillSpec:
+    """How to backfill one state. Set either ``fetch_year`` or ``discover_urls``."""
+
+    # Mode 1 — year loop:
+    year_start: int | None = None
+    fetch_year: Callable[..., bytes | list[bytes] | None] | None = None
+    # Optional parser that needs the year for context (e.g. month-only sources).
+    parse_year: Callable[[bytes, int], list[NoticeRow]] | None = None
+
+    # Mode 2 — archive-file list:
+    discover_urls: Callable[[], list[str]] | None = None
+    parse_for_url: Callable[[str], Callable | None] | None = None
+
+
+def _joblink_fetch(scraper, year: int) -> bytes:
+    """JobLink platform: the base class supports fetch(year=Y) directly."""
+    return scraper.fetch(year=year)
+
+
+# Lambdas resolve module globals at call time so tests can patch
+# `backfill_historical._fetch_dc_year` / `._discover_archive_urls` /
+# `.parse_ca_pdf` exactly as before the registry rewrite.
+_BACKFILL: dict[str, BackfillSpec] = {
+    "CA": BackfillSpec(
+        discover_urls=lambda: _discover_archive_urls(),
+        parse_for_url=lambda u: parse_ca_pdf if u.lower().endswith(".pdf") else None,
+    ),
+    "DC": BackfillSpec(year_start=2013, fetch_year=lambda s, y: _fetch_dc_year(y)),
+    "AZ": BackfillSpec(year_start=2016, fetch_year=_joblink_fetch),
+    "DE": BackfillSpec(year_start=2016, fetch_year=_joblink_fetch),
+    # JobLink platforms verified searchable to these years (2026-06-12 probes,
+    # see docs/historical-sources.md).
+    "KS": BackfillSpec(year_start=1999, fetch_year=_joblink_fetch),
+    "ME": BackfillSpec(year_start=2012, fetch_year=_joblink_fetch),
+    "VT": BackfillSpec(year_start=2003, fetch_year=_joblink_fetch),
 }
+
+_SUPPORTED = frozenset(_BACKFILL)
 
 
 def backfill_historical(
@@ -57,7 +106,8 @@ def backfill_historical(
     Returns ``{"years_attempted": N, "years_ok": N, "rows_seen": N, "rows_new": N}``.
     """
     state = state.upper()
-    if state not in _SUPPORTED:
+    spec = _BACKFILL.get(state)
+    if spec is None:
         raise ValueError(
             f"backfill-historical does not support {state!r}. "
             f"Supported: {', '.join(sorted(_SUPPORTED))}"
@@ -72,16 +122,12 @@ def backfill_historical(
 
     scraper = get_scraper(state)
 
-    if state == "CA":
-        _backfill_ca(scraper, stats, dry_run=dry_run)
-    elif state == "DC":
-        start = year_start or _DEFAULT_YEAR_START["DC"]
+    if spec.discover_urls is not None:
+        _backfill_url_list(scraper, spec, stats, dry_run=dry_run)
+    else:
+        start = year_start or spec.year_start or datetime.now().year
         end = year_end or datetime.now().year
-        _backfill_year_loop(scraper, state, start, end, stats, dry_run=dry_run)
-    elif state in ("AZ", "DE"):
-        start = year_start or _DEFAULT_YEAR_START[state]
-        end = year_end or datetime.now().year
-        _backfill_year_loop(scraper, state, start, end, stats, dry_run=dry_run)
+        _backfill_year_loop(scraper, state, spec, start, end, stats, dry_run=dry_run)
 
     log.info(
         "%s backfill done: years_attempted=%d years_ok=%d rows_seen=%d rows_new=%d",
@@ -95,48 +141,51 @@ def backfill_historical(
 
 
 # ---------------------------------------------------------------------------
-# CA — archive page discovery
+# Mode 2 — archive-file list (CA)
 # ---------------------------------------------------------------------------
 
-def _backfill_ca(scraper, stats: dict[str, int], *, dry_run: bool) -> None:
-    log.info("CA: discovering historical file URLs from EDD archive page")
+def _backfill_url_list(
+    scraper, spec: BackfillSpec, stats: dict[str, int], *, dry_run: bool
+) -> None:
+    log.info("%s: discovering historical file URLs", scraper.state)
     try:
-        urls = _discover_archive_urls()
+        urls = spec.discover_urls()
     except ScrapeFailed as e:
-        log.error("CA: could not load archive page: %s", e)
+        log.error("%s: could not discover archive URLs: %s", scraper.state, e)
         return
 
     if not urls:
-        log.warning("CA: no historical XLSX links found on archive page")
+        log.warning("%s: no historical file links found", scraper.state)
         return
 
-    log.info("CA: found %d historical file(s)", len(urls))
+    log.info("%s: found %d historical file(s)", scraper.state, len(urls))
 
     for url in urls:
         stats["years_attempted"] += 1
-        log.info("CA: fetching %s", url)
+        log.info("%s: fetching %s", scraper.state, url)
         try:
             r = httpx.get(url, timeout=120, follow_redirects=True)
             r.raise_for_status()
             raw = r.content
         except httpx.HTTPError as e:
-            log.warning("CA: fetch failed for %s: %s", url, e)
+            log.warning("%s: fetch failed for %s: %s", scraper.state, url, e)
             _record_run(
                 scraper.state, label=url, status="fetch_failed", error=str(e), dry_run=dry_run
             )
             continue
 
-        parse_fn = parse_ca_pdf if url.lower().endswith(".pdf") else None
+        parse_fn = spec.parse_for_url(url) if spec.parse_for_url else None
         _ingest_raw(scraper, raw, label=url, stats=stats, dry_run=dry_run, parse_fn=parse_fn)
 
 
 # ---------------------------------------------------------------------------
-# DC / AZ / DE — year loop
+# Mode 1 — year loop
 # ---------------------------------------------------------------------------
 
 def _backfill_year_loop(
     scraper,
     state: str,
+    spec: BackfillSpec,
     start: int,
     end: int,
     stats: dict[str, int],
@@ -150,14 +199,7 @@ def _backfill_year_loop(
         log.info("%s: fetching year %d", state, year)
 
         try:
-            if state == "DC":
-                raw = _fetch_dc_year(year)
-                if raw is None:
-                    log.info("%s %d: no data (page missing or empty)", state, year)
-                    continue
-            else:
-                # AZ / DE — JobLinkScraper.fetch(year=Y)
-                raw = scraper.fetch(year=year)
+            raw = spec.fetch_year(scraper, year)
         except ScrapeFailed as e:
             log.warning("%s %d: fetch failed: %s", state, year, e)
             _record_run(
@@ -165,11 +207,26 @@ def _backfill_year_loop(
             )
             continue
 
-        _ingest_raw(scraper, raw, label=str(year), stats=stats, dry_run=dry_run)
+        if raw is None:
+            log.info("%s %d: no data (page missing or empty)", state, year)
+            continue
+
+        # Paginated sources return one chunk per page; each counts as an attempt.
+        chunks = raw if isinstance(raw, list) else [raw]
+        parse_fn = None
+        if spec.parse_year is not None:
+            parse_fn = lambda b, _y=year: spec.parse_year(b, _y)  # noqa: E731
+        for i, chunk in enumerate(chunks):
+            if i > 0:
+                stats["years_attempted"] += 1
+            label = str(year) if len(chunks) == 1 else f"{year} p{i + 1}"
+            _ingest_raw(
+                scraper, chunk, label=label, stats=stats, dry_run=dry_run, parse_fn=parse_fn
+            )
 
 
 # ---------------------------------------------------------------------------
-# Shared ingest helper
+# Shared ingest helpers (also used by `warn-v2 ingest-file`)
 # ---------------------------------------------------------------------------
 
 def _ingest_raw(
@@ -200,6 +257,7 @@ def _ingest_raw(
             "%s %s: dry run — would upsert %d rows",
             scraper.state, label, len(rows),
         )
+        _report_near_misses(scraper.state, label, rows)
         stats["years_ok"] += 1
         stats["rows_seen"] += len(rows)
         return
@@ -216,6 +274,60 @@ def _ingest_raw(
         scraper.state, label=label, status="ok",
         rows_scraped=seen, rows_new=new, dry_run=dry_run,
     )
+
+
+def _report_near_misses(state: str, label: str, rows: list[NoticeRow]) -> None:
+    """Dry-run duplicate preview. Best-effort: skipped when no DB is reachable.
+
+    A *near miss* is a parsed row whose ``notice_id`` is new but whose
+    (state, normalized employer, notice_date) matches an existing notice —
+    i.e. it would insert as a duplicate differing only in city/ZIP.
+    """
+    try:
+        with session_scope() as session:
+            ids = {notice_id(r) for r in rows}
+            existing_ids = set(
+                session.execute(
+                    select(Notice.notice_id).where(Notice.notice_id.in_(ids))
+                ).scalars()
+            )
+            dates = {r.notice_date for r in rows if r.notice_date is not None}
+            candidates = session.execute(
+                select(Notice.notice_id, Notice.employer, Notice.notice_date).where(
+                    Notice.state == state.upper(),
+                    Notice.notice_date.in_(dates),
+                )
+            ).all()
+    except Exception as e:
+        log.warning("%s %s: near-miss check skipped (no DB reachable): %s", state, label, e)
+        return
+
+    by_key: dict[tuple[str, object], list[str]] = {}
+    for nid, emp, nd in candidates:
+        by_key.setdefault((_norm(emp), nd), []).append(nid)
+
+    already = 0
+    near: list[NoticeRow] = []
+    for r in rows:
+        nid = notice_id(r)
+        if nid in existing_ids:
+            already += 1
+            continue
+        if any(m != nid for m in by_key.get((_norm(r.employer), r.notice_date), [])):
+            near.append(r)
+
+    log.info(
+        "%s %s: would_insert=%d (near_miss=%d) already_exists=%d",
+        state, label, len(rows) - already, len(near), already,
+    )
+    for r in near[:10]:
+        log.info(
+            "%s %s: near miss: %r %s (city=%r zip=%r) collides with an existing "
+            "notice keyed differently — would duplicate",
+            state, label, r.employer, r.notice_date, r.city, r.zip,
+        )
+    if len(near) > 10:
+        log.info("%s %s: ... and %d more near misses", state, label, len(near) - 10)
 
 
 def _record_run(
