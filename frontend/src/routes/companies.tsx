@@ -11,6 +11,14 @@ import { fmtNum } from "../lib/format";
 
 const PAGE_SIZE = 50;
 
+// enrichment_source → human label. Confidence alone is misleading: a "Web"
+// row is usually just a website found by the LLM, while "D&B" is a full record.
+export const SOURCE_LABEL: Record<string, string> = {
+  provider: "D&B",
+  edgar: "SEC",
+  claude: "Web",
+};
+
 export function CompaniesPage() {
   const navigate = useNavigate({ from: "/companies" });
   const search = useSearch({ from: "/companies" });
@@ -166,10 +174,14 @@ function CompaniesView() {
           const c = info.row.original;
           if (!c.enriched_at) return <span className="badge-slate">Pending</span>;
           const conf = c.enrichment_confidence != null ? Number(c.enrichment_confidence) : null;
-          if (conf != null && conf >= 0.7) {
-            return <span className="badge-green">Enriched · {conf.toFixed(2)}</span>;
+          const label = SOURCE_LABEL[c.enrichment_source ?? ""] ?? "Enriched";
+          // Confidence means "right company identified", not data quality —
+          // only a D&B (provider) row carries the full record, so only it
+          // earns the green badge.
+          if (c.enrichment_source === "provider") {
+            return <span className="badge-green">{label} · {conf?.toFixed(2) ?? "?"}</span>;
           }
-          return <span className="badge-amber">Low confidence · {conf?.toFixed(2) ?? "?"}</span>;
+          return <span className="badge-amber">{label} · {conf?.toFixed(2) ?? "?"}</span>;
         },
       },
     ],

@@ -16,6 +16,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from warn_v2.companies.normalize import search_name
 from warn_v2.db.models import Company, Notice
 from warn_v2.enrichment.agent import (
     EnrichmentContext,
@@ -234,13 +235,18 @@ def enrich_batch(
         # Only apply the inter-company delay before Claude calls (free tiers are fast).
         notice_ctx = _load_notice_context(session, company.id)
         state = notice_ctx[0]["state"] if notice_ctx else None
+        # Search with site designators stripped ("Google - Bordeaux" -> "Google");
+        # exact-ish search tiers miss the raw WARN spelling entirely otherwise.
+        query = search_name(company.name)
+        if query != company.name:
+            log.info("company_id=%d: search query %r (from %r)", company.id, query, company.name)
 
         # ------------------------------------------------------------------ #
         # Tier 1: external provider plugin
         # ------------------------------------------------------------------ #
         if provider is not None:
             try:
-                pr = provider.lookup(company.name, state)
+                pr = provider.lookup(query, state)
             except Exception:
                 log.exception("provider.lookup failed for company_id=%d name=%r",
                               company.id, company.name)
@@ -261,7 +267,7 @@ def enrich_batch(
         # Tier 2: EDGAR free lookup (SIC + approximate NAICS)
         # ------------------------------------------------------------------ #
         try:
-            lr = edgar_lookup(company.name, state)
+            lr = edgar_lookup(query, state)
         except Exception:
             log.exception("edgar_lookup failed for company_id=%d name=%r",
                           company.id, company.name)

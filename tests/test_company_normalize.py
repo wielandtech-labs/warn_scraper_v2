@@ -1,7 +1,7 @@
 """Tests for conservative company-name normalization."""
 from __future__ import annotations
 
-from warn_v2.companies.normalize import canonical_name
+from warn_v2.companies.normalize import canonical_name, search_name
 
 
 def test_legal_form_variants_collapse():
@@ -58,3 +58,45 @@ def test_leading_number_without_parens_is_kept():
 def test_empty_and_none():
     assert canonical_name("") == ""
     assert canonical_name(None) == ""
+
+
+# ---------------------------------------------------------------------------
+# search_name — external-search query cleaning (case-preserving)
+# ---------------------------------------------------------------------------
+
+def test_search_name_strips_dash_site_segments():
+    assert search_name("Google - Bordeaux") == "Google"
+    assert search_name("Google - 242") == "Google"
+    assert search_name("Amazon - SNA 20") == "Amazon"
+
+
+def test_search_name_strips_trailing_site_numbers():
+    assert search_name("MV Transportation 4499") == "MV Transportation"
+    assert search_name("10x Genomics, Inc. (6230)") == "10x Genomics, Inc."
+
+
+def test_search_name_strips_store_markers():
+    assert search_name("(1045) San Diego LGBT Community Center") == (
+        "San Diego LGBT Community Center"
+    )
+    assert search_name("Food 4 Less #364") == "Food 4 Less"
+
+
+def test_search_name_keeps_real_names_intact():
+    assert search_name("Mercedes-Benz USA") == "Mercedes-Benz USA"  # hyphen, not dash segment
+    assert search_name("Jo-Ann Stores Support Center, Inc.") == (
+        "Jo-Ann Stores Support Center, Inc."
+    )
+    assert search_name("24 Hour Fitness USA Inc.") == "24 Hour Fitness USA Inc."
+    # dash segment with its own legal form is a real entity, not a site tag
+    assert search_name("Acme - Widgets LLC") == "Acme - Widgets LLC"
+    # 3+-word dash segments without digits are kept (too name-like to strip)
+    assert search_name("Sodexo - Good Eating Company Operations") == (
+        "Sodexo - Good Eating Company Operations"
+    )
+
+
+def test_search_name_degenerate_inputs():
+    assert search_name("") == ""
+    assert search_name(None) == ""
+    assert search_name("4499") == "4499"  # nothing left after strip -> original

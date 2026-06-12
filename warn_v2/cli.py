@@ -717,6 +717,64 @@ def audit_cmd(state: str | None, as_json: bool, markdown: bool, check_links: boo
         click.echo(render_table(audits))
 
 
+@main.command("reset-enrichment")
+@click.option(
+    "--sources",
+    default="claude,edgar",
+    show_default=True,
+    help="Comma-separated enrichment_source values to reset (provider is refused)",
+)
+@click.option("--dry-run", is_flag=True, help="Preview counts without writing")
+def reset_enrichment_cmd(sources: str, dry_run: bool) -> None:
+    """Re-queue weakly-enriched companies for the full cascade.
+
+    \b
+    Metadata-only: clears enriched_at/confidence/source so find_pending picks
+    the companies up again (highest layoff impact first), but KEEPS any data
+    fields already gathered (website, SIC, ...) until the re-run overwrites
+    them. Use after improving the provider lookup so D&B gets another shot at
+    rows that previously fell through to EDGAR/Claude.
+
+    Always run with --dry-run first and review the counts.
+    """
+    from sqlalchemy import func, select, update
+
+    from warn_v2.db.models import Company
+    from warn_v2.db.session import session_scope
+
+    wanted = {s.strip().lower() for s in sources.split(",") if s.strip()}
+    if "provider" in wanted:
+        click.echo("refusing to reset provider-enriched rows (full D&B data)", err=True)
+        sys.exit(1)
+    if not wanted:
+        click.echo("no sources given", err=True)
+        sys.exit(1)
+
+    with session_scope() as session:
+        rows = session.execute(
+            select(Company.enrichment_source, func.count())
+            .where(Company.enrichment_source.in_(wanted))
+            .group_by(Company.enrichment_source)
+        ).all()
+        total = sum(r[1] for r in rows)
+        for source, count in rows:
+            click.echo(f"{source}: {count}")
+        if dry_run or total == 0:
+            click.echo(f"total={total} (dry run — nothing written)" if dry_run else "total=0")
+            return
+        session.execute(
+            update(Company)
+            .where(Company.enrichment_source.in_(wanted))
+            .values(
+                enriched_at=None,
+                enrichment_confidence=None,
+                enrichment_source=None,
+                enrichment_sources=None,
+            )
+        )
+    click.echo(f"reset {total} companies — re-queued for the enrichment cascade")
+
+
 _ROLES = click.Choice(["admin", "paid", "free"])
 _MIN_PASSWORD_LEN = 12
 
