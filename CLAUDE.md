@@ -51,6 +51,13 @@ Run with: `cd warn_scrapper_v2 && .venv\Scripts\pytest` (uv not on PATH here;
 use the local venv). All 500+ tests should pass with 0 failures before opening
 a PR.
 
+From a git worktree (which has no `.venv` of its own): run
+`C:\Users\rapha\workspace\warn_scrapper_v2\.venv\Scripts\python.exe -m pytest`
+with the worktree as cwd — `-m` puts the cwd first on `sys.path`, so the
+worktree's `warn_v2` shadows the venv's editable install and the worktree code
+is what actually gets tested (verify once with
+`python -c "import warn_v2; print(warn_v2.__file__)"`).
+
 ## Production gate
 
 Merging to main is a production deploy (the image-tag chain above runs
