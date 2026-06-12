@@ -138,6 +138,75 @@ def download_pdfs(
     return stats
 
 
+def prune_non_pdf(
+    state: str | None = None,
+    *,
+    dry_run: bool = False,
+    pdf_dir: Path = Path("/var/pdfs"),
+) -> dict[str, int]:
+    """Remove stored files that are not actually PDFs and clear their pdf_path.
+
+    Earlier versions of ``download_pdfs`` stored any 200 response — including
+    HTML detail/error pages — as ``{notice_id}.pdf``. This scans every notice
+    with a ``pdf_path``, magic-byte checks the file, and deletes non-PDFs so the
+    notice becomes eligible for a correct re-fetch (or none, now that non-PDF
+    states are excluded).
+
+    Returns ``{"checked": N, "pruned": N, "missing": N, "kept": N}``.
+    """
+    stats = {"checked": 0, "pruned": 0, "missing": 0, "kept": 0}
+
+    stmt = select(Notice).where(Notice.pdf_path.isnot(None))
+    if state is not None:
+        stmt = stmt.where(Notice.state == state.upper())
+
+    with session_scope() as session:
+        pending_commit = 0
+        for notice in session.scalars(stmt):
+            stats["checked"] += 1
+            abs_path = pdf_dir / notice.pdf_path
+            try:
+                magic = abs_path.open("rb").read(4)
+            except OSError:
+                # File vanished from the PVC — clear the dangling reference.
+                log.warning(
+                    "%s %s: stored file %s missing — clearing pdf_path",
+                    notice.state, notice.notice_id[:8], notice.pdf_path,
+                )
+                stats["missing"] += 1
+                if not dry_run:
+                    notice.pdf_path = None
+                    pending_commit += 1
+                continue
+
+            if magic == b"%PDF":
+                stats["kept"] += 1
+                continue
+
+            log.info(
+                "%s %s: %s is not a PDF (magic %r) — pruning",
+                notice.state, notice.notice_id[:8], notice.pdf_path, magic,
+            )
+            stats["pruned"] += 1
+            if not dry_run:
+                abs_path.unlink(missing_ok=True)
+                notice.pdf_path = None
+                pending_commit += 1
+
+            if pending_commit >= _BATCH_COMMIT:
+                session.commit()
+                pending_commit = 0
+
+        if pending_commit:
+            session.commit()
+
+    log.info(
+        "prune-non-pdf done: checked=%d pruned=%d missing=%d kept=%d",
+        stats["checked"], stats["pruned"], stats["missing"], stats["kept"],
+    )
+    return stats
+
+
 def _process_one(
     session: Session, notice: Notice, *, pdf_dir: Path, dry_run: bool
 ) -> str:
@@ -157,9 +226,10 @@ def _process_one(
     content_type = r.headers.get("content-type", "")
     if "pdf" not in content_type.lower() and not pdf_bytes[:4] == b"%PDF":
         log.warning(
-            "%s %s: unexpected content-type %r — storing anyway",
+            "%s %s: not a PDF (content-type %r) — not storing",
             notice.state, notice.notice_id[:8], content_type,
         )
+        return "errors"
 
     rel_path = Path(notice.state.lower()) / f"{notice.notice_id}.pdf"
     abs_path = pdf_dir / rel_path
