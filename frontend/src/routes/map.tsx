@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import L from "leaflet";
 import { MapContainer, Marker, Popup, TileLayer, useMapEvents } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
@@ -40,17 +40,34 @@ const boundsToBbox = (b: L.LatLngBounds): Bbox => ({
   max_lon: round(b.getEast()),
 });
 
+interface Viewport {
+  bbox: Bbox;
+  lat: number; // center
+  lon: number;
+  zoom: number;
+}
+
+const toViewport = (map: L.Map): Viewport => {
+  const c = map.getCenter();
+  return {
+    bbox: boundsToBbox(map.getBounds()),
+    lat: round(c.lat),
+    lon: round(c.lng),
+    zoom: map.getZoom(),
+  };
+};
+
 // Reports the current map viewport up to the parent. Lives inside MapContainer
 // (react-leaflet hooks require the map context). moveend/zoomend fire once at
 // the end of a pan/zoom gesture, so this is naturally throttled — no debounce
 // needed. A mount effect seeds the bounds so the first fetch is viewport-scoped.
-function ViewportWatcher({ onChange }: { onChange: (b: Bbox) => void }) {
+function ViewportWatcher({ onChange }: { onChange: (v: Viewport) => void }) {
   const map = useMapEvents({
-    moveend: () => onChange(boundsToBbox(map.getBounds())),
-    zoomend: () => onChange(boundsToBbox(map.getBounds())),
+    moveend: () => onChange(toViewport(map)),
+    zoomend: () => onChange(toViewport(map)),
   });
   useEffect(() => {
-    onChange(boundsToBbox(map.getBounds()));
+    onChange(toViewport(map));
   }, [map, onChange]);
   return null;
 }
@@ -59,7 +76,20 @@ export function MapPage() {
   const navigate = useNavigate({ from: "/map" });
   const search = useSearch({ from: "/map" });
   const [bbox, setBbox] = useState<Bbox | null>(null);
-  const handleBounds = useCallback((b: Bbox) => setBbox(b), []);
+
+  // Mirror the viewport into the URL (replace: panning must not spam history)
+  // so back/refresh/share land on the same view. bbox stays local — it's
+  // derived from center+zoom and only feeds the pins query.
+  const handleViewport = useCallback(
+    (v: Viewport) => {
+      setBbox(v.bbox);
+      navigate({
+        search: (prev) => ({ ...prev, lat: v.lat, lon: v.lon, zoom: v.zoom }),
+        replace: true,
+      });
+    },
+    [navigate],
+  );
 
   const filters = {
     state: search.state,
@@ -93,7 +123,16 @@ export function MapPage() {
   });
 
   const handleFilterChange = (next: FilterValues) => {
-    navigate({ search: () => ({ ...next, employer: undefined }) });
+    // Keep the viewport params — changing a filter shouldn't move the map.
+    navigate({
+      search: (prev) => ({
+        ...next,
+        employer: undefined,
+        lat: prev.lat,
+        lon: prev.lon,
+        zoom: prev.zoom,
+      }),
+    });
   };
 
   // Every item from listMapPins is guaranteed to have lat/lon — no client filter needed.
@@ -113,12 +152,12 @@ export function MapPage() {
 
       <div className="overflow-hidden rounded-lg border border-slate-200">
         <MapContainer
-          center={CENTER_US}
-          zoom={4}
+          center={search.lat != null && search.lon != null ? [search.lat, search.lon] : CENTER_US}
+          zoom={search.zoom ?? 4}
           scrollWheelZoom
           style={{ height: "70vh", width: "100%", position: "relative" }}
         >
-          <ViewportWatcher onChange={handleBounds} />
+          <ViewportWatcher onChange={handleViewport} />
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -138,12 +177,13 @@ export function MapPage() {
                     <div className="mt-1">
                       {fmtNum(n.layoff_count)} affected
                     </div>
-                    <a
-                      href={`/notices/${encodeURIComponent(n.notice_id)}`}
+                    <Link
+                      to="/notices/$noticeId"
+                      params={{ noticeId: n.notice_id }}
                       className="mt-1 inline-block text-sky-700 hover:underline"
                     >
                       Details →
-                    </a>
+                    </Link>
                   </div>
                 </Popup>
               </Marker>

@@ -59,7 +59,18 @@ export function DataTable<T>({
           {table.getHeaderGroups().map((hg) => (
             <tr key={hg.id}>
               {hg.headers.map((h) => {
-                const canSort = h.column.getCanSort();
+                // getCanSort() requires an accessor, which display columns
+                // (id + cell only, e.g. the companies Status column) lack —
+                // in server mode the server decides what's sortable, so only
+                // an explicit enableSorting: false opts a column out.
+                const canSort = isServer
+                  ? h.column.columnDef.enableSorting !== false
+                  : h.column.getCanSort();
+                const sorted: false | "asc" | "desc" = isServer
+                  ? sortBy === h.column.id && sortDir
+                    ? sortDir
+                    : false
+                  : h.column.getIsSorted();
                 return (
                   <th
                     key={h.id}
@@ -77,8 +88,8 @@ export function DataTable<T>({
                     }
                   >
                     {flexRender(h.column.columnDef.header, h.getContext())}
-                    {h.column.getIsSorted() === "asc" && " ▲"}
-                    {h.column.getIsSorted() === "desc" && " ▼"}
+                    {sorted === "asc" && " ▲"}
+                    {sorted === "desc" && " ▼"}
                   </th>
                 );
               })}
