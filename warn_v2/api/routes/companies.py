@@ -19,6 +19,9 @@ router = APIRouter(prefix="/companies", tags=["companies"])
 @router.get("", response_model=None)
 def list_companies(
     enriched: bool | None = Query(None, description="Filter by enrichment status"),
+    has_duns: bool | None = Query(
+        None, description="Filter companies that have (or lack) a DUNS number"
+    ),
     sic_code: str | None = Query(None, description="Exact SIC code match"),
     industry: str | None = Query(None, description="NAICS sector id (e.g. 31-33)"),
     subsector: str | None = Query(
@@ -45,6 +48,13 @@ def list_companies(
     elif enriched is False:
         stmt = stmt.where(Company.enriched_at.is_(None))
         count_stmt = count_stmt.where(Company.enriched_at.is_(None))
+
+    if has_duns is True:
+        stmt = stmt.where(Company.duns.is_not(None))
+        count_stmt = count_stmt.where(Company.duns.is_not(None))
+    elif has_duns is False:
+        stmt = stmt.where(Company.duns.is_(None))
+        count_stmt = count_stmt.where(Company.duns.is_(None))
 
     if sic_code:
         stmt = stmt.where(Company.sic_code == sic_code)

@@ -120,6 +120,7 @@ export const api = {
   // ---------- Companies ----------
   listCompanies: (q: {
     enriched?: boolean;
+    has_duns?: boolean;
     sic_code?: string;
     industry?: string;
     subsector?: string;
@@ -130,6 +131,7 @@ export const api = {
       "/api/companies" +
         qs({
           enriched: q.enriched === undefined ? undefined : String(q.enriched),
+          has_duns: q.has_duns === undefined ? undefined : String(q.has_duns),
           sic_code: q.sic_code,
           industry: q.industry,
           subsector: q.subsector,

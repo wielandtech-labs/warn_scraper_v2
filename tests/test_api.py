@@ -265,6 +265,24 @@ def test_companies_enriched_filter_true(api_client, db):
     assert body["items"][0]["name"] == "Enriched"
 
 
+def test_companies_has_duns_filter(api_client, db):
+    _company(db, name="No DUNS", enriched_at=datetime.now(UTC))  # enriched, but DUNS-less
+    _company(db, name="With DUNS", duns="123456789", enriched_at=datetime.now(UTC))
+    db.commit()
+
+    body = api_client.get("/api/companies?has_duns=true").json()
+    assert body["total"] == 1
+    assert body["items"][0]["name"] == "With DUNS"
+
+    body = api_client.get("/api/companies?has_duns=false").json()
+    assert body["total"] == 1
+    assert body["items"][0]["name"] == "No DUNS"
+
+    # enriched=true alone includes both — has_duns is the narrower filter
+    assert api_client.get("/api/companies?enriched=true").json()["total"] == 2
+    assert api_client.get("/api/companies?enriched=true&has_duns=true").json()["total"] == 1
+
+
 def test_company_detail_found(api_client, db):
     c = _company(db)
     db.commit()

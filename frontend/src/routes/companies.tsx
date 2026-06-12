@@ -63,6 +63,7 @@ function CompaniesView() {
       api.listCompanies({
         enriched:
           search.enriched === "true" ? true : search.enriched === "false" ? false : undefined,
+        has_duns: search.duns === "true" ? true : undefined,
         industry: search.industry,
         subsector: search.subsector,
         limit: PAGE_SIZE,
@@ -79,8 +80,13 @@ function CompaniesView() {
   const selectedSubsectors =
     industriesQuery.data?.find((i) => i.sector === search.industry)?.subsectors ?? [];
 
+  // One status chip group: enriched and duns are mutually exclusive choices.
   const setEnriched = (val: "true" | "false" | undefined) => {
-    navigate({ search: (prev) => ({ ...prev, enriched: val, page: 1 }) });
+    navigate({ search: (prev) => ({ ...prev, enriched: val, duns: undefined, page: 1 }) });
+  };
+
+  const setDuns = () => {
+    navigate({ search: (prev) => ({ ...prev, enriched: undefined, duns: "true", page: 1 }) });
   };
 
   // Changing the sector clears any subsector selection.
@@ -186,12 +192,17 @@ function CompaniesView() {
           </select>
         )}
         <div className="flex gap-1">
-          <FilterChip active={!search.enriched} onClick={() => setEnriched(undefined)} label="All" />
+          <FilterChip
+            active={!search.enriched && !search.duns}
+            onClick={() => setEnriched(undefined)}
+            label="All"
+          />
           <FilterChip
             active={search.enriched === "true"}
             onClick={() => setEnriched("true")}
             label="Enriched"
           />
+          <FilterChip active={search.duns === "true"} onClick={setDuns} label="DUNS" />
           <FilterChip
             active={search.enriched === "false"}
             onClick={() => setEnriched("false")}
