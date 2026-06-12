@@ -723,12 +723,18 @@ def enrich_notices_cmd(
     is_flag=True,
     help="Instead of downloading: delete stored files that aren't PDFs and clear pdf_path",
 )
+@click.option(
+    "--re-extract",
+    is_flag=True,
+    help="Instead of downloading: re-run field extraction over already-stored PDFs",
+)
 def download_pdfs_cmd(
     state: str | None,
     limit: int | None,
     pdf_dir: Path,
     dry_run: bool,
     prune_non_pdf: bool,
+    re_extract: bool,
 ) -> None:
     """Download per-notice PDFs and enrich notices with extracted fields.
 
@@ -743,7 +749,11 @@ def download_pdfs_cmd(
       warn-v2 download-pdfs --state CT --limit 200  # first 200 CT PDFs
       warn-v2 download-pdfs --dry-run               # preview without writing
       warn-v2 download-pdfs --prune-non-pdf         # clean up stored non-PDF files
+      warn-v2 download-pdfs --re-extract            # re-read stored PDFs (no network)
     """
+    if prune_non_pdf and re_extract:
+        raise click.UsageError("--prune-non-pdf and --re-extract are mutually exclusive")
+
     if prune_non_pdf:
         from warn_v2.scripts.download_pdfs import prune_non_pdf as prune
 
@@ -752,6 +762,17 @@ def download_pdfs_cmd(
         click.echo(
             f"checked={stats['checked']} pruned={stats['pruned']} "
             f"missing={stats['missing']} kept={stats['kept']}{suffix}"
+        )
+        return
+
+    if re_extract:
+        from warn_v2.scripts.download_pdfs import re_extract as reextract
+
+        stats = reextract(state, limit=limit, dry_run=dry_run, pdf_dir=pdf_dir)
+        suffix = " (dry run — nothing written)" if dry_run else ""
+        click.echo(
+            f"considered={stats['considered']} enriched={stats['enriched']} "
+            f"missing={stats['missing']} errors={stats['errors']}{suffix}"
         )
         return
 
