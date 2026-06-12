@@ -141,3 +141,100 @@ def test_backfill_processes_many_locations(db) -> None:
     db.expire_all()
     for loc in locs:
         assert db.get(Location, loc.id).lat is not None
+
+
+# ---------------------------------------------------------------------------
+# --fix-out-of-state mode + rerun-address bbox guard
+# ---------------------------------------------------------------------------
+
+def test_fix_out_of_state_repairs_with_in_state_result(db) -> None:
+    """GA location pinned in California is re-geocoded into Georgia."""
+    from decimal import Decimal
+
+    from warn_v2.geo.geocoder import GeoResult
+    from warn_v2.scripts.backfill_geo import fix_out_of_state
+
+    loc = _location(db, state="GA", city="Atlanta", zip="30301",
+                    lat=37.7749, lon=-122.4194)  # San Francisco
+    _notice(db, loc=loc)
+    db.commit()
+
+    in_state = GeoResult(Decimal("33.7490"), Decimal("-84.3880"), "zip")
+    with patch("warn_v2.scripts.backfill_geo.geocode", return_value=in_state):
+        stats = fix_out_of_state(dry_run=False)
+
+    assert stats == {"considered": 1, "fixed": 1, "cleared": 0}
+    db.expire_all()
+    refreshed = db.get(Location, loc.id)
+    assert float(refreshed.lat) == pytest.approx(33.749)
+    assert refreshed.geocode_source == "zip"
+
+
+def test_fix_out_of_state_clears_unresolvable(db) -> None:
+    """No in-state result -> coords cleared (honest low_geo beats a wrong pin)."""
+    from warn_v2.scripts.backfill_geo import fix_out_of_state
+
+    loc = _location(db, state="GA", city=None, zip=None,
+                    lat=37.7749, lon=-122.4194)
+    db.commit()
+
+    with patch("warn_v2.scripts.backfill_geo.geocode", return_value=None):
+        stats = fix_out_of_state(dry_run=False)
+
+    assert stats == {"considered": 1, "fixed": 0, "cleared": 1}
+    db.expire_all()
+    refreshed = db.get(Location, loc.id)
+    assert refreshed.lat is None
+    assert refreshed.lon is None
+    assert refreshed.geocode_source is None
+
+
+def test_fix_out_of_state_skips_in_state_locations(db) -> None:
+    from warn_v2.scripts.backfill_geo import fix_out_of_state
+
+    _location(db, state="TX", lat=29.76, lon=-95.36)  # Houston, in TX bbox
+    db.commit()
+
+    with patch("warn_v2.scripts.backfill_geo.geocode") as mock_geo:
+        stats = fix_out_of_state(dry_run=False)
+
+    assert stats == {"considered": 0, "fixed": 0, "cleared": 0}
+    mock_geo.assert_not_called()
+
+
+def test_fix_out_of_state_dry_run_no_write(db) -> None:
+    from warn_v2.scripts.backfill_geo import fix_out_of_state
+
+    loc = _location(db, state="GA", lat=37.7749, lon=-122.4194)
+    db.commit()
+
+    with patch("warn_v2.scripts.backfill_geo.geocode", return_value=None):
+        stats = fix_out_of_state(dry_run=True)
+
+    assert stats["cleared"] == 1
+    db.expire_all()
+    refreshed = db.get(Location, loc.id)
+    assert refreshed.lat is not None  # rolled back
+
+
+def test_rerun_address_keeps_coords_on_out_of_state_census(db) -> None:
+    """The census upgrade must not replace in-state centroids with HQ pins."""
+    from decimal import Decimal
+
+    loc = _location(db, state="GA", city="Atlanta", zip="30301",
+                    lat=33.7490, lon=-84.3880)
+    _notice(db, loc=loc, address="1 Corporate Way, San Francisco, CA")
+    db.commit()
+
+    hq_pair = (Decimal("37.7749"), Decimal("-122.4194"))  # SF — out of GA
+    with patch("warn_v2.scripts.backfill_geo._census_geocode", return_value=hq_pair, create=True):
+        from warn_v2.geo import geocoder
+
+        with patch.object(geocoder, "_census_geocode", return_value=hq_pair):
+            stats = backfill(dry_run=False, rerun_address=True)
+
+    assert stats["skipped_no_address"] == 1
+    assert stats["upgraded_address"] == 0
+    db.expire_all()
+    refreshed = db.get(Location, loc.id)
+    assert float(refreshed.lat) == pytest.approx(33.749)  # unchanged
