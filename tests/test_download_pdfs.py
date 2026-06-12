@@ -10,7 +10,7 @@ import respx
 from warn_v2.db.models import Location, Notice
 from warn_v2.pipeline.dedup import notice_id
 from warn_v2.scrapers.base import NoticeRow
-from warn_v2.scripts.download_pdfs import download_pdfs
+from warn_v2.scripts.download_pdfs import _pdf_states, download_pdfs, prune_non_pdf
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -294,3 +294,165 @@ def test_stale_file_at_state_dir_path_is_counted_as_error(db, tmp_path):
     # pdf_path must not be set — the notice is retryable.
     db.refresh(notice)
     assert notice.pdf_path is None
+
+
+# ---------------------------------------------------------------------------
+# Non-PDF guard (JobLink states + content-type check)
+# ---------------------------------------------------------------------------
+
+def test_pdf_states_excludes_joblink_and_ga():
+    """JobLink states link to HTML detail pages, GA to GravityView — both excluded."""
+    states = _pdf_states()
+    for code in ("AZ", "DE", "KS", "ME", "VT", "GA"):
+        assert code not in states
+    assert "AK" in states
+
+
+def test_joblink_state_returns_early(db, tmp_path):
+    """--state AZ is refused: raw_notice_url is an HTML detail page, not a PDF."""
+    _insert_notice(db, state="AZ", raw_notice_url="https://azjobconnection.gov/search/warn_lookups/42")
+    db.commit()
+
+    with patch("warn_v2.scripts.download_pdfs.session_scope") as mock_scope:
+        mock_scope.return_value.__enter__ = lambda _: db
+        mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+        stats = download_pdfs("AZ", pdf_dir=tmp_path)
+
+    assert stats == {"fetched": 0, "enriched": 0, "skipped": 0, "errors": 0}
+
+
+@respx.mock
+def test_non_pdf_response_not_stored(db, tmp_path):
+    """A 200 HTML response is counted as an error; nothing written, pdf_path stays NULL."""
+    notice = _insert_notice(db)
+    db.commit()
+
+    respx.get(_PDF_URL).mock(
+        return_value=httpx.Response(
+            200, content=b"<html>not a pdf</html>", headers={"content-type": "text/html"}
+        )
+    )
+
+    with patch("warn_v2.scripts.download_pdfs.session_scope") as mock_scope:
+        mock_scope.return_value.__enter__ = lambda _: db
+        mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+        stats = download_pdfs("AK", pdf_dir=tmp_path)
+
+    db.refresh(notice)
+    assert stats["errors"] == 1
+    assert stats["fetched"] == 0
+    assert notice.pdf_path is None
+    assert not (tmp_path / "ak").exists()
+
+
+@respx.mock
+def test_pdf_magic_bytes_accepted_despite_wrong_content_type(db, tmp_path):
+    """A real PDF served with a generic content-type is still stored."""
+    notice = _insert_notice(db)
+    db.commit()
+
+    respx.get(_PDF_URL).mock(
+        return_value=httpx.Response(
+            200, content=_FAKE_PDF, headers={"content-type": "application/octet-stream"}
+        )
+    )
+
+    with patch("warn_v2.scripts.download_pdfs.session_scope") as mock_scope:
+        mock_scope.return_value.__enter__ = lambda _: db
+        mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+        with patch("warn_v2.scripts.download_pdfs.extract_warn_fields", return_value={}):
+            stats = download_pdfs("AK", pdf_dir=tmp_path)
+
+    db.refresh(notice)
+    assert stats["fetched"] == 1
+    assert notice.pdf_path is not None
+
+
+# ---------------------------------------------------------------------------
+# prune-non-pdf
+# ---------------------------------------------------------------------------
+
+def _store_file(tmp_path, rel: str, content: bytes) -> None:
+    p = tmp_path / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(content)
+
+
+def test_prune_removes_non_pdf_and_clears_path(db, tmp_path):
+    """HTML stored as .pdf is deleted and pdf_path cleared; real PDFs are kept."""
+    bad = _insert_notice(db, employer="Bad Corp", pdf_path="ks/bad.pdf", state="KS")
+    good = _insert_notice(db, employer="Good Corp", pdf_path="ct/good.pdf", state="CT")
+    db.commit()
+    _store_file(tmp_path, "ks/bad.pdf", b"<html>detail page</html>")
+    _store_file(tmp_path, "ct/good.pdf", _FAKE_PDF)
+
+    with patch("warn_v2.scripts.download_pdfs.session_scope") as mock_scope:
+        mock_scope.return_value.__enter__ = lambda _: db
+        mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+        stats = prune_non_pdf(pdf_dir=tmp_path)
+
+    db.refresh(bad)
+    db.refresh(good)
+    assert stats == {"checked": 2, "pruned": 1, "missing": 0, "kept": 1}
+    assert bad.pdf_path is None
+    assert not (tmp_path / "ks" / "bad.pdf").exists()
+    assert good.pdf_path == "ct/good.pdf"
+    assert (tmp_path / "ct" / "good.pdf").read_bytes() == _FAKE_PDF
+
+    # Idempotent: a second run finds nothing to prune.
+    with patch("warn_v2.scripts.download_pdfs.session_scope") as mock_scope:
+        mock_scope.return_value.__enter__ = lambda _: db
+        mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+        stats2 = prune_non_pdf(pdf_dir=tmp_path)
+    assert stats2 == {"checked": 1, "pruned": 0, "missing": 0, "kept": 1}
+
+
+def test_prune_missing_file_clears_path(db, tmp_path):
+    """A pdf_path whose file vanished from the PVC is cleared so it can re-fetch."""
+    notice = _insert_notice(db, pdf_path="ak/gone.pdf")
+    db.commit()
+
+    with patch("warn_v2.scripts.download_pdfs.session_scope") as mock_scope:
+        mock_scope.return_value.__enter__ = lambda _: db
+        mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+        stats = prune_non_pdf(pdf_dir=tmp_path)
+
+    db.refresh(notice)
+    assert stats["missing"] == 1
+    assert notice.pdf_path is None
+
+
+def test_prune_dry_run_changes_nothing(db, tmp_path):
+    notice = _insert_notice(db, pdf_path="ks/bad.pdf", state="KS")
+    db.commit()
+    _store_file(tmp_path, "ks/bad.pdf", b"<html>junk</html>")
+
+    with patch("warn_v2.scripts.download_pdfs.session_scope") as mock_scope:
+        mock_scope.return_value.__enter__ = lambda _: db
+        mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+        stats = prune_non_pdf(dry_run=True, pdf_dir=tmp_path)
+
+    db.refresh(notice)
+    assert stats["pruned"] == 1
+    assert notice.pdf_path == "ks/bad.pdf"
+    assert (tmp_path / "ks" / "bad.pdf").exists()
+
+
+def test_prune_state_filter(db, tmp_path):
+    """--state KS only touches KS rows."""
+    ks = _insert_notice(db, employer="KS Corp", pdf_path="ks/bad.pdf", state="KS")
+    me = _insert_notice(db, employer="ME Corp", pdf_path="me/bad.pdf", state="ME")
+    db.commit()
+    _store_file(tmp_path, "ks/bad.pdf", b"<html>junk</html>")
+    _store_file(tmp_path, "me/bad.pdf", b"<html>junk</html>")
+
+    with patch("warn_v2.scripts.download_pdfs.session_scope") as mock_scope:
+        mock_scope.return_value.__enter__ = lambda _: db
+        mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+        stats = prune_non_pdf("KS", pdf_dir=tmp_path)
+
+    db.refresh(ks)
+    db.refresh(me)
+    assert stats["checked"] == 1
+    assert ks.pdf_path is None
+    assert me.pdf_path == "me/bad.pdf"
