@@ -69,6 +69,10 @@ class JobLinkScraper:
     host: ClassVar[str] = ""  # e.g. "azjobconnection.gov"
     expected_row_range: ClassVar[tuple[int, int]] = (1, 2_000)
 
+    # raw_notice_url points at the HTML detail page (/search/warn_lookups/<id>),
+    # not a PDF — keep download-pdfs away from it (it would store HTML as .pdf).
+    raw_notice_url_is_pdf: ClassVar[bool] = False
+
     required_fields: ClassVar[frozenset[str]] = frozenset({"employer", "notice_date"})
 
     def __init__(self) -> None:

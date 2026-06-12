@@ -717,7 +717,18 @@ def enrich_notices_cmd(
     help="Root directory for PDF storage",
 )
 @click.option("--dry-run", is_flag=True, help="Fetch and parse but do not write to disk or DB")
-def download_pdfs_cmd(state: str | None, limit: int | None, pdf_dir: Path, dry_run: bool) -> None:
+@click.option(
+    "--prune-non-pdf",
+    is_flag=True,
+    help="Instead of downloading: delete stored files that aren't PDFs and clear pdf_path",
+)
+def download_pdfs_cmd(
+    state: str | None,
+    limit: int | None,
+    pdf_dir: Path,
+    dry_run: bool,
+    prune_non_pdf: bool,
+) -> None:
     """Download per-notice PDFs and enrich notices with extracted fields.
 
     Targets notices that have a raw_notice_url but no stored pdf_path.
@@ -730,7 +741,19 @@ def download_pdfs_cmd(state: str | None, limit: int | None, pdf_dir: Path, dry_r
       warn-v2 download-pdfs --state AK              # Alaska only
       warn-v2 download-pdfs --state CT --limit 200  # first 200 CT PDFs
       warn-v2 download-pdfs --dry-run               # preview without writing
+      warn-v2 download-pdfs --prune-non-pdf         # clean up stored non-PDF files
     """
+    if prune_non_pdf:
+        from warn_v2.scripts.download_pdfs import prune_non_pdf as prune
+
+        stats = prune(state, dry_run=dry_run, pdf_dir=pdf_dir)
+        suffix = " (dry run — nothing written)" if dry_run else ""
+        click.echo(
+            f"checked={stats['checked']} pruned={stats['pruned']} "
+            f"missing={stats['missing']} kept={stats['kept']}{suffix}"
+        )
+        return
+
     from warn_v2.scripts.download_pdfs import download_pdfs
 
     stats = download_pdfs(state, limit=limit, dry_run=dry_run, pdf_dir=pdf_dir)
