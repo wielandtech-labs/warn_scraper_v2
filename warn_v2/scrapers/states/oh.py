@@ -159,4 +159,311 @@ def _text(cell) -> str:
     return " ".join(cell.get_text(" ", strip=True).split())
 
 
+# ---------------------------------------------------------------------------
+# Historical backfill (1996-2024) — sources probed 2026-06-12, see
+# docs/historical-sources.md. Four era formats, none needing Playwright:
+#
+#   1996-2006  per-year PDFs (jfs.ohio.gov/warn/WARN_{y}.pdf / Warn_{y}.pdf),
+#              gone from the live site -> Wayback replay
+#   2007-2019  per-year ".stm" files that actually serve Excel-exported PDFs,
+#              slug naming drifted -> Wayback replay, try variants
+#   2020-2022  archive.stm?year=Y HTML pages (same table layout the live
+#              scraper parses) -> Wayback replay; 2021+ also live portal pages
+#   2021-2024  live portal pages with the table embedded as JSON in
+#              <div id="js-placeholder-json-data"> (includes per-notice PDFs)
+#
+# 2025 is unaccounted for anywhere (no live page, nothing in the CDX index).
+# ---------------------------------------------------------------------------
+
+_WAYBACK = "https://web.archive.org/web/{ts}id_/{url}"
+_PORTAL_BASE = (
+    "https://jfs.ohio.gov/job-services-and-unemployment/job-services/"
+    "job-programs-and-services/submit-a-warn-notice"
+)
+
+_FETCH_UA = {"User-Agent": _CHROME_UA}
+
+# Anchors for the PDF-era line parser.
+_LEAD_DATE_RE = re.compile(r"^\d{1,2}/\d{1,2}/\d{2,4}$")
+_WID_RE = re.compile(r"(\d{1,3}-\d{1,2}-\d{3,4})\s*$")
+_PHONE_RE = re.compile(r"\(\d{3}\)\s*\d{3}\s*-?\s*\d{4}")
+_COUNT_LDATE_RE = re.compile(r"\s(\d(?:[\d ,]*\d)?)\s+(\d{1,2}\s*/\s*\S.*)$")
+_COUNT_ONLY_RE = re.compile(r"\s(\d(?:[\d ,]*\d)?)\s*$")
+# Era PDFs use 2-digit years ("2/28/01"); the live-table regex requires 4.
+_ANY_DATE_RE = re.compile(r"\d{1,2}/\d{1,2}/\d{2,4}")
+# Greedy employer, single-word city before "(County)" — multi-word cities are
+# recovered by shifting prefix words (East, New, ...) in _split_employer_city.
+_CITY_COUNTY_RE = re.compile(
+    r"^(?P<emp>.+)\s+(?P<city>[A-Za-z.'-]+)\s*\(\s*(?P<county>[A-Za-z .'-]+?)\s*\)$"
+)
+# Directional/compound prefixes for the era-A two-word-city heuristic.
+_CITY_PREFIXES = frozenset({
+    "east", "west", "north", "south", "new", "saint", "st.", "st",
+    "upper", "lower", "mount", "mt.", "mt",
+})
+
+
+def _portal_url(year: int) -> str:
+    # 2021/2022 parent slugs end "-sa"; 2023/2024 don't (verified live).
+    stem = f"{year}-public-notices-of-layoffs-and-closures"
+    sa = "-sa" if year <= 2022 else ""
+    return f"{_PORTAL_BASE}/{stem}{sa}/{stem}"
+
+
+def _oh_year_sources(year: int) -> list[str]:
+    """Candidate URLs for one year, most preferred first."""
+    if 1996 <= year <= 2003:
+        return [_WAYBACK.format(ts="2005", url=f"http://jfs.ohio.gov/warn/WARN_{year}.pdf")]
+    if 2004 <= year <= 2006:
+        return [_WAYBACK.format(ts="2009", url=f"http://jfs.ohio.gov/warn/Warn_{year}.pdf")]
+    if 2007 <= year <= 2019:
+        slugs = (
+            f"WARN_{year}.stm",
+            f"WARN{year}.stm",
+            f"WARN-{year}.stm",
+            f"{year}WARNNotices.stm",
+        )
+        return [
+            _WAYBACK.format(ts="2020", url=f"http://jfs.ohio.gov/warn/{slug}")
+            for slug in slugs
+        ]
+    if 2020 <= year <= 2024:
+        urls = []
+        if year >= 2021:
+            urls.append(_portal_url(year))
+        if year <= 2022:
+            urls.append(
+                _WAYBACK.format(
+                    ts="2023", url=f"https://jfs.ohio.gov/warn/archive.stm?year={year}"
+                )
+            )
+        return urls
+    return []  # 2025: no known source; current year: live scraper
+
+
+def _looks_like_oh_data(raw: bytes) -> bool:
+    if raw[:4] == b"%PDF":
+        return True
+    if b"js-placeholder-json-data" in raw:
+        return True
+    lower = raw.lower()
+    return b"date received" in lower or b"date rcd" in lower
+
+
+def _fetch_oh_year(year: int) -> bytes | None:
+    import httpx
+
+    for url in _oh_year_sources(year):
+        try:
+            r = httpx.get(url, headers=_FETCH_UA, timeout=120, follow_redirects=True)
+            r.raise_for_status()
+        except httpx.HTTPError:
+            continue
+        if _looks_like_oh_data(r.content):
+            return r.content
+    return None
+
+
+def parse_oh_year(raw: bytes, year: int) -> list[NoticeRow]:
+    """Dispatch on content shape: era PDF, embedded portal JSON, or HTML table."""
+    if raw[:4] == b"%PDF":
+        return _parse_oh_pdf(raw, year)
+    if b"js-placeholder-json-data" in raw:
+        return _parse_oh_portal_json(raw, year)
+    # archive.stm pages match the live table layout, but carry extra
+    # navigation tables — hand OHScraper.parse just the notices table.
+    soup = BeautifulSoup(raw, "html.parser")
+    for table in soup.find_all("table"):
+        first = table.find("tr")
+        header = " ".join(_text(c).lower() for c in first.find_all(["td", "th"])) if first else ""
+        if "company" in header and "received" in header:
+            return OHScraper().parse(str(table).encode())
+    raise ParseFailed(f"OH {year}: no WARN table found in archive HTML")
+
+
+def _parse_oh_portal_json(raw: bytes, year: int) -> list[NoticeRow]:
+    import json
+
+    soup = BeautifulSoup(raw, "html.parser")
+    div = soup.find(id="js-placeholder-json-data")
+    if div is None:
+        raise ParseFailed(f"OH {year}: js-placeholder-json-data div not found")
+    try:
+        data = json.loads(div.get_text())["data"]
+    except (ValueError, KeyError) as e:
+        raise ParseFailed(f"OH {year}: bad embedded JSON: {e}") from e
+    if len(data) < 3:
+        raise ParseFailed(f"OH {year}: embedded JSON has no data rows")
+
+    # data[0] is column-type tags, data[1] the header, the rest are rows.
+    header = [str(h).lower() for h in data[1]]
+
+    def _find(*needles: str) -> int | None:
+        return next(
+            (i for i, name in enumerate(header) if any(n in name for n in needles)),
+            None,
+        )
+
+    i_company = _find("company")
+    i_date = _find("received")
+    if i_company is None or i_date is None:
+        raise ParseFailed(f"OH {year}: unexpected embedded-JSON header: {header}")
+    i_url = _find("url")
+    i_cc = _find("city")
+    i_count = _find("affected", "number")
+    i_ldate = _find("layoff date")
+    i_union = _find("union")
+    i_wid = _find("notice id")
+
+    def _cell(row: list, i: int | None) -> str:
+        return str(row[i]).strip() if i is not None and i < len(row) and row[i] else ""
+
+    source_url = _portal_url(year)
+    rows: list[NoticeRow] = []
+    for row in data[2:]:
+        employer = as_str(_cell(row, i_company))
+        notice_date = as_date(_cell(row, i_date))
+        if not employer or notice_date is None:
+            continue
+
+        city = county = None
+        cc = _cell(row, i_cc)
+        if cc:
+            parts = cc.split("/", 1)
+            city = as_str(parts[0])
+            county = as_str(parts[1]) if len(parts) > 1 else None
+
+        m = _DATE_RE.search(_cell(row, i_ldate))
+        url = _cell(row, i_url)
+        extra = {}
+        if _cell(row, i_union):
+            extra["union"] = _cell(row, i_union)
+        if _cell(row, i_wid):
+            extra["warn_id"] = _cell(row, i_wid)
+
+        rows.append(
+            NoticeRow(
+                state="OH",
+                employer=employer,
+                notice_date=notice_date,
+                effective_date=as_date(m.group(0)) if m else None,
+                layoff_count=as_int(_cell(row, i_count)),
+                city=city,
+                county=county,
+                raw_notice_url=url if url.startswith("http") else None,
+                source_url=source_url,
+                extra=extra,
+            )
+        )
+    return rows
+
+
+def _split_employer_city(blob: str) -> tuple[str, str | None, str | None]:
+    """Split the PDF-era "Company City" blob into (employer, city, county).
+
+    2007+ files carry "City (County)" — unambiguous. Earlier files have a bare
+    city name: take the last word, or the last two when the second-to-last is a
+    directional/compound prefix (East Liverpool, New Philadelphia, Mount Vernon).
+    """
+    m = _CITY_COUNTY_RE.match(blob)
+    if m:
+        emp_words = m.group("emp").split()
+        city_words = [m.group("city")]
+        # Pull directional/compound prefixes back into the city name
+        # ("... East" + "Liverpool (Columbiana)" -> "East Liverpool").
+        while len(emp_words) > 1 and emp_words[-1].lower() in _CITY_PREFIXES:
+            city_words.insert(0, emp_words.pop())
+        return " ".join(emp_words), as_str(" ".join(city_words)), as_str(m.group("county"))
+    words = blob.split()
+    if len(words) < 2:
+        return blob, None, None
+    take = 2 if len(words) > 2 and words[-2].lower() in _CITY_PREFIXES else 1
+    employer = " ".join(words[:-take])
+    city = " ".join(words[-take:])
+    return employer, as_str(city), None
+
+
+def _parse_oh_pdf_line(date_str: str, line: str, year: int) -> NoticeRow | None:
+    notice_date = as_date(date_str)
+    if notice_date is None:
+        return None
+
+    extra = {}
+    m = _WID_RE.search(line)
+    if m:
+        extra["warn_id"] = m.group(1)
+        line = line[: m.start()].rstrip()
+
+    union = None
+    phones = list(_PHONE_RE.finditer(line))
+    if phones:
+        last = phones[-1]
+        union = as_str(line[last.end():])
+        line = line[: last.start()].rstrip()
+
+    layoff_count = None
+    effective_date = None
+    m = _COUNT_LDATE_RE.search(line)
+    if m:
+        layoff_count = as_int(m.group(1).replace(" ", "").replace(",", ""))
+        # Text extraction can insert spaces around slashes: "2/28 /11".
+        ldate = re.sub(r"\s*/\s*", "/", m.group(2))
+        dm = _ANY_DATE_RE.search(ldate)
+        effective_date = as_date(dm.group(0)) if dm else None
+        line = line[: m.start()].rstrip()
+    else:
+        m = _COUNT_ONLY_RE.search(line)
+        if m:
+            layoff_count = as_int(m.group(1).replace(" ", "").replace(",", ""))
+            line = line[: m.start()].rstrip()
+
+    employer, city, county = _split_employer_city(line)
+    employer = as_str(employer)
+    if not employer:
+        return None
+    if union:
+        extra["union"] = union
+
+    return NoticeRow(
+        state="OH",
+        employer=employer,
+        notice_date=notice_date,
+        effective_date=effective_date,
+        layoff_count=layoff_count,
+        city=city,
+        county=county,
+        source_url=f"http://jfs.ohio.gov/warn/ ({year} archive)",
+        extra=extra,
+    )
+
+
+def _parse_oh_pdf(raw: bytes, year: int) -> list[NoticeRow]:
+    """Parse a 1996-2019 era per-year PDF.
+
+    extract_text preserves word spacing (table extraction splits words across
+    cells); each notice is one line starting with the received date.
+    """
+    import io
+
+    import pdfplumber
+
+    rows: list[NoticeRow] = []
+    try:
+        with pdfplumber.open(io.BytesIO(raw)) as pdf:
+            for page in pdf.pages:
+                for line in (page.extract_text() or "").split("\n"):
+                    line = line.strip()
+                    parts = line.split(None, 1)
+                    if len(parts) < 2 or not _LEAD_DATE_RE.match(parts[0]):
+                        continue
+                    parsed = _parse_oh_pdf_line(parts[0], parts[1], year)
+                    if parsed:
+                        rows.append(parsed)
+    except ParseFailed:
+        raise
+    except Exception as e:
+        raise ParseFailed(f"OH {year}: PDF parse error: {e}") from e
+    return rows
+
+
 register(OHScraper())

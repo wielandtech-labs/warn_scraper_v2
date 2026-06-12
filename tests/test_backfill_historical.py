@@ -238,7 +238,7 @@ def test_backfill_historical_ca_upserts_rows_xlsx(db) -> None:
     "state",
     [
         "CA", "DC", "AZ", "DE", "KS", "ME", "VT", "TX", "FL", "HI", "KY", "NM",
-        "MD", "WI", "MN", "MS", "IL",
+        "MD", "WI", "MN", "MS", "IL", "OH",
     ],
 )
 def test_supported_states_in_registry(state) -> None:
@@ -721,3 +721,160 @@ def test_backfill_historical_ca_upserts_rows_pdf(db) -> None:
     assert stats["years_attempted"] == 1
     assert stats["years_ok"] == 1
     assert stats["rows_seen"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Wave 2B — OH (four era formats, see docs/historical-sources.md)
+# ---------------------------------------------------------------------------
+
+def _oh_fixture(name: str) -> bytes:
+    from pathlib import Path
+
+    return (
+        Path(__file__).resolve().parents[1]
+        / "warn_v2" / "scrapers" / "fixtures" / "oh" / name
+    ).read_bytes()
+
+
+def test_oh_year_sources_cover_all_eras():
+    from warn_v2.scrapers.states.oh import _oh_year_sources
+
+    assert _oh_year_sources(1996) == [
+        "https://web.archive.org/web/2005id_/http://jfs.ohio.gov/warn/WARN_1996.pdf"
+    ]
+    assert _oh_year_sources(2005) == [
+        "https://web.archive.org/web/2009id_/http://jfs.ohio.gov/warn/Warn_2005.pdf"
+    ]
+    # .stm era tries slug variants, all via Wayback
+    urls_2010 = _oh_year_sources(2010)
+    assert len(urls_2010) == 4
+    assert all("web.archive.org" in u for u in urls_2010)
+    # 2020: Wayback archive.stm only (live portal page is an empty shell)
+    urls_2020 = _oh_year_sources(2020)
+    assert urls_2020 == [
+        "https://web.archive.org/web/2023id_/https://jfs.ohio.gov/warn/archive.stm?year=2020"
+    ]
+    # 2021: live portal first, Wayback archive.stm fallback
+    urls_2021 = _oh_year_sources(2021)
+    assert "jfs.ohio.gov/job-services-and-unemployment" in urls_2021[0]
+    assert urls_2021[0].endswith(
+        "2021-public-notices-of-layoffs-and-closures-sa/"
+        "2021-public-notices-of-layoffs-and-closures"
+    )
+    assert "archive.stm" in urls_2021[1]
+    # 2023/2024 parent slug has no -sa suffix
+    assert "-sa/" not in _oh_year_sources(2023)[0]
+    # 2025: no known source
+    assert _oh_year_sources(2025) == []
+
+
+def test_parse_oh_year_era_a_pdf():
+    """1996-2003 per-year PDFs: text lines, bare city, 2-digit years."""
+    from warn_v2.scrapers.states.oh import parse_oh_year
+
+    rows = parse_oh_year(_oh_fixture("warn_2000.pdf"), 2000)
+    assert len(rows) > 50
+    first = rows[0]
+    assert first.employer == "York International"
+    assert first.notice_date == date(2000, 12, 26)
+    assert first.city == "Elyria"
+    assert first.layoff_count == 175
+    assert first.effective_date == date(2001, 2, 28)
+
+
+def test_parse_oh_year_era_b_pdf():
+    """2007-2019 Excel-exported PDFs: 'City (County)' in the company blob."""
+    from warn_v2.scrapers.states.oh import parse_oh_year
+
+    rows = parse_oh_year(_oh_fixture("warn_2010.pdf"), 2010)
+    assert len(rows) > 50
+    first = rows[0]
+    assert first.employer == "Magna Steyr"
+    assert first.city == "Toledo"
+    assert first.county == "Lucas"
+    assert first.layoff_count == 213
+    assert first.effective_date == date(2011, 2, 28)
+
+
+def test_oh_split_employer_city_prefixes():
+    from warn_v2.scrapers.states.oh import _split_employer_city
+
+    assert _split_employer_city("Acme Steel East Liverpool (Columbiana)") == (
+        "Acme Steel", "East Liverpool", "Columbiana"
+    )
+    assert _split_employer_city("Acme Steel New Philadelphia") == (
+        "Acme Steel", "New Philadelphia", None
+    )
+    assert _split_employer_city("Acme Steel Toledo") == ("Acme Steel", "Toledo", None)
+
+
+_OH_PORTAL_HTML = (
+    b'<html><div id="js-placeholder-json-data" class="hidden">'
+    b'{"data":[["s","h","s","s","s","s","s","s","s"],'
+    b'["Company","URL","Date Received","City/County","Potential Number Affected",'
+    b'"Layoff Date(s)","Phone Number","Union","Notice ID"],'
+    b'["OneTouchPoint","https://jfs.ohio.gov/static/warn/pdf/OneTouchPoint.pdf",'
+    b'"12/1/21","Cincinnati/Hamilton","65","12/01/2021 to 01/31/2022",'
+    b'"(414) 902-2655","None","013-21-025"]]}'
+    b"</div></html>"
+)
+
+
+def test_parse_oh_year_portal_json():
+    from warn_v2.scrapers.states.oh import parse_oh_year
+
+    rows = parse_oh_year(_OH_PORTAL_HTML, 2021)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.employer == "OneTouchPoint"
+    assert row.notice_date == date(2021, 12, 1)
+    assert row.city == "Cincinnati"
+    assert row.county == "Hamilton"
+    assert row.layoff_count == 65
+    assert row.effective_date == date(2021, 12, 1)
+    assert row.raw_notice_url.endswith("OneTouchPoint.pdf")
+    assert row.extra["warn_id"] == "013-21-025"
+
+
+_OH_ARCHIVE_HTML = (
+    b"<html>"
+    b"<table><tr><td>A-Z index of services</td></tr></table>"
+    b"<table><tr><th>Date Received</th><th>Company</th><th>City/County</th>"
+    b"<th>Potential Number Affected</th><th>Layoff Date(s)</th>"
+    b"<th>Phone Number</th><th>Union</th><th>Notice ID</th></tr>"
+    b"<tr><td>12/01/2021</td><td>OneTouchPoint</td><td>Cincinnati/Hamilton</td>"
+    b"<td>65</td><td>12/01/2021 to 01/31/2022</td><td>(414) 902-2655</td>"
+    b"<td>None</td><td>013-21-025</td></tr></table></html>"
+)
+
+
+def test_parse_oh_year_archive_html_skips_nav_table():
+    from warn_v2.scrapers.states.oh import parse_oh_year
+
+    rows = parse_oh_year(_OH_ARCHIVE_HTML, 2021)
+    assert len(rows) == 1
+    assert rows[0].employer == "OneTouchPoint"
+    assert rows[0].city == "Cincinnati"
+
+
+@respx.mock
+def test_oh_fetch_year_falls_through_candidates():
+    """First candidate 404s; the Wayback fallback with valid content wins."""
+    from warn_v2.scrapers.states.oh import _fetch_oh_year, _oh_year_sources
+
+    urls = _oh_year_sources(2021)
+    respx.get(urls[0]).mock(return_value=httpx.Response(404))
+    respx.get(urls[1]).mock(return_value=httpx.Response(200, content=_OH_ARCHIVE_HTML))
+
+    assert _fetch_oh_year(2021) == _OH_ARCHIVE_HTML
+
+
+@respx.mock
+def test_oh_fetch_year_rejects_shell_pages():
+    """A 200 page without table/JSON markers (soft-404 shell) is not data."""
+    from warn_v2.scrapers.states.oh import _fetch_oh_year, _oh_year_sources
+
+    for u in _oh_year_sources(2020):
+        respx.get(u).mock(return_value=httpx.Response(200, content=b"<html>shell</html>"))
+
+    assert _fetch_oh_year(2020) is None

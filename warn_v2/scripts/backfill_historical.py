@@ -62,6 +62,7 @@ from warn_v2.scrapers.states.mn import (
 )
 from warn_v2.scrapers.states.ms import _discover_pdf_urls as _discover_ms_pdf_urls
 from warn_v2.scrapers.states.nm import _discover_archive_pdf_urls as _discover_nm_pdf_urls
+from warn_v2.scrapers.states.oh import _fetch_oh_year, parse_oh_year
 from warn_v2.scrapers.states.tx import _fetch_tx_year
 from warn_v2.scrapers.states.wi import _fetch_wi_archive_year, parse_wi_archive_html
 
@@ -134,6 +135,13 @@ _BACKFILL: dict[str, BackfillSpec] = {
     # IL: monthly Excel files 2020+ from the archive page (the 1999-2019 PDF
     # era needs a dedicated parser — deferred).
     "IL": BackfillSpec(discover_urls=lambda: _discover_il_xlsx_urls()),
+    # OH: four era formats back to 1996, mostly via Wayback replay (see
+    # docs/historical-sources.md); 2025 has no known source anywhere.
+    "OH": BackfillSpec(
+        year_start=1996,
+        fetch_year=lambda s, y: _fetch_oh_year(y),
+        parse_year=lambda b, y: parse_oh_year(b, y),
+    ),
 }
 
 _SUPPORTED = frozenset(_BACKFILL)
