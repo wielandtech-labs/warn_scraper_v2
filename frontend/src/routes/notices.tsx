@@ -20,22 +20,25 @@ export function NoticesPage() {
   const sortBy = search.sort_by ?? "notice_date";
   const sortDir = search.sort_dir ?? "desc";
 
+  // Exactly what the API call uses — keying the cache on anything more
+  // (e.g. the whole search object) causes spurious misses on unrelated keys.
+  const apiParams = {
+    state: search.state,
+    employer: search.employer,
+    closure_category: search.closure_category,
+    industry: search.industry,
+    subsector: search.subsector,
+    after: search.after,
+    before: search.before,
+    sort_by: sortBy,
+    sort_dir: sortDir,
+    limit: PAGE_SIZE,
+    offset,
+  };
+
   const query = useQuery({
-    queryKey: ["notices", search, offset],
-    queryFn: () =>
-      api.listNotices({
-        state: search.state,
-        employer: search.employer,
-        closure_category: search.closure_category,
-        industry: search.industry,
-        subsector: search.subsector,
-        after: search.after,
-        before: search.before,
-        sort_by: sortBy,
-        sort_dir: sortDir,
-        limit: PAGE_SIZE,
-        offset,
-      }),
+    queryKey: ["notices", apiParams],
+    queryFn: () => api.listNotices(apiParams),
   });
 
   const industriesQuery = useQuery({
@@ -76,6 +79,9 @@ export function NoticesPage() {
           <Link
             to="/notices/$noticeId"
             params={{ noticeId: info.row.original.notice_id }}
+            // Carry the list's filters/sort/page into the detail URL so its
+            // "← All notices" link can restore this exact view.
+            search={(prev) => prev}
             className="font-medium text-sky-700 hover:underline"
           >
             {info.getValue() as string}

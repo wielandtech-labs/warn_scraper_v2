@@ -19,7 +19,7 @@ export function NoticeDetail() {
     return (
       <div className="card text-sm text-red-600">
         Notice not found.{" "}
-        <Link to="/notices" className="font-medium underline">
+        <Link to="/notices" search={(prev) => prev} className="font-medium underline">
           ← Back to all notices
         </Link>
       </div>
@@ -31,7 +31,9 @@ export function NoticeDetail() {
   return (
     <div className="space-y-4">
       <div>
-        <Link to="/notices" className="text-sm text-sky-700 hover:underline">
+        {/* The detail URL carries the list's search params (see router.tsx);
+            re-applying them restores the exact filters/sort/page. */}
+        <Link to="/notices" search={(prev) => prev} className="text-sm text-sky-700 hover:underline">
           ← All notices
         </Link>
       </div>

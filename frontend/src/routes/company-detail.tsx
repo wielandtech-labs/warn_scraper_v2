@@ -38,7 +38,7 @@ export function CompanyDetail() {
     return (
       <div className="card text-red-600">
         Company not found.{" "}
-        <Link to="/companies" className="font-medium underline">
+        <Link to="/companies" search={(prev) => prev} className="font-medium underline">
           ← Back
         </Link>
       </div>
@@ -50,7 +50,9 @@ export function CompanyDetail() {
   return (
     <div className="space-y-4">
       <div>
-        <Link to="/companies" className="text-sm text-sky-700 hover:underline">
+        {/* The detail URL carries the list's search params (see router.tsx);
+            re-applying them restores the exact filters/sort/page. */}
+        <Link to="/companies" search={(prev) => prev} className="text-sm text-sky-700 hover:underline">
           ← All companies
         </Link>
       </div>
@@ -123,6 +125,7 @@ export function CompanyDetail() {
                 key={m.company_id}
                 to="/companies/$companyId"
                 params={{ companyId: String(m.company_id) }}
+                search={(prev) => prev}
                 className={`flex items-baseline justify-between gap-4 px-4 py-3 hover:bg-slate-50 ${
                   m.is_self ? "bg-sky-50" : ""
                 }`}
