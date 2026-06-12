@@ -78,6 +78,8 @@ const companiesRoute = createRoute({
     industry?: string;
     subsector?: string;
     page?: number;
+    sort_by?: string;
+    sort_dir?: "asc" | "desc";
   } => ({
     view: search.view === "families" ? "families" : undefined,
     enriched:
@@ -88,6 +90,8 @@ const companiesRoute = createRoute({
     industry: (search.industry as string) || undefined,
     subsector: (search.subsector as string) || undefined,
     page: search.page ? Number(search.page) : undefined,
+    sort_by: (search.sort_by as string) || "name",
+    sort_dir: search.sort_dir === "desc" ? "desc" : "asc",
   }),
   component: CompaniesPage,
 });

@@ -124,6 +124,8 @@ export const api = {
     sic_code?: string;
     industry?: string;
     subsector?: string;
+    sort_by?: string;
+    sort_dir?: string;
     limit?: number;
     offset?: number;
   } = {}) =>
@@ -135,6 +137,8 @@ export const api = {
           sic_code: q.sic_code,
           industry: q.industry,
           subsector: q.subsector,
+          sort_by: q.sort_by,
+          sort_dir: q.sort_dir,
           limit: q.limit,
           offset: q.offset,
         }),

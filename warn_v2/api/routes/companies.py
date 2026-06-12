@@ -12,6 +12,12 @@ from warn_v2.db.models import Company, Notice
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
+_SORT_COLUMNS = {
+    "name": Company.name,
+    "enriched_at": Company.enriched_at,
+    "enrichment_confidence": Company.enrichment_confidence,
+}
+
 
 # response_model=None on the company/notice-shaped routes: the output schema
 # depends on the viewer's role (ViewerSchemas), so a static response_model
@@ -30,11 +36,18 @@ def list_companies(
     include_merged: bool = Query(
         False, description="Include rows consolidated into another company"
     ),
+    sort_by: str | None = Query(
+        None, description="Column: name, enriched_at, enrichment_confidence"
+    ),
+    sort_dir: str | None = Query("asc", description="asc or desc"),
     pagination: PaginationParams = Depends(),
     view: ViewerSchemas = Depends(),
     db: Session = Depends(get_db),
 ) -> Page:
-    stmt = select(Company).order_by(Company.name)
+    col = _SORT_COLUMNS.get(sort_by or "name", Company.name)
+    order_expr = col.desc().nullslast() if sort_dir == "desc" else col.asc().nullslast()
+    # Secondary name sort keeps pagination stable when the column has ties/NULLs.
+    stmt = select(Company).order_by(order_expr, Company.name)
     count_stmt = select(func.count()).select_from(Company)
 
     if not include_merged:
