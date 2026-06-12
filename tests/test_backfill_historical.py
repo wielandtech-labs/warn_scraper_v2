@@ -234,13 +234,156 @@ def test_backfill_historical_ca_upserts_rows_xlsx(db) -> None:
 # Registry — JobLink states (KS/ME/VT) and supported set
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("state", ["CA", "DC", "AZ", "DE", "KS", "ME", "VT"])
+@pytest.mark.parametrize(
+    "state",
+    ["CA", "DC", "AZ", "DE", "KS", "ME", "VT", "TX", "FL", "HI", "KY", "NM"],
+)
 def test_supported_states_in_registry(state) -> None:
     from warn_v2.scripts.backfill_historical import _BACKFILL, _SUPPORTED
 
     assert state in _SUPPORTED
     spec = _BACKFILL[state]
     assert (spec.fetch_year is None) != (spec.discover_urls is None)
+
+
+# ---------------------------------------------------------------------------
+# Wave 1 fetch helpers — TX / FL / HI / KY / NM
+# ---------------------------------------------------------------------------
+
+@respx.mock
+def test_tx_fetch_year_returns_bytes_and_updates_source_url():
+    from warn_v2.scrapers.states.tx import TXScraper, _fetch_tx_year
+
+    scraper = TXScraper()
+    url = "https://www.twc.texas.gov/sites/default/files/oei/docs/warn-act-listings-2021-twc.xlsx"
+    respx.get(url).mock(return_value=httpx.Response(200, content=b"xlsx-bytes"))
+
+    assert _fetch_tx_year(scraper, 2021) == b"xlsx-bytes"
+    assert scraper.source_url == url
+
+
+@respx.mock
+def test_tx_fetch_year_returns_none_on_404():
+    from warn_v2.scrapers.states.tx import TXScraper, _fetch_tx_year
+
+    url = "https://www.twc.texas.gov/sites/default/files/oei/docs/warn-act-listings-2018-twc.xlsx"
+    respx.get(url).mock(return_value=httpx.Response(404))
+
+    assert _fetch_tx_year(TXScraper(), 2018) is None
+
+
+@respx.mock
+def test_fl_fetch_year_follows_pagination():
+    from warn_v2.scrapers.states.fl import FLScraper, _fetch_fl_year
+
+    base = "https://reactwarn.floridajobs.org/WarnList/Records?year=2020"
+    page1 = (
+        b"<html><table id='DataTable'><tbody><tr><td>row</td></tr></tbody></table>"
+        b"<a href='/WarnList/Records?year=2020&page=2'>2</a></html>"
+    )
+    page2 = b"<html><table id='DataTable'><tbody></tbody></table>1 2</html>"
+    respx.get(base).mock(return_value=httpx.Response(200, content=page1))
+    respx.get(f"{base}&page=2").mock(return_value=httpx.Response(200, content=page2))
+
+    chunks = _fetch_fl_year(FLScraper(), 2020)
+    assert chunks == [page1, page2]
+
+
+@respx.mock
+def test_fl_fetch_year_single_page_does_not_confuse_page_numbers():
+    """A link to page=20 of another context must not be read as page=2."""
+    from warn_v2.scrapers.states.fl import FLScraper, _fetch_fl_year
+
+    base = "https://reactwarn.floridajobs.org/WarnList/Records?year=2021"
+    page1 = (
+        b"<html><table></table>"
+        b"<a href='/WarnList/Records?year=2021&page=20'>20</a></html>"
+    )
+    respx.get(base).mock(return_value=httpx.Response(200, content=page1))
+
+    assert _fetch_fl_year(FLScraper(), 2021) == [page1]
+
+
+@respx.mock
+def test_fl_fetch_year_returns_none_on_404():
+    from warn_v2.scrapers.states.fl import FLScraper, _fetch_fl_year
+
+    base = "https://reactwarn.floridajobs.org/WarnList/Records?year=2010"
+    respx.get(base).mock(return_value=httpx.Response(404))
+
+    assert _fetch_fl_year(FLScraper(), 2010) is None
+
+
+@respx.mock
+def test_hi_fetch_year_200_and_404():
+    from warn_v2.scrapers.states.hi import _fetch_hi_year
+
+    respx.get("https://labor.hawaii.gov/wdc/2019-warn-notices/").mock(
+        return_value=httpx.Response(200, content=b"<html>hi</html>")
+    )
+    respx.get("https://labor.hawaii.gov/wdc/2015-warn-notices/").mock(
+        return_value=httpx.Response(404)
+    )
+
+    assert _fetch_hi_year(2019) == b"<html>hi</html>"
+    assert _fetch_hi_year(2015) is None
+
+
+@respx.mock
+def test_ky_fetch_year_downloads_discovered_csv():
+    from warn_v2.scrapers.states.ky import _fetch_ky_year
+
+    api = (
+        "https://kcc.ky.gov/_api/web/GetFolderByServerRelativeUrl("
+        "'/WARN notices/WARN Notices 2022')/Files"
+    )
+    feed = (
+        b"<?xml version='1.0'?><feed xmlns:d='http://schemas.microsoft.com/ado/"
+        b"2007/08/dataservices'><entry><d:Name>2022-12-31 WARN.csv</d:Name>"
+        b"</entry></feed>"
+    )
+    respx.get(api).mock(return_value=httpx.Response(200, content=feed))
+    respx.get(
+        "https://kcc.ky.gov/WARN%20notices/WARN%20Notices%202022/2022-12-31%20WARN.csv"
+    ).mock(return_value=httpx.Response(200, content=b"csv-bytes"))
+
+    assert _fetch_ky_year(2022) == b"csv-bytes"
+
+
+@respx.mock
+def test_ky_fetch_year_returns_none_for_empty_folder():
+    from warn_v2.scrapers.states.ky import _fetch_ky_year
+
+    api = (
+        "https://kcc.ky.gov/_api/web/GetFolderByServerRelativeUrl("
+        "'/WARN notices/WARN Notices 2015')/Files"
+    )
+    respx.get(api).mock(
+        return_value=httpx.Response(200, content=b"<?xml version='1.0'?><feed></feed>")
+    )
+
+    assert _fetch_ky_year(2015) is None
+
+
+@respx.mock
+def test_nm_discover_archive_pdf_urls():
+    from warn_v2.scrapers.states.nm import _PAGE_URL, _discover_archive_pdf_urls
+
+    html = (
+        b"<html>"
+        b"<a href='/Portals/0/DM/Business/2023_WARN.pdf'>2023</a>"
+        b"<a href='/Portals/0/DM/Business/2018_WARN10042018.pdf'>2018</a>"
+        b"<a href='/Portals/0/DM/Business/other-report.pdf'>not warn</a>"
+        b"<a href='/Rapid-Response'>page</a>"
+        b"</html>"
+    )
+    respx.get(_PAGE_URL).mock(return_value=httpx.Response(200, content=html))
+
+    urls = _discover_archive_pdf_urls()
+    assert urls == [
+        "https://www.dws.state.nm.us/Portals/0/DM/Business/2023_WARN.pdf",
+        "https://www.dws.state.nm.us/Portals/0/DM/Business/2018_WARN10042018.pdf",
+    ]
 
 
 @respx.mock

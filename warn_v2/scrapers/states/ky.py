@@ -70,6 +70,24 @@ def _discover_csv_url(year: int) -> str | None:
         return None
 
 
+def _fetch_ky_year(year: int) -> bytes | None:
+    """Download the year's cumulative CSV for backfill-historical.
+
+    Returns None when the SharePoint folder has no CSV — folders for 2020 and
+    earlier exist but are empty (verified 2026-06-12), so KY history bottoms
+    out at 2021 on this platform.
+    """
+    csv_url = _discover_csv_url(year)
+    if csv_url is None:
+        return None
+    try:
+        r = httpx.get(csv_url, headers=_UA, timeout=60, follow_redirects=True)
+        r.raise_for_status()
+        return r.content
+    except httpx.HTTPError as e:
+        raise ScrapeFailed(f"GET {csv_url}: {e}") from e
+
+
 def _normalize_header(h: str) -> str:
     """Lowercase, collapse whitespace, strip 'company: ' prefix quirk."""
     key = " ".join(h.lower().split())
