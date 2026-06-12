@@ -342,7 +342,7 @@ def test_enrich_batch_provider_hit_skips_edgar_and_claude(db, monkeypatch) -> No
 
     stats = enrich_batch(db, _StubClient(), provider=_FakeProvider(), inter_delay_s=0)
     assert stats == {"total": 1, "enriched": 1, "skipped": 0,
-                     "provider": 1, "edgar": 0, "claude": 0}
+                     "provider": 1, "provider_miss": 0, "edgar": 0, "claude": 0}
     assert edgar_calls == []
     assert claude_calls == []
 
@@ -388,7 +388,7 @@ def test_enrich_batch_edgar_hit_skips_claude(db, monkeypatch) -> None:
 
     stats = enrich_batch(db, _StubClient(), inter_delay_s=0)
     assert stats == {"total": 1, "enriched": 1, "skipped": 0,
-                     "provider": 0, "edgar": 1, "claude": 0}
+                     "provider": 0, "provider_miss": 0, "edgar": 1, "claude": 0}
     assert claude_calls == []
 
     db.refresh(c)
@@ -412,7 +412,7 @@ def test_enrich_batch_falls_through_to_claude(db, monkeypatch) -> None:
 
     stats = enrich_batch(db, _StubClient(), inter_delay_s=0)
     assert stats == {"total": 1, "enriched": 1, "skipped": 0,
-                     "provider": 0, "edgar": 0, "claude": 1}
+                     "provider": 0, "provider_miss": 0, "edgar": 0, "claude": 1}
 
     db.refresh(c)
     assert c.enrichment_source == "claude"
@@ -449,3 +449,128 @@ def test_enrich_batch_provider_gets_cleaned_search_name(db, monkeypatch) -> None
     enrich_batch(db, _StubClient(), provider=_MissProvider(), inter_delay_s=0)
     assert provider_calls == ["Google"]
     assert edgar_calls == ["Google"]
+
+
+# ---------------------------------------------------------------------------
+# Provider-first flow: tiers + provider_attempted_at
+# ---------------------------------------------------------------------------
+
+class _MissProviderCounting:
+    def __init__(self):
+        self.calls: list[str] = []
+
+    def lookup(self, company_name: str, state):
+        self.calls.append(company_name)
+        return None
+
+    def close(self) -> None:
+        pass
+
+
+def test_provider_only_miss_stamps_and_stays_queued(db, monkeypatch) -> None:
+    """Main flow: a D&B miss stamps the attempt, leaves the row unenriched,
+    and never falls through to EDGAR/Claude."""
+    edgar_calls: list[str] = []
+    monkeypatch.setattr(
+        "warn_v2.enrichment.lookup.edgar_lookup",
+        lambda name, state=None: edgar_calls.append(name) or None,
+    )
+    claude_calls: list[str] = []
+    monkeypatch.setattr(
+        "warn_v2.enrichment.worker.run_enrichment",
+        lambda ctx, client, **kw: claude_calls.append(ctx.company_name)
+        or EnrichmentResult(proposed=False),
+    )
+
+    c = _company(db, name="Mystery Corp")
+    db.commit()
+
+    provider = _MissProviderCounting()
+    stats = enrich_batch(
+        db, _StubClient(), provider=provider, inter_delay_s=0, tiers={"provider"}
+    )
+    assert stats["provider_miss"] == 1
+    assert stats["enriched"] == 0
+    assert stats["skipped"] == 0  # a miss is not a failure
+    assert edgar_calls == []
+    assert claude_calls == []
+
+    db.refresh(c)
+    assert c.enriched_at is None  # still queued for a backup pass
+    assert c.provider_attempted_at is not None
+
+    # Second provider-only run skips the already-attempted company entirely.
+    stats2 = enrich_batch(
+        db, _StubClient(), provider=provider, inter_delay_s=0, tiers={"provider"}
+    )
+    assert stats2["total"] == 0
+    assert provider.calls == ["Mystery Corp"]
+
+
+def test_backup_tiers_select_only_provider_attempted(db, monkeypatch) -> None:
+    """--tiers edgar,claude only touches companies D&B has already tried."""
+    from datetime import UTC, datetime
+
+    monkeypatch.setattr(
+        "warn_v2.enrichment.lookup.edgar_lookup", lambda name, state=None: None
+    )
+    claude_calls: list[str] = []
+
+    def _fake_claude(ctx, client, **kw):
+        claude_calls.append(ctx.company_name)
+        return EnrichmentResult(
+            proposed=True, website="https://x.example", confidence=0.9, sources=[]
+        )
+
+    monkeypatch.setattr("warn_v2.enrichment.worker.run_enrichment", _fake_claude)
+
+    tried = _company(db, name="Tried Corp")
+    tried.provider_attempted_at = datetime.now(UTC)
+    _company(db, name="Untried Corp")
+    db.commit()
+
+    stats = enrich_batch(db, _StubClient(), inter_delay_s=0, tiers={"edgar", "claude"})
+    assert stats["total"] == 1
+    assert stats["claude"] == 1
+    assert claude_calls == ["Tried Corp"]
+
+    db.refresh(tried)
+    assert tried.enrichment_source == "claude"
+
+
+def test_provider_only_dry_run_does_not_stamp(db) -> None:
+    c = _company(db, name="Dry Corp")
+    db.commit()
+
+    enrich_batch(
+        db, _StubClient(), provider=_MissProviderCounting(), inter_delay_s=0,
+        tiers={"provider"}, dry_run=True,
+    )
+    db.refresh(c)
+    assert c.provider_attempted_at is None
+
+
+def test_full_cascade_still_falls_through(db, monkeypatch) -> None:
+    """Explicit full-cascade keeps the old behavior (and stamps the attempt)."""
+    monkeypatch.setattr(
+        "warn_v2.enrichment.lookup.edgar_lookup", lambda name, state=None: None
+    )
+    monkeypatch.setattr(
+        "warn_v2.enrichment.worker.run_enrichment",
+        lambda ctx, client, **kw: EnrichmentResult(
+            proposed=True, website="https://y.example", confidence=0.9, sources=[]
+        ),
+    )
+
+    c = _company(db, name="Fallthrough Corp")
+    db.commit()
+
+    stats = enrich_batch(
+        db, _StubClient(), provider=_MissProviderCounting(), inter_delay_s=0,
+        tiers={"provider", "edgar", "claude"},
+    )
+    assert stats["provider_miss"] == 1
+    assert stats["claude"] == 1
+    db.refresh(c)
+    assert c.enrichment_source == "claude"
+    assert c.provider_attempted_at is not None

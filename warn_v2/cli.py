@@ -227,6 +227,16 @@ def heal(
     metavar="N",
     help="Only enrich companies with notices in the last N years (e.g. 2)",
 )
+@click.option(
+    "--tiers",
+    default="provider",
+    show_default=True,
+    help=(
+        "Comma-separated tiers to run: provider, edgar, claude. The default "
+        "provider-only flow stamps misses and leaves them queued; run the "
+        "cheap tiers explicitly as a backup pass (--tiers edgar,claude)."
+    ),
+)
 def enrich(
     limit: int,
     state: str | None,
@@ -234,35 +244,51 @@ def enrich(
     dry_run: bool,
     sleep_between: float,
     recent_years: int | None,
+    tiers: str,
 ) -> None:
-    """Enrich company records using a cheapest-first cascade.
+    """Enrich company records — provider (D&B) first, DUNS linkage is the value.
 
     \b
-    Cascade order:
-      1. External provider (ENRICHMENT_PROVIDER_MODULE env var) — richest data
-      2. SEC EDGAR lookup — free, SIC for public companies
-      3. Claude Haiku — cheap fallback for website + remaining gaps
+    Main flow (default, what the CronJob runs):
+      provider only. A miss stamps provider_attempted_at and leaves the
+      company unenriched (still queued), so thin web data never blocks a
+      future D&B match.
+    Backup flow (explicit, run eventually for the leftovers):
+      warn-v2 enrich --tiers edgar,claude — only touches companies the
+      provider has already attempted.
 
     \b
     Examples:
-      warn-v2 enrich                        # enrich up to 50 unenriched companies
+      warn-v2 enrich                        # D&B-only on untried companies
       warn-v2 enrich --limit 200            # larger batch
-      warn-v2 enrich --recent-years 2       # only companies with notices in last 2 years
+      warn-v2 enrich --tiers edgar,claude   # backup pass over D&B misses
+      warn-v2 enrich --tiers provider,edgar,claude  # old full cascade
+      warn-v2 enrich --recent-years 2       # only companies with recent notices
       warn-v2 enrich --state CA             # only companies from CA notices
-      warn-v2 enrich --rerun-below 0.7      # also re-enrich low-confidence rows
       warn-v2 enrich --dry-run              # test without writing to DB
-      warn-v2 enrich --sleep-between 10     # faster (lower TPM headroom)
     """
     from warn_v2.db.session import session_scope
     from warn_v2.enrichment.agent import build_anthropic_client
     from warn_v2.enrichment.provider import load_provider
-    from warn_v2.enrichment.worker import enrich_batch
+    from warn_v2.enrichment.worker import ALL_TIERS, enrich_batch
+
+    tier_set = frozenset(t.strip().lower() for t in tiers.split(",") if t.strip())
+    invalid = tier_set - ALL_TIERS
+    if invalid or not tier_set:
+        click.echo(f"invalid --tiers (choose from {sorted(ALL_TIERS)}): {tiers!r}", err=True)
+        sys.exit(1)
 
     provider = load_provider()
     if provider:
         click.echo("External enrichment provider loaded.")
+    elif tier_set == {"provider"}:
+        click.echo(
+            "provider-only run but no ENRICHMENT_PROVIDER_MODULE configured — nothing to do",
+            err=True,
+        )
+        sys.exit(1)
     else:
-        click.echo("No external provider configured — using EDGAR + Claude cascade.")
+        click.echo("No external provider configured.")
 
     client = build_anthropic_client()
     try:
@@ -277,6 +303,7 @@ def enrich(
                 inter_delay_s=sleep_between,
                 provider=provider,
                 recent_years=recent_years,
+                tiers=tier_set,
             )
     finally:
         if provider:
@@ -289,8 +316,11 @@ def enrich(
     click.echo(
         f"enriched={stats['enriched']} "
         f"(provider={stats['provider']} edgar={stats['edgar']} claude={stats['claude']}) "
+        f"provider_miss={stats['provider_miss']} "
         f"skipped={stats['skipped']} total={stats['total']}{suffix}"
     )
+    # Provider misses are EXPECTED outcomes (stamped + left queued), not
+    # failures — only genuine agent errors flip the exit code.
     if stats["skipped"] and not dry_run:
         sys.exit(1)
 
@@ -770,6 +800,7 @@ def reset_enrichment_cmd(sources: str, dry_run: bool) -> None:
                 enrichment_confidence=None,
                 enrichment_source=None,
                 enrichment_sources=None,
+                provider_attempted_at=None,  # grant another D&B attempt
             )
         )
     click.echo(f"reset {total} companies — re-queued for the enrichment cascade")

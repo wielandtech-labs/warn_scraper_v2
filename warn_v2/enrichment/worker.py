@@ -37,6 +37,7 @@ def find_pending(
     state_filter: str | None = None,
     rerun_below: float | None = None,
     recent_years: int | None = None,
+    provider_attempted: bool | None = None,
 ) -> list[Company]:
     """Return companies that need enrichment, highest-impact first.
 
@@ -46,6 +47,9 @@ def find_pending(
     for that state are returned.
     If ``recent_years`` is set, only companies that have at least one notice
     within the last N years are returned (focuses the backlog on active companies).
+    ``provider_attempted`` filters on the D&B attempt stamp: ``False`` = only
+    companies the provider hasn't tried yet (provider-only main flow), ``True``
+    = only already-attempted ones (backup-tier runs), ``None`` = no filter.
 
     Companies are ordered by total **workers affected** across their
     (non-superseded) WARN notices, descending — so the scarce DUNS/provider
@@ -64,6 +68,11 @@ def find_pending(
         )
     else:
         stmt = stmt.where(Company.enriched_at.is_(None))
+
+    if provider_attempted is True:
+        stmt = stmt.where(Company.provider_attempted_at.is_not(None))
+    elif provider_attempted is False:
+        stmt = stmt.where(Company.provider_attempted_at.is_(None))
 
     if state_filter:
         state_upper = state_filter.upper()
@@ -186,6 +195,9 @@ def _persist_lookup_result(
     session.commit()
 
 
+ALL_TIERS = frozenset({"provider", "edgar", "claude"})
+
+
 def enrich_batch(
     session: Session,
     client: LLMClient,
@@ -197,13 +209,22 @@ def enrich_batch(
     inter_delay_s: float = 30.0,
     provider: EnrichmentProvider | None = None,
     recent_years: int | None = None,
+    tiers: frozenset[str] | set[str] = ALL_TIERS,
 ) -> dict:
     """Enrich a batch of companies. Returns summary stats.
 
-    Cascade:
-      1. ``provider.lookup()`` if a provider is configured
+    Tiers (subset of {"provider", "edgar", "claude"}):
+      1. ``provider.lookup()`` if a provider is configured — DUNS linkage,
+         the main value. A provider MISS stamps ``provider_attempted_at`` and
+         leaves the company unenriched (still queued, skipped on future
+         provider-only runs) instead of falling through.
       2. EDGAR free lookup (SIC + approximate NAICS)
       3. Claude Haiku fallback (website + remaining gaps)
+
+    Tier selection drives which companies are picked: a provider-only run
+    takes companies the provider hasn't attempted; a run WITHOUT the provider
+    tier (backup mode) takes only already-attempted ones, so the cheap tiers
+    never preempt a company's one D&B shot.
 
     Commits after each company so partial runs are safe.
     In dry_run mode the agents still run but nothing is written to the DB.
@@ -213,21 +234,32 @@ def enrich_batch(
     """
     from warn_v2.enrichment.lookup import edgar_lookup
 
+    tiers = frozenset(tiers)
+    if tiers == {"provider"}:
+        provider_attempted = False
+    elif "provider" not in tiers:
+        provider_attempted = True
+    else:
+        provider_attempted = None
+
     companies = find_pending(
         session,
         limit=limit,
         state_filter=state_filter,
         rerun_below=rerun_below,
         recent_years=recent_years,
+        provider_attempted=provider_attempted,
     )
     if not companies:
         log.info("enrich_batch: no pending companies found")
-        return {"total": 0, "enriched": 0, "skipped": 0, "provider": 0, "edgar": 0, "claude": 0}
+        return {"total": 0, "enriched": 0, "skipped": 0, "provider": 0,
+                "provider_miss": 0, "edgar": 0, "claude": 0}
 
     log.info("enrich_batch: found %d company/companies to enrich", len(companies))
     enriched = 0
     skipped = 0
     stats_provider = 0
+    stats_provider_miss = 0
     stats_edgar = 0
     stats_claude = 0
 
@@ -244,13 +276,18 @@ def enrich_batch(
         # ------------------------------------------------------------------ #
         # Tier 1: external provider plugin
         # ------------------------------------------------------------------ #
-        if provider is not None:
+        if "provider" in tiers and provider is not None:
             try:
                 pr = provider.lookup(query, state)
             except Exception:
                 log.exception("provider.lookup failed for company_id=%d name=%r",
                               company.id, company.name)
                 pr = None
+
+            if not dry_run:
+                # Stamp the attempt (hit or miss) so provider-only runs drain
+                # the queue instead of retrying the same misses every run.
+                company.provider_attempted_at = datetime.now(UTC)
 
             if pr is not None:
                 log.info(
@@ -263,15 +300,26 @@ def enrich_batch(
                 stats_provider += 1
                 continue
 
+            stats_provider_miss += 1
+            if not dry_run:
+                session.commit()  # persist the miss stamp
+            if not (tiers & {"edgar", "claude"}):
+                # Provider-only main flow: leave unenriched for a later
+                # backup-tier run rather than degrading to thin data.
+                continue
+
         # ------------------------------------------------------------------ #
         # Tier 2: EDGAR free lookup (SIC + approximate NAICS)
         # ------------------------------------------------------------------ #
-        try:
-            lr = edgar_lookup(query, state)
-        except Exception:
-            log.exception("edgar_lookup failed for company_id=%d name=%r",
-                          company.id, company.name)
+        if "edgar" not in tiers:
             lr = None
+        else:
+            try:
+                lr = edgar_lookup(query, state)
+            except Exception:
+                log.exception("edgar_lookup failed for company_id=%d name=%r",
+                              company.id, company.name)
+                lr = None
 
         if lr is not None:
             log.info(
@@ -295,6 +343,8 @@ def enrich_batch(
         # ------------------------------------------------------------------ #
         # Tier 3: Claude Haiku fallback
         # ------------------------------------------------------------------ #
+        if "claude" not in tiers:
+            continue  # leave unenriched; claude is an explicit backup tier
         if i > 0 and inter_delay_s > 0:
             log.debug("enrich_batch: sleeping %.0fs before Claude call", inter_delay_s)
             time.sleep(inter_delay_s)
@@ -335,6 +385,7 @@ def enrich_batch(
         "enriched": enriched,
         "skipped": skipped,
         "provider": stats_provider,
+        "provider_miss": stats_provider_miss,
         "edgar": stats_edgar,
         "claude": stats_claude,
     }
