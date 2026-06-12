@@ -207,6 +207,78 @@ def prune_non_pdf(
     return stats
 
 
+def re_extract(
+    state: str | None = None,
+    *,
+    limit: int | None = None,
+    dry_run: bool = False,
+    pdf_dir: Path = Path("/var/pdfs"),
+) -> dict[str, int]:
+    """Re-run field extraction over already-stored PDFs (no network).
+
+    ``download_pdfs`` extracts fields only once, at download time — PDFs stored
+    before extractor improvements (e.g. the OCR fallback) keep whatever was
+    extracted back then. This re-reads every stored PDF with the current
+    extractor and applies fields via the same fill-in/update semantics.
+
+    Returns ``{"considered": N, "enriched": N, "missing": N, "errors": N}``.
+    """
+    stats = {"considered": 0, "enriched": 0, "missing": 0, "errors": 0}
+
+    stmt = select(Notice).where(Notice.pdf_path.isnot(None))
+    if state is not None:
+        stmt = stmt.where(Notice.state == state.upper())
+    stmt = stmt.order_by(Notice.notice_date.desc().nullslast())
+    if limit is not None:
+        stmt = stmt.limit(limit)
+
+    with session_scope() as session:
+        pending_commit = 0
+        for notice in session.scalars(stmt):
+            stats["considered"] += 1
+            abs_path = pdf_dir / notice.pdf_path
+            try:
+                pdf_bytes = abs_path.read_bytes()
+            except OSError:
+                log.warning(
+                    "%s %s: stored file %s missing — skipping (run --prune-non-pdf)",
+                    notice.state, notice.notice_id[:8], notice.pdf_path,
+                )
+                stats["missing"] += 1
+                continue
+
+            try:
+                fields = extract_warn_fields(pdf_bytes, notice.state)
+            except Exception as e:
+                log.warning(
+                    "%s %s: extraction failed: %s", notice.state, notice.notice_id[:8], e
+                )
+                stats["errors"] += 1
+                continue
+
+            # Dry run: count PDFs with extractable fields (apply would no-op).
+            if fields and (dry_run or _apply_fields(session, notice, fields, dry_run=False)):
+                stats["enriched"] += 1
+                log.info(
+                    "%s %s: re-extracted%s",
+                    notice.state, notice.notice_id[:8], _format_enriched(fields),
+                )
+                if not dry_run:
+                    pending_commit += 1
+                    if pending_commit >= _BATCH_COMMIT:
+                        session.commit()
+                        pending_commit = 0
+
+        if pending_commit:
+            session.commit()
+
+    log.info(
+        "re-extract done: considered=%d enriched=%d missing=%d errors=%d",
+        stats["considered"], stats["enriched"], stats["missing"], stats["errors"],
+    )
+    return stats
+
+
 def _process_one(
     session: Session, notice: Notice, *, pdf_dir: Path, dry_run: bool
 ) -> str:

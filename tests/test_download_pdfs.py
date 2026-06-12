@@ -10,7 +10,12 @@ import respx
 from warn_v2.db.models import Location, Notice
 from warn_v2.pipeline.dedup import notice_id
 from warn_v2.scrapers.base import NoticeRow
-from warn_v2.scripts.download_pdfs import _pdf_states, download_pdfs, prune_non_pdf
+from warn_v2.scripts.download_pdfs import (
+    _pdf_states,
+    download_pdfs,
+    prune_non_pdf,
+    re_extract,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -456,3 +461,104 @@ def test_prune_state_filter(db, tmp_path):
     assert stats["checked"] == 1
     assert ks.pdf_path is None
     assert me.pdf_path == "me/bad.pdf"
+
+
+# ---------------------------------------------------------------------------
+# re-extract
+# ---------------------------------------------------------------------------
+
+def test_re_extract_upgrades_estimate_date(db, tmp_path):
+    """A stored PDF re-read with the current extractor upgrades the 60-day estimate."""
+    notice_dt = date(2024, 1, 15)
+    estimated = notice_dt + timedelta(days=60)
+    notice = _insert_notice(
+        db, notice_date=notice_dt, effective_date=estimated, pdf_path="ak/n.pdf"
+    )
+    db.commit()
+    _store_file(tmp_path, "ak/n.pdf", _FAKE_PDF)
+
+    real_date = date(2024, 4, 1)
+    with patch("warn_v2.scripts.download_pdfs.session_scope") as mock_scope:
+        mock_scope.return_value.__enter__ = lambda _: db
+        mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+        with patch(
+            "warn_v2.scripts.download_pdfs.extract_warn_fields",
+            return_value={"effective_date": real_date},
+        ):
+            stats = re_extract(pdf_dir=tmp_path)
+
+    db.refresh(notice)
+    assert stats == {"considered": 1, "enriched": 1, "missing": 0, "errors": 0}
+    assert notice.effective_date == real_date
+
+
+def test_re_extract_dry_run_counts_but_does_not_write(db, tmp_path):
+    notice_dt = date(2024, 1, 15)
+    estimated = notice_dt + timedelta(days=60)
+    notice = _insert_notice(
+        db, notice_date=notice_dt, effective_date=estimated, pdf_path="ak/n.pdf"
+    )
+    db.commit()
+    _store_file(tmp_path, "ak/n.pdf", _FAKE_PDF)
+
+    with patch("warn_v2.scripts.download_pdfs.session_scope") as mock_scope:
+        mock_scope.return_value.__enter__ = lambda _: db
+        mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+        with patch(
+            "warn_v2.scripts.download_pdfs.extract_warn_fields",
+            return_value={"effective_date": date(2024, 4, 1)},
+        ):
+            stats = re_extract(dry_run=True, pdf_dir=tmp_path)
+
+    db.refresh(notice)
+    assert stats["enriched"] == 1  # extractable fields found
+    assert notice.effective_date == estimated  # but nothing written
+
+
+def test_re_extract_missing_file_skipped(db, tmp_path):
+    _insert_notice(db, pdf_path="ak/gone.pdf")
+    db.commit()
+
+    with patch("warn_v2.scripts.download_pdfs.session_scope") as mock_scope:
+        mock_scope.return_value.__enter__ = lambda _: db
+        mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+        stats = re_extract(pdf_dir=tmp_path)
+
+    assert stats == {"considered": 1, "enriched": 0, "missing": 1, "errors": 0}
+
+
+def test_re_extract_no_fields_not_enriched(db, tmp_path):
+    _insert_notice(db, pdf_path="ak/n.pdf")
+    db.commit()
+    _store_file(tmp_path, "ak/n.pdf", _FAKE_PDF)
+
+    with patch("warn_v2.scripts.download_pdfs.session_scope") as mock_scope:
+        mock_scope.return_value.__enter__ = lambda _: db
+        mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+        with patch(
+            "warn_v2.scripts.download_pdfs.extract_warn_fields", return_value={}
+        ):
+            stats = re_extract(pdf_dir=tmp_path)
+
+    assert stats["enriched"] == 0
+
+
+def test_re_extract_state_filter(db, tmp_path):
+    ct = _insert_notice(db, employer="CT Corp", state="CT", pdf_path="ct/a.pdf")
+    _insert_notice(db, employer="NE Corp", state="NE", pdf_path="ne/b.pdf")
+    db.commit()
+    _store_file(tmp_path, "ct/a.pdf", _FAKE_PDF)
+    _store_file(tmp_path, "ne/b.pdf", _FAKE_PDF)
+
+    with patch("warn_v2.scripts.download_pdfs.session_scope") as mock_scope:
+        mock_scope.return_value.__enter__ = lambda _: db
+        mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+        with patch(
+            "warn_v2.scripts.download_pdfs.extract_warn_fields",
+            return_value={"layoff_count": 42},
+        ):
+            stats = re_extract("CT", pdf_dir=tmp_path)
+
+    db.refresh(ct)
+    assert stats["considered"] == 1
+    assert ct.layoff_count == 42
