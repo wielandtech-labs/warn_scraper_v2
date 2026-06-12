@@ -23,6 +23,7 @@ from __future__ import annotations
 import base64
 import io
 import json
+import logging
 import re
 from datetime import date, timedelta
 
@@ -32,6 +33,8 @@ import pdfplumber
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.registry import register
+
+log = logging.getLogger(__name__)
 
 _CDX_API = "http://web.archive.org/cdx/search/cdx"
 _CDX_PATTERN = "mn.gov/deed/assets/plant-closing-mass-layoff-warn*"
@@ -170,17 +173,47 @@ _ARCHIVE_NAME_RE = re.compile(r"(plant-closing|mass-layoff)", re.I)
 # ("National Recoveries 2021") — strip it so rows hash like monthly-era rows.
 _TRAILING_YEAR_RE = re.compile(r"\s+20\d{2}$")
 
+# Month-name token with letter boundaries ("summary" must not match "mar"),
+# or a numeric MMYY token ("summary0715" = July 2015).
+_MONTH_RE = re.compile(
+    r"(?<![a-z])(january|february|march|april|may|june|july|august|september"
+    r"|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)"
+    r"(?![a-z])"
+    r"|(?<!\d)(0[1-9]|1[0-2])\d{2}(?!\d)",
+    re.I,
+)
+
+
+def _is_annual_archive_url(url: str) -> bool:
+    """Annual summary PDFs (2018-2021) have no month token in the filename.
+
+    Their layout glues employer+city+industry into one text run that the
+    monthly parsers can't split — they need a dedicated parser and are
+    excluded from discovery until one exists.
+    """
+    return _MONTH_RE.search(url.rsplit("/", 1)[-1]) is None
+
 
 def _discover_archive_pdf_urls() -> list[str]:
-    """All DEED plant-closing/mass-layoff PDF URLs ever archived, oldest first."""
+    """Wayback replay URLs for every monthly DEED plant-closing PDF archived.
+
+    Returns ``web.archive.org/web/{ts}id_/{original}`` URLs (original bytes) —
+    mn.gov removes old asset files, so pre-2022 originals 404 or serve an HTML
+    error page while the Wayback snapshots remain intact.
+    """
     try:
         r = httpx.get(
             _CDX_API,
             params={
                 "url": "mn.gov/deed/assets/*",
                 "output": "json",
-                "fl": "original",
-                "filter": "statuscode:200",
+                "fl": "original,timestamp",
+                # Server-side regex filter — without it the 5000-entry limit
+                # truncates the /deed/assets/ prefix scan before our PDFs.
+                "filter": [
+                    "statuscode:200",
+                    r"original:.*(plant-closing|mass-layoff).*\.pdf",
+                ],
                 "collapse": "urlkey",
                 "limit": 5000,
             },
@@ -192,12 +225,24 @@ def _discover_archive_pdf_urls() -> list[str]:
     except Exception as exc:
         raise ScrapeFailed(f"MN: CDX API error: {exc}") from exc
 
-    urls: list[str] = []
+    by_original: dict[str, str] = {}
+    skipped_annual = 0
     for entry in entries[1:]:  # skip header row
-        url = entry[0] if entry else ""
-        if url.endswith(".pdf") and _ARCHIVE_NAME_RE.search(url) and url not in urls:
-            urls.append(url)
-    return sorted(urls)
+        if len(entry) < 2:
+            continue
+        url, ts = entry[0], entry[1]
+        if not url.endswith(".pdf") or not _ARCHIVE_NAME_RE.search(url) or url in by_original:
+            continue
+        if _is_annual_archive_url(url):
+            skipped_annual += 1
+            continue
+        by_original[url] = f"https://web.archive.org/web/{ts}id_/{url}"
+    if skipped_annual:
+        log.info(
+            "MN: skipped %d annual summary PDF(s) — no parser for that layout yet",
+            skipped_annual,
+        )
+    return [by_original[u] for u in sorted(by_original)]
 
 
 def _parse_archive_pdf(pdf_bytes: bytes, url: str) -> list[NoticeRow]:

@@ -80,6 +80,11 @@ def _normalize_date(raw: str) -> object:
     return as_date(cleaned)
 
 
+# Older quarterlies (PY2020-PY2022) merge employer and location into one
+# "Company Name, City" column whose cell ends with a "City (County)" line.
+_CITY_COUNTY_RE = re.compile(r"^(.+?)\s*\(([^)]+)\)$")
+
+
 def _parse_pdf(raw: bytes) -> list[NoticeRow]:
     try:
         pdf = pdfplumber.open(io.BytesIO(raw))
@@ -88,7 +93,6 @@ def _parse_pdf(raw: bytes) -> list[NoticeRow]:
 
     with pdf:
         header: list[str] | None = None
-        col: dict[str, int] = {}
         data_rows: list[list] = []
 
         for page in pdf.pages:
@@ -96,11 +100,13 @@ def _parse_pdf(raw: bytes) -> list[NoticeRow]:
             if not t:
                 continue
             page_hdr = [" ".join(str(c).lower().split()) if c else "" for c in t[0]]
-            if "company name" not in page_hdr or "type of action" not in page_hdr:
+            # Substring match: old quarterlies use "company name, city".
+            if not any("company name" in h for h in page_hdr) or not any(
+                "type of action" in h for h in page_hdr
+            ):
                 continue
             if header is None:
                 header = page_hdr
-                col = {name: i for i, name in enumerate(header)}
             # Skip header row, add only non-continuation rows
             for row in t[1:]:
                 if row[0] is None:
@@ -110,27 +116,56 @@ def _parse_pdf(raw: bytes) -> list[NoticeRow]:
     if header is None:
         raise ParseFailed("MS PDF: no notice table found")
 
+    def _find(needle: str) -> int | None:
+        return next((i for i, name in enumerate(header) if needle in name), None)
+
+    i_company = _find("company name")
+    i_date = _find("date of notice")
+    i_action = _find("type of action")
+    i_count = _find("number affected")
+    i_eff = _find("date of action")
+    i_wda = _find("workforce area")
+    # In the merged old format, "city" would match the company column —
+    # location is split out of the company cell instead.
+    merged_location = "city" in header[i_company]
+    i_city = None if merged_location else _find("city")
+    i_county = None if merged_location else _find("county")
+
+    def _cell(row: list, i: int | None) -> str:
+        return _normalize_cell(row[i]) if i is not None and i < len(row) else ""
+
     rows: list[NoticeRow] = []
     for raw_row in data_rows:
-        employer = _normalize_cell(raw_row[col.get("company name", 1)])
+        city = county = None
+        if merged_location:
+            # Cell layout: employer line(s), then a final "City (County)" line.
+            lines = [ln.strip() for ln in str(raw_row[i_company] or "").splitlines() if ln.strip()]
+            m = _CITY_COUNTY_RE.match(lines[-1]) if lines else None
+            if m:
+                city, county = as_str(m.group(1)), as_str(m.group(2))
+                lines = lines[:-1]
+            employer = " ".join(lines)
+        else:
+            employer = _cell(raw_row, i_company)
+            city = as_str(_cell(raw_row, i_city))
+            county = as_str(_cell(raw_row, i_county))
+
         if not employer or employer.lower().startswith("date of"):
             continue
 
-        notice_date = _normalize_date(_normalize_cell(raw_row[col.get("date of notice", 0)]))
+        notice_date = _normalize_date(_cell(raw_row, i_date))
         if notice_date is None:
             continue
 
-        eff_raw = _normalize_cell(raw_row[col.get("date of action", 11)])
+        eff_raw = _cell(raw_row, i_eff)
         effective_date = _normalize_date(eff_raw) if eff_raw else None
 
-        count_raw = _normalize_cell(raw_row[col.get("number affected", 10)])
+        count_raw = _cell(raw_row, i_count)
         m = _LEADING_INT.search(count_raw)
         layoff_count = int(m.group()) if m else None
 
-        closure_type = as_str(_normalize_cell(raw_row[col.get("type of action", 9)]))
-        city = as_str(_normalize_cell(raw_row[col.get("city", 2)]))
-        county = as_str(_normalize_cell(raw_row[col.get("county", 3)]))
-        wda = _normalize_cell(raw_row[col.get("workforce area", 4)])
+        closure_type = as_str(_cell(raw_row, i_action))
+        wda = _cell(raw_row, i_wda)
 
         rows.append(
             NoticeRow(
