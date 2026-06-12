@@ -63,6 +63,12 @@ class Company(Base):
     global_ultimate_name: Mapped[str | None] = mapped_column(String(512))
     hq_address: Mapped[str | None] = mapped_column(Text)
     enriched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # When the external provider (D&B) last attempted this company — set on hit
+    # AND miss, so provider-only runs work through the queue without retrying
+    # misses forever. Cleared by reset-enrichment to grant another attempt.
+    provider_attempted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), index=True
+    )
     enrichment_confidence: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))
     enrichment_sources: Mapped[str | None] = mapped_column(Text)  # JSON-encoded list
     enrichment_source: Mapped[str | None] = mapped_column(String(16))
