@@ -1,6 +1,7 @@
 """Upsert NoticeRows into Postgres."""
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -33,6 +34,9 @@ _UPDATE_FIELDS: tuple[str, ...] = ("layoff_count", "effective_date", "raw_notice
 # KY/MT county-centroid fallback. Applied only inside location creation, so it
 # never touches notice_id (hashed from the original row before location lookup).
 _DEFAULT_CITY: dict[str, str] = {"DC": "Washington"}
+
+# A NAICS code is 2-6 digits (column allows 8).
+_NAICS_RE = re.compile(r"\b\d{2,8}\b")
 
 
 def _derive_location_city(row: NoticeRow) -> str | None:
@@ -164,9 +168,23 @@ def upsert_notices(session: Session, rows: Iterable[NoticeRow]) -> tuple[int, in
     return seen, new
 
 
+def _clean_naics(naics_code: str | None) -> str | None:
+    """First valid NAICS digit-code from a source cell, or None.
+
+    Source cells sometimes hold several whitespace-separated codes
+    ("423990             321918") that overflow companies.naics_code
+    VARCHAR(8) and abort the whole upsert batch.
+    """
+    if not naics_code:
+        return None
+    m = _NAICS_RE.search(naics_code)
+    return m.group(0) if m else None
+
+
 def _get_or_create_company(
     session: Session, name: str, naics_code: str | None = None
 ) -> Company:
+    naics_code = _clean_naics(naics_code)
     # Match on the normalized name so legal-form variants ("Acme Inc" / "Acme,
     # LLC" / "ACME") attach to one row instead of spawning duplicates. If the
     # match was already consolidated into a canonical row, attach to that
