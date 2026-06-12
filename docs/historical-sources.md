@@ -11,13 +11,37 @@ layoffdata.com hold historical data for nearly every state — by project decisi
 they are used **only as a completeness cross-check**, never ingested (primary
 sources only).
 
+## Progress (update as backfills run)
+
+- **2026-06-12 — KS / ME / VT backfilled in prod** (image `2a1a93a`, one-off
+  Jobs per the runbook below): KS 7→549 active (1999–2026, +542), ME 3→79
+  (2012–2026, +76), VT 4→96 (2003–2026, +91). Dry-run near-miss previews and
+  post-run `mark-superseded --dry-run` all came back **zero** — JobLink
+  historical rows hash identically to live rows. Expected residue: low geo/PDF
+  % on old notices (nightly `backfill-geo` + `download-pdfs` chip at it).
+  STATE_AUDIT.md's generated table predates these runs — regenerate it on the
+  next trusted audit.
+- **Wave 1 code (TX/FL/HI/KY/NM) is in PR #48** — once merged + deployed, run
+  the same protocol for those five (FL is the big one: ~1,300+ rows in 2020
+  alone). Then Wave 2: OH 1996+, PA 2001+, IL 2002+, NC PDFs, NY, MD, WI, MN,
+  MS; WA pagination fix.
+- **FOIA drafts in [foia/](foia/) are written but unsent** — tracker in
+  foia/README.md; ingest responses with `warn-v2 ingest-file`.
+
+**Runbook per state**: `--dry-run` pilot on 1–3 early years → inspect the
+near-miss preview in the Job logs → full run (stop at `--year-end <DB floor>`
+when formats differ) → `mark-superseded --state XX --dry-run` → re-audit.
+One-off Jobs: image from the live deployment, `args: ["backfill-historical",
+"--state", "XX", ...]`, `DATABASE_URL` via secretKeyRef `warn-v2-db/url`,
+delete Jobs after.
+
 ## Tier 1 — published archive: ingest with code
 
 | State | DB floor | Source / route | Available back to | Backfill route |
 |-------|----------|----------------|-------------------|----------------|
-| KS | 2026 | `kansasworks.com/search/warn_lookups?q[notice_on_gteq]=YYYY-01-01` (JobLink date-range search) | **1999** | JobLink `fetch(year=)` registry entry |
-| ME | 2026 | `joblink.maine.gov/search/warn_lookups` (JobLink) | **2012** | JobLink registry entry |
-| VT | 2026 | `vermontjoblink.com/search/warn_lookups` (JobLink) | **2003** | JobLink registry entry |
+| KS | ~~2026~~ **1999 ✅** | `kansasworks.com/search/warn_lookups?q[notice_on_gteq]=YYYY-01-01` (JobLink date-range search) | **1999** | **done 2026-06-12** (+542) |
+| ME | ~~2026~~ **2012 ✅** | `joblink.maine.gov/search/warn_lookups` (JobLink) | **2012** | **done 2026-06-12** (+76) |
+| VT | ~~2026~~ **2003 ✅** | `vermontjoblink.com/search/warn_lookups` (JobLink) | **2003** | **done 2026-06-12** (+91) |
 | FL | 2026 | `reactwarn.floridajobs.org/WarnList/Records?year=Y` — paginated (e.g. 2020 = 1,337 records); page links followed | **2020** (older years return 0 rows) | year loop + pagination (implemented); pre-2020 → FOIA |
 | TX | 2026 | `warn-act-listings-{year}-twc.xlsx` — **only 2020+ still resolve** (pre-2020 files removed from twc.texas.gov; the old `/files/news/` era is dead; Socrata `data.texas.gov/dataset/8w53-c4f6` starts 2019-01, 2,363 rows — verified 2026-06-12) | **2020** | year loop (implemented); pre-2020 → records request (warn.list@twc.texas.gov) |
 | NC | 2026 | archive hub `commerce.nc.gov/...warn-summary-report-archives` → per-year **PDF** documents with irregular slugs (`warn-report-2019/open` etc.) | **2014** | needs a PDF parser → Wave 2 (hub discovery + `parse_nc_pdf`) |
