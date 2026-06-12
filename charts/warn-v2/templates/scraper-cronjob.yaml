@@ -18,7 +18,7 @@ spec:
             {{- include "warn-v2.labels" . | nindent 12 }}
             app.kubernetes.io/component: scraper
         spec:
-          restartPolicy: OnFailure
+          restartPolicy: Never
           containers:
             - name: scraper
               image: {{ include "warn-v2.image" . }}

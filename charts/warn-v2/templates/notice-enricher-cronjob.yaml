@@ -19,7 +19,7 @@ spec:
             {{- include "warn-v2.labels" . | nindent 12 }}
             app.kubernetes.io/component: notice-enricher
         spec:
-          restartPolicy: OnFailure
+          restartPolicy: Never
           containers:
             - name: notice-enricher
               image: {{ include "warn-v2.image" . }}

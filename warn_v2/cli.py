@@ -703,7 +703,10 @@ def enrich_notices_cmd(
         f"pdf_fetched={totals['pdf_fetched']} skipped={totals['skipped']} "
         f"errors={totals['errors']}{suffix}"
     )
-    if totals["errors"]:
+    # Rate-limited sources (TCSG) block before the queue drains on most runs,
+    # so errors alongside banked progress are the designed success mode. Only
+    # a run that erred AND accomplished nothing is a real failure.
+    if totals["errors"] and not (totals["enriched"] + totals["pdf_fetched"]):
         sys.exit(1)
 
 

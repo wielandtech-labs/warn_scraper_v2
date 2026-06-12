@@ -19,7 +19,7 @@ spec:
             {{- include "warn-v2.labels" . | nindent 12 }}
             app.kubernetes.io/component: pdf-downloader
         spec:
-          restartPolicy: OnFailure
+          restartPolicy: Never
           containers:
             - name: pdf-downloader
               image: {{ include "warn-v2.image" . }}
