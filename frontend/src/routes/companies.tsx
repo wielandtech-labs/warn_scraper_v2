@@ -6,7 +6,7 @@ import { useMemo } from "react";
 import { api } from "../api/client";
 import { DataTable } from "../components/DataTable";
 import { Pagination } from "../components/Pagination";
-import type { CompanyOut } from "../api/types";
+import type { CompanyOut, ParentGroupStat } from "../api/types";
 import { fmtNum } from "../lib/format";
 
 const PAGE_SIZE = 50;
@@ -67,20 +67,23 @@ function CompaniesView() {
   const sortBy = search.sort_by ?? "name";
   const sortDir = search.sort_dir ?? "asc";
 
+  // Exactly what the API call uses — keying the cache on anything more
+  // (e.g. the whole search object) causes spurious misses on unrelated keys.
+  const apiParams = {
+    enriched:
+      search.enriched === "true" ? true : search.enriched === "false" ? false : undefined,
+    has_duns: search.duns === "true" ? true : undefined,
+    industry: search.industry,
+    subsector: search.subsector,
+    sort_by: sortBy,
+    sort_dir: sortDir,
+    limit: PAGE_SIZE,
+    offset,
+  };
+
   const query = useQuery({
-    queryKey: ["companies", search, offset],
-    queryFn: () =>
-      api.listCompanies({
-        enriched:
-          search.enriched === "true" ? true : search.enriched === "false" ? false : undefined,
-        has_duns: search.duns === "true" ? true : undefined,
-        industry: search.industry,
-        subsector: search.subsector,
-        sort_by: sortBy,
-        sort_dir: sortDir,
-        limit: PAGE_SIZE,
-        offset,
-      }),
+    queryKey: ["companies", apiParams],
+    queryFn: () => api.listCompanies(apiParams),
   });
 
   const industriesQuery = useQuery({
@@ -131,6 +134,9 @@ function CompaniesView() {
           <Link
             to="/companies/$companyId"
             params={{ companyId: String(info.row.original.id) }}
+            // Carry the list's filters/sort/page into the detail URL so its
+            // "← All companies" link can restore this exact view.
+            search={(prev) => prev}
             className="font-medium text-sky-700 hover:underline"
           >
             {info.getValue() as string}
@@ -270,6 +276,50 @@ function FamiliesView() {
     queryFn: () => api.statsByParentGroup({ limit: 50 }),
   });
 
+  // No onSortChange → DataTable sorts the 50 rows client-side.
+  const columns = useMemo<ColumnDef<ParentGroupStat, unknown>[]>(
+    () => [
+      {
+        header: "Family (largest member)",
+        accessorKey: "representative_company_name",
+        cell: (info) => (
+          <Link
+            to="/companies/$companyId"
+            params={{ companyId: String(info.row.original.representative_company_id) }}
+            search={(prev) => prev}
+            className="font-medium text-sky-700 hover:underline"
+          >
+            {info.getValue() as string}
+          </Link>
+        ),
+      },
+      {
+        header: "Members",
+        accessorKey: "member_count",
+        cell: (info) => (
+          <div className="text-right tabular-nums">{fmtNum(info.getValue() as number)}</div>
+        ),
+      },
+      {
+        header: "Notices",
+        accessorKey: "notice_count",
+        cell: (info) => (
+          <div className="text-right tabular-nums">{fmtNum(info.getValue() as number)}</div>
+        ),
+      },
+      {
+        header: "Workers affected",
+        accessorKey: "layoff_total",
+        cell: (info) => (
+          <div className="text-right font-medium tabular-nums">
+            {fmtNum(info.getValue() as number)}
+          </div>
+        ),
+      },
+    ],
+    [],
+  );
+
   return (
     <div>
       <p className="mb-3 text-sm text-slate-500">
@@ -279,44 +329,12 @@ function FamiliesView() {
       </p>
 
       {query.isLoading && <div className="card text-sm text-slate-500">Loading…</div>}
-      {query.data && query.data.length === 0 && (
-        <div className="card text-sm text-slate-500">No corporate families found yet.</div>
-      )}
-      {query.data && query.data.length > 0 && (
-        <div className="card overflow-x-auto p-0">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-                <th className="px-4 py-2 font-medium">#</th>
-                <th className="px-4 py-2 font-medium">Family (largest member)</th>
-                <th className="px-4 py-2 text-right font-medium">Members</th>
-                <th className="px-4 py-2 text-right font-medium">Notices</th>
-                <th className="px-4 py-2 text-right font-medium">Workers affected</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {query.data.map((f, i) => (
-                <tr key={f.representative_company_id} className="hover:bg-slate-50">
-                  <td className="px-4 py-2 text-slate-400">{i + 1}</td>
-                  <td className="px-4 py-2">
-                    <Link
-                      to="/companies/$companyId"
-                      params={{ companyId: String(f.representative_company_id) }}
-                      className="font-medium text-sky-700 hover:underline"
-                    >
-                      {f.representative_company_name}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-2 text-right tabular-nums">{fmtNum(f.member_count)}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{fmtNum(f.notice_count)}</td>
-                  <td className="px-4 py-2 text-right font-medium tabular-nums">
-                    {fmtNum(f.layoff_total)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {query.data && (
+        <DataTable
+          data={query.data}
+          columns={columns}
+          emptyMessage="No corporate families found yet."
+        />
       )}
     </div>
   );
