@@ -482,6 +482,18 @@ def test_companies_sort_by_layoff_total(api_client, db):
     assert [i["layoff_total"] for i in body["items"]] == [500, 5, 0]
 
 
+def test_companies_include_merged_dupes_show_zero(api_client, db):
+    _canon, dupe = _merged_pair(db)
+    _notice(db, company=dupe, employer="Acme LLC", layoff_count=50,
+            notice_date=date(2026, 2, 1))
+    db.commit()
+
+    body = api_client.get("/api/companies?include_merged=true").json()
+    by_name = {i["name"]: i["layoff_total"] for i in body["items"]}
+    # The dupe's notices roll up to its canonical; the dupe row itself shows 0.
+    assert by_name == {"Acme Inc": 50, "Acme LLC": 0}
+
+
 def test_company_detail_layoff_total_not_computed(api_client, db):
     a = _company(db, name="Acme Inc")
     _notice(db, company=a, employer="Acme", layoff_count=10, notice_date=date(2026, 1, 1))

@@ -51,7 +51,7 @@ class CompanyEnrichedOut(CompanyOut):
     """CompanyOut + D&B enrichment fields. Served only to paid/admin sessions.
 
     Anonymous and free-tier responses use CompanyOut, so these keys are absent
-    (not null) for them — the public shape is byte-identical to before auth.
+    (not null) for them — the public shape never includes D&B-sourced fields.
     """
 
     duns: str | None
