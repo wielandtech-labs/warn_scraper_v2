@@ -453,6 +453,45 @@ def test_top_employers_rolls_up_duplicates(api_client, db):
     assert rows[0]["employer"] == "Acme Inc"  # canonical name, not the dupe's
 
 
+def test_companies_list_layoff_total_rolls_up_and_excludes_superseded(api_client, db):
+    canon, dupe = _merged_pair(db)
+    _notice(db, company=canon, employer="Acme Inc", layoff_count=100,
+            notice_date=date(2026, 1, 1))
+    _notice(db, company=dupe, employer="Acme LLC", layoff_count=50,
+            notice_date=date(2026, 2, 1))
+    sup = _notice(db, company=dupe, employer="Acme LLC", layoff_count=999,
+                  notice_date=date(2026, 3, 1))
+    sup.is_superseded = True
+    db.commit()
+
+    body = api_client.get("/api/companies").json()
+    acme = next(i for i in body["items"] if i["name"] == "Acme Inc")
+    assert acme["layoff_total"] == 150  # canon's + dupe's active; superseded excluded
+
+
+def test_companies_sort_by_layoff_total(api_client, db):
+    a = _company(db, name="Big Co")
+    b = _company(db, name="Small Co")
+    _company(db, name="Zero Co")  # no notices → 0, sorts last on desc
+    _notice(db, company=a, employer="Big", layoff_count=500, notice_date=date(2026, 1, 1))
+    _notice(db, company=b, employer="Small", layoff_count=5, notice_date=date(2026, 1, 2))
+    db.commit()
+
+    body = api_client.get("/api/companies?sort_by=layoff_total&sort_dir=desc").json()
+    assert [i["name"] for i in body["items"]] == ["Big Co", "Small Co", "Zero Co"]
+    assert [i["layoff_total"] for i in body["items"]] == [500, 5, 0]
+
+
+def test_company_detail_layoff_total_not_computed(api_client, db):
+    a = _company(db, name="Acme Inc")
+    _notice(db, company=a, employer="Acme", layoff_count=10, notice_date=date(2026, 1, 1))
+    db.commit()
+
+    # Only the list route computes the rollup; detail returns null, not zero.
+    body = api_client.get(f"/api/companies/{a.id}").json()
+    assert body["layoff_total"] is None
+
+
 def test_company_notices_rolls_up_merged_and_excludes_superseded(api_client, db):
     canon, dupe = _merged_pair(db)
     _notice(db, company=canon, employer="Acme Inc", notice_date=date(2026, 1, 1))
