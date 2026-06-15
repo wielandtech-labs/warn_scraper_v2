@@ -1,7 +1,12 @@
 """Tests for conservative company-name normalization."""
 from __future__ import annotations
 
-from warn_v2.companies.normalize import canonical_name, search_name
+from warn_v2.companies.normalize import (
+    canonical_name,
+    is_unsearchable,
+    match_is_consistent,
+    search_name,
+)
 
 
 def test_legal_form_variants_collapse():
@@ -90,13 +95,125 @@ def test_search_name_keeps_real_names_intact():
     assert search_name("24 Hour Fitness USA Inc.") == "24 Hour Fitness USA Inc."
     # dash segment with its own legal form is a real entity, not a site tag
     assert search_name("Acme - Widgets LLC") == "Acme - Widgets LLC"
-    # 3+-word dash segments without digits are kept (too name-like to strip)
-    assert search_name("Sodexo - Good Eating Company Operations") == (
-        "Sodexo - Good Eating Company Operations"
-    )
+    assert search_name("Manna Beverages MBV-CA LLC 6725") == "Manna Beverages MBV-CA LLC"
 
 
 def test_search_name_degenerate_inputs():
     assert search_name("") == ""
     assert search_name(None) == ""
     assert search_name("4499") == "4499"  # nothing left after strip -> original
+
+
+# ---------------------------------------------------------------------------
+# search_name — aggressive cleaning, driven by real WARN names that previously
+# fell through to claude/edgar without a DUNS (see PR notes).
+# ---------------------------------------------------------------------------
+
+def test_search_name_strips_trailing_parentheticals():
+    # Any trailing (...) — not just numeric — is a site/branch designator.
+    assert search_name("Epic Games Inc. (Remote Employees in Los Angeles)") == (
+        "Epic Games Inc."
+    )
+    assert search_name("Chevron (N. FM 1788)") == "Chevron"
+    assert search_name("ABM Texas (TCC South)") == "ABM Texas"
+    assert search_name("Right at School, LLC (KI Jones Elementary)") == "Right at School, LLC"
+    assert search_name("Cushman & Wakefield (1000)") == "Cushman & Wakefield"
+    assert search_name("Blue Shield of California (San Diego)") == "Blue Shield of California"
+
+
+def test_search_name_strips_dba_clause():
+    assert search_name("Good Sports Plus Ltd. dba Arc") == "Good Sports Plus Ltd."
+    assert search_name("GMRI, Inc. d/b/a Eddie V's") == "GMRI, Inc."
+    assert search_name("Sapango Inc., dba Tre Posti") == "Sapango Inc."
+
+
+def test_search_name_strips_descriptive_clause():
+    assert search_name("TC&Js Enterprises, franchise operator of Chick-fil-A") == (
+        "TC&Js Enterprises"
+    )
+    # A plain ", Inc." clause must NOT be cut.
+    assert search_name("McDonald's Restaurants of California, Inc.") == (
+        "McDonald's Restaurants of California, Inc."
+    )
+
+
+def test_search_name_decodes_html_entities():
+    assert search_name("McDonald&rsquo;s Restaurants of California, Inc.") == (
+        "McDonald's Restaurants of California, Inc."
+    )
+    assert search_name("Ben &amp; Jerry's") == "Ben & Jerry's"
+
+
+def test_search_name_strips_appended_address():
+    assert search_name("Peraton 1875 Explorer St Reston, VA 20190") == "Peraton"
+    assert search_name("Nitto, Inc 809 Principal Ct Chesapeake, VA 23320") == "Nitto, Inc"
+
+
+def test_search_name_strips_wide_dash_segments():
+    assert search_name("Blue Shield of California - Oakland") == "Blue Shield of California"
+    assert search_name("Crothall Healthcare - Lakewood Regional Medical Center") == (
+        "Crothall Healthcare"
+    )
+    assert search_name("Scout Distribution, LLC - San Diego") == "Scout Distribution, LLC"
+    assert search_name("PULAU Corporation - GMDT") == "PULAU Corporation"
+
+
+def test_search_name_collapses_multiple_entities():
+    assert search_name(
+        "10 Roads Express LLC, 10 Roads Service, LLC, 10 Roads Logistics, LLC"
+    ) == "10 Roads Express LLC"
+
+
+def test_search_name_repeated_stem_without_comma_is_kept():
+    # Prose repetition is NOT a comma-delimited entity list — leave it alone.
+    assert search_name("Los Angeles County of Los Angeles") == (
+        "Los Angeles County of Los Angeles"
+    )
+    assert search_name("New York New York Hotel") == "New York New York Hotel"
+
+
+def test_search_name_strips_facility_suffix():
+    assert search_name("Home Depot Design Center") == "Home Depot"
+    assert search_name("Target Corp. Distribution Center") == "Target Corp."
+
+
+def test_search_name_keeps_facility_like_real_names():
+    # "X Logistics/Data/Service Center" can be the company's real name — keep it.
+    assert search_name("5 Star Logistics Center") == "5 Star Logistics Center"
+    assert search_name("Acme Data Center") == "Acme Data Center"
+
+
+def test_search_name_long_input_is_safe():
+    # Guard against ReDoS in the address regex: a digit-prefixed name with no
+    # real ZIP must return promptly, not backtrack catastrophically.
+    pathological = "Acme 12 " + ("a" * 6000)
+    assert isinstance(search_name(pathological), str)
+
+
+def test_is_unsearchable_flags_lone_generic_token():
+    # The dangerous over-strip: distinguishing info was only in the parens.
+    assert is_unsearchable(search_name("Alliance (Piera Barbaglia Shaheen Health)"))
+    assert is_unsearchable(search_name("Alliance (Virgil Roberts)"))
+    assert is_unsearchable("Services")
+    # Strong, unique single tokens are still searchable.
+    assert not is_unsearchable(search_name("Chevron (N. FM 1788)"))
+    assert not is_unsearchable("Peraton")
+    assert not is_unsearchable("GI Alliance Management, LLC")
+
+
+def test_match_is_consistent_guard():
+    # Faithful matches: share a DISTINCTIVE token with the original.
+    assert match_is_consistent("Epic Games Inc. (Remote Employees)", "Epic Games, Inc.")
+    assert match_is_consistent("Chevron (N. FM 1788)", "Chevron Corporation")
+    assert match_is_consistent("Peraton 1875 Explorer St Reston, VA", "Peraton Inc")
+    assert match_is_consistent("Crothall Healthcare", "Crothall Healthcare Services")
+    # Unfaithful: an over-strip resolved to an unrelated company → reject the DUNS.
+    assert not match_is_consistent("Peraton 1875 Explorer St", "Booz Allen Hamilton")
+    assert not match_is_consistent("Midwest Perishables Inc.", "Acme Corporation")
+
+
+def test_match_is_consistent_rejects_generic_only_overlap():
+    # A shared INDUSTRY word between two different firms is not the same company.
+    assert not match_is_consistent("Acme Healthcare", "Sutter Healthcare")
+    assert not match_is_consistent("Midwest Logistics", "Eastern Logistics")
+    assert not match_is_consistent("Premier Staffing", "National Staffing Solutions")
