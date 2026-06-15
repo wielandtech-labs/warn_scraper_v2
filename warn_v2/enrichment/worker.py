@@ -16,7 +16,11 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from warn_v2.companies.normalize import search_name
+from warn_v2.companies.normalize import (
+    is_unsearchable,
+    match_is_consistent,
+    search_name,
+)
 from warn_v2.db.models import Company, Notice
 from warn_v2.enrichment.agent import (
     EnrichmentContext,
@@ -253,13 +257,14 @@ def enrich_batch(
     if not companies:
         log.info("enrich_batch: no pending companies found")
         return {"total": 0, "enriched": 0, "skipped": 0, "provider": 0,
-                "provider_miss": 0, "edgar": 0, "claude": 0}
+                "provider_miss": 0, "provider_rejected": 0, "edgar": 0, "claude": 0}
 
     log.info("enrich_batch: found %d company/companies to enrich", len(companies))
     enriched = 0
     skipped = 0
     stats_provider = 0
     stats_provider_miss = 0
+    stats_provider_rejected = 0
     stats_edgar = 0
     stats_claude = 0
 
@@ -277,17 +282,38 @@ def enrich_batch(
         # Tier 1: external provider plugin
         # ------------------------------------------------------------------ #
         if "provider" in tiers and provider is not None:
-            try:
-                pr = provider.lookup(query, state)
-            except Exception:
-                log.exception("provider.lookup failed for company_id=%d name=%r",
-                              company.id, company.name)
-                pr = None
-
             if not dry_run:
                 # Stamp the attempt (hit or miss) so provider-only runs drain
                 # the queue instead of retrying the same misses every run.
                 company.provider_attempted_at = datetime.now(UTC)
+
+            if is_unsearchable(query):
+                # Aggressive cleaning collapsed the name to a lone generic token
+                # ("Alliance"); a lookup would only match by luck — treat as a miss.
+                log.info(
+                    "company_id=%d name=%r: query %r too generic to search; skipping provider",
+                    company.id, company.name, query,
+                )
+                pr = None
+            else:
+                try:
+                    pr = provider.lookup(query, state)
+                except Exception:
+                    log.exception("provider.lookup failed for company_id=%d name=%r",
+                                  company.id, company.name)
+                    pr = None
+
+            # Certainty guard: a heavily-stripped query can resolve to an
+            # unrelated company. Only accept a hit that shares a distinctive
+            # token with the ORIGINAL WARN name; otherwise reject (no DUNS).
+            rejected = pr is not None and not match_is_consistent(company.name, pr.entity_name)
+            if rejected:
+                log.warning(
+                    "company_id=%d name=%r: rejected provider match entity=%r conf=%.2f "
+                    "(shares no distinctive token with original)",
+                    company.id, company.name, pr.entity_name, pr.confidence,
+                )
+                pr = None
 
             if pr is not None:
                 log.info(
@@ -300,7 +326,10 @@ def enrich_batch(
                 stats_provider += 1
                 continue
 
-            stats_provider_miss += 1
+            if rejected:
+                stats_provider_rejected += 1
+            else:
+                stats_provider_miss += 1
             if not dry_run:
                 session.commit()  # persist the miss stamp
             if not (tiers & {"edgar", "claude"}):
@@ -386,6 +415,7 @@ def enrich_batch(
         "skipped": skipped,
         "provider": stats_provider,
         "provider_miss": stats_provider_miss,
+        "provider_rejected": stats_provider_rejected,
         "edgar": stats_edgar,
         "claude": stats_claude,
     }

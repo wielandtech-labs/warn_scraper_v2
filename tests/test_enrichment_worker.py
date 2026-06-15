@@ -342,7 +342,8 @@ def test_enrich_batch_provider_hit_skips_edgar_and_claude(db, monkeypatch) -> No
 
     stats = enrich_batch(db, _StubClient(), provider=_FakeProvider(), inter_delay_s=0)
     assert stats == {"total": 1, "enriched": 1, "skipped": 0,
-                     "provider": 1, "provider_miss": 0, "edgar": 0, "claude": 0}
+                     "provider": 1, "provider_miss": 0, "provider_rejected": 0,
+                     "edgar": 0, "claude": 0}
     assert edgar_calls == []
     assert claude_calls == []
 
@@ -388,7 +389,8 @@ def test_enrich_batch_edgar_hit_skips_claude(db, monkeypatch) -> None:
 
     stats = enrich_batch(db, _StubClient(), inter_delay_s=0)
     assert stats == {"total": 1, "enriched": 1, "skipped": 0,
-                     "provider": 0, "provider_miss": 0, "edgar": 1, "claude": 0}
+                     "provider": 0, "provider_miss": 0, "provider_rejected": 0,
+                     "edgar": 1, "claude": 0}
     assert claude_calls == []
 
     db.refresh(c)
@@ -412,7 +414,8 @@ def test_enrich_batch_falls_through_to_claude(db, monkeypatch) -> None:
 
     stats = enrich_batch(db, _StubClient(), inter_delay_s=0)
     assert stats == {"total": 1, "enriched": 1, "skipped": 0,
-                     "provider": 0, "provider_miss": 0, "edgar": 0, "claude": 1}
+                     "provider": 0, "provider_miss": 0, "provider_rejected": 0,
+                     "edgar": 0, "claude": 1}
 
     db.refresh(c)
     assert c.enrichment_source == "claude"
@@ -505,6 +508,84 @@ def test_provider_only_miss_stamps_and_stays_queued(db, monkeypatch) -> None:
     )
     assert stats2["total"] == 0
     assert provider.calls == ["Mystery Corp"]
+
+
+def test_provider_match_rejected_when_inconsistent_with_original(db, monkeypatch) -> None:
+    """Certainty guard: an aggressively-stripped query that resolves to an
+    unrelated company must NOT persist a DUNS — it's treated as a miss."""
+    from warn_v2.enrichment.provider import ProviderResult
+
+    class _WrongMatchProvider:
+        def lookup(self, company_name: str, state):
+            # The query found *a* company, but not the one we asked about.
+            return ProviderResult(
+                entity_name="Booz Allen Hamilton",
+                duns="111111111",
+                confidence=0.95,
+            )
+
+    c = _company(db, name="Peraton 1875 Explorer St Reston, VA 20190")
+    db.commit()
+
+    stats = enrich_batch(
+        db, _StubClient(), provider=_WrongMatchProvider(), inter_delay_s=0,
+        tiers={"provider"},
+    )
+    assert stats["provider_rejected"] == 1
+    assert stats["provider"] == 0
+    assert stats["enriched"] == 0
+
+    db.refresh(c)
+    assert c.duns is None  # the dubious DUNS was NOT persisted
+    assert c.enriched_at is None
+    assert c.provider_attempted_at is not None  # still stamped, won't be retried
+
+
+def test_provider_match_accepted_when_consistent(db, monkeypatch) -> None:
+    """A faithful match (shares a distinctive token with the original) persists."""
+    from warn_v2.enrichment.provider import ProviderResult
+
+    class _GoodMatchProvider:
+        def lookup(self, company_name: str, state):
+            return ProviderResult(
+                entity_name="Peraton Inc.", duns="222222222", confidence=0.92,
+            )
+
+    c = _company(db, name="Peraton 1875 Explorer St Reston, VA 20190")
+    db.commit()
+
+    stats = enrich_batch(
+        db, _StubClient(), provider=_GoodMatchProvider(), inter_delay_s=0,
+        tiers={"provider"},
+    )
+    assert stats["provider"] == 1
+    assert stats["provider_rejected"] == 0
+
+    db.refresh(c)
+    assert c.duns == "222222222"
+    assert c.enrichment_source == "provider"
+
+
+def test_generic_single_token_skips_provider_lookup(db, monkeypatch) -> None:
+    """A name that cleans to a lone generic token is too risky to search — the
+    provider is never called and the row is left as a miss."""
+    provider_calls: list[str] = []
+
+    class _SpyProvider:
+        def lookup(self, company_name: str, state):
+            provider_calls.append(company_name)
+            return None
+
+    c = _company(db, name="Alliance (Virgil Roberts)")
+    db.commit()
+
+    stats = enrich_batch(
+        db, _StubClient(), provider=_SpyProvider(), inter_delay_s=0, tiers={"provider"},
+    )
+    assert provider_calls == []  # lookup skipped entirely
+    assert stats["provider_miss"] == 1
+    db.refresh(c)
+    assert c.provider_attempted_at is not None  # stamped, won't churn
 
 
 def test_backup_tiers_select_only_provider_attempted(db, monkeypatch) -> None:
