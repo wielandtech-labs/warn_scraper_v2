@@ -144,6 +144,15 @@ function CompaniesView() {
         ),
       },
       {
+        header: "Workers affected",
+        accessorKey: "layoff_total",
+        cell: (info) => (
+          <div className="text-right tabular-nums">
+            {fmtNum(info.getValue() as number | null)}
+          </div>
+        ),
+      },
+      {
         id: "sic",
         enableSorting: false,
         header: "SIC",
