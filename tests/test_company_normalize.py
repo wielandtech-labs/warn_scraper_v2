@@ -164,9 +164,30 @@ def test_search_name_collapses_multiple_entities():
     ) == "10 Roads Express LLC"
 
 
+def test_search_name_repeated_stem_without_comma_is_kept():
+    # Prose repetition is NOT a comma-delimited entity list — leave it alone.
+    assert search_name("Los Angeles County of Los Angeles") == (
+        "Los Angeles County of Los Angeles"
+    )
+    assert search_name("New York New York Hotel") == "New York New York Hotel"
+
+
 def test_search_name_strips_facility_suffix():
     assert search_name("Home Depot Design Center") == "Home Depot"
     assert search_name("Target Corp. Distribution Center") == "Target Corp."
+
+
+def test_search_name_keeps_facility_like_real_names():
+    # "X Logistics/Data/Service Center" can be the company's real name — keep it.
+    assert search_name("5 Star Logistics Center") == "5 Star Logistics Center"
+    assert search_name("Acme Data Center") == "Acme Data Center"
+
+
+def test_search_name_long_input_is_safe():
+    # Guard against ReDoS in the address regex: a digit-prefixed name with no
+    # real ZIP must return promptly, not backtrack catastrophically.
+    pathological = "Acme 12 " + ("a" * 6000)
+    assert isinstance(search_name(pathological), str)
 
 
 def test_is_unsearchable_flags_lone_generic_token():
@@ -181,12 +202,18 @@ def test_is_unsearchable_flags_lone_generic_token():
 
 
 def test_match_is_consistent_guard():
-    # Faithful matches: share a distinctive token with the original.
+    # Faithful matches: share a DISTINCTIVE token with the original.
     assert match_is_consistent("Epic Games Inc. (Remote Employees)", "Epic Games, Inc.")
     assert match_is_consistent("Chevron (N. FM 1788)", "Chevron Corporation")
     assert match_is_consistent("Peraton 1875 Explorer St Reston, VA", "Peraton Inc")
+    assert match_is_consistent("Crothall Healthcare", "Crothall Healthcare Services")
     # Unfaithful: an over-strip resolved to an unrelated company → reject the DUNS.
     assert not match_is_consistent("Peraton 1875 Explorer St", "Booz Allen Hamilton")
     assert not match_is_consistent("Midwest Perishables Inc.", "Acme Corporation")
-    # Lone-generic over-strips ("Alliance") are caught earlier by is_unsearchable,
-    # not here — a shared generic token alone would slip past this guard.
+
+
+def test_match_is_consistent_rejects_generic_only_overlap():
+    # A shared INDUSTRY word between two different firms is not the same company.
+    assert not match_is_consistent("Acme Healthcare", "Sutter Healthcare")
+    assert not match_is_consistent("Midwest Logistics", "Eastern Logistics")
+    assert not match_is_consistent("Premier Staffing", "National Staffing Solutions")

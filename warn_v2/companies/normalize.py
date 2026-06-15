@@ -56,20 +56,17 @@ _DESCRIPTIVE_CLAUSE = re.compile(
 # Any trailing parenthetical, applied repeatedly: "(Remote Employees ...)",
 # "(KI Jones Elementary)", "(6230)". Supersedes the old numeric-only rule.
 _TRAILING_PAREN = re.compile(r"\s*\([^()]*\)\s*$")
-# Appended worksite address: anchored on a US state+ZIP, or a street number +
-# street-type word. The leading-number requirement keeps real leading-number
-# names ("10x Genomics", "3M", "10 Roads") safe.
-_TRAILING_ADDR_ZIP = re.compile(r"\s+\d{1,6}\s+.*?\b[A-Z]{2}\s+\d{5}(?:-\d{4})?\s*$")
-_TRAILING_ADDR_STREET = re.compile(
-    r"\s+\d{1,6}\s+\S.*?\b(?:st|street|ave|avenue|blvd|boulevard|rd|road|dr|drive|"
-    r"ct|court|ln|lane|way|pkwy|parkway|hwy|highway|ste|suite|fl|floor|plz|plaza)\b\.?.*$",
-    re.IGNORECASE,
-)
+# Appended worksite address, anchored on a trailing US state+ZIP — high
+# precision. The leading-number requirement keeps real leading-number names
+# ("10x Genomics", "3M", "10 Roads") safe; the middle is length-bounded so a
+# digit-prefixed name without a real ZIP can't trigger catastrophic backtracking.
+_TRAILING_ADDR_ZIP = re.compile(r"\s+\d{1,6}\s+.{0,80}?\b[A-Z]{2}\s+\d{5}(?:-\d{4})?\s*$")
 # Trailing facility descriptors: "Target Corp. Distribution Center" -> the
-# parent; "Home Depot Design Center" -> "Home Depot".
+# parent; "Home Depot Design Center" -> "Home Depot". Kept narrow — only words
+# that are unambiguously facility tags, never a company's own name (so "5 Star
+# Logistics Center" / "X Data Center" are left intact).
 _FACILITY_SUFFIX = re.compile(
-    r"\s+(?:distribution|design|fulfillment|service|call|data|logistics|"
-    r"manufacturing|operations)\s+(?:center|centre|facility)\s*$",
+    r"\s+(?:distribution|design|fulfillment)\s+(?:center|centre)\s*$",
     re.IGNORECASE,
 )
 
@@ -85,6 +82,16 @@ _GENERIC_SINGLE_TOKENS: frozenset[str] = frozenset({
 # Joining words ignored when checking that a match stays faithful to the original.
 _STOPWORDS: frozenset[str] = frozenset({
     "the", "of", "and", "for", "at", "in", "on", "to", "a", "an",
+})
+# Non-distinctive tokens for the faithfulness check: a match sharing ONLY one of
+# these with the original is not evidence it's the same company ("Acme Healthcare"
+# vs "Sutter Healthcare"). Superset of the single-token denylist plus common
+# industry/descriptor words.
+_GENERIC_MATCH_TOKENS: frozenset[str] = _GENERIC_SINGLE_TOKENS | frozenset({
+    "health", "healthcare", "staffing", "restaurant", "restaurants", "hospital",
+    "medical", "clinic", "care", "company", "corporation", "global", "american",
+    "us", "usa", "capital", "financial", "technology", "technologies",
+    "school", "schools", "transportation", "distribution", "manufacturing",
 })
 # Curly quotes (often arriving via HTML entities like &rsquo;) -> ASCII, so
 # "McDonald" + curly apostrophe searches the same as "McDonald's".
@@ -112,7 +119,6 @@ def search_name(name: str | None) -> str:
     s = _DESCRIPTIVE_CLAUSE.sub("", s)
     s = _truncate_repeated_entity(s)
     s = _TRAILING_ADDR_ZIP.sub("", s)
-    s = _TRAILING_ADDR_STREET.sub("", s)
     # Trailing parens can stack ("Foo (Bar) (1234)"); strip until stable.
     while True:
         stripped = _TRAILING_PAREN.sub("", s)
@@ -144,17 +150,22 @@ def _strip_dash_segment(s: str) -> str:
 
 
 def _truncate_repeated_entity(s: str) -> str:
-    """Collapse a list of near-identical entities to the first.
+    """Collapse a comma-delimited list of near-identical entities to the first.
 
     "10 Roads Express LLC, 10 Roads Service, LLC, 10 Roads Logistics, LLC" all
-    resolve to one company; truncate at the second occurrence of the leading
-    two-token stem so the query is just "10 Roads Express LLC".
+    resolve to one company; truncate at the comma-delimited segment that repeats
+    the leading two-token stem. Requires the recurrence to begin a new
+    comma-segment so prose repetition ("Los Angeles County of Los Angeles") is
+    left alone.
     """
+    if "," not in s:
+        return s
     tokens = s.split()
     if len(tokens) < 4:
         return s
-    stem = " ".join(tokens[:2]).lower()
-    idx = s.lower().find(stem, len(stem))
+    stem = " ".join(tokens[:2])
+    needle = ", " + stem
+    idx = s.lower().find(needle.lower(), len(stem))
     if idx > 0:
         return s[:idx].strip(" ,")
     return s
@@ -182,13 +193,13 @@ def match_is_consistent(original: str, matched: str) -> bool:
     """True if a provider match stays faithful to the original WARN name.
 
     Aggressive cleaning casts a wide net; this is the acceptance guard. The
-    matched entity must share a distinctive token with the *original* name, so
-    an over-stripped query that resolved to an unrelated company is rejected
-    rather than persisted as a wrong DUNS.
+    matched entity must share a *distinctive* token with the *original* name: a
+    common industry word ("healthcare", "logistics") shared between two
+    different firms is not evidence they're the same company, so the shared set
+    must contain at least one non-generic token.
     """
-    a = _significant_tokens(original)
-    b = _significant_tokens(matched)
-    return bool(a and b and (a & b))
+    shared = _significant_tokens(original) & _significant_tokens(matched)
+    return bool(shared - _GENERIC_MATCH_TOKENS)
 
 
 def canonical_name(name: str | None) -> str:
