@@ -41,13 +41,17 @@ class CompanyOut(BaseModel):
     enriched_at: datetime | None
     enrichment_confidence: Decimal | None
     enrichment_source: str | None
+    # Workers affected across non-superseded notices, rolled up over merged
+    # dupes. Computed only by the companies *list* route; None elsewhere
+    # ("not computed" — not zero).
+    layoff_total: int | None = None
 
 
 class CompanyEnrichedOut(CompanyOut):
     """CompanyOut + D&B enrichment fields. Served only to paid/admin sessions.
 
     Anonymous and free-tier responses use CompanyOut, so these keys are absent
-    (not null) for them — the public shape is byte-identical to before auth.
+    (not null) for them — the public shape never includes D&B-sourced fields.
     """
 
     duns: str | None

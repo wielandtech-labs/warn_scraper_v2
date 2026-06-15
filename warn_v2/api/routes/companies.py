@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from warn_v2.api.deps import PaginationParams, ViewerSchemas, get_db
 from warn_v2.api.schemas import FamilyMemberOut, Page
@@ -37,17 +37,45 @@ def list_companies(
         False, description="Include rows consolidated into another company"
     ),
     sort_by: str | None = Query(
-        None, description="Column: name, enriched_at, enrichment_confidence"
+        None, description="Column: name, enriched_at, enrichment_confidence, layoff_total"
     ),
     sort_dir: str | None = Query("asc", description="asc or desc"),
     pagination: PaginationParams = Depends(),
     view: ViewerSchemas = Depends(),
     db: Session = Depends(get_db),
 ) -> Page:
-    col = _SORT_COLUMNS.get(sort_by or "name", Company.name)
+    # Workers affected per logical company: sum layoff_count over non-superseded
+    # notices, rolled up to the canonical via coalesce(canonical_company_id, id)
+    # (same semantics as the family endpoint and top-employers). One grouped
+    # subquery joined in — merged dupes therefore show 0 under include_merged
+    # (their notices roll to the canonical).
+    member = aliased(Company)
+    canon_id = func.coalesce(member.canonical_company_id, member.id)
+    totals_sq = (
+        select(
+            canon_id.label("cid"),
+            func.coalesce(func.sum(Notice.layoff_count), 0).label("layoff_total"),
+        )
+        .select_from(Notice)
+        .join(member, member.id == Notice.company_id)
+        .where(Notice.is_superseded.is_(False))
+        .group_by(canon_id)
+        .subquery()
+    )
+    layoff_total = func.coalesce(totals_sq.c.layoff_total, 0)
+
+    col = (
+        layoff_total
+        if sort_by == "layoff_total"
+        else _SORT_COLUMNS.get(sort_by or "name", Company.name)
+    )
     order_expr = col.desc().nullslast() if sort_dir == "desc" else col.asc().nullslast()
     # Secondary name sort keeps pagination stable when the column has ties/NULLs.
-    stmt = select(Company).order_by(order_expr, Company.name)
+    stmt = (
+        select(Company, layoff_total)
+        .outerjoin(totals_sq, totals_sq.c.cid == Company.id)
+        .order_by(order_expr, Company.name)
+    )
     count_stmt = select(func.count()).select_from(Company)
 
     if not include_merged:
@@ -79,7 +107,13 @@ def list_companies(
         count_stmt = count_stmt.where(industry_filter)
 
     total = db.scalar(count_stmt) or 0
-    items = list(db.scalars(stmt.offset(pagination.offset).limit(pagination.limit)))
+    rows = db.execute(stmt.offset(pagination.offset).limit(pagination.limit)).all()
+    items = []
+    for company, company_layoffs in rows:
+        # CompanyOut picks this up via from_attributes; only the list route
+        # computes it (None elsewhere = "not computed", not zero).
+        company.layoff_total = int(company_layoffs)
+        items.append(company)
     return view.company_page(items, total, pagination.limit, pagination.offset)
 
 

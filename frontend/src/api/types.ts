@@ -21,6 +21,9 @@ export interface CompanyOut {
   enriched_at: string | null;
   enrichment_confidence: number | null;
   enrichment_source: "provider" | "edgar" | "claude" | null;
+  // Workers affected (rolled up over merged dupes, superseded excluded).
+  // Computed only by the companies list endpoint; null elsewhere.
+  layoff_total?: number | null;
   // D&B enrichment fields — present only for paid/admin sessions; the API
   // omits the keys entirely for anonymous/free viewers.
   duns?: string | null;
