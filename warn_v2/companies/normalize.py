@@ -10,6 +10,7 @@ which distinguish real companies and would over-merge ("Smith Services" vs
 """
 from __future__ import annotations
 
+import html
 import re
 
 # True legal-entity suffixes only. Order doesn't matter; matched token-wise after
@@ -31,46 +32,174 @@ _HASH_STORE_NO = re.compile(r"#\s*\d+")
 
 
 # Site-designator patterns for search_name (display-case query cleaning, distinct
-# from canonical_name's lowercase comparison key):
-#   "10x Genomics, Inc. (6230)"   -> trailing "(6230)"
-#   "MV Transportation 4499"      -> trailing bare site number(s)
-#   "Google - Bordeaux" / "Amazon - SNA 20" -> trailing " - <site>" segment
-# The dash rule requires whitespace around the dash so hyphenated names
-# ("Mercedes-Benz", "Jo-Ann") are untouched.
-_TRAILING_PAREN_NO = re.compile(r"\s*\(\s*\d+\s*\)\s*$")
+# from canonical_name's lowercase comparison key). search_name strips the noise
+# WARN filings wrap around the real company name so D&B/EDGAR type-ahead can find
+# it. Aggressive stripping is paired with acceptance-side certainty guards
+# (match_is_consistent / is_unsearchable + the provider's similarity threshold),
+# so casting a wide net can never persist a *wrong* DUNS — at worst it degrades
+# to today's no-match.
 _TRAILING_SITE_NO = re.compile(r"(?:\s+\d{3,})+\s*$")
-# u2013 = en dash; some WARN sources use it instead of a hyphen.
-_DASH_SEGMENT = re.compile(r"\s+[-\u2013]\s+(?P<seg>[^-\u2013]+?)\s*$")
+# u2013 = en dash; some WARN sources use it instead of a hyphen. The dash rule
+# requires whitespace around the dash so hyphenated names ("Mercedes-Benz",
+# "Jo-Ann", "MBV-CA") are untouched.
+_DASH_SEGMENT = re.compile(r"\s+[-–]\s+(?P<seg>[^-–]+?)\s*$")  # noqa: RUF001
+# "Good Sports Plus Ltd. dba Arc" / "GMRI, Inc. d/b/a Eddie V's" -> keep the
+# legal entity before the trade name (consume an optional leading comma too).
+_DBA = re.compile(r"\s*,?\s+(?:d/b/a|d\.b\.a\.?|dba)\s+.*$", re.IGNORECASE)
+# "TC&Js Enterprises, franchise operator of Chick-fil-A" -> drop the descriptive
+# clause. Keyed on markers so it never cuts a ", Inc."/law-firm-style name.
+_DESCRIPTIVE_CLAUSE = re.compile(
+    r"\s*,\s*(?:a |an )?(?:franchise|franchisee|operator|division|subsidiary|"
+    r"formerly|f/k/a|a/k/a|n/k/a)\b.*$",
+    re.IGNORECASE,
+)
+# Any trailing parenthetical, applied repeatedly: "(Remote Employees ...)",
+# "(KI Jones Elementary)", "(6230)". Supersedes the old numeric-only rule.
+_TRAILING_PAREN = re.compile(r"\s*\([^()]*\)\s*$")
+# Appended worksite address, anchored on a trailing US state+ZIP — high
+# precision. The leading-number requirement keeps real leading-number names
+# ("10x Genomics", "3M", "10 Roads") safe; the middle is length-bounded so a
+# digit-prefixed name without a real ZIP can't trigger catastrophic backtracking.
+_TRAILING_ADDR_ZIP = re.compile(r"\s+\d{1,6}\s+.{0,80}?\b[A-Z]{2}\s+\d{5}(?:-\d{4})?\s*$")
+# Trailing facility descriptors: "Target Corp. Distribution Center" -> the
+# parent; "Home Depot Design Center" -> "Home Depot". Kept narrow — only words
+# that are unambiguously facility tags, never a company's own name (so "5 Star
+# Logistics Center" / "X Data Center" are left intact).
+_FACILITY_SUFFIX = re.compile(
+    r"\s+(?:distribution|design|fulfillment)\s+(?:center|centre)\s*$",
+    re.IGNORECASE,
+)
+
+# Single tokens too generic to search on their own: an aggressive strip that
+# collapses a name to one of these (e.g. "Alliance (Piera Barbaglia ...)"
+# -> "Alliance") would only ever match D&B by luck, so we skip the lookup.
+_GENERIC_SINGLE_TOKENS: frozenset[str] = frozenset({
+    "alliance", "services", "service", "solutions", "group", "associates",
+    "partners", "holdings", "enterprises", "industries", "systems",
+    "management", "center", "consulting", "logistics", "ministries",
+    "foundation", "institute", "international", "national", "regional",
+})
+# Joining words ignored when checking that a match stays faithful to the original.
+_STOPWORDS: frozenset[str] = frozenset({
+    "the", "of", "and", "for", "at", "in", "on", "to", "a", "an",
+})
+# Non-distinctive tokens for the faithfulness check: a match sharing ONLY one of
+# these with the original is not evidence it's the same company ("Acme Healthcare"
+# vs "Sutter Healthcare"). Superset of the single-token denylist plus common
+# industry/descriptor words.
+_GENERIC_MATCH_TOKENS: frozenset[str] = _GENERIC_SINGLE_TOKENS | frozenset({
+    "health", "healthcare", "staffing", "restaurant", "restaurants", "hospital",
+    "medical", "clinic", "care", "company", "corporation", "global", "american",
+    "us", "usa", "capital", "financial", "technology", "technologies",
+    "school", "schools", "transportation", "distribution", "manufacturing",
+})
+# Curly quotes (often arriving via HTML entities like &rsquo;) -> ASCII, so
+# "McDonald" + curly apostrophe searches the same as "McDonald's".
+_SMART_QUOTES = {
+    0x2018: "'", 0x2019: "'", 0x201A: "'", 0x201B: "'",
+    0x201C: '"', 0x201D: '"',
+}
 
 
 def search_name(name: str | None) -> str:
     """Clean a WARN company name into an external-search query.
 
-    WARN filings often carry per-site designators ("Google - Bordeaux",
-    "MV Transportation 4499") that make exact-ish name search miss the actual
-    company. This strips store/site markers while preserving case, so search
-    providers (D&B type-ahead, EDGAR) see the recognizable company name. Over-
-    stripping is low-risk: providers still score candidates against the query,
-    so a wrong strip degrades to today's no-match, not a wrong match.
+    WARN filings wrap the real company name in per-site designators, worksite
+    addresses, dba trade names, and descriptive clauses that make exact-ish
+    search miss the actual entity. This strips all of that while preserving
+    case. Aggressive by design: the acceptance-side guards (the provider's
+    similarity threshold, ``is_unsearchable``, ``match_is_consistent``) ensure a
+    wrong strip degrades to a no-match rather than a wrong DUNS.
     """
     if not name:
         return ""
-    s = _HASH_STORE_NO.sub(" ", _LEADING_STORE_NO.sub("", name))
-    s = _TRAILING_PAREN_NO.sub("", s)
-    m = _DASH_SEGMENT.search(s)
-    if m:
-        seg = m.group("seg")
-        # Drop the segment when it looks like a site tag: contains a digit, or
-        # is a short (<=2 word) suffix — never when it has its own legal form.
-        seg_tokens = seg.lower().replace(",", " ").split()
-        looks_like_site = any(ch.isdigit() for ch in seg) or (
-            len(seg_tokens) <= 2 and not (seg_tokens and seg_tokens[-1] in _LEGAL_SUFFIXES)
-        )
-        if looks_like_site:
-            s = s[: m.start()]
+    s = html.unescape(name).translate(_SMART_QUOTES)  # "McDonald&rsquo;s" -> "McDonald's"
+    s = _HASH_STORE_NO.sub(" ", _LEADING_STORE_NO.sub("", s))
+    s = _DBA.sub("", s)
+    s = _DESCRIPTIVE_CLAUSE.sub("", s)
+    s = _truncate_repeated_entity(s)
+    s = _TRAILING_ADDR_ZIP.sub("", s)
+    # Trailing parens can stack ("Foo (Bar) (1234)"); strip until stable.
+    while True:
+        stripped = _TRAILING_PAREN.sub("", s)
+        if stripped == s:
+            break
+        s = stripped
+    s = _strip_dash_segment(s)
+    s = _FACILITY_SUFFIX.sub("", s)
     s = _TRAILING_SITE_NO.sub("", s)
     s = _WS.sub(" ", s).strip(" ,")
     return s if s else name
+
+
+def _strip_dash_segment(s: str) -> str:
+    """Drop a trailing ' - <segment>' worksite tag.
+
+    Strips any spaced-dash trailing segment unless the segment is itself a legal
+    entity (ends in a legal suffix), in which case it's the real company and we
+    keep the whole string. Requires a non-trivial prefix to remain.
+    """
+    m = _DASH_SEGMENT.search(s)
+    if not m:
+        return s
+    seg_tokens = m.group("seg").lower().replace(",", " ").split()
+    if seg_tokens and seg_tokens[-1] in _LEGAL_SUFFIXES:
+        return s  # "Acme - Widgets LLC": the segment is the entity
+    prefix = s[: m.start()].strip(" ,")
+    return prefix if prefix else s
+
+
+def _truncate_repeated_entity(s: str) -> str:
+    """Collapse a comma-delimited list of near-identical entities to the first.
+
+    "10 Roads Express LLC, 10 Roads Service, LLC, 10 Roads Logistics, LLC" all
+    resolve to one company; truncate at the comma-delimited segment that repeats
+    the leading two-token stem. Requires the recurrence to begin a new
+    comma-segment so prose repetition ("Los Angeles County of Los Angeles") is
+    left alone.
+    """
+    if "," not in s:
+        return s
+    tokens = s.split()
+    if len(tokens) < 4:
+        return s
+    stem = " ".join(tokens[:2])
+    needle = ", " + stem
+    idx = s.lower().find(needle.lower(), len(stem))
+    if idx > 0:
+        return s[:idx].strip(" ,")
+    return s
+
+
+def _significant_tokens(name: str) -> set[str]:
+    """Distinctive lowercase tokens of a name (no legal suffixes, stopwords,
+    pure numbers, or single chars) — the basis for the faithfulness check."""
+    return {
+        t
+        for t in canonical_name(name).split()
+        if t not in _STOPWORDS and not t.isdigit() and len(t) > 1
+    }
+
+
+def is_unsearchable(cleaned: str) -> bool:
+    """True when a cleaned query is too generic to look up (a lone generic
+    token). Lets aggressive stripping run without risking luck-of-the-draw
+    matches on names like "Alliance"."""
+    tokens = cleaned.split()
+    return len(tokens) == 1 and tokens[0].lower() in _GENERIC_SINGLE_TOKENS
+
+
+def match_is_consistent(original: str, matched: str) -> bool:
+    """True if a provider match stays faithful to the original WARN name.
+
+    Aggressive cleaning casts a wide net; this is the acceptance guard. The
+    matched entity must share a *distinctive* token with the *original* name: a
+    common industry word ("healthcare", "logistics") shared between two
+    different firms is not evidence they're the same company, so the shared set
+    must contain at least one non-generic token.
+    """
+    shared = _significant_tokens(original) & _significant_tokens(matched)
+    return bool(shared - _GENERIC_MATCH_TOKENS)
 
 
 def canonical_name(name: str | None) -> str:
