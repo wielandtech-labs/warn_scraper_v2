@@ -34,6 +34,7 @@ Usage::
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -216,6 +217,9 @@ def _backfill_url_list(
     for url in urls:
         stats["years_attempted"] += 1
         log.info("%s: fetching %s", scraper.state, url)
+        if "web.archive.org" in url:
+            # Wayback throttles request bursts; pace replay downloads.
+            time.sleep(3)
         try:
             r = httpx.get(url, timeout=120, follow_redirects=True)
             r.raise_for_status()

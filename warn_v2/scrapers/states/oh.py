@@ -250,17 +250,34 @@ def _looks_like_oh_data(raw: bytes) -> bool:
     return b"date received" in lower or b"date rcd" in lower
 
 
+# web.archive.org throttles request bursts (connection refusals after ~30
+# rapid requests — observed 2026-06-12: the .stm era's 4-variants-per-year
+# loop tripped it and every Wayback fetch failed for the rest of the run).
+_WAYBACK_DELAY = 3.0
+_WAYBACK_BACKOFF = 30.0
+
+
 def _fetch_oh_year(year: int) -> bytes | None:
+    import time
+
     import httpx
 
     for url in _oh_year_sources(year):
-        try:
-            r = httpx.get(url, headers=_FETCH_UA, timeout=120, follow_redirects=True)
-            r.raise_for_status()
-        except httpx.HTTPError:
-            continue
-        if _looks_like_oh_data(r.content):
-            return r.content
+        is_wayback = "web.archive.org" in url
+        for attempt in (1, 2):
+            if is_wayback:
+                time.sleep(_WAYBACK_DELAY)
+            try:
+                r = httpx.get(url, headers=_FETCH_UA, timeout=120, follow_redirects=True)
+                r.raise_for_status()
+            except httpx.HTTPError:
+                if is_wayback and attempt == 1:
+                    time.sleep(_WAYBACK_BACKOFF)
+                    continue
+                break
+            if _looks_like_oh_data(r.content):
+                return r.content
+            break  # got a response, but it's a soft-404 shell — next candidate
     return None
 
 
