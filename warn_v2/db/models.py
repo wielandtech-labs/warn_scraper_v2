@@ -103,6 +103,13 @@ class Notice(Base):
     source_url: Mapped[str | None] = mapped_column(String(1024))
     raw_notice_url: Mapped[str | None] = mapped_column(String(1024))
     pdf_path: Mapped[str | None] = mapped_column(String(1024))
+    # When the GA enricher last fetched this notice's TCSG entry page + attachment.
+    # Set once a fetch succeeds (PDF stored, non-PDF extracted, or no attachment),
+    # so already-processed notices drop out of the enricher's candidate set instead
+    # of being re-fetched every nightly run (see warn_v2.scripts.enrich_ga).
+    attachment_fetched_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), index=True
+    )
     is_superseded: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )

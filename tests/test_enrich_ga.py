@@ -9,11 +9,12 @@ import pytest
 
 from warn_v2.scripts import enrich_ga as ega
 from warn_v2.scripts.enrich_ga import (
-    _find_pdf_url,
+    _find_attachment_url,
     _get_with_backoff,
     _parse_detail_fields,
     _parse_mdY,
     _parse_retry_after,
+    _process_one,
 )
 
 ENTRY_FIXTURE = (
@@ -43,11 +44,11 @@ def test_parse_detail_fields_fixture() -> None:
     assert fields["County"] == "Jasper County"
 
 
-def test_find_pdf_url_fixture() -> None:
+def test_find_attachment_url_fixture() -> None:
     from bs4 import BeautifulSoup
 
     soup = BeautifulSoup(ENTRY_FIXTURE.read_bytes(), "html.parser")
-    url = _find_pdf_url(soup)
+    url = _find_attachment_url(soup)
     assert url is not None
     assert "gk-download" in url
 
@@ -89,7 +90,7 @@ def test_parse_detail_fields_no_pdf() -> None:
     assert fields["Type of Layoff or Closure"] == "Plant Closing"
     assert fields["First Date of Separation"] == "03/15/2024"
 
-    assert _find_pdf_url(soup) is None
+    assert _find_attachment_url(soup) is None
 
 
 def test_parse_detail_fields_first_zip_wins() -> None:
@@ -317,3 +318,201 @@ def test_enrich_ga_unexpected_error_banks_progress(
     # The crash counts as an error, so a run that accomplished nothing before
     # crashing still fails the CLI's errors-with-zero-progress check.
     assert stats["errors"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Attachment download + extraction + the attachment_fetched_at queue fix
+# ---------------------------------------------------------------------------
+
+import io as _io  # noqa: E402
+import zipfile as _zipfile  # noqa: E402
+from datetime import UTC as _UTC  # noqa: E402
+from datetime import datetime as _datetime  # noqa: E402
+from unittest.mock import MagicMock, patch  # noqa: E402
+
+from warn_v2.db.models import Notice  # noqa: E402
+
+_DOCX_CT = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+_W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+
+# An entry page with the structured fields plus a gk-download attachment link.
+_ENTRY_PAGE = """
+<table>
+  <tr><th><span class="gv-field-label">Type of Layoff or Closure</span></th>
+      <td>Permanent Closure</td></tr>
+  <tr><th><span class="gv-field-label">County</span></th><td>Clayton County</td></tr>
+  <tr><th><span class="gv-field-label">Zip Code</span></th><td>30236</td></tr>
+</table>
+<a href="https://www.tcsg.edu/gk-download/TOKEN/">Download</a>
+"""
+
+_WARN_DOCX_PARAGRAPHS = [
+    "To: State Rapid Response Unit, Technical College System, Atlanta, GA 30345",
+    "This serves as official notice under the federal WARN Act.",
+    "TV Hardware Distribution will permanently close its distribution center "
+    "located at 7600 Jonesboro Road, Jonesboro, GA 30236.",
+]
+
+
+def _make_docx(paragraphs: list[str]) -> bytes:
+    body = "".join(
+        f'<w:p><w:r><w:t xml:space="preserve">{p}</w:t></w:r></w:p>' for p in paragraphs
+    )
+    doc = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        f'<w:document xmlns:w="{_W_NS}"><w:body>{body}</w:body></w:document>'
+    )
+    buf = _io.BytesIO()
+    with _zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("word/document.xml", doc)
+    return buf.getvalue()
+
+
+class _FakeResponse:
+    def __init__(self, status_code=200, *, text="", content=b"", headers=None):
+        self.status_code = status_code
+        self.text = text
+        self.content = content
+        self.headers = headers or {}
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise httpx.HTTPStatusError(
+                f"HTTP {self.status_code}",
+                request=httpx.Request("GET", "http://x"),
+                response=httpx.Response(self.status_code),
+            )
+
+
+def _insert_ga_notice(db, *, notice_id, attachment_fetched_at=None, closure_type=None):
+    notice = Notice(
+        notice_id=notice_id,
+        state="GA",
+        employer="Acme",
+        notice_date=date(2026, 1, 1),
+        raw_notice_url=f"https://www.tcsg.edu/warn-public-view/entry/{notice_id}/",
+        closure_type=closure_type,
+        attachment_fetched_at=attachment_fetched_at,
+    )
+    db.add(notice)
+    db.flush()
+    return notice
+
+
+def test_process_one_docx_creates_worksite_location_and_marks(
+    db, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-PDF (Word) attachment mints a geocodable worksite Location, the page
+    County attaches to it, no PDF is stored, and the notice is stamped processed."""
+    notice = _insert_ga_notice(db, notice_id="gadocx")
+    db.flush()
+
+    docx = _make_docx(_WARN_DOCX_PARAGRAPHS)
+
+    def fake_get(url, **kwargs):
+        if "gk-download" in url:
+            return _FakeResponse(200, content=docx, headers={"content-type": _DOCX_CT})
+        return _FakeResponse(200, text=_ENTRY_PAGE, headers={"content-type": "text/html"})
+
+    monkeypatch.setattr(ega.httpx, "get", fake_get)
+    monkeypatch.setattr(ega.time, "sleep", lambda s: None)
+
+    with patch("warn_v2.geo.geocoder._census_geocode", return_value=None):
+        result = _process_one(db, notice, pdf_dir=tmp_path, dry_run=False)
+
+    db.flush()  # the enrich loop commits; flush here so refresh sees the stamp
+    db.refresh(notice)
+    assert result in ("enriched", "pdf_fetched")
+    assert notice.pdf_path is None  # a Word doc is not persisted as a PDF
+    assert notice.attachment_fetched_at is not None
+    assert notice.closure_type == "Permanent Closure"
+    assert notice.location_id is not None
+    loc = notice.location
+    assert loc.city == "Jonesboro"
+    assert loc.zip == "30236"
+    assert loc.county == "Clayton County"  # page county attached to the new location
+
+
+def test_process_one_pdf_attachment_still_stored(
+    db, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: a real PDF attachment is still written and pdf_path set."""
+    notice = _insert_ga_notice(db, notice_id="gapdf")
+    db.flush()
+
+    def fake_get(url, **kwargs):
+        if "gk-download" in url:
+            return _FakeResponse(
+                200, content=b"%PDF-1.4 fake", headers={"content-type": "application/pdf"}
+            )
+        return _FakeResponse(200, text=_ENTRY_PAGE, headers={"content-type": "text/html"})
+
+    monkeypatch.setattr(ega.httpx, "get", fake_get)
+    monkeypatch.setattr(ega.time, "sleep", lambda s: None)
+
+    with patch("warn_v2.geo.geocoder._census_geocode", return_value=None):
+        result = _process_one(db, notice, pdf_dir=tmp_path, dry_run=False)
+
+    db.flush()  # the enrich loop commits; flush here so refresh sees the stamp
+    db.refresh(notice)
+    assert result == "pdf_fetched"
+    assert notice.pdf_path is not None
+    assert (tmp_path / notice.pdf_path).read_bytes() == b"%PDF-1.4 fake"
+    assert (tmp_path / "ga" / "gapdf.pdf").exists()
+    assert notice.attachment_fetched_at is not None
+
+
+def test_process_one_dry_run_does_not_mark(
+    db, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Dry run stamps nothing and writes nothing."""
+    notice = _insert_ga_notice(db, notice_id="gadry")
+    db.flush()
+
+    def fake_get(url, **kwargs):
+        if "gk-download" in url:
+            return _FakeResponse(
+                200, content=_make_docx(_WARN_DOCX_PARAGRAPHS),
+                headers={"content-type": _DOCX_CT},
+            )
+        return _FakeResponse(200, text=_ENTRY_PAGE, headers={"content-type": "text/html"})
+
+    monkeypatch.setattr(ega.httpx, "get", fake_get)
+    monkeypatch.setattr(ega.time, "sleep", lambda s: None)
+
+    _process_one(db, notice, pdf_dir=tmp_path, dry_run=True)
+
+    db.refresh(notice)
+    assert notice.attachment_fetched_at is None
+    assert notice.location_id is None
+
+
+def test_enrich_ga_excludes_already_attempted(
+    db, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The candidate query skips notices already stamped attachment_fetched_at,
+    so a stuck head can't be re-fetched every run (the starvation fix)."""
+    fresh = _insert_ga_notice(db, notice_id="gafresh", attachment_fetched_at=None)
+    done = _insert_ga_notice(
+        db, notice_id="gadone",
+        attachment_fetched_at=_datetime(2026, 6, 16, tzinfo=_UTC),
+    )
+    db.commit()
+
+    fetched: list[str] = []
+
+    def fake_get(url, **kwargs):
+        fetched.append(url)
+        # No attachment link → just a structured page (enough to mark + return).
+        return _FakeResponse(200, text="<table></table>", headers={"content-type": "text/html"})
+
+    monkeypatch.setattr(ega.httpx, "get", fake_get)
+    monkeypatch.setattr(ega.time, "sleep", lambda s: None)
+
+    with patch("warn_v2.scripts.enrich_ga.session_scope") as scope:
+        scope.return_value.__enter__ = lambda _: db
+        scope.return_value.__exit__ = MagicMock(return_value=False)
+        ega.enrich_ga(pdf_dir=tmp_path)
+
+    assert fresh.raw_notice_url in fetched
+    assert done.raw_notice_url not in fetched  # already attempted → excluded
