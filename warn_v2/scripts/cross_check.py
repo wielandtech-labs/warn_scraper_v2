@@ -14,6 +14,11 @@ never writes notices — its product is a drift report:
     drift; only a gap inside the live window is (withdrawn/amended/re-keyed, or
     a stale duplicate).
 
+A notice whose hashed fields drift on the page (e.g. an employer string going
+``Acme Inc`` -> ``Acme, Inc.``) gets a new ``notice_id`` and so shows up as
+*both* ``missing_from_db`` (the new id) and ``extra_in_db`` (the old, stored
+id). That pairing is the intended re-key signal, not a double-count.
+
 The same content hash (``pipeline.dedup.notice_id``) keys both sides, and the
 same impossible-date filter the storage path applies
 (``pipeline.validate._filter_bad_dates``) is applied to the live rows, so the
