@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import L from "leaflet";
@@ -45,8 +45,13 @@ const boundsToBbox = (b: L.LatLngBounds): Bbox => ({
   max_lon: round(b.getEast()),
 });
 
+// Fraction to expand the fetched bounds beyond the visible viewport on each
+// side. Panning stays served from this buffer until the view leaves it, so
+// ordinary dragging doesn't refetch.
+const FETCH_BUFFER = 0.5;
+
 interface Viewport {
-  bbox: Bbox;
+  bounds: L.LatLngBounds; // visible bounds (unbuffered) — used for containment
   lat: number; // center
   lon: number;
   zoom: number;
@@ -55,7 +60,7 @@ interface Viewport {
 const toViewport = (map: L.Map): Viewport => {
   const c = map.getCenter();
   return {
-    bbox: boundsToBbox(map.getBounds()),
+    bounds: map.getBounds(),
     lat: round(c.lat),
     lon: round(c.lng),
     zoom: map.getZoom(),
@@ -81,6 +86,9 @@ export function MapPage() {
   const navigate = useNavigate({ from: "/map" });
   const search = useSearch({ from: "/map" });
   const [bbox, setBbox] = useState<Bbox | null>(null);
+  // The buffered bounds + zoom the current `bbox` was fetched for. While the
+  // visible view stays inside these at the same zoom, panning needs no refetch.
+  const fetched = useRef<{ bounds: L.LatLngBounds; zoom: number } | null>(null);
   // Chosen once on mount; crossing the 640px line via resize/orientation is rare
   // enough not to warrant a media-query subscription.
   const [pinCap] = useState(() =>
@@ -88,16 +96,22 @@ export function MapPage() {
   );
 
   // Mirror the viewport into the URL (replace: panning must not spam history)
-  // so back/refresh/share land on the same view. bbox stays local — it's
-  // derived from center+zoom and only feeds the pins query.
+  // so back/refresh/share land on the same view. The pins query only refetches
+  // when the visible view leaves the buffered region we last fetched, or the
+  // zoom changes — so dragging within the buffer reuses the loaded pins.
   const handleViewport = useCallback(
     (v: Viewport) => {
-      setBbox(v.bbox);
       navigate({
         search: (prev) => ({ ...prev, lat: v.lat, lon: v.lon, zoom: v.zoom }),
         replace: true,
         resetScroll: false, // panning the map must not scroll the page to top
       });
+      const prev = fetched.current;
+      if (!prev || prev.zoom !== v.zoom || !prev.bounds.contains(v.bounds)) {
+        const buffered = v.bounds.pad(FETCH_BUFFER);
+        fetched.current = { bounds: buffered, zoom: v.zoom };
+        setBbox(boundsToBbox(buffered));
+      }
     },
     [navigate],
   );
@@ -111,8 +125,8 @@ export function MapPage() {
     before: search.before,
   };
 
-  // Pins for the current viewport. As the user zooms/pans, the bbox shrinks and
-  // the API returns only what's visible — so the map scales past the cap.
+  // Pins for the buffered region around the current viewport. Zooming in shrinks
+  // the bbox so the API returns only what's visible — the map scales past the cap.
   const query = useQuery({
     queryKey: ["map-pins", filters, bbox, pinCap],
     queryFn: () => api.listMapPins({ ...filters, ...(bbox ?? {}), limit: pinCap }),
