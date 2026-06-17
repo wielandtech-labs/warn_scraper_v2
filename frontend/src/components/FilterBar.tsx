@@ -49,7 +49,7 @@ export function FilterBar({
     industries?.find((i) => i.sector === values.industry)?.subsectors ?? [];
 
   return (
-    <div className="card mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
+    <div className="card mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7">
       <label className="flex flex-col gap-1">
         <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
           State
@@ -144,29 +144,33 @@ export function FilterBar({
         </label>
       )}
 
-      <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-          After
-        </span>
-        <input
-          type="date"
-          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-          value={values.after || ""}
-          onChange={(e) => update({ after: e.target.value || undefined })}
-        />
-      </label>
+      {/* After + Before share one grid cell so the date range never splits
+          across rows (it wraps as a pair when the row overflows). */}
+      <div className="grid grid-cols-2 gap-3 sm:col-span-2 lg:col-span-2">
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            After
+          </span>
+          <input
+            type="date"
+            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            value={values.after || ""}
+            onChange={(e) => update({ after: e.target.value || undefined })}
+          />
+        </label>
 
-      <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-          Before
-        </span>
-        <input
-          type="date"
-          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-          value={values.before || ""}
-          onChange={(e) => update({ before: e.target.value || undefined })}
-        />
-      </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            Before
+          </span>
+          <input
+            type="date"
+            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            value={values.before || ""}
+            onChange={(e) => update({ before: e.target.value || undefined })}
+          />
+        </label>
+      </div>
 
       {/* Quick date presets */}
       <div className="col-span-full flex items-center gap-1.5">
