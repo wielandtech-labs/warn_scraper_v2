@@ -900,8 +900,17 @@ def audit_cmd(state: str | None, as_json: bool, markdown: bool, check_links: boo
     show_default=True,
     help="Comma-separated enrichment_source values to reset (provider is refused)",
 )
+@click.option(
+    "--include-null-source",
+    is_flag=True,
+    help=(
+        "Also reset enriched rows with a NULL enrichment_source AND no DUNS "
+        "(pre-source-field EDGAR/Claude-era rows the --sources filter can't "
+        "target). Scoped to duns IS NULL so it never touches a real D&B hit."
+    ),
+)
 @click.option("--dry-run", is_flag=True, help="Preview counts without writing")
-def reset_enrichment_cmd(sources: str, dry_run: bool) -> None:
+def reset_enrichment_cmd(sources: str, include_null_source: bool, dry_run: bool) -> None:
     """Re-queue weakly-enriched companies for the full cascade.
 
     \b
@@ -913,7 +922,7 @@ def reset_enrichment_cmd(sources: str, dry_run: bool) -> None:
 
     Always run with --dry-run first and review the counts.
     """
-    from sqlalchemy import func, select, update
+    from sqlalchemy import and_, func, or_, select, update
 
     from warn_v2.db.models import Company
     from warn_v2.db.session import session_scope
@@ -922,25 +931,36 @@ def reset_enrichment_cmd(sources: str, dry_run: bool) -> None:
     if "provider" in wanted:
         click.echo("refusing to reset provider-enriched rows (full D&B data)", err=True)
         sys.exit(1)
-    if not wanted:
+    if not wanted and not include_null_source:
         click.echo("no sources given", err=True)
         sys.exit(1)
+
+    cond = Company.enrichment_source.in_(wanted) if wanted else None
+    if include_null_source:
+        # Enriched but source-less AND DUNS-less = legacy EDGAR/Claude rows; the
+        # duns guard keeps any old source-less D&B hit out of scope.
+        null_cond = and_(
+            Company.enriched_at.is_not(None),
+            Company.enrichment_source.is_(None),
+            Company.duns.is_(None),
+        )
+        cond = null_cond if cond is None else or_(cond, null_cond)
 
     with session_scope() as session:
         rows = session.execute(
             select(Company.enrichment_source, func.count())
-            .where(Company.enrichment_source.in_(wanted))
+            .where(cond)
             .group_by(Company.enrichment_source)
         ).all()
         total = sum(r[1] for r in rows)
         for source, count in rows:
-            click.echo(f"{source}: {count}")
+            click.echo(f"{source or 'null'}: {count}")
         if dry_run or total == 0:
             click.echo(f"total={total} (dry run — nothing written)" if dry_run else "total=0")
             return
         session.execute(
             update(Company)
-            .where(Company.enrichment_source.in_(wanted))
+            .where(cond)
             .values(
                 enriched_at=None,
                 enrichment_confidence=None,
