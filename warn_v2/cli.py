@@ -1165,5 +1165,25 @@ def delete_user_cmd(email: str) -> None:
     click.echo(f"deleted {email}")
 
 
+@main.command("send-alert-digest")
+def send_alert_digest_cmd() -> None:
+    """Email confirmed subscribers any new WARN notices matching their filters.
+
+    Run on a schedule shortly after the daily scrape. Each subscription's
+    watermark advances only on a successful send, so reruns are safe.
+    """
+    from datetime import UTC, datetime
+
+    from warn_v2.db.session import session_scope
+    from warn_v2.notifications.digest import run_digest
+
+    with session_scope() as session:
+        summary = run_digest(session, datetime.now(UTC))
+    click.echo(
+        f"subscriptions={summary['subscriptions']} emailed={summary['emailed']} "
+        f"notices={summary['notices']} failed={summary['failed']}"
+    )
+
+
 if __name__ == "__main__":
     main()

@@ -24,6 +24,7 @@ _SORT_COLUMNS = {
 # would strip the enriched fields for paid/admin sessions.
 @router.get("", response_model=None)
 def list_companies(
+    name: str | None = Query(None, description="Company name (case-insensitive substring)"),
     enriched: bool | None = Query(None, description="Filter by enrichment status"),
     has_duns: bool | None = Query(
         None, description="Filter companies that have (or lack) a DUNS number"
@@ -82,6 +83,11 @@ def list_companies(
         # Hide duplicates that were consolidated into a canonical company.
         stmt = stmt.where(Company.canonical_company_id.is_(None))
         count_stmt = count_stmt.where(Company.canonical_company_id.is_(None))
+
+    if name:
+        pattern = f"%{name}%"
+        stmt = stmt.where(Company.name.ilike(pattern))
+        count_stmt = count_stmt.where(Company.name.ilike(pattern))
 
     if enriched is True:
         stmt = stmt.where(Company.enriched_at.is_not(None))

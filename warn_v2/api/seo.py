@@ -69,6 +69,11 @@ _CONTENT_PAGES: dict[str, tuple[str, str]] = {
         "Newsrooms, researchers, and analysts that rely on WARN Tracker's "
         "layoff-notice data.",
     ),
+    "/api-docs": (
+        "Data & API — WARN Tracker",
+        "Use the WARN Tracker layoff dataset via a public JSON API or bulk "
+        "CSV/JSON downloads.",
+    ),
 }
 
 
