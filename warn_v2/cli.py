@@ -893,6 +893,68 @@ def audit_cmd(state: str | None, as_json: bool, markdown: bool, check_links: boo
         click.echo(render_table(audits))
 
 
+@main.command("cross-check")
+@click.option("--state", default=None, help="Limit to one state abbreviation, e.g. CA")
+@click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON")
+@click.option("--no-store", is_flag=True, help="Don't persist results (read-only preview)")
+@click.option(
+    "--fail-on-drift",
+    type=int,
+    default=None,
+    metavar="N",
+    help=(
+        "Exit non-zero if any state has more than N notices missing_from_db. "
+        "Off by default: like scrape-all, per-source noise shouldn't churn the "
+        "CronJob's status — alerting belongs on the cross_check_runs table."
+    ),
+)
+def cross_check_cmd(
+    state: str | None, as_json: bool, no_store: bool, fail_on_drift: int | None
+) -> None:
+    """Verify stored notices against each state's live WARN page.
+
+    Re-fetches what each state currently publishes (network) and diffs it
+    against the DB, recording drift in both directions to cross_check_runs:
+    notices on the page we're missing (missing_from_db) and notices we hold
+    that vanished from the page within its current date window (extra_in_db).
+    Read-only against notices — it never writes a Notice row.
+
+    \b
+    Examples:
+      warn-v2 cross-check                  # all non-blocked states
+      warn-v2 cross-check --state DC       # one state
+      warn-v2 cross-check --json           # machine-readable
+      warn-v2 cross-check --no-store       # preview without writing
+      warn-v2 cross-check --fail-on-drift 0  # exit 1 on any missing notice
+    """
+    from datetime import UTC, datetime
+
+    from warn_v2.db.session import session_scope
+    from warn_v2.scripts.cross_check import (
+        cross_check_states,
+        persist,
+        render_json,
+        render_table,
+    )
+
+    # cross_check_states does the network sweep, opening a short read session
+    # per state — so we never hold one transaction across the whole run. Persist
+    # the collected results in a single separate short transaction.
+    results = cross_check_states(state_filter=state)
+    if not no_store:
+        with session_scope() as session:
+            persist(session, results, checked_at=datetime.now(UTC))
+
+    click.echo(render_json(results) if as_json else render_table(results))
+
+    if fail_on_drift is not None:
+        offenders = [cc for cc in results if cc.missing_count > fail_on_drift]
+        if offenders:
+            summary = ", ".join(f"{cc.state}({cc.missing_count})" for cc in offenders)
+            click.echo(f"missing_from_db exceeds {fail_on_drift}: {summary}", err=True)
+            sys.exit(1)
+
+
 @main.command("reset-enrichment")
 @click.option(
     "--sources",
