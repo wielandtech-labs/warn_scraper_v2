@@ -99,6 +99,9 @@ export interface MapPinQuery {
   min_lon?: number;
   max_lat?: number;
   max_lon?: number;
+  // Ceiling on pins returned (API caps at 50 000). The map sets a smaller,
+  // device-dependent cap so phones don't instantiate tens of thousands of markers.
+  limit?: number;
 }
 
 export const api = {
