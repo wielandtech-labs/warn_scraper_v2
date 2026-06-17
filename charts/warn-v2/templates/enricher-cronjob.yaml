@@ -36,6 +36,10 @@ spec:
                 - {{ .Values.enricher.limit | quote }}
                 - --recent-years
                 - {{ .Values.enricher.recentYears | quote }}
+                {{- if .Values.enricher.tiers }}
+                - --tiers
+                - {{ .Values.enricher.tiers | quote }}
+                {{- end }}
               env:
                 {{- include "warn-v2.envSecrets" . | nindent 16 }}
                 {{- if .Values.enricher.providerImage }}
