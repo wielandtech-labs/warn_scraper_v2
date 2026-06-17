@@ -1,10 +1,40 @@
 Alembic migrations.
 
-Generate the initial migration after spinning up the dev DB:
+## Creating a migration — ALWAYS use `alembic revision`
 
-    $env:DATABASE_URL="postgresql+psycopg://warn:warn@localhost:5432/warn_v2"
-    uv run alembic revision --autogenerate -m "initial schema"
+    uv run alembic revision --autogenerate -m "short description"
+    # or, for a hand-written migration:
+    uv run alembic revision -m "short description"
+
+This generates a **random revision id** and a `YYYYMMDD_<rev>_<slug>.py` filename
+automatically. Then edit the generated upgrade()/downgrade() and run it locally:
+
     uv run alembic upgrade head
 
-For tests we bypass migrations and use `Base.metadata.create_all(engine)` against
-an in-memory SQLite — see `tests/conftest.py`.
+DO NOT hand-author migration files, and DO NOT pick the revision id or a
+sequential number yourself. The old convention of copying the previous file and
+incrementing a `0014`-style counter + a hex id is what caused a production
+incident: two PRs branched off the same head, both picked the same next id, and
+`alembic upgrade head` failed with "revision present more than once / Multiple
+head revisions", wedging the deploy. Random ids + `%(rev)s` filenames make that
+impossible.
+
+## Multiple heads (two migrations off the same parent)
+
+If your branch and `main` each added a migration, after rebasing you'll have two
+heads. That's expected — resolve it the standard Alembic way:
+
+    uv run alembic heads          # shows >1 head
+    uv run alembic merge heads -m "merge <a> and <b>"   # creates a merge migration
+
+(Or, if your migration hasn't shipped yet, just re-point its `down_revision` to
+main's current head.) CI fails the build on more than one head, so this is caught
+in the PR, never in prod — see the "Alembic single head" step in
+`.github/workflows/ci.yml`.
+
+## Tests
+
+Tests bypass migrations and use `Base.metadata.create_all(engine)` against an
+in-memory SQLite — see `tests/conftest.py`. Postgres-only DDL (extensions, GIN
+indexes) must therefore be guarded with a dialect check so the SQLite path is a
+no-op (see the trigram-search-indexes migration).

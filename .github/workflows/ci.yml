@@ -23,6 +23,21 @@ jobs:
         run: uv sync --extra dev
       - name: Lint
         run: uv run ruff check .
+      - name: Alembic single head
+        # Fails the PR if the migrations form more than one head (parallel
+        # branches) or contain a duplicate revision id (alembic errors on load).
+        # Catches the collision class that once wedged a prod deploy, before merge.
+        # Reads scripts only — no DB needed; sqlite:// just satisfies env.py.
+        env:
+          DATABASE_URL: "sqlite://"
+        run: |
+          heads="$(uv run alembic heads)"
+          echo "$heads"
+          n="$(printf '%s\n' "$heads" | grep -c '(head)')"
+          if [ "$n" -ne 1 ]; then
+            echo "::error::Expected exactly 1 Alembic head, found $n. Run 'alembic merge heads' or re-point your migration's down_revision."
+            exit 1
+          fi
       - name: Test
         run: uv run python -m pytest -v
 

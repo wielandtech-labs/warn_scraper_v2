@@ -58,6 +58,18 @@ worktree's `warn_v2` shadows the venv's editable install and the worktree code
 is what actually gets tested (verify once with
 `python -c "import warn_v2; print(warn_v2.__file__)"`).
 
+## Database migrations (Alembic)
+
+Create migrations **only** with `uv run alembic revision [--autogenerate] -m "..."`.
+Never hand-author a migration file, and never pick the revision id or a
+sequential number yourself — Alembic generates a random id + a
+`YYYYMMDD_<rev>_<slug>.py` filename. Hand-incrementing the old `0014`/hex pattern
+is what produced duplicate revision ids → a dual Alembic head that broke a prod
+deploy. CI (`Alembic single head` step) fails on >1 head; resolve parallel heads
+with `uv run alembic merge heads -m "..."`. Postgres-only DDL must be guarded
+with a dialect check (tests use SQLite via `create_all`). See
+`warn_v2/db/migrations/README`.
+
 ## Production gate
 
 Merging to main is a production deploy (the image-tag chain above runs
