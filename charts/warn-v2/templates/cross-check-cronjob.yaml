@@ -1,0 +1,33 @@
+{{- if .Values.crossCheck.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "warn-v2.fullname" . }}-cross-check
+  labels:
+    {{- include "warn-v2.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.crossCheck.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            {{- include "warn-v2.labels" . | nindent 12 }}
+            app.kubernetes.io/component: cross-check
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: cross-check
+              image: {{ include "warn-v2.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              args:
+                - cross-check
+              env:
+                {{- include "warn-v2.envSecrets" . | nindent 16 }}
+              resources:
+                {{- toYaml .Values.crossCheck.resources | nindent 16 }}
+{{- end }}

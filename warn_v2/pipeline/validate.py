@@ -25,7 +25,7 @@ class ValidationResult:
 def validate(scraper: StateScraper, rows: list[NoticeRow]) -> ValidationResult:
     # 1. Strip rows with clearly impossible notice_dates first so the count
     #    check below applies to *valid* rows only.
-    bad = _filter_bad_dates(rows)
+    bad = filter_bad_dates(rows)
     if bad:
         log.warning(
             "validate[%s]: filtered %d row(s) with invalid notice_date: %s",
@@ -58,7 +58,7 @@ def validate(scraper: StateScraper, rows: list[NoticeRow]) -> ValidationResult:
     return ValidationResult(ok=True, row_count=count)
 
 
-def _filter_bad_dates(rows: list[NoticeRow]) -> list[str]:
+def filter_bad_dates(rows: list[NoticeRow]) -> list[str]:
     """Remove rows with impossible notice_dates in-place.
 
     A date is considered impossible when its year is before the WARN Act
