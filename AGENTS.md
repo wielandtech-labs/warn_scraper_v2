@@ -19,6 +19,42 @@ blocks inside test functions (`I001`). Both are auto-fixable with `--fix`.
 
 ---
 
+## Alembic migrations — avoid dual heads from parallel PRs
+
+Revision ids in `warn_v2/db/migrations/versions/` are opaque strings that have
+historically followed a rolling pattern (`…l3b4…` → `…m4c5…` → `…n5d6…` →
+`…o6e7…`). That pattern is a trap for parallel work: two PRs that both branch
+off the current head and both pick "the next" value end up with the **same
+`revision` id and the same `down_revision`**. After both merge, the migration
+job crash-loops in prod with:
+
+```
+Revision <id> is present more than once
+FAILED: Multiple head revisions are present for given argument 'head'
+```
+
+Nothing applies (alembic resolves heads before running), so the DB is stuck at
+the last good revision and the deploy's schema changes never land.
+
+**Before merging any PR that adds a migration**, confirm a single head against
+the latest `main`:
+
+```bash
+git fetch origin main
+# rebase/merge main in, then:
+DATABASE_URL=sqlite:///./_scratch.db .venv\Scripts\python -m alembic heads   # expect ONE "(head)"
+```
+
+If a migration merged ahead of you, re-point your `down_revision` to that new
+head and give your migration a **unique** `revision` id (don't just continue the
+pattern from the shared parent), bump the filename's `NNNN` prefix, and re-run
+`alembic heads`. Verify it applies with `alembic stamp <parent> && alembic
+upgrade head && alembic downgrade -1` on a scratch SQLite DB. (Full
+`upgrade head` from empty fails on SQLite — migration 0002 uses Postgres-only
+`ALTER COLUMN … TYPE` — so stamp the parent first to isolate the new revision.)
+
+---
+
 ## Kubernetes access
 
 `kubectl` is not configured in the Windows shell but works via WSL:
