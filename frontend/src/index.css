@@ -51,3 +51,41 @@
   max-width: none;
   max-height: none;
 }
+
+/* Mobile DataTable: below Tailwind's `sm` breakpoint, collapse each row into a
+   stacked label/value card so wide tables don't force horizontal scrolling. The
+   `data-label` attribute (the column header) is rendered as the left-hand label.
+   Headers are reachable via the component's mobile sort control instead. */
+@media (max-width: 639px) {
+  table.data-table thead {
+    display: none;
+  }
+  table.data-table,
+  table.data-table tbody,
+  table.data-table tr,
+  table.data-table td {
+    display: block;
+    width: 100%;
+  }
+  table.data-table tr {
+    padding: 0.5rem 0.75rem;
+  }
+  table.data-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    padding: 0.25rem 0;
+    text-align: right;
+  }
+  table.data-table td[data-label]:not([data-label=""])::before {
+    content: attr(data-label);
+    flex: none;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    color: theme("colors.slate.500");
+  }
+}
