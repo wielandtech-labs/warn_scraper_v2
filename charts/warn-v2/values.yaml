@@ -98,7 +98,7 @@ api:
   ingress:
     enabled: false   # flip on in HelmRelease to expose externally
     className: traefik
-    host: warn.lab.wielandtech.com
+    host: warn.wielandtech.com
     tls: true        # provisions a cert-manager Certificate when annotations include cluster-issuer
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt-prod
