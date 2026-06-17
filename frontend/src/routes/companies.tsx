@@ -5,6 +5,7 @@ import { useMemo } from "react";
 
 import { api } from "../api/client";
 import { DataTable } from "../components/DataTable";
+import { ExportButtons } from "../components/ExportButtons";
 import { Pagination } from "../components/Pagination";
 import type { CompanyOut, ParentGroupStat } from "../api/types";
 import { fmtNum } from "../lib/format";
@@ -250,6 +251,15 @@ function CompaniesView() {
             label="Pending"
           />
         </div>
+        <ExportButtons
+          basePath="/api/companies/export"
+          params={{
+            enriched: search.enriched,
+            has_duns: search.duns === "true" ? true : undefined,
+            industry: search.industry,
+            subsector: search.subsector,
+          }}
+        />
       </div>
 
       {query.isLoading && <div className="card text-sm text-slate-500">Loading…</div>}

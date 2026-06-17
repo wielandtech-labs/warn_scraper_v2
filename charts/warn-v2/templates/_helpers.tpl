@@ -47,4 +47,21 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version }}
       key: {{ .Values.github.secretKey }}
 - name: SNAPSHOT_DIR
   value: /var/snapshots
+- name: SITE_BASE_URL
+  value: {{ printf "https://%s" .Values.api.ingress.host | quote }}
+{{- if .Values.smtp.enabled }}
+- name: SMTP_HOST
+  value: {{ .Values.smtp.host | quote }}
+- name: SMTP_PORT
+  value: {{ .Values.smtp.port | quote }}
+- name: SMTP_USERNAME
+  value: {{ .Values.smtp.username | quote }}
+- name: SMTP_FROM
+  value: {{ .Values.smtp.from | quote }}
+- name: SMTP_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.smtp.secretName }}
+      key: {{ .Values.smtp.passwordKey }}
+{{- end }}
 {{- end -}}

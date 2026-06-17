@@ -5,6 +5,7 @@ import { useMemo } from "react";
 
 import { api } from "../api/client";
 import { DataTable } from "../components/DataTable";
+import { ExportButtons } from "../components/ExportButtons";
 import { FilterBar, type FilterValues } from "../components/FilterBar";
 import { Pagination } from "../components/Pagination";
 import { fmtDate, fmtNum } from "../lib/format";
@@ -114,7 +115,21 @@ export function NoticesPage() {
 
   return (
     <div>
-      <h1 className="mb-3 text-2xl font-semibold">Notices</h1>
+      <div className="mb-3 flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold">Notices</h1>
+        <ExportButtons
+          basePath="/api/notices/export"
+          params={{
+            state: search.state,
+            employer: search.employer,
+            closure_category: search.closure_category,
+            industry: search.industry,
+            subsector: search.subsector,
+            after: search.after,
+            before: search.before,
+          }}
+        />
+      </div>
       <FilterBar
         values={search}
         onChange={handleFilterChange}

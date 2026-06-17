@@ -169,6 +169,38 @@ class UserSession(Base):
     user: Mapped[User] = relationship("User")
 
 
+class Subscription(Base):
+    """Email alert subscription (double opt-in).
+
+    A row is created unconfirmed; the confirm link sets ``confirmed_at`` and the
+    ``last_notified_at`` watermark to "now" so the subscriber only receives
+    notices discovered after they confirm. The digest job advances the watermark
+    each run. Filters are optional — null means "any".
+    """
+
+    __tablename__ = "subscriptions"
+
+    id: Mapped[int] = mapped_column(BigIntPK, primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String(320), nullable=False, index=True)
+    # Optional filters (mirror the notices query params). Null => no constraint.
+    state: Mapped[str | None] = mapped_column(String(2))
+    industry: Mapped[str | None] = mapped_column(String(8))  # NAICS sector id, e.g. "31-33"
+    employer_query: Mapped[str | None] = mapped_column(String(256))  # case-insensitive substring
+    frequency: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="daily", server_default="daily"
+    )
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    confirm_token: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    unsubscribe_token: Mapped[str] = mapped_column(
+        String(64), nullable=False, unique=True, index=True
+    )
+    # Watermark: only notices with scraped_at after this are sent in the next digest.
+    last_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 class ScraperRun(Base):
     __tablename__ = "scraper_runs"
 

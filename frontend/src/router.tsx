@@ -13,6 +13,14 @@ import { CompaniesPage } from "./routes/companies";
 import { CompanyDetail } from "./routes/company-detail";
 import { MapPage } from "./routes/map";
 import { StatsPage } from "./routes/stats";
+import { StatesIndexPage } from "./routes/states-index";
+import { StateDetailPage } from "./routes/state-detail";
+import { AboutPage } from "./routes/content/about";
+import { WarnActPage } from "./routes/content/warn-act";
+import { MethodologyPage } from "./routes/content/methodology";
+import { FaqPage } from "./routes/content/faq";
+import { CitedByPage } from "./routes/content/cited-by";
+import { ApiDocsPage } from "./routes/content/api-docs";
 import { LoginPage } from "./routes/login";
 
 const rootRoute = createRootRoute({
@@ -172,6 +180,51 @@ const statsRoute = createRoute({
   component: StatsPage,
 });
 
+const statesIndexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/states",
+  component: StatesIndexPage,
+});
+
+const stateDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/states/$state",
+  component: StateDetailPage,
+});
+
+// Static content pages (Phase 3). Defined explicitly (not via a loop) so each
+// path is a literal for TanStack's route-tree typing, matching the routes above.
+const aboutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/about",
+  component: AboutPage,
+});
+const warnActRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/warn-act",
+  component: WarnActPage,
+});
+const methodologyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/methodology",
+  component: MethodologyPage,
+});
+const faqRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/faq",
+  component: FaqPage,
+});
+const citedByRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/cited-by",
+  component: CitedByPage,
+});
+const apiDocsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/api-docs",
+  component: ApiDocsPage,
+});
+
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
@@ -186,6 +239,14 @@ const routeTree = rootRoute.addChildren([
   companyDetailRoute,
   mapRoute,
   statsRoute,
+  statesIndexRoute,
+  stateDetailRoute,
+  aboutRoute,
+  warnActRoute,
+  methodologyRoute,
+  faqRoute,
+  citedByRoute,
+  apiDocsRoute,
   loginRoute,
 ]);
 

@@ -125,6 +125,31 @@ class Page[T](BaseModel):
     offset: int
 
 
+class SearchCompanyOut(BaseModel):
+    """Minimal company hit for the global search / autocomplete box."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+
+
+class SearchNoticeOut(BaseModel):
+    """Minimal notice hit for the global search / autocomplete box."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    notice_id: str
+    employer: str
+    state: str
+    notice_date: date | None
+
+
+class SearchResults(BaseModel):
+    companies: list[SearchCompanyOut]
+    notices: list[SearchNoticeOut]
+
+
 class MapPinOut(BaseModel):
     """Lightweight notice projection used exclusively by the map endpoint.
 

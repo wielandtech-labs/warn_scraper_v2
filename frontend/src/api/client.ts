@@ -15,6 +15,7 @@ import type {
   Page,
   ParentGroupStat,
   ScraperRunOut,
+  SearchResults,
   StateStat,
 } from "./types";
 
@@ -192,4 +193,16 @@ export const api = {
     q: { limit?: number; state?: string; after?: string; before?: string } = {},
   ) => get<ParentGroupStat[]>("/api/stats/by-parent-group" + qs(q)),
   statsIndustries: () => get<IndustryStat[]>("/api/stats/industries"),
+
+  // ---------- Search ----------
+  search: (q: string, limit = 8) =>
+    get<SearchResults>("/api/search" + qs({ q, limit })),
+
+  // ---------- Alert subscriptions ----------
+  createSubscription: (body: {
+    email: string;
+    state?: string;
+    industry?: string;
+    employer_query?: string;
+  }) => post<{ status: string; message: string }>("/api/subscriptions", body),
 };

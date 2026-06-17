@@ -158,5 +158,25 @@ crossCheck:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 1000m, memory: 1Gi }
 
+# Transactional email for alert subscriptions. SMTP implicit TLS (port 465);
+# the password comes from a SealedSecret, everything else is plain config.
+smtp:
+  enabled: false                      # flip on in HelmRelease once warn-v2-smtp exists
+  host: mail.wielandtech.com
+  port: 465
+  username: no-reply@wielandtech.com
+  from: no-reply@wielandtech.com
+  secretName: warn-v2-smtp            # SealedSecret with a `password` key
+  passwordKey: password
+
+# Daily email digest of new WARN notices for confirmed subscribers
+# (warn-v2 send-alert-digest). Requires smtp.enabled.
+alertDigest:
+  enabled: false          # flip on in HelmRelease after smtp.enabled
+  schedule: "45 7 * * *"  # ~30 min after the scraper (07:17) so new notices are in
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits:   { cpu: 300m, memory: 256Mi }
+
 migrations:
   enabled: true   # set false only if you manage migrations out-of-band

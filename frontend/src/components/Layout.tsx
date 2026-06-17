@@ -4,11 +4,13 @@ import { useState, type ReactNode } from "react";
 
 import { api } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
+import { SearchBox } from "./SearchBox";
 
 const NAV = [
   { to: "/", label: "Dashboard" },
   { to: "/notices", label: "Notices" },
   { to: "/companies", label: "Companies" },
+  { to: "/states", label: "States" },
   { to: "/map", label: "Map" },
   { to: "/stats", label: "Stats" },
 ];
@@ -85,6 +87,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 </Link>
               ))}
             </nav>
+            <SearchBox />
             <AccountArea />
           </div>
           {/* Mobile hamburger (below md). */}
@@ -122,6 +125,9 @@ export function Layout({ children }: { children: ReactNode }) {
         {/* Mobile dropdown panel. */}
         {mobileOpen && (
           <div className="border-t border-slate-200 px-4 py-3 md:hidden">
+            <div className="mb-3">
+              <SearchBox />
+            </div>
             <nav className="flex flex-col gap-1">
               {NAV.map((item) => (
                 <Link
@@ -144,11 +150,25 @@ export function Layout({ children }: { children: ReactNode }) {
       </header>
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
       <footer className="border-t border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-3 text-xs text-slate-500">
-          Data from US state WARN Act listings · scraped daily ·{" "}
-          <a className="hover:underline" href="/docs">
-            API docs
-          </a>
+        <div className="mx-auto max-w-7xl space-y-2 px-4 py-4 text-xs text-slate-500">
+          <nav className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <Link className="hover:underline" to="/about">About</Link>
+            <span aria-hidden>·</span>
+            <Link className="hover:underline" to="/warn-act">What is the WARN Act?</Link>
+            <span aria-hidden>·</span>
+            <Link className="hover:underline" to="/methodology">Methodology</Link>
+            <span aria-hidden>·</span>
+            <Link className="hover:underline" to="/faq">FAQ</Link>
+            <span aria-hidden>·</span>
+            <Link className="hover:underline" to="/cited-by">Cited by</Link>
+            <span aria-hidden>·</span>
+            <Link className="hover:underline" to="/states">Browse states</Link>
+            <span aria-hidden>·</span>
+            <a className="hover:underline" href="/feed.rss">RSS</a>
+            <span aria-hidden>·</span>
+            <Link className="hover:underline" to="/api-docs">Data &amp; API</Link>
+          </nav>
+          <p>Data from US state WARN Act listings · scraped daily.</p>
         </div>
       </footer>
     </div>
