@@ -4,6 +4,10 @@ Written by ``warn-v2 cross-check``: each row records one live-page-vs-DB diff
 for a state (missing_from_db / extra_in_db counts + a sampled JSON slice).
 Alerting reads this table, the same pattern as scraper_runs.
 
+Chained after o6e7f8a9b0c1 (add_notice_attachment_fetched_at): both migrations
+were authored in parallel and originally branched off n5d6e7f8a9b0 with the same
+revision id, producing a dual head. This one is re-pointed to run second.
+
 Revision ID: p7f8a9b0c1d2
 Revises: o6e7f8a9b0c1
 Create Date: 2026-06-17 00:00:00.000000
