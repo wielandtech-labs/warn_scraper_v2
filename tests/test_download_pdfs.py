@@ -543,6 +543,32 @@ def test_re_extract_no_fields_not_enriched(db, tmp_path):
     assert stats["enriched"] == 0
 
 
+def test_re_extract_creates_location_from_city_zip(db, tmp_path):
+    """HI recovery path: re-reading a stored PDF mints a Location from the
+    extracted worksite city/zip (which backfill-geo then geocodes)."""
+    notice = _insert_notice(db, state="HI", raw_notice_url=None, pdf_path="hi/n.pdf")
+    assert notice.location_id is None
+    db.commit()
+    _store_file(tmp_path, "hi/n.pdf", _FAKE_PDF)
+
+    with patch("warn_v2.scripts.download_pdfs.session_scope") as mock_scope:
+        mock_scope.return_value.__enter__ = lambda _: db
+        mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+        with patch("warn_v2.geo.geocoder._census_geocode", return_value=None):
+            with patch(
+                "warn_v2.scripts.download_pdfs.extract_warn_fields",
+                return_value={"city": "Honolulu", "zip": "96815"},
+            ):
+                stats = re_extract("HI", pdf_dir=tmp_path)
+
+    db.refresh(notice)
+    assert stats == {"considered": 1, "enriched": 1, "missing": 0, "errors": 0}
+    assert notice.location_id is not None
+    loc = db.get(Location, notice.location_id)
+    assert loc.city == "Honolulu"
+    assert loc.zip == "96815"
+
+
 def test_re_extract_state_filter(db, tmp_path):
     ct = _insert_notice(db, employer="CT Corp", state="CT", pdf_path="ct/a.pdf")
     _insert_notice(db, employer="NE Corp", state="NE", pdf_path="ne/b.pdf")

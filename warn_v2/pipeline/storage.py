@@ -245,7 +245,11 @@ def enrich_notice_location(
         )
         loc = _get_or_create_location(session, partial)
         if loc and loc.id != notice.location_id:
-            notice.location_id = loc.id
+            # Set the relationship (not just the FK) so a later read of
+            # notice.location in the same unit of work sees it — e.g. the GA
+            # enricher attaches the page County, and may call this again for the
+            # page ZIP, right after minting this location from a Word attachment.
+            notice.location = loc
             session.flush()
             return True
     elif not existing_loc.zip and zip_:

@@ -201,13 +201,21 @@ Findings the DB can't tell us — confirmed against the live sources.
 - **GA** — `raw_notice_url` is a TCSG GravityView HTML entry page, not a PDF
   (`raw_notice_url_is_pdf=False`); enriched by `enrich-notices --state GA`. TCSG
   **rate-limits aggressively**: the enricher aborts after 3 consecutive timeouts, so
-  a tail of ~71 notices (out of 262) stays location-less (geo 72%). **Hardened
-  2026-06-11** so this clears over nightly runs *without* hammering TCSG: commits
-  every 5 (was 50) so each run durably banks what it fetched before the block;
-  orders never-enriched (`closure_type IS NULL`) notices first so the budget buys
-  new locations; an unexpected error banks progress instead of crashing the Job.
-  `Company Address`, when fetched, is often the corporate HQ, not the GA worksite →
-  Census no-match / out-of-state coords.
+  a tail of notices stays location-less. **Hardened 2026-06-11** so this clears over
+  nightly runs *without* hammering TCSG: commits every 5 (was 50) so each run durably
+  banks what it fetched before the block; an unexpected error banks progress instead
+  of crashing the Job. **2026-06-17**: `closure_type` reached 100%, which collapsed the
+  old `closure_type IS NULL` ordering to deterministic newest-first — the same ~15-18
+  notices were re-fetched every run (their gk-download is a Word/Excel doc, not a PDF,
+  so they never left the candidate set) and starved the rest. Fixed with a per-notice
+  `attachment_fetched_at` stamp (candidate query keys off it; one fetch per notice +
+  timeout retries), and the gk-download attachment is now extracted for any type —
+  the `.docx` is the WARN letter in full text (worksite address, dates, counts), the
+  `.xlsx` is usually a job-title roster. `Company Address` on the entry page is often
+  the corporate HQ, not the GA worksite → Census no-match / out-of-state coords, so the
+  attachment's worksite is preferred when present. (Worksite city/zip extraction needs
+  the 2-letter state form; letters that spell out "Georgia" still rely on the page's
+  Zip Code/County — a `_choose_city_zip` full-state-name follow-up would close that.)
 - **KY / MT** — county-only sources; geocoded via Tier-4 county centroid.
 - **`inspect parser date handling`** appears widely — driven by the estimated-date
   heuristic (effective_date = notice_date + 60d). That's the expected WARN-Act
