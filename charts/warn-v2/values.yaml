@@ -45,6 +45,11 @@ enricher:
   schedule: "23 */6 * * *"  # every 6h
   limit: 10       # max companies to enrich per CronJob run
   recentYears: 2  # only enrich companies with notices in the last N years
+  # Enrichment tiers, comma-separated (provider, edgar, claude). Passed
+  # explicitly as --tiers so prod behavior never silently depends on the
+  # default baked into the (separately-built) enricher image. "provider" =
+  # D&B only; a miss is left queued. Run a backup pass with "edgar,claude".
+  tiers: "provider"
   # D&B Hoovers provider (private, derived image). When providerImage is set, the
   # enricher runs that image instead of the public app image, with the Hoovers
   # credentials + a warm-session PVC. Leave blank to run the cascade without the
