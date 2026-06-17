@@ -52,9 +52,61 @@ export function DataTable<T>({
     );
   }
 
+  // Apply a sort regardless of mode — used by the mobile control, which has no
+  // column headers to click.
+  const applySort = (id: string, dir: "asc" | "desc") => {
+    if (isServer) onSortChange!(id, dir);
+    else setLocalSorting([{ id, desc: dir === "desc" }]);
+  };
+
+  // Columns offered in the mobile sort control: those with a plain-string header
+  // (used as the option label) that the active mode allows sorting on.
+  const sortableCols = table.getAllLeafColumns().filter((col) => {
+    if (typeof col.columnDef.header !== "string") return false;
+    return isServer ? col.columnDef.enableSorting !== false : col.getCanSort();
+  });
+  const activeId = isServer ? sortBy ?? "" : sorting[0]?.id ?? "";
+  const activeDir: "asc" | "desc" = isServer
+    ? sortDir ?? "desc"
+    : sorting[0]?.desc
+      ? "desc"
+      : "asc";
+
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-      <table className="w-full text-sm">
+    <>
+      {sortableCols.length > 0 && (
+        <div className="mb-2 flex items-center gap-2 sm:hidden">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            Sort
+          </span>
+          <select
+            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            value={activeId || sortableCols[0]?.id || ""}
+            onChange={(e) => applySort(e.target.value, activeDir)}
+          >
+            {sortableCols.map((col) => (
+              <option key={col.id} value={col.id}>
+                {col.columnDef.header as string}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="btn-secondary"
+            aria-label={activeDir === "desc" ? "Sort descending" : "Sort ascending"}
+            onClick={() =>
+              applySort(
+                activeId || sortableCols[0]!.id,
+                activeDir === "desc" ? "asc" : "desc",
+              )
+            }
+          >
+            {activeDir === "desc" ? "▼" : "▲"}
+          </button>
+        </div>
+      )}
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <table className="data-table w-full text-sm">
         <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
           {table.getHeaderGroups().map((hg) => (
             <tr key={hg.id}>
@@ -100,14 +152,23 @@ export function DataTable<T>({
           {table.getRowModel().rows.map((row) => (
             <tr key={row.id} className="hover:bg-slate-50">
               {row.getVisibleCells().map((cell) => (
-                <td key={cell.id} className="px-3 py-2 align-top">
+                <td
+                  key={cell.id}
+                  className="px-3 py-2 align-top"
+                  data-label={
+                    typeof cell.column.columnDef.header === "string"
+                      ? cell.column.columnDef.header
+                      : ""
+                  }
+                >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>
               ))}
             </tr>
           ))}
         </tbody>
-      </table>
-    </div>
+        </table>
+      </div>
+    </>
   );
 }
