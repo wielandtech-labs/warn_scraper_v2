@@ -21,7 +21,7 @@ id). That pairing is the intended re-key signal, not a double-count.
 
 The same content hash (``pipeline.dedup.notice_id``) keys both sides, and the
 same impossible-date filter the storage path applies
-(``pipeline.validate._filter_bad_dates``) is applied to the live rows, so the
+(``pipeline.validate.filter_bad_dates``) is applied to the live rows, so the
 comparison is apples to apples. This is the read-only sibling of
 ``pipeline.runner.run_state``: it does the scraper's ``fetch()`` → ``parse()``
 but stops before storage.
@@ -48,8 +48,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from warn_v2.db.models import CrossCheckRun, Notice
+from warn_v2.db.session import session_scope
 from warn_v2.pipeline.dedup import notice_id
-from warn_v2.pipeline.validate import _filter_bad_dates
+from warn_v2.pipeline.validate import filter_bad_dates
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed, StateScraper
 from warn_v2.scrapers.registry import all_states, get_scraper
 
@@ -64,7 +65,7 @@ log = logging.getLogger(__name__)
 _SAMPLE_LIMIT = 25
 
 # (notice_id, employer, notice_date) for a single drift row.
-_Row = tuple[str, str, "date | None"]
+_Row = tuple[str, str, date | None]
 
 
 @dataclass
@@ -72,7 +73,7 @@ class CrossCheck:
     """Drift report for one jurisdiction."""
 
     state: str
-    status: str = "ok"  # ok | fetch_failed | parse_failed | empty | blocked
+    status: str = "ok"  # ok | fetch_failed | parse_failed | empty | degraded | blocked
     error: str | None = None
     live_rows: int = 0
     db_active: int = 0
@@ -141,13 +142,23 @@ def cross_check_state(
     # Drop impossible-date rows exactly as the storage path does, so live and
     # stored sets are comparable (a typo'd date the scraper would never have
     # stored must not count as missing).
-    _filter_bad_dates(rows)
+    filter_bad_dates(rows)
     if not rows:
         cc.status = "empty"
         return cc
 
     live: dict[str, NoticeRow] = {notice_id(r): r for r in rows}
     cc.live_rows = len(live)
+
+    # Mirror the pipeline's row-count gate (pipeline.validate): a live fetch
+    # outside the scraper's expected range is itself untrustworthy — a degraded
+    # or truncated page, or a parser regression. Its diff would mislead (a
+    # half-empty page makes us look complete), so record the fetch size and skip
+    # the comparison rather than emit a false "no drift".
+    low, high = scraper.expected_row_range
+    if not (low <= len(rows) <= high):
+        cc.status = "degraded"
+        return cc
 
     live_dates = [r.notice_date for r in live.values() if r.notice_date]
     cc.window_start = min(live_dates) if live_dates else None
@@ -183,14 +194,17 @@ def cross_check_state(
     return cc
 
 
-def cross_check_states(
-    session: Session, *, state_filter: str | None = None
-) -> list[CrossCheck]:
+def cross_check_states(*, state_filter: str | None = None) -> list[CrossCheck]:
     """Cross-check every registered, non-blocked jurisdiction (or one).
 
-    Performs a live network fetch per state. Blocked states have no usable
-    source: they're skipped, unless named explicitly via ``state_filter`` (then
-    reported with status ``blocked`` so the caller sees why nothing came back).
+    Performs a live network fetch per state. Each state's DB read runs in its
+    own short ``session_scope`` so no single transaction is held open across the
+    whole (multi-minute, network-bound) sweep; the caller persists the returned
+    results in a separate short transaction.
+
+    Blocked states have no usable source: they're skipped, unless named
+    explicitly via ``state_filter`` (then reported with status ``blocked`` so the
+    caller sees why nothing came back).
     """
     results: list[CrossCheck] = []
     for code in all_states():
@@ -208,7 +222,8 @@ def cross_check_states(
             )
             continue
         log.info("cross-check %s", code)
-        results.append(cross_check_state(scraper, session))
+        with session_scope() as session:
+            results.append(cross_check_state(scraper, session))
     return results
 
 

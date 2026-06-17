@@ -28,14 +28,14 @@ class FakeScraper:
 
     state = "ZZ"
     source_url = "https://example.test/warn"
-    expected_row_range = (1, 1000)
     required_fields = frozenset({"employer"})
     raw_notice_url_is_pdf = True
 
-    def __init__(self, rows, *, fail=False, parse_fail=False):
+    def __init__(self, rows, *, fail=False, parse_fail=False, expected_range=(1, 1000)):
         self._rows = rows
         self._fail = fail
         self._parse_fail = parse_fail
+        self.expected_row_range = expected_range
 
     def fetch(self) -> bytes:
         if self._fail:
@@ -114,6 +114,20 @@ def test_empty_parse_is_unverifiable(db) -> None:
     assert cc.live_rows == 0
 
 
+def test_live_rows_below_expected_is_degraded_and_skips_diff(db) -> None:
+    # A truncated/degraded page must not read as "no drift": with nothing stored,
+    # these 2 rows would all be missing_from_db, but the fetch is below the
+    # scraper's floor so the diff is skipped.
+    live = [_row("A Co", date(2026, 3, 1)), _row("B Co", date(2026, 3, 15))]
+    _seed(db, [])
+
+    cc = cross_check_state(FakeScraper(live, expected_range=(10, 1000)), db)
+
+    assert cc.status == "degraded"
+    assert cc.live_rows == 2
+    assert cc.missing_from_db == [] and cc.extra_in_db == []
+
+
 def test_future_date_row_matches_by_id_not_missing(db) -> None:
     # MI-style: a future notice_date is stored as effective_date with notice_date
     # rewritten to the scrape date, but notice_id stays hashed from the original
@@ -151,7 +165,7 @@ def _patch_results(monkeypatch, results: list[CrossCheck]) -> None:
     from warn_v2.scripts import cross_check as cc_mod
 
     monkeypatch.setattr(
-        cc_mod, "cross_check_states", lambda session, *, state_filter=None: results
+        cc_mod, "cross_check_states", lambda *, state_filter=None: results
     )
 
 

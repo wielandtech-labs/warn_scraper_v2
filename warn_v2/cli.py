@@ -937,9 +937,12 @@ def cross_check_cmd(
         render_table,
     )
 
-    with session_scope() as session:
-        results = cross_check_states(session, state_filter=state)
-        if not no_store:
+    # cross_check_states does the network sweep, opening a short read session
+    # per state — so we never hold one transaction across the whole run. Persist
+    # the collected results in a single separate short transaction.
+    results = cross_check_states(state_filter=state)
+    if not no_store:
+        with session_scope() as session:
             persist(session, results, checked_at=datetime.now(UTC))
 
     click.echo(render_json(results) if as_json else render_table(results))
