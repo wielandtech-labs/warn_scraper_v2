@@ -20,6 +20,7 @@ import { WarnActPage } from "./routes/content/warn-act";
 import { MethodologyPage } from "./routes/content/methodology";
 import { FaqPage } from "./routes/content/faq";
 import { CitedByPage } from "./routes/content/cited-by";
+import { ApiDocsPage } from "./routes/content/api-docs";
 import { LoginPage } from "./routes/login";
 
 const rootRoute = createRootRoute({
@@ -218,6 +219,11 @@ const citedByRoute = createRoute({
   path: "/cited-by",
   component: CitedByPage,
 });
+const apiDocsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/api-docs",
+  component: ApiDocsPage,
+});
 
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -240,6 +246,7 @@ const routeTree = rootRoute.addChildren([
   methodologyRoute,
   faqRoute,
   citedByRoute,
+  apiDocsRoute,
   loginRoute,
 ]);
 

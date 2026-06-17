@@ -166,7 +166,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <span aria-hidden>·</span>
             <a className="hover:underline" href="/feed.rss">RSS</a>
             <span aria-hidden>·</span>
-            <a className="hover:underline" href="/docs">API docs</a>
+            <Link className="hover:underline" to="/api-docs">Data &amp; API</Link>
           </nav>
           <p>Data from US state WARN Act listings · scraped daily.</p>
         </div>

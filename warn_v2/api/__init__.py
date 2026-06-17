@@ -8,7 +8,17 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from prometheus_client import REGISTRY, make_asgi_app
 
-from warn_v2.api.routes import auth, companies, map_pins, notices, runs, search, seo, stats
+from warn_v2.api.routes import (
+    auth,
+    companies,
+    exports,
+    map_pins,
+    notices,
+    runs,
+    search,
+    seo,
+    stats,
+)
 from warn_v2.observability.collector import WarnCollector
 
 log = logging.getLogger(__name__)
@@ -42,6 +52,9 @@ def create_app() -> FastAPI:
 
     # --- domain routes (all under /api so they don't shadow SPA paths) ---
     app.include_router(auth.router, prefix="/api")
+    # Export routes register before notices/companies so /api/notices/export and
+    # /api/companies/export aren't swallowed by the parametric /{id} routes.
+    app.include_router(exports.router, prefix="/api")
     app.include_router(notices.router, prefix="/api")
     app.include_router(companies.router, prefix="/api")
     app.include_router(runs.router, prefix="/api")
