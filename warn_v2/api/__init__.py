@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from prometheus_client import REGISTRY, make_asgi_app
 
-from warn_v2.api.routes import auth, companies, map_pins, notices, runs, seo, stats
+from warn_v2.api.routes import auth, companies, map_pins, notices, runs, search, seo, stats
 from warn_v2.observability.collector import WarnCollector
 
 log = logging.getLogger(__name__)
@@ -47,6 +47,7 @@ def create_app() -> FastAPI:
     app.include_router(runs.router, prefix="/api")
     app.include_router(stats.router, prefix="/api")
     app.include_router(map_pins.router, prefix="/api")
+    app.include_router(search.router, prefix="/api")
 
     # --- SEO + feeds (site root, not /api): sitemap.xml, robots.txt, RSS ---
     app.include_router(seo.router)

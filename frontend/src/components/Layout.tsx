@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 
 import { api } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
+import { SearchBox } from "./SearchBox";
 
 const NAV = [
   { to: "/", label: "Dashboard" },
@@ -86,6 +87,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 </Link>
               ))}
             </nav>
+            <SearchBox />
             <AccountArea />
           </div>
           {/* Mobile hamburger (below md). */}
@@ -123,6 +125,9 @@ export function Layout({ children }: { children: ReactNode }) {
         {/* Mobile dropdown panel. */}
         {mobileOpen && (
           <div className="border-t border-slate-200 px-4 py-3 md:hidden">
+            <div className="mb-3">
+              <SearchBox />
+            </div>
             <nav className="flex flex-col gap-1">
               {NAV.map((item) => (
                 <Link

@@ -75,6 +75,24 @@ export interface Page<T> {
   offset: number;
 }
 
+// /search responses
+export interface SearchCompanyOut {
+  id: number;
+  name: string;
+}
+
+export interface SearchNoticeOut {
+  notice_id: string;
+  employer: string;
+  state: string;
+  notice_date: string | null;
+}
+
+export interface SearchResults {
+  companies: SearchCompanyOut[];
+  notices: SearchNoticeOut[];
+}
+
 // /stats responses
 export interface StateStat {
   state: string;
