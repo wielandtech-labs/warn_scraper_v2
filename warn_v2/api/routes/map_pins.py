@@ -26,9 +26,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from warn_v2.api.deps import get_db
+from warn_v2.api.filters import apply_notice_filters
 from warn_v2.api.schemas import MapPinOut
-from warn_v2.companies.naics import naics_filter
-from warn_v2.db.models import Company, Location, Notice
+from warn_v2.db.models import Location, Notice
 
 router = APIRouter(prefix="/map-pins", tags=["map"])
 
@@ -79,19 +79,19 @@ def list_map_pins(
         .order_by(Notice.notice_date.desc().nullslast(), Notice.scraped_at.desc())
     )
 
-    if state:
-        stmt = stmt.where(Notice.state == state.upper())
-    if closure_category:
-        stmt = stmt.where(Notice.closure_category == closure_category)
-    industry_filter = naics_filter(Company.naics_code, industry, subsector)
-    if industry_filter is not None:
-        # Inner-join the linked company; un-enriched notices (no NAICS) are
-        # correctly excluded when an industry filter is active.
-        stmt = stmt.join(Company, Notice.company_id == Company.id).where(industry_filter)
-    if after:
-        stmt = stmt.where(Notice.notice_date >= after)
-    if before:
-        stmt = stmt.where(Notice.notice_date <= before)
+    # Location is already joined above (lat/lon are projected and required
+    # non-null), so location_joined=True avoids a duplicate join. An industry
+    # filter inner-joins Company, correctly excluding un-enriched notices.
+    stmt = apply_notice_filters(
+        stmt,
+        state=state,
+        closure_category=closure_category,
+        industry=industry,
+        subsector=subsector,
+        after=after,
+        before=before,
+        location_joined=True,
+    )
     # Viewport filter: only applied when the full box is provided. Lets the map
     # request just the visible pins as the user pans/zooms (antimeridian-crossing
     # boxes aren't handled — irrelevant for the contiguous US + mainland AK).

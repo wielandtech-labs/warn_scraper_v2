@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from prometheus_client import REGISTRY, make_asgi_app
 
-from warn_v2.api.routes import auth, companies, map_pins, notices, runs, stats
+from warn_v2.api.routes import auth, companies, map_pins, notices, runs, seo, stats
 from warn_v2.observability.collector import WarnCollector
 
 log = logging.getLogger(__name__)
@@ -48,37 +48,67 @@ def create_app() -> FastAPI:
     app.include_router(stats.router, prefix="/api")
     app.include_router(map_pins.router, prefix="/api")
 
+    # --- SEO + feeds (site root, not /api): sitemap.xml, robots.txt, RSS ---
+    app.include_router(seo.router)
+
     # --- SPA static assets (mounted LAST so API routes take precedence) ---
     # In dev (no built bundle) the directory won't exist; skip silently.
     from pathlib import Path
     from typing import Any
 
     from fastapi.staticfiles import StaticFiles
-    from starlette.responses import Response
+    from starlette.responses import HTMLResponse, Response
+
+    from warn_v2.api.seo import page_meta_for_path, render_index
 
     static_dir = Path(__file__).parent / "static"
     if static_dir.exists():
 
         class SPAStaticFiles(StaticFiles):
-            """StaticFiles subclass that falls back to index.html for any path
-            not found on disk — required for React client-side routing so that
-            a hard refresh on /notices, /map, /stats, etc. returns the SPA
-            rather than FastAPI's JSON 404 response.
+            """StaticFiles subclass that serves the React SPA's index.html with
+            per-route SEO metadata injected.
+
+            Two jobs:
+            1. Client-side routing fallback — a hard refresh on /notices, /map,
+               /states/CA, etc. has no file on disk, so we serve index.html
+               instead of FastAPI's JSON 404.
+            2. SEO — the served index.html gets its <title>/description and
+               canonical/OG/JSON-LD tags rewritten for the requested path (see
+               warn_v2.api.seo), so crawlers and unfurlers see correct per-page
+               metadata despite the body being client-rendered.
+
+            Real asset requests (.js/.css/.svg/...) are served untouched.
 
             Important: StaticFiles raises starlette.exceptions.HTTPException
             (the base class), not fastapi.HTTPException (its subclass), so we
             must catch the Starlette variant here.
             """
 
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
+                super().__init__(*args, **kwargs)
+                self._index_html = (Path(self.directory) / "index.html").read_text(
+                    encoding="utf-8"
+                )
+
+            def _render_index(self, scope: Any) -> Response:
+                meta = page_meta_for_path(scope.get("path", "/"))
+                return HTMLResponse(render_index(self._index_html, meta))
+
             async def get_response(self, path: str, scope: Any) -> Response:
                 from starlette.exceptions import HTTPException as _StarletteHTTPException
 
+                req_path = scope.get("path", "/")
                 try:
-                    return await super().get_response(path, scope)
+                    resp = await super().get_response(path, scope)
                 except _StarletteHTTPException as exc:
                     if exc.status_code == 404:
-                        return await super().get_response("index.html", scope)
+                        return self._render_index(scope)
                     raise
+                # The root request resolves to index.html on disk; re-render it
+                # with the homepage metadata so "/" gets canonical/OG tags too.
+                if req_path == "/":
+                    return self._render_index(scope)
+                return resp
 
         app.mount("/", SPAStaticFiles(directory=static_dir, html=True), name="ui")
 

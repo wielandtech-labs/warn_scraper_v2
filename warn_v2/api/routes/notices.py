@@ -11,9 +11,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from warn_v2.api.deps import PaginationParams, ViewerSchemas, get_db
+from warn_v2.api.filters import apply_notice_filters
 from warn_v2.api.schemas import Page
-from warn_v2.companies.naics import naics_filter
-from warn_v2.db.models import Company, Location, Notice
+from warn_v2.db.models import Notice
 
 router = APIRouter(prefix="/notices", tags=["notices"])
 
@@ -65,36 +65,19 @@ def list_notices(
     )
     count_stmt = select(func.count()).select_from(Notice).where(Notice.is_superseded.is_(False))
 
-    if state:
-        stmt = stmt.where(Notice.state == state.upper())
-        count_stmt = count_stmt.where(Notice.state == state.upper())
-    if employer:
-        pattern = f"%{employer}%"
-        stmt = stmt.where(Notice.employer.ilike(pattern))
-        count_stmt = count_stmt.where(Notice.employer.ilike(pattern))
-    if closure_category:
-        stmt = stmt.where(Notice.closure_category == closure_category)
-        count_stmt = count_stmt.where(Notice.closure_category == closure_category)
-    industry_filter = naics_filter(Company.naics_code, industry, subsector)
-    if industry_filter is not None:
-        stmt = stmt.join(Company, Notice.company_id == Company.id).where(industry_filter)
-        count_stmt = count_stmt.join(
-            Company, Notice.company_id == Company.id
-        ).where(industry_filter)
-    if after:
-        stmt = stmt.where(Notice.notice_date >= after)
-        count_stmt = count_stmt.where(Notice.notice_date >= after)
-    if before:
-        stmt = stmt.where(Notice.notice_date <= before)
-        count_stmt = count_stmt.where(Notice.notice_date <= before)
-    if geocoded_only:
-        # Join to locations and require non-null lat/lon.
-        stmt = stmt.join(Location, Notice.location_id == Location.id).where(
-            Location.lat.is_not(None), Location.lon.is_not(None)
-        )
-        count_stmt = count_stmt.join(Location, Notice.location_id == Location.id).where(
-            Location.lat.is_not(None), Location.lon.is_not(None)
-        )
+    # Same filters applied to the page query and its count (see warn_v2.api.filters).
+    filters = dict(
+        state=state,
+        employer=employer,
+        closure_category=closure_category,
+        industry=industry,
+        subsector=subsector,
+        after=after,
+        before=before,
+        geocoded_only=geocoded_only,
+    )
+    stmt = apply_notice_filters(stmt, **filters)
+    count_stmt = apply_notice_filters(count_stmt, **filters)
 
     total = db.scalar(count_stmt) or 0
     items = list(db.scalars(stmt.offset(pagination.offset).limit(pagination.limit)))
