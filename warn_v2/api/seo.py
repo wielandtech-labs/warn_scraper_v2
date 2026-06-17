@@ -126,6 +126,7 @@ def _head_tags(meta: PageMeta) -> str:
     t = escape(meta.title, quote=True)
     d = escape(meta.description, quote=True)
     url = escape(meta.canonical, quote=True)
+    feed = escape(site_base_url(), quote=True) + "/feed.rss"
     return (
         f'\n    <link rel="canonical" href="{url}" />'
         f'\n    <meta property="og:type" content="website" />'
@@ -136,7 +137,7 @@ def _head_tags(meta: PageMeta) -> str:
         f'\n    <meta name="twitter:title" content="{t}" />'
         f'\n    <meta name="twitter:description" content="{d}" />'
         f'\n    <link rel="alternate" type="application/rss+xml" '
-        f'title="WARN Tracker — latest notices" href="{escape(site_base_url(), quote=True)}/feed.rss" />'
+        f'title="WARN Tracker — latest notices" href="{feed}" />'
     )
 
 

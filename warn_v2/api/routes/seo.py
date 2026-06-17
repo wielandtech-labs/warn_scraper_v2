@@ -6,7 +6,7 @@ take precedence over the SPA static mount.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from xml.etree.ElementTree import Element, SubElement, tostring
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -72,7 +72,7 @@ def _rss(title: str, description: str, path: str, notices: list[Notice]) -> Resp
         SubElement(item, "description").text = "; ".join(parts) or "WARN notice"
         if n.notice_date:
             dt = datetime(n.notice_date.year, n.notice_date.month, n.notice_date.day,
-                          tzinfo=timezone.utc)
+                          tzinfo=UTC)
             SubElement(item, "pubDate").text = dt.strftime(_HTTP_DATE)
     xml = b'<?xml version="1.0" encoding="UTF-8"?>\n' + tostring(rss, encoding="utf-8")
     return Response(content=xml, media_type="application/rss+xml")
