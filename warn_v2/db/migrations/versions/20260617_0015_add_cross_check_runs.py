@@ -4,8 +4,8 @@ Written by ``warn-v2 cross-check``: each row records one live-page-vs-DB diff
 for a state (missing_from_db / extra_in_db counts + a sampled JSON slice).
 Alerting reads this table, the same pattern as scraper_runs.
 
-Revision ID: o6e7f8a9b0c1
-Revises: n5d6e7f8a9b0
+Revision ID: p7f8a9b0c1d2
+Revises: o6e7f8a9b0c1
 Create Date: 2026-06-17 00:00:00.000000
 """
 from __future__ import annotations
@@ -15,8 +15,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "o6e7f8a9b0c1"
-down_revision: str | None = "n5d6e7f8a9b0"
+revision: str = "p7f8a9b0c1d2"
+down_revision: str | None = "o6e7f8a9b0c1"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
