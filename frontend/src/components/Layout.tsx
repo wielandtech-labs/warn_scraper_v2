@@ -9,6 +9,7 @@ const NAV = [
   { to: "/", label: "Dashboard" },
   { to: "/notices", label: "Notices" },
   { to: "/companies", label: "Companies" },
+  { to: "/states", label: "States" },
   { to: "/map", label: "Map" },
   { to: "/stats", label: "Stats" },
 ];
@@ -144,8 +145,17 @@ export function Layout({ children }: { children: ReactNode }) {
       </header>
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
       <footer className="border-t border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-3 text-xs text-slate-500">
-          Data from US state WARN Act listings · scraped daily ·{" "}
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-xs text-slate-500">
+          <span>Data from US state WARN Act listings · scraped daily</span>
+          <span aria-hidden>·</span>
+          <Link className="hover:underline" to="/states">
+            Browse states
+          </Link>
+          <span aria-hidden>·</span>
+          <a className="hover:underline" href="/feed.rss">
+            RSS
+          </a>
+          <span aria-hidden>·</span>
           <a className="hover:underline" href="/docs">
             API docs
           </a>

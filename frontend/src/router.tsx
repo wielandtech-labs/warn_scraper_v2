@@ -13,6 +13,8 @@ import { CompaniesPage } from "./routes/companies";
 import { CompanyDetail } from "./routes/company-detail";
 import { MapPage } from "./routes/map";
 import { StatsPage } from "./routes/stats";
+import { StatesIndexPage } from "./routes/states-index";
+import { StateDetailPage } from "./routes/state-detail";
 import { LoginPage } from "./routes/login";
 
 const rootRoute = createRootRoute({
@@ -172,6 +174,18 @@ const statsRoute = createRoute({
   component: StatsPage,
 });
 
+const statesIndexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/states",
+  component: StatesIndexPage,
+});
+
+const stateDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/states/$state",
+  component: StateDetailPage,
+});
+
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
@@ -186,6 +200,8 @@ const routeTree = rootRoute.addChildren([
   companyDetailRoute,
   mapRoute,
   statsRoute,
+  statesIndexRoute,
+  stateDetailRoute,
   loginRoute,
 ]);
 
