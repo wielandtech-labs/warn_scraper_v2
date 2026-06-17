@@ -18,6 +18,7 @@ from warn_v2.api.routes import (
     search,
     seo,
     stats,
+    subscriptions,
 )
 from warn_v2.observability.collector import WarnCollector
 
@@ -61,6 +62,7 @@ def create_app() -> FastAPI:
     app.include_router(stats.router, prefix="/api")
     app.include_router(map_pins.router, prefix="/api")
     app.include_router(search.router, prefix="/api")
+    app.include_router(subscriptions.router, prefix="/api")
 
     # --- SEO + feeds (site root, not /api): sitemap.xml, robots.txt, RSS ---
     app.include_router(seo.router)

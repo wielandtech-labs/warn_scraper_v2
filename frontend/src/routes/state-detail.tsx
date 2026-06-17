@@ -11,6 +11,7 @@ import {
 } from "recharts";
 
 import { api } from "../api/client";
+import { AlertSignup } from "../components/AlertSignup";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { STATE_NAMES, fmtDate, fmtMonth, fmtNum, stateName } from "../lib/format";
 
@@ -104,6 +105,8 @@ export function StateDetailPage() {
           </div>
         </div>
       </div>
+
+      <AlertSignup state={code} />
 
       <div className="card">
         <h2 className="mb-3 text-lg font-semibold">Notices and layoffs by month</h2>

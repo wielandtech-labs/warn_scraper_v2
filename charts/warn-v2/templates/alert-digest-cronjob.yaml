@@ -1,0 +1,32 @@
+{{- if .Values.alertDigest.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "warn-v2.fullname" . }}-alert-digest
+  labels:
+    {{- include "warn-v2.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.alertDigest.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            {{- include "warn-v2.labels" . | nindent 12 }}
+            app.kubernetes.io/component: alert-digest
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: alert-digest
+              image: {{ include "warn-v2.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              args: ["send-alert-digest"]
+              env:
+                {{- include "warn-v2.envSecrets" . | nindent 16 }}
+              resources:
+                {{- toYaml .Values.alertDigest.resources | nindent 16 }}
+{{- end }}

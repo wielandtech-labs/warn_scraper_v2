@@ -197,4 +197,12 @@ export const api = {
   // ---------- Search ----------
   search: (q: string, limit = 8) =>
     get<SearchResults>("/api/search" + qs({ q, limit })),
+
+  // ---------- Alert subscriptions ----------
+  createSubscription: (body: {
+    email: string;
+    state?: string;
+    industry?: string;
+    employer_query?: string;
+  }) => post<{ status: string; message: string }>("/api/subscriptions", body),
 };
