@@ -145,5 +145,18 @@ noticeEnricher:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 500m, memory: 512Mi }
 
+# Daily source cross-check (cross-check). Re-fetches each state's live WARN page
+# and diffs it against stored notices, recording drift to cross_check_runs.
+# Read-only against notices; like the scraper it alerts off the table, not the
+# Job exit code, so it omits --fail-on-drift. Scheduled ~2h after the scraper so
+# the nightly scrape has populated before we compare (else fresh-but-unscraped
+# notices inflate missing_from_db).
+crossCheck:
+  enabled: false          # flip on in HelmRelease
+  schedule: "17 9 * * *"  # daily 09:17, ~2h after the scraper 07:17
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: 1000m, memory: 1Gi }
+
 migrations:
   enabled: true   # set false only if you manage migrations out-of-band

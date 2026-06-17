@@ -175,3 +175,26 @@ class ScraperRun(Base):
     # ok | fetch_failed | parse_failed | validation_failed | storage_failed
     error: Mapped[str | None] = mapped_column(Text)
     snapshot_path: Mapped[str | None] = mapped_column(String(1024))
+
+
+class CrossCheckRun(Base):
+    """One source-cross-check pass for a state: live page vs. stored notices.
+
+    Written by ``warn-v2 cross-check`` (see scripts/cross_check.py). The counts
+    are the alertable signal — sustained ``missing_from_db`` on a state means we
+    stopped capturing rows the source still publishes. ``sample`` holds a small
+    JSON slice of the drift rows for triage, not a full mirror.
+    """
+
+    __tablename__ = "cross_check_runs"
+
+    id: Mapped[int] = mapped_column(BigIntPK, primary_key=True, autoincrement=True)
+    state: Mapped[str] = mapped_column(String(2), nullable=False, index=True)
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    # ok | fetch_failed | parse_failed | empty | blocked
+    live_rows: Mapped[int | None] = mapped_column(Integer)
+    db_active: Mapped[int | None] = mapped_column(Integer)
+    missing_from_db: Mapped[int | None] = mapped_column(Integer)
+    extra_in_db: Mapped[int | None] = mapped_column(Integer)
+    sample: Mapped[str | None] = mapped_column(Text)

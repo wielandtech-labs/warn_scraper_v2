@@ -99,7 +99,7 @@ The scraper runs in a K3s homelab cluster managed by Flux GitOps (see
   app uses `postgres-cluster-rw.database.svc.cluster.local:5432/warn_v2`
 - **Alembic**: initial migration (`revision a1b2c3d4e5f6`) ran 2026-05-26;
   all four tables live (`locations`, `companies`, `notices`, `scraper_runs`)
-- **CronJobs**: `warn-v2-warn-v2-scraper` runs daily at 07:17 (`scrape-all`); `warn-v2-warn-v2-enricher` runs every 6 h at `:23` (`enrich`, 50 companies/run, 30 s between companies)
+- **CronJobs**: `warn-v2-warn-v2-scraper` runs daily at 07:17 (`scrape-all`); `warn-v2-warn-v2-enricher` runs every 6 h at `:23` (`enrich`, 50 companies/run, 30 s between companies); `warn-v2-warn-v2-cross-check` (opt-in via `crossCheck.enabled`) runs daily at 09:17 (`cross-check`), re-fetching each state's live WARN page and recording drift vs. stored notices to `cross_check_runs`
 - **Snapshots PVC**: `synostorage-iscsi-retain`, 10 Gi, mounted at `/var/snapshots`
 
 **Secrets in `warn-v2` namespace** (all SealedSecrets, reconciled by Flux):
