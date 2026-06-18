@@ -161,12 +161,14 @@ crossCheck:
 # Transactional email for alert subscriptions. SMTP implicit TLS (port 465);
 # the password comes from a SealedSecret, everything else is plain config.
 smtp:
-  enabled: false                      # flip on in HelmRelease once warn-v2-smtp exists
-  host: mail.wielandtech.com
-  port: 465
-  username: no-reply@wielandtech.com
-  from: no-reply@wielandtech.com
-  secretName: warn-v2-smtp            # SealedSecret with a `password` key
+  enabled: false              # flip on in HelmRelease once warn-v2-smtp exists
+  port: 465                   # implicit TLS (SMTP_SSL)
+  # host, username, and password all live in the warn-v2-smtp SealedSecret —
+  # the real SMTP auth user/host differ from the no-reply@ From address (same
+  # creds the w_tech website uses). Seal the secret with these three keys.
+  secretName: warn-v2-smtp
+  hostKey: host
+  usernameKey: username
   passwordKey: password
 
 # Daily email digest of new WARN notices for confirmed subscribers
