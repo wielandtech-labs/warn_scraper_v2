@@ -50,14 +50,22 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version }}
 - name: SITE_BASE_URL
   value: {{ printf "https://%s" .Values.api.ingress.host | quote }}
 {{- if .Values.smtp.enabled }}
+# Host, username, and password all come from the warn-v2-smtp SealedSecret, to
+# match the (working) w_tech website setup whose SMTP auth user/host differ from
+# the no-reply@ From address. SMTP_FROM is intentionally unset so the app
+# defaults From to SMTP_USERNAME (mirrors Django's DEFAULT_FROM_EMAIL=EMAIL_HOST_USER).
 - name: SMTP_HOST
-  value: {{ .Values.smtp.host | quote }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.smtp.secretName }}
+      key: {{ .Values.smtp.hostKey }}
 - name: SMTP_PORT
   value: {{ .Values.smtp.port | quote }}
 - name: SMTP_USERNAME
-  value: {{ .Values.smtp.username | quote }}
-- name: SMTP_FROM
-  value: {{ .Values.smtp.from | quote }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.smtp.secretName }}
+      key: {{ .Values.smtp.usernameKey }}
 - name: SMTP_PASSWORD
   valueFrom:
     secretKeyRef:
