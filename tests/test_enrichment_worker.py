@@ -655,3 +655,86 @@ def test_full_cascade_still_falls_through(db, monkeypatch) -> None:
     db.refresh(c)
     assert c.enrichment_source == "claude"
     assert c.provider_attempted_at is not None
+
+
+def test_provider_unavailable_does_not_stamp_and_pauses_run(db, monkeypatch) -> None:
+    """An infrastructure failure (session trip / cap / cooldown) must NOT burn a
+    company's one provider shot: the row is left un-attempted (so a healthy run
+    retries it), and the provider is not called again for the rest of the run."""
+    from warn_v2.enrichment.provider import ProviderUnavailable
+
+    class _UnavailableProvider:
+        def __init__(self):
+            self.calls: list[str] = []
+
+        def lookup(self, company_name: str, state):
+            self.calls.append(company_name)
+            raise ProviderUnavailable("session tripped")
+
+        def close(self) -> None:
+            pass
+
+    c1 = _company(db, name="Boeing Company")
+    c2 = _company(db, name="Cisco Systems, Inc.")
+    db.commit()
+
+    provider = _UnavailableProvider()
+    stats = enrich_batch(
+        db, _StubClient(), provider=provider, inter_delay_s=0, tiers={"provider"}
+    )
+    # Nothing counted as a miss or skip; the provider was called once then paused.
+    assert stats["provider_miss"] == 0
+    assert stats["enriched"] == 0
+    assert stats["skipped"] == 0
+    assert provider.calls == ["Boeing Company"]  # second company never tried
+
+    db.refresh(c1)
+    db.refresh(c2)
+    assert c1.provider_attempted_at is None  # NOT burned
+    assert c2.provider_attempted_at is None
+
+    # A subsequent healthy run still finds and attempts both (they were queued).
+    healthy = _MissProviderCounting()
+    stats2 = enrich_batch(
+        db, _StubClient(), provider=healthy, inter_delay_s=0, tiers={"provider"}
+    )
+    assert stats2["total"] == 2
+    assert sorted(healthy.calls) == ["Boeing Company", "Cisco Systems, Inc."]
+    db.refresh(c1)
+    assert c1.provider_attempted_at is not None  # now a genuine attempt stamps
+
+
+def test_provider_unavailable_falls_through_to_backup_in_mixed_run(db, monkeypatch) -> None:
+    """In a mixed run, an unavailable provider still lets EDGAR/Claude enrich the
+    company — without stamping a (false) provider attempt."""
+    from warn_v2.enrichment.provider import ProviderUnavailable
+
+    monkeypatch.setattr(
+        "warn_v2.enrichment.lookup.edgar_lookup", lambda name, state=None: None
+    )
+    monkeypatch.setattr(
+        "warn_v2.enrichment.worker.run_enrichment",
+        lambda ctx, client, **kw: EnrichmentResult(
+            proposed=True, website="https://z.example", confidence=0.9, sources=[]
+        ),
+    )
+
+    class _UnavailableProvider:
+        def lookup(self, company_name: str, state):
+            raise ProviderUnavailable("daily cap reached")
+
+        def close(self) -> None:
+            pass
+
+    c = _company(db, name="Boeing Company")
+    db.commit()
+
+    stats = enrich_batch(
+        db, _StubClient(), provider=_UnavailableProvider(), inter_delay_s=0,
+        tiers={"provider", "edgar", "claude"},
+    )
+    assert stats["provider_miss"] == 0
+    assert stats["claude"] == 1
+    db.refresh(c)
+    assert c.enrichment_source == "claude"
+    assert c.provider_attempted_at is None  # provider never actually searched it

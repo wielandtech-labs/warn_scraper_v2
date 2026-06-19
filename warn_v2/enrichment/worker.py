@@ -29,7 +29,11 @@ from warn_v2.enrichment.agent import (
     result_to_confidence_decimal,
     run_enrichment,
 )
-from warn_v2.enrichment.provider import EnrichmentProvider, ProviderResult
+from warn_v2.enrichment.provider import (
+    EnrichmentProvider,
+    ProviderResult,
+    ProviderUnavailable,
+)
 
 log = logging.getLogger(__name__)
 
@@ -267,6 +271,9 @@ def enrich_batch(
     stats_provider_rejected = 0
     stats_edgar = 0
     stats_claude = 0
+    # Once the provider signals it can't search (session trip, cap, cooldown),
+    # every later company in this run would trip too — stop calling it.
+    provider_ok = True
 
     for i, company in enumerate(companies):
         # Only apply the inter-company delay before Claude calls (free tiers are fast).
@@ -281,12 +288,8 @@ def enrich_batch(
         # ------------------------------------------------------------------ #
         # Tier 1: external provider plugin
         # ------------------------------------------------------------------ #
-        if "provider" in tiers and provider is not None:
-            if not dry_run:
-                # Stamp the attempt (hit or miss) so provider-only runs drain
-                # the queue instead of retrying the same misses every run.
-                company.provider_attempted_at = datetime.now(UTC)
-
+        if "provider" in tiers and provider is not None and provider_ok:
+            attempted = True
             if is_unsearchable(query):
                 # Aggressive cleaning collapsed the name to a lone generic token
                 # ("Alliance"); a lookup would only match by luck — treat as a miss.
@@ -298,43 +301,75 @@ def enrich_batch(
             else:
                 try:
                     pr = provider.lookup(query, state)
+                except ProviderUnavailable as e:
+                    # The provider could not actually search this company (session
+                    # trip, cap, cooldown, transport error). Don't burn its one
+                    # shot: leave it un-attempted so a healthy run retries it, and
+                    # stop calling the provider for the rest of this run.
+                    log.warning(
+                        "company_id=%d name=%r: provider unavailable (%s); "
+                        "pausing provider tier for this run",
+                        company.id, company.name, e,
+                    )
+                    provider_ok = False
+                    attempted = False
+                    pr = None
                 except Exception:
-                    log.exception("provider.lookup failed for company_id=%d name=%r",
-                                  company.id, company.name)
+                    # An unexpected error is not evidence the company is absent —
+                    # treat it like unavailability so we never burn the one shot.
+                    log.exception(
+                        "provider.lookup failed for company_id=%d name=%r; "
+                        "pausing provider tier for this run",
+                        company.id, company.name,
+                    )
+                    provider_ok = False
+                    attempted = False
                     pr = None
 
-            # Certainty guard: a heavily-stripped query can resolve to an
-            # unrelated company. Only accept a hit that shares a distinctive
-            # token with the ORIGINAL WARN name; otherwise reject (no DUNS).
-            rejected = pr is not None and not match_is_consistent(company.name, pr.entity_name)
-            if rejected:
-                log.warning(
-                    "company_id=%d name=%r: rejected provider match entity=%r conf=%.2f "
-                    "(shares no distinctive token with original)",
-                    company.id, company.name, pr.entity_name, pr.confidence,
-                )
-                pr = None
-
-            if pr is not None:
-                log.info(
-                    "company_id=%d name=%r: provider hit duns=%r sic=%r naics=%r conf=%.2f",
-                    company.id, company.name, pr.duns, pr.sic_code, pr.naics_code, pr.confidence,
-                )
+            if attempted:
                 if not dry_run:
-                    _persist_provider_result(session, company, pr)
-                enriched += 1
-                stats_provider += 1
-                continue
+                    # Stamp only a real attempt (hit or genuine miss) so
+                    # provider-only runs drain the queue without retrying the
+                    # same misses — but an unavailable provider above never
+                    # reaches here, so a trip can't poison the queue.
+                    company.provider_attempted_at = datetime.now(UTC)
 
-            if rejected:
-                stats_provider_rejected += 1
-            else:
-                stats_provider_miss += 1
-            if not dry_run:
-                session.commit()  # persist the miss stamp
+                # Certainty guard: a heavily-stripped query can resolve to an
+                # unrelated company. Only accept a hit that shares a distinctive
+                # token with the ORIGINAL WARN name; otherwise reject (no DUNS).
+                rejected = pr is not None and not match_is_consistent(
+                    company.name, pr.entity_name
+                )
+                if rejected:
+                    log.warning(
+                        "company_id=%d name=%r: rejected provider match entity=%r conf=%.2f "
+                        "(shares no distinctive token with original)",
+                        company.id, company.name, pr.entity_name, pr.confidence,
+                    )
+                    pr = None
+
+                if pr is not None:
+                    log.info(
+                        "company_id=%d name=%r: provider hit duns=%r sic=%r naics=%r conf=%.2f",
+                        company.id, company.name, pr.duns, pr.sic_code, pr.naics_code, pr.confidence,
+                    )
+                    if not dry_run:
+                        _persist_provider_result(session, company, pr)
+                    enriched += 1
+                    stats_provider += 1
+                    continue
+
+                if rejected:
+                    stats_provider_rejected += 1
+                else:
+                    stats_provider_miss += 1
+                if not dry_run:
+                    session.commit()  # persist the miss stamp
+
             if not (tiers & {"edgar", "claude"}):
                 # Provider-only main flow: leave unenriched for a later
-                # backup-tier run rather than degrading to thin data.
+                # backup-tier run rather than degrading to thin data. (Also the
+                # path for an unavailable provider — the company stays queued.)
                 continue
 
         # ------------------------------------------------------------------ #
