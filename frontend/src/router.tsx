@@ -87,8 +87,8 @@ const validateCompaniesSearch = (
   industry: (search.industry as string) || undefined,
   subsector: (search.subsector as string) || undefined,
   page: search.page ? Number(search.page) : undefined,
-  sort_by: (search.sort_by as string) || "name",
-  sort_dir: search.sort_dir === "desc" ? "desc" : "asc",
+  sort_by: (search.sort_by as string) || "layoff_total",
+  sort_dir: search.sort_dir === "asc" ? "asc" : "desc",
 });
 
 const noticesRoute = createRoute({
