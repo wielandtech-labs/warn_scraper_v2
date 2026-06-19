@@ -65,8 +65,8 @@ function CompaniesView() {
   const search = useSearch({ from: "/companies" });
   const page = search.page ?? 1;
   const offset = (page - 1) * PAGE_SIZE;
-  const sortBy = search.sort_by ?? "name";
-  const sortDir = search.sort_dir ?? "asc";
+  const sortBy = search.sort_by ?? "layoff_total";
+  const sortDir = search.sort_dir ?? "desc";
 
   // Exactly what the API call uses — keying the cache on anything more
   // (e.g. the whole search object) causes spurious misses on unrelated keys.
