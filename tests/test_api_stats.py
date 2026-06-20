@@ -169,6 +169,20 @@ def test_over_time_day_bucket(api_client, db):
     assert periods["2026-01-06"]["layoff_total"] == 40
 
 
+def test_over_time_year_bucket(api_client, db):
+    _notice(db, state="CA", employer="A", notice_date=date(2024, 3, 1), layoff_count=10)
+    _notice(db, state="CA", employer="B", notice_date=date(2024, 9, 1), layoff_count=25)
+    _notice(db, state="CA", employer="C", notice_date=date(2025, 2, 1), layoff_count=40)
+    db.commit()
+
+    body = api_client.get("/api/stats/over-time?bucket=year").json()
+    periods = {r["period"]: r for r in body}
+    assert periods["2024"]["notice_count"] == 2
+    assert periods["2024"]["layoff_total"] == 35
+    assert periods["2025"]["notice_count"] == 1
+    assert periods["2025"]["layoff_total"] == 40
+
+
 def test_over_time_defaults_to_month(api_client, db):
     _notice(db, state="CA", employer="A", notice_date=date(2026, 1, 5), layoff_count=10)
     db.commit()

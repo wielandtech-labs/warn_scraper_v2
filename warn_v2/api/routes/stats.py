@@ -227,7 +227,7 @@ def by_month(
 
 @router.get("/over-time", response_model=list[PeriodStat])
 def over_time(
-    bucket: str = Query("month", description="Time bucket: day | month"),
+    bucket: str = Query("month", description="Time bucket: day | month | year"),
     state: str | None = Query(None, description="Restrict to one state"),
     closure_category: str | None = Query(
         None, description="Normalized closure type: Closure | Layoff"
@@ -238,11 +238,12 @@ def over_time(
     before: date | None = Query(None, description="Only notices on or before this date"),
     db: Session = Depends(get_db),
 ) -> list[PeriodStat]:
-    """Notice/layoff counts bucketed by day or month — drives the dashboard and
-    state-page time-series charts. Daily buckets suit the 30-day window; monthly
-    buckets suit the 1-year window. Same filters as /by-month.
+    """Notice/layoff counts bucketed by day, month, or year — drives the dashboard
+    and state-page time-series charts. Daily buckets suit the 30-day window,
+    monthly the 1-year/5-year windows, yearly the all-time view. Same filters as
+    /by-month.
     """
-    substr_len = 10 if bucket == "day" else 7
+    substr_len = {"day": 10, "year": 4}.get(bucket, 7)
     rows = _aggregate_over_time(
         db,
         substr_len=substr_len,
