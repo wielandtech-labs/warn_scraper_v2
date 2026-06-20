@@ -14,6 +14,7 @@ import type {
   NoticeOut,
   Page,
   ParentGroupStat,
+  PeriodStat,
   ScraperRunOut,
   SearchResults,
   StateStat,
@@ -178,6 +179,17 @@ export const api = {
       before?: string;
     } = {},
   ) => get<MonthStat[]>("/api/stats/by-month" + qs(q)),
+  statsOverTime: (
+    q: {
+      bucket?: "day" | "month";
+      state?: string;
+      closure_category?: string;
+      industry?: string;
+      subsector?: string;
+      after?: string;
+      before?: string;
+    } = {},
+  ) => get<PeriodStat[]>("/api/stats/over-time" + qs(q)),
   statsTopEmployers: (
     q: {
       limit?: number;
@@ -192,7 +204,14 @@ export const api = {
   statsByParentGroup: (
     q: { limit?: number; state?: string; after?: string; before?: string } = {},
   ) => get<ParentGroupStat[]>("/api/stats/by-parent-group" + qs(q)),
-  statsIndustries: () => get<IndustryStat[]>("/api/stats/industries"),
+  statsIndustries: (
+    q: {
+      state?: string;
+      closure_category?: string;
+      after?: string;
+      before?: string;
+    } = {},
+  ) => get<IndustryStat[]>("/api/stats/industries" + qs(q)),
 
   // ---------- Search ----------
   search: (q: string, limit = 8) =>
