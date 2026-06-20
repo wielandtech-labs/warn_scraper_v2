@@ -20,7 +20,7 @@ import {
   type TimeRange,
 } from "../components/TimeRangeToggle";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import { STATE_NAMES, fmtDate, fmtMonth, fmtNum, stateName } from "../lib/format";
+import { STATE_NAMES, fmtDate, fmtNum, fmtPeriod, stateName } from "../lib/format";
 
 export function StateDetailPage() {
   const { state } = useParams({ from: "/states/$state" });
@@ -32,7 +32,7 @@ export function StateDetailPage() {
     valid ? `${name} layoffs & WARN notices — WARN Tracker` : "Unknown state — WARN Tracker",
   );
 
-  const [range, setRange] = useState<TimeRange>("1y");
+  const [range, setRange] = useState<TimeRange>("all");
   const { after, bucket } = toRangeQuery(range);
 
   // Hooks must run unconditionally; `enabled` keeps them idle for bad codes.
@@ -73,7 +73,7 @@ export function StateDetailPage() {
   const layoffTotal = row?.layoff_total ?? 0;
   const timeData = (overTime.data ?? []).map((r) => ({
     ...r,
-    label: bucket === "day" ? fmtDate(r.period) : fmtMonth(r.period),
+    label: fmtPeriod(r.period, bucket),
   }));
 
   return (

@@ -21,10 +21,10 @@ import {
   toRangeQuery,
   type TimeRange,
 } from "../components/TimeRangeToggle";
-import { fmtDate, fmtMonth, fmtNum } from "../lib/format";
+import { fmtDate, fmtNum, fmtPeriod } from "../lib/format";
 
 export function Dashboard() {
-  const [range, setRange] = useState<TimeRange>("1y");
+  const [range, setRange] = useState<TimeRange>("all");
   const { after, bucket } = toRangeQuery(range);
 
   const recent = useQuery({
@@ -58,7 +58,7 @@ export function Dashboard() {
 
   const timeData = (overTime.data ?? []).map((r) => ({
     ...r,
-    label: bucket === "day" ? fmtDate(r.period) : fmtMonth(r.period),
+    label: fmtPeriod(r.period, bucket),
   }));
   const industryData = (industries.data ?? [])
     .slice()
