@@ -26,6 +26,17 @@ from typing import Protocol, runtime_checkable
 log = logging.getLogger(__name__)
 
 
+class ProviderUnavailable(Exception):
+    """Raised by ``lookup`` when the provider could not actually search a company.
+
+    Signals an *infrastructure* condition — session trip, rate cap, cooldown,
+    transport error — as distinct from a clean "searched, no confident match"
+    (which returns ``None``). The worker leaves the company UNSTAMPED so a
+    healthy future run retries it, instead of burning its one provider shot on a
+    failure that has nothing to do with whether the company exists in the source.
+    """
+
+
 @dataclass
 class ProviderResult:
     """Structured result returned by an external enrichment provider."""
@@ -57,15 +68,25 @@ class EnrichmentProvider(Protocol):
     """
 
     def lookup(self, company_name: str, state: str | None) -> ProviderResult | None:
-        """Return enrichment data for a company, or ``None`` if not found.
+        """Look up enrichment data for a company.
+
+        Three-way contract:
+        - return :class:`ProviderResult` — a confident match (a *hit*);
+        - return ``None`` — the source was searched but yielded no confident
+          match (a genuine *miss*; the caller may record the attempt);
+        - raise :class:`ProviderUnavailable` — the company was *not* actually
+          searched (session trip, rate cap, cooldown, transport error). The
+          caller leaves the company un-attempted so a healthy run retries it.
 
         Args:
             company_name: Company name as it appears in the WARN notice.
             state: Two-letter US state code, or ``None`` if unavailable.
 
         Returns:
-            A :class:`ProviderResult` when a confident match is found,
-            ``None`` otherwise.
+            A :class:`ProviderResult` on a hit, or ``None`` on a genuine miss.
+
+        Raises:
+            ProviderUnavailable: When the provider could not search the company.
         """
         ...
 
