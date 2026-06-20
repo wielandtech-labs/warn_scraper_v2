@@ -351,7 +351,8 @@ def enrich_batch(
                 if pr is not None:
                     log.info(
                         "company_id=%d name=%r: provider hit duns=%r sic=%r naics=%r conf=%.2f",
-                        company.id, company.name, pr.duns, pr.sic_code, pr.naics_code, pr.confidence,
+                        company.id, company.name, pr.duns, pr.sic_code, pr.naics_code,
+                        pr.confidence,
                     )
                     if not dry_run:
                         _persist_provider_result(session, company, pr)
