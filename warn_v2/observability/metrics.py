@@ -29,12 +29,6 @@ scrape_new_rows = Counter(
     ["state"],
 )
 
-heal_jobs = Counter(
-    "warn_heal_jobs_total",
-    "Number of self-heal jobs spawned.",
-    ["state", "outcome"],
-)
-
 # NOTE: enrichment_backlog is intentionally NOT defined here.
 # It is computed from the DB by WarnCollector (warn_v2.observability.collector)
 # registered in the API at startup. Defining it here as a Gauge would cause a

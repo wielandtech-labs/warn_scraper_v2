@@ -1,10 +1,10 @@
 # WARN Scraper V2
 
-AI-assisted rebuild of [warn_scrapper](https://wielandtech.com) (2022). Collects state WARN layoff notices, enriches each company via LLM + free public sources, and self-heals when a state's site reformats.
+AI-assisted rebuild of [warn_scrapper](https://wielandtech.com) (2022). Collects state WARN layoff notices, enriches each company via LLM + free public sources, and is built so a state's reformatted site can be repaired quickly when it breaks.
 
 ## Why V2
 
-V1 had ~33 hand-written per-state scrapers that broke every time a state site reformatted, plus a Selenium-based D&B Hoover's enrichment scraper that was the main source of bad data. V2 keeps the original "Headhunter" goal — surface workers ~60 days before layoff — but moves the maintenance burden onto a self-healing loop.
+V1 had ~33 hand-written per-state scrapers that broke every time a state site reformatted, plus a Selenium-based D&B Hoover's enrichment scraper that was the main source of bad data. V2 keeps the original "Headhunter" goal — surface workers ~60 days before layoff — but minimizes the maintenance burden: the fetch/parse split saves a replayable snapshot on every failure, so a broken parser is reproduced and fixed with a single Claude Code op (see [Repairing a broken scraper](#repairing-a-broken-scraper)).
 
 ## Architecture
 
@@ -13,9 +13,12 @@ CronJob (K3s) ──▶ Scraper runner ──▶ Postgres (CloudNativePG)
                        │
             parse fail │                 ┌──▶ Enrichment worker (Claude + web search)
                        ▼                 │
-              Self-heal agent            └──▶ FastAPI + CSV/Sheet export
-              (Claude Agent SDK)
-              opens PR for review
+            snapshot saved ──────────────┴──▶ FastAPI + CSV/Sheet export
+            (replay material)
+                       │
+                       ▼
+            Claude Code /heal-scraper op
+            reproduces live, fixes parse(), opens PR for review
 ```
 
 See the [design plan](https://github.com/wielandtech) for full details (kept locally in `~/.claude/plans/`).
@@ -28,10 +31,8 @@ uv sync --extra dev
 uv run python -m pytest
 uv run warn-v2 scrape --state CA
 
-# Self-heal agent (requires ANTHROPIC_API_KEY)
-uv run warn-v2 heal --state IA          # heal one broken state
-uv run warn-v2 heal --all               # heal every state with a recent DB failure
-uv run warn-v2 heal --all --dry-run     # rehearse without opening PRs
+# Repair a broken scraper — Claude Code op, not a CLI command (see below)
+#   /heal-scraper CA        in Claude Code, or  /loop /heal-scraper
 
 # Enrichment agent (requires ANTHROPIC_API_KEY)
 uv run warn-v2 enrich                   # enrich up to 50 unenriched companies
@@ -69,7 +70,7 @@ install WSL2 (`wsl --install`), or build and `docker run` the image.
 | `warn_v2/scrapers/fixtures/{state}/` | Golden samples + expected counts |
 | `warn_v2/pipeline/` | runner, validate, dedup, storage |
 | `warn_v2/enrichment/` | Claude-driven company enrichment |
-| `warn_v2/heal/` | Self-heal agent + GitHub PR opener |
+| `.claude/commands/heal-scraper.md` | Claude Code op that repairs a broken scraper |
 | `warn_v2/api/` | FastAPI read-only API |
 | `warn_v2/db/` | SQLAlchemy models + Alembic |
 | `charts/warn-v2/` | Helm chart for K3s deploy via Flux |
@@ -78,7 +79,7 @@ install WSL2 (`wsl --install`), or build and `docker run` the image.
 
 - [x] Phase 0 — scaffold + first state (CA)
 - [x] Phase 1 — 5 representative states (CA, TX, NY, FL, WA)
-- [x] Phase 2 — self-heal agent (**334 tests** as of 2026-05-28)
+- [x] Phase 2 — replayable failure snapshots + repair workflow (the original in-app self-heal agent was retired 2026-06-19 in favor of the Claude Code `/heal-scraper` op)
 - [x] Phase 3 — bulk-port remaining states (46 jurisdictions)
 - [x] **Production deployment live** (K3s via Flux, CloudNativePG, 2026-05-26)
 - [x] Phase 4 — enrichment agent (Claude + web search, runs every 6 h)
@@ -108,7 +109,6 @@ The scraper runs in a K3s homelab cluster managed by Flux GitOps (see
 |--------|-----|---------|
 | `warn-v2-db` | `url` | `DATABASE_URL` |
 | `warn-v2-anthropic` | `api-key` | `ANTHROPIC_API_KEY` |
-| `warn-v2-github` | `token` | `GITHUB_TOKEN` |
 
 > **Password rule**: `DATABASE_URL` must contain only URL-safe characters.
 > Use `openssl rand -hex 20` to generate the Postgres role password — never
@@ -171,47 +171,49 @@ kubectl run scrape-tx -n warn-v2 \
 
 See [`docs/deferred-states.md`](docs/deferred-states.md) for investigation notes on each deferred state.
 
-### Phase 2: Self-heal agent
+### Repairing a broken scraper
 
 When a scraper's `parse()` or `validate()` step fails, the runner saves the raw
-response as a **snapshot** and records the failure in `scraper_runs`. A separate
-heal CronJob (or a manual `warn-v2 heal` invocation) detects these failures and
-runs an agent loop to fix them autonomously.
+response as a **snapshot** (`warn_v2/pipeline/runner.py`) and records the failure
+in `scraper_runs`. That snapshot is replay material: the fetch/parse split means
+a fixed `parse()` can be re-run against the exact bytes that broke it.
 
-**How it works:**
+Repair is a **Claude Code op**, not an in-app agent — the
+[`/heal-scraper`](.claude/commands/heal-scraper.md) slash command in this repo.
+(The earlier in-app self-heal loop under `warn_v2/heal/` was removed 2026-06-19;
+it reinvented, inside the app, what Claude Code already does natively with a
+human reviewing the PR.)
 
-1. `warn_v2/heal/detector.py` — queries `scraper_runs` for recent
-   `parse_failed` / `validation_failed` rows that still have a snapshot on disk
-   and haven't been healed within the cooldown window (default 12 h).
-2. `warn_v2/heal/agent.py` — a multi-turn Claude loop.  The agent has five
-   tools: `read_parser` (current scraper source), `read_snapshot` (the failing
-   raw input), `read_golden_fixture` (last-known-good sample), 
-   `run_parser_candidate` (sandbox-executes a proposed fix), and `propose_patch`
-   (terminal tool that ends the loop and hands back the fixed code).
-3. `warn_v2/heal/sandbox.py` — runs candidate code in a subprocess with a
-   timeout so a broken parser can't hang or crash the agent process.
-4. `warn_v2/heal/github.py` — creates a branch, commits the patched module, and
-   opens a PR via `gh`.  A human merges; the agent never auto-merges.
+**What the op does**, per target state:
 
-**Triggering heal:**
+1. **Reproduces the break live, locally** — runs the state's `fetch()` + `parse()`
+   and the same `validate()` gate the runner uses (`expected_row_range` +
+   `required_fields`), with no DB or cluster access. A `fetch()` network error is
+   treated as transient and skipped; a `parse()`/`validate()` failure is a real
+   break.
+2. Reads the scraper module (`warn_v2/scrapers/states/<xx>.py`) and the golden
+   fixture (`warn_v2/scrapers/fixtures/<xx>/`), and fixes `parse()` so it handles
+   the live page **and** still passes the golden fixture.
+3. Runs the test suite, then opens a PR for human review (it never merges —
+   merging `main` is a production deploy). Before opening, it checks for an
+   existing PR for that state so a repeated run doesn't duplicate it.
 
-```powershell
-# Heal a single state using the latest failure snapshot from the DB
-warn-v2 heal --state IA
+**Running it:**
 
-# Point at a specific snapshot (useful when DB is unavailable)
-warn-v2 heal --state IA --snapshot ./snapshots/IA/20260522T060000_a1b2c3d4.bin
-
-# Batch mode — heal every state with a recent unhealed failure
-warn-v2 heal --all
-
-# Dry-run: run the agent and prepare the patch but don't push or open a PR
-warn-v2 heal --all --dry-run
+```text
+/heal-scraper CA          # repair one state, interactively in Claude Code
+/loop /heal-scraper       # sweep all states, self-paced
+/loop 6h /heal-scraper    # re-check on an interval
 ```
 
-**Environment variables:**
+For unattended runs, a local Windows Task Scheduler entry (or WSL cron) launches
+Claude Code headless shortly after the nightly scrape — see
+[`.claude/commands/heal-scraper.md`](.claude/commands/heal-scraper.md) for the
+scheduled-task recipe. The op needs only `git`/`gh` and the local venv; no
+cluster access (reproduction is live), so it runs fine off the dev machine.
+
+**Environment:**
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `ANTHROPIC_API_KEY` | *(required)* | Anthropic API key for the Claude model |
-| `SNAPSHOT_DIR` | `./snapshots` | Where the runner writes raw failure snapshots |
+| `SNAPSHOT_DIR` | `./snapshots` | Where the runner writes raw failure snapshots (replay material) |
