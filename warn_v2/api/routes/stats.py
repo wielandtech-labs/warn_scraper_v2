@@ -42,6 +42,12 @@ class MonthStat(BaseModel):
     layoff_total: int
 
 
+class PeriodStat(BaseModel):
+    period: str  # "YYYY-MM-DD" for day buckets, "YYYY-MM" for month buckets
+    notice_count: int
+    layoff_total: int
+
+
 class EmployerStat(BaseModel):
     employer: str
     company_id: int | None
@@ -53,12 +59,14 @@ class SubsectorStat(BaseModel):
     code: str  # 3-digit NAICS subsector, e.g. "311"
     name: str
     notice_count: int
+    layoff_total: int
 
 
 class IndustryStat(BaseModel):
     sector: str  # NAICS sector id, e.g. "31-33"
     name: str
     notice_count: int  # = sum of its subsectors
+    layoff_total: int  # = sum of its subsectors
     subsectors: list[SubsectorStat]
 
 
@@ -153,6 +161,45 @@ def by_state(
     ]
 
 
+def _aggregate_over_time(
+    db: Session,
+    *,
+    substr_len: int,
+    state: str | None,
+    closure_category: str | None,
+    industry: str | None,
+    subsector: str | None,
+    after: date | None,
+    before: date | None,
+) -> list[tuple[str, int, int]]:
+    """Group non-superseded notices into time buckets by a string prefix of
+    notice_date. substr_len=7 yields "YYYY-MM" (monthly), 10 yields "YYYY-MM-DD"
+    (daily). Portable across SQLite + Postgres (no DATE_TRUNC/strftime). Returns
+    (period, notice_count, layoff_total) tuples ordered oldest-first.
+    """
+    period_col = func.substr(cast(Notice.notice_date, String), 1, substr_len).label("period")
+    stmt = (
+        select(
+            period_col,
+            func.count(Notice.notice_id),
+            func.coalesce(func.sum(Notice.layoff_count), 0),
+        )
+        .where(Notice.notice_date.is_not(None))
+        .group_by(period_col)
+        .order_by(period_col)
+    )
+    stmt = _not_superseded(stmt)
+    stmt = _apply_date_filters(stmt, after, before)
+    stmt = _apply_closure_filter(stmt, closure_category)
+    if state:
+        stmt = stmt.where(Notice.state == state.upper())
+    stmt = _apply_industry_filter(stmt, industry, subsector)
+
+    return [
+        (r[0], _coerce_int(r[1]), _coerce_int(r[2])) for r in db.execute(stmt).all()
+    ]
+
+
 @router.get("/by-month", response_model=list[MonthStat])
 def by_month(
     state: str | None = Query(None, description="Restrict to one state"),
@@ -165,34 +212,48 @@ def by_month(
     before: date | None = Query(None),
     db: Session = Depends(get_db),
 ) -> list[MonthStat]:
-    # SQLite + Postgres both support strftime / to_char paths, but a portable
-    # approach is to bin client-side after pulling year/month — keep it in SQL
-    # using DATE_TRUNC on PG and a CASE-style string on SQLite. Easiest portable
-    # form: cast notice_date to text in YYYY-MM via substr().
-    month_col = func.substr(cast(Notice.notice_date, String), 1, 7).label("month")
-
-    stmt = (
-        select(
-            month_col,
-            func.count(Notice.notice_id),
-            func.coalesce(func.sum(Notice.layoff_count), 0),
-        )
-        .where(Notice.notice_date.is_not(None))
-        .group_by(month_col)
-        .order_by(month_col)
+    rows = _aggregate_over_time(
+        db,
+        substr_len=7,
+        state=state,
+        closure_category=closure_category,
+        industry=industry,
+        subsector=subsector,
+        after=after,
+        before=before,
     )
-    stmt = _not_superseded(stmt)
-    stmt = _apply_date_filters(stmt, after, before)
-    stmt = _apply_closure_filter(stmt, closure_category)
-    if state:
-        stmt = stmt.where(Notice.state == state.upper())
-    stmt = _apply_industry_filter(stmt, industry, subsector)
+    return [MonthStat(month=p, notice_count=n, layoff_total=lt) for p, n, lt in rows]
 
-    rows = db.execute(stmt).all()
-    return [
-        MonthStat(month=r[0], notice_count=_coerce_int(r[1]), layoff_total=_coerce_int(r[2]))
-        for r in rows
-    ]
+
+@router.get("/over-time", response_model=list[PeriodStat])
+def over_time(
+    bucket: str = Query("month", description="Time bucket: day | month"),
+    state: str | None = Query(None, description="Restrict to one state"),
+    closure_category: str | None = Query(
+        None, description="Normalized closure type: Closure | Layoff"
+    ),
+    industry: str | None = Query(None, description="NAICS sector id (e.g. 31-33)"),
+    subsector: str | None = Query(None, description="3-digit NAICS subsector (e.g. 311)"),
+    after: date | None = Query(None, description="Only notices on or after this date"),
+    before: date | None = Query(None, description="Only notices on or before this date"),
+    db: Session = Depends(get_db),
+) -> list[PeriodStat]:
+    """Notice/layoff counts bucketed by day or month — drives the dashboard and
+    state-page time-series charts. Daily buckets suit the 30-day window; monthly
+    buckets suit the 1-year window. Same filters as /by-month.
+    """
+    substr_len = 10 if bucket == "day" else 7
+    rows = _aggregate_over_time(
+        db,
+        substr_len=substr_len,
+        state=state,
+        closure_category=closure_category,
+        industry=industry,
+        subsector=subsector,
+        after=after,
+        before=before,
+    )
+    return [PeriodStat(period=p, notice_count=n, layoff_total=lt) for p, n, lt in rows]
 
 
 @router.get("/top-employers", response_model=list[EmployerStat])
@@ -254,7 +315,15 @@ def top_employers(
 
 
 @router.get("/industries", response_model=list[IndustryStat])
-def industries(db: Session = Depends(get_db)) -> list[IndustryStat]:
+def industries(
+    state: str | None = Query(None, description="Restrict to one state"),
+    closure_category: str | None = Query(
+        None, description="Normalized closure type: Closure | Layoff"
+    ),
+    after: date | None = Query(None, description="Only notices on or after this date"),
+    before: date | None = Query(None, description="Only notices on or before this date"),
+    db: Session = Depends(get_db),
+) -> list[IndustryStat]:
     """NAICS sectors (with nested 3-digit subsectors) present among notices.
 
     Groups each enriched company's NAICS code by its 3-digit subsector, then rolls
@@ -262,33 +331,47 @@ def industries(db: Session = Depends(get_db)) -> list[IndustryStat]:
     subsectors (>=1 non-superseded notice) are returned, so the UI dropdowns never
     offer an empty option and grow as enrichment fills in. Notices whose company
     has no NAICS code, or whose code's sector is unknown, are omitted.
+
+    With no filters this returns the all-time taxonomy used by the filter
+    dropdowns; the optional date/state/closure filters let the dashboard show the
+    industry mix for a 30-day or 1-year window.
     """
     sub3 = func.substr(Company.naics_code, 1, 3)
     stmt = (
-        select(sub3, func.count(Notice.notice_id))
+        select(
+            sub3,
+            func.count(Notice.notice_id),
+            func.coalesce(func.sum(Notice.layoff_count), 0),
+        )
         .select_from(Notice)
         .join(Company, Notice.company_id == Company.id)
         .where(Notice.is_superseded.is_(False), Company.naics_code.is_not(None))
         .group_by(sub3)
     )
-    # sector id -> {subsector code -> count}
-    by_sector: dict[str, dict[str, int]] = {}
-    for code, n in db.execute(stmt).all():
+    stmt = _apply_date_filters(stmt, after, before)
+    stmt = _apply_closure_filter(stmt, closure_category)
+    if state:
+        stmt = stmt.where(Notice.state == state.upper())
+
+    # sector id -> {subsector code -> [notice_count, layoff_total]}
+    by_sector: dict[str, dict[str, list[int]]] = {}
+    for code, n, lt in db.execute(stmt).all():
         subsector = subsector_for_code(code)  # code is the 3-digit prefix
         sector = sector_for_code(code)
         if not subsector or not sector:
             continue
-        by_sector.setdefault(sector, {})
-        by_sector[sector][subsector] = by_sector[sector].get(subsector, 0) + _coerce_int(n)
+        bucket = by_sector.setdefault(sector, {}).setdefault(subsector, [0, 0])
+        bucket[0] += _coerce_int(n)
+        bucket[1] += _coerce_int(lt)
 
     out: list[IndustryStat] = []
     for sector, subs in by_sector.items():
         subsectors = sorted(
             (
                 SubsectorStat(
-                    code=c, name=subsector_name(c) or c, notice_count=cnt
+                    code=c, name=subsector_name(c) or c, notice_count=v[0], layoff_total=v[1]
                 )
-                for c, cnt in subs.items()
+                for c, v in subs.items()
             ),
             key=lambda s: s.notice_count,
             reverse=True,
@@ -297,7 +380,8 @@ def industries(db: Session = Depends(get_db)) -> list[IndustryStat]:
             IndustryStat(
                 sector=sector,
                 name=SECTOR_NAME[sector],
-                notice_count=sum(subs.values()),
+                notice_count=sum(v[0] for v in subs.values()),
+                layoff_total=sum(v[1] for v in subs.values()),
                 subsectors=subsectors,
             )
         )

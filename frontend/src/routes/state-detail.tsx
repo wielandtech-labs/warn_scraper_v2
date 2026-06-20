@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import {
@@ -12,6 +13,12 @@ import {
 
 import { api } from "../api/client";
 import { AlertSignup } from "../components/AlertSignup";
+import { NoticeMap } from "../components/NoticeMap";
+import {
+  TimeRangeToggle,
+  toRangeQuery,
+  type TimeRange,
+} from "../components/TimeRangeToggle";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { STATE_NAMES, fmtDate, fmtMonth, fmtNum, stateName } from "../lib/format";
 
@@ -25,25 +32,28 @@ export function StateDetailPage() {
     valid ? `${name} layoffs & WARN notices — WARN Tracker` : "Unknown state — WARN Tracker",
   );
 
+  const [range, setRange] = useState<TimeRange>("1y");
+  const { after, bucket } = toRangeQuery(range);
+
   // Hooks must run unconditionally; `enabled` keeps them idle for bad codes.
   const byState = useQuery({
-    queryKey: ["stats", "by-state"],
-    queryFn: () => api.statsByState(),
+    queryKey: ["stats", "by-state", { after }],
+    queryFn: () => api.statsByState({ after }),
     enabled: valid,
   });
-  const byMonth = useQuery({
-    queryKey: ["stats", "by-month", { state: code }],
-    queryFn: () => api.statsByMonth({ state: code }),
+  const overTime = useQuery({
+    queryKey: ["stats", "over-time", { state: code, after, bucket }],
+    queryFn: () => api.statsOverTime({ state: code, after, bucket }),
     enabled: valid,
   });
   const topEmployers = useQuery({
-    queryKey: ["stats", "top-employers", { state: code }, 10],
-    queryFn: () => api.statsTopEmployers({ state: code, limit: 10 }),
+    queryKey: ["stats", "top-employers", { state: code, after }, 10],
+    queryFn: () => api.statsTopEmployers({ state: code, after, limit: 10 }),
     enabled: valid,
   });
   const recent = useQuery({
-    queryKey: ["notices", { state: code, limit: 10 }],
-    queryFn: () => api.listNotices({ state: code, limit: 10 }),
+    queryKey: ["notices", { state: code, after, limit: 10 }],
+    queryFn: () => api.listNotices({ state: code, after, limit: 10 }),
     enabled: valid,
   });
 
@@ -61,7 +71,10 @@ export function StateDetailPage() {
   const row = byState.data?.find((s) => s.state === code);
   const noticeCount = row?.notice_count ?? 0;
   const layoffTotal = row?.layoff_total ?? 0;
-  const monthData = (byMonth.data ?? []).map((r) => ({ ...r, monthLabel: fmtMonth(r.month) }));
+  const timeData = (overTime.data ?? []).map((r) => ({
+    ...r,
+    label: bucket === "day" ? fmtDate(r.period) : fmtMonth(r.period),
+  }));
 
   return (
     <div className="space-y-6">
@@ -72,7 +85,8 @@ export function StateDetailPage() {
           </Link>
           <h1 className="mt-1 text-2xl font-semibold">{name} layoffs &amp; WARN notices</h1>
         </div>
-        <div className="flex gap-3 text-sm">
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <TimeRangeToggle value={range} onChange={setRange} />
           <Link
             to="/map"
             search={{ state: code }}
@@ -109,18 +123,18 @@ export function StateDetailPage() {
       <AlertSignup state={code} />
 
       <div className="card">
-        <h2 className="mb-3 text-lg font-semibold">Notices and layoffs by month</h2>
-        {byMonth.isLoading ? (
+        <h2 className="mb-3 text-lg font-semibold">Notices and layoffs over time</h2>
+        {overTime.isLoading ? (
           <div className="flex h-72 items-center justify-center text-slate-500">Loading…</div>
-        ) : monthData.length === 0 ? (
+        ) : timeData.length === 0 ? (
           <div className="flex h-24 items-center justify-center text-sm text-slate-500">
-            No notices recorded for {name} yet.
+            No notices recorded for {name} in this period.
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={monthData}>
+            <LineChart data={timeData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="monthLabel" tick={{ fontSize: 12 }} />
+              <XAxis dataKey="label" tick={{ fontSize: 12 }} minTickGap={24} />
               <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
               <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
               <Tooltip formatter={(v: number) => fmtNum(v)} />
@@ -145,6 +159,11 @@ export function StateDetailPage() {
             </LineChart>
           </ResponsiveContainer>
         )}
+      </div>
+
+      <div className="card">
+        <h2 className="mb-3 text-lg font-semibold">Layoffs across {name}</h2>
+        <NoticeMap state={code} after={after} />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

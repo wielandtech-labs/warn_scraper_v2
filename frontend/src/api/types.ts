@@ -106,6 +106,12 @@ export interface MonthStat {
   layoff_total: number;
 }
 
+export interface PeriodStat {
+  period: string; // "YYYY-MM-DD" for day buckets, "YYYY-MM" for month buckets
+  notice_count: number;
+  layoff_total: number;
+}
+
 export interface EmployerStat {
   employer: string;
   company_id: number | null;
@@ -135,11 +141,13 @@ export interface SubsectorStat {
   code: string; // 3-digit NAICS subsector, e.g. "311"
   name: string;
   notice_count: number;
+  layoff_total: number;
 }
 
 export interface IndustryStat {
   sector: string; // NAICS sector id, e.g. "31-33"
   name: string;
   notice_count: number;
+  layoff_total: number;
   subsectors: SubsectorStat[];
 }
