@@ -8,17 +8,7 @@ import MarkerClusterGroup from "react-leaflet-cluster";
 import { api } from "../api/client";
 import { FilterBar, type FilterValues } from "../components/FilterBar";
 import { fmtDate, fmtNum } from "../lib/format";
-
-// react-leaflet's default marker icons don't resolve correctly under
-// Vite's bundler. Override with explicit asset URLs.
-const DefaultIcon = L.icon({
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
-L.Marker.prototype.options.icon = DefaultIcon;
+import "../lib/leafletIcon"; // sets the default marker icon (Vite asset fix)
 
 const CENTER_US: [number, number] = [39.5, -98.35];
 // Per-device pin ceilings. The API tops out at 50 000, but instantiating that

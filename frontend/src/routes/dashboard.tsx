@@ -1,33 +1,75 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import { api } from "../api/client";
 import { AlertSignup } from "../components/AlertSignup";
-import { fmtDate, fmtNum } from "../lib/format";
+import {
+  TimeRangeToggle,
+  toRangeQuery,
+  type TimeRange,
+} from "../components/TimeRangeToggle";
+import { fmtDate, fmtMonth, fmtNum } from "../lib/format";
 
 export function Dashboard() {
+  const [range, setRange] = useState<TimeRange>("1y");
+  const { after, bucket } = toRangeQuery(range);
+
   const recent = useQuery({
-    queryKey: ["notices", { limit: 10 }],
-    queryFn: () => api.listNotices({ limit: 10 }),
+    queryKey: ["notices", { limit: 10, after }],
+    queryFn: () => api.listNotices({ limit: 10, after }),
   });
 
   const byState = useQuery({
-    queryKey: ["stats", "by-state"],
-    queryFn: () => api.statsByState(),
+    queryKey: ["stats", "by-state", { after }],
+    queryFn: () => api.statsByState({ after }),
+  });
+
+  const overTime = useQuery({
+    queryKey: ["stats", "over-time", { after, bucket }],
+    queryFn: () => api.statsOverTime({ after, bucket }),
+  });
+
+  const industries = useQuery({
+    queryKey: ["stats", "industries", { after }],
+    queryFn: () => api.statsIndustries({ after }),
   });
 
   const topEmployers = useQuery({
-    queryKey: ["stats", "top-employers", 5],
-    queryFn: () => api.statsTopEmployers({ limit: 5 }),
+    queryKey: ["stats", "top-employers", { after }, 5],
+    queryFn: () => api.statsTopEmployers({ limit: 5, after }),
   });
 
   const totalLayoffs =
     byState.data?.reduce((acc, s) => acc + s.layoff_total, 0) ?? null;
   const totalNotices = byState.data?.reduce((acc, s) => acc + s.notice_count, 0) ?? null;
 
+  const timeData = (overTime.data ?? []).map((r) => ({
+    ...r,
+    label: bucket === "day" ? fmtDate(r.period) : fmtMonth(r.period),
+  }));
+  const industryData = (industries.data ?? [])
+    .slice()
+    .sort((a, b) => b.layoff_total - a.layoff_total);
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Dashboard</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold">Dashboard</h1>
+        <TimeRangeToggle value={range} onChange={setRange} />
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="card">
@@ -53,6 +95,67 @@ export function Dashboard() {
       </div>
 
       <AlertSignup />
+
+      <div className="card">
+        <h2 className="mb-3 text-lg font-semibold">Layoffs over time</h2>
+        {overTime.isLoading ? (
+          <div className="flex h-72 items-center justify-center text-slate-500">Loading…</div>
+        ) : timeData.length === 0 ? (
+          <div className="flex h-24 items-center justify-center text-sm text-slate-500">
+            No notices in this period.
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={timeData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="label" tick={{ fontSize: 12 }} minTickGap={24} />
+              <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
+              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
+              <Tooltip formatter={(v: number) => fmtNum(v)} />
+              <Legend />
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="notice_count"
+                name="Notices"
+                stroke="#0369a1"
+                strokeWidth={2}
+                dot={false}
+              />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="layoff_total"
+                name="Workers affected"
+                stroke="#dc2626"
+                strokeWidth={2}
+                dot={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      <div className="card">
+        <h2 className="mb-3 text-lg font-semibold">Workers affected by industry</h2>
+        {industries.isLoading ? (
+          <div className="flex h-72 items-center justify-center text-slate-500">Loading…</div>
+        ) : industryData.length === 0 ? (
+          <div className="flex h-24 items-center justify-center text-sm text-slate-500">
+            No industry data for this period.
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={Math.max(240, industryData.length * 28)}>
+            <BarChart layout="vertical" data={industryData} margin={{ left: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis type="number" tick={{ fontSize: 12 }} />
+              <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={180} />
+              <Tooltip formatter={(v: number) => fmtNum(v)} />
+              <Bar dataKey="layoff_total" name="Workers affected" fill="#0369a1" />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
 
       <section>
         <div className="mb-2 flex items-center justify-between">

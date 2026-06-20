@@ -138,6 +138,60 @@ def test_by_month_skips_null_dates(api_client, db):
 
 
 # ---------------------------------------------------------------------------
+# /stats/over-time
+# ---------------------------------------------------------------------------
+
+def test_over_time_month_bucket(api_client, db):
+    _notice(db, state="CA", employer="A", notice_date=date(2026, 1, 5), layoff_count=10)
+    _notice(db, state="CA", employer="B", notice_date=date(2026, 1, 20), layoff_count=25)
+    _notice(db, state="CA", employer="C", notice_date=date(2026, 2, 1), layoff_count=40)
+    db.commit()
+
+    body = api_client.get("/api/stats/over-time?bucket=month").json()
+    periods = {r["period"]: r for r in body}
+    assert periods["2026-01"]["notice_count"] == 2
+    assert periods["2026-01"]["layoff_total"] == 35
+    assert periods["2026-02"]["notice_count"] == 1
+    assert periods["2026-02"]["layoff_total"] == 40
+
+
+def test_over_time_day_bucket(api_client, db):
+    _notice(db, state="CA", employer="A", notice_date=date(2026, 1, 5), layoff_count=10)
+    _notice(db, state="CA", employer="B", notice_date=date(2026, 1, 5), layoff_count=25)
+    _notice(db, state="CA", employer="C", notice_date=date(2026, 1, 6), layoff_count=40)
+    db.commit()
+
+    body = api_client.get("/api/stats/over-time?bucket=day").json()
+    periods = {r["period"]: r for r in body}
+    assert periods["2026-01-05"]["notice_count"] == 2
+    assert periods["2026-01-05"]["layoff_total"] == 35
+    assert periods["2026-01-06"]["notice_count"] == 1
+    assert periods["2026-01-06"]["layoff_total"] == 40
+
+
+def test_over_time_defaults_to_month(api_client, db):
+    _notice(db, state="CA", employer="A", notice_date=date(2026, 1, 5), layoff_count=10)
+    db.commit()
+
+    body = api_client.get("/api/stats/over-time").json()
+    assert body[0]["period"] == "2026-01"
+
+
+def test_over_time_state_and_date_filters(api_client, db):
+    _notice(db, state="CA", employer="A", notice_date=date(2026, 1, 5), layoff_count=10)
+    _notice(db, state="TX", employer="B", notice_date=date(2026, 1, 6), layoff_count=20)
+    _notice(db, state="CA", employer="Old", notice_date=date(2025, 1, 1), layoff_count=99)
+    db.commit()
+
+    body = api_client.get(
+        "/api/stats/over-time?bucket=day&state=CA&after=2026-01-01"
+    ).json()
+    assert len(body) == 1
+    assert body[0]["period"] == "2026-01-05"
+    assert body[0]["layoff_total"] == 10
+
+
+# ---------------------------------------------------------------------------
 # /stats/top-employers
 # ---------------------------------------------------------------------------
 
@@ -398,6 +452,42 @@ def test_industries_nests_subsectors(api_client, db):
     assert subs["333"]["notice_count"] == 1
     # populated-only: a subsector with no notices is absent
     assert "312" not in subs
+
+
+def test_industries_includes_layoff_totals(api_client, db):
+    food = _company(db, name="Food", naics_code="311999")
+    food2 = _company(db, name="Food2", naics_code="311111")  # same subsector 311
+    _notice(db, state="CA", employer="Food", notice_date=date(2026, 1, 1),
+            layoff_count=100, company_id=food.id)
+    _notice(db, state="CA", employer="Food2", notice_date=date(2026, 1, 2),
+            layoff_count=40, company_id=food2.id)
+    db.commit()
+
+    body = api_client.get("/api/stats/industries").json()
+    mfg = next(r for r in body if r["sector"] == "31-33")
+    assert mfg["layoff_total"] == 140  # sector total = sum of subsectors
+    sub311 = next(s for s in mfg["subsectors"] if s["code"] == "311")
+    assert sub311["layoff_total"] == 140
+
+
+def test_industries_date_and_state_filters(api_client, db):
+    mfg = _company(db, name="Mfg", naics_code="311999")
+    ret = _company(db, name="Ret", naics_code="445110")
+    _notice(db, state="CA", employer="Mfg", notice_date=date(2026, 6, 1),
+            layoff_count=100, company_id=mfg.id)
+    _notice(db, state="CA", employer="MfgOld", notice_date=date(2020, 1, 1),
+            layoff_count=999, company_id=mfg.id)
+    _notice(db, state="TX", employer="Ret", notice_date=date(2026, 6, 1),
+            layoff_count=50, company_id=ret.id)
+    db.commit()
+
+    # Date filter drops the 2020 notice; state filter drops the TX retail notice.
+    body = api_client.get(
+        "/api/stats/industries?after=2026-01-01&state=CA"
+    ).json()
+    assert [r["sector"] for r in body] == ["31-33"]
+    assert body[0]["notice_count"] == 1
+    assert body[0]["layoff_total"] == 100
 
 
 def test_industries_omits_empty_sectors_and_subsectors(api_client, db):
