@@ -181,7 +181,7 @@ export const api = {
   ) => get<MonthStat[]>("/api/stats/by-month" + qs(q)),
   statsOverTime: (
     q: {
-      bucket?: "day" | "month";
+      bucket?: "day" | "month" | "year";
       state?: string;
       closure_category?: string;
       industry?: string;

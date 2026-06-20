@@ -27,6 +27,14 @@ export function fmtMonth(m: string): string {
   });
 }
 
+/** Format an over-time bucket key for a chart axis: "YYYY-MM-DD" (day) via
+ *  fmtDate, "YYYY-MM" (month) via fmtMonth, "YYYY" (year) as-is. */
+export function fmtPeriod(period: string, bucket: "day" | "month" | "year"): string {
+  if (bucket === "day") return fmtDate(period);
+  if (bucket === "year") return period;
+  return fmtMonth(period);
+}
+
 /** Returns today minus `n` days as a YYYY-MM-DD string. */
 export function daysAgoIso(n: number): string {
   const d = new Date();
