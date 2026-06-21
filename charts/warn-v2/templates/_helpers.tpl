@@ -40,11 +40,6 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version }}
     secretKeyRef:
       name: {{ .Values.anthropic.secretName }}
       key: {{ .Values.anthropic.secretKey }}
-- name: GITHUB_TOKEN
-  valueFrom:
-    secretKeyRef:
-      name: {{ .Values.github.secretName }}
-      key: {{ .Values.github.secretKey }}
 - name: SNAPSHOT_DIR
   value: /var/snapshots
 - name: SITE_BASE_URL

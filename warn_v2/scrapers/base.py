@@ -2,7 +2,7 @@
 
 Splitting `fetch()` (raw bytes from the live source) from `parse()` (pure function
 on bytes) is the central V2 design choice — it lets the validator save raw inputs
-that the self-heal agent can later replay against a regenerated parser.
+that can later be replayed against a repaired parser when a site reformats.
 """
 from __future__ import annotations
 

@@ -1,6 +1,7 @@
 """Base class for Playwright (JS-rendered) scrapers.
 
-Maintains the fetch / parse split required by the self-heal agent:
+Maintains the fetch / parse split that lets raw inputs be replayed against a
+repaired parser:
   fetch()  — renders the page to raw HTML bytes via headless Chromium
   parse()  — pure function on bytes; testable without a browser
 

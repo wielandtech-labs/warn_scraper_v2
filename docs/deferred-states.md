@@ -2,8 +2,8 @@
 
 States from the V1 active set whose live sources have drifted in ways that
 need investigation (URL moved, new bot protection, page rebuilt with
-JS-rendered content). Listed here so the Phase-4-style enrichment / heal
-agent has a queue to work through later.
+JS-rendered content). Listed here as a queue of scrapers to repair or
+re-enable later.
 
 Last checked: 2026-05-27.
 
