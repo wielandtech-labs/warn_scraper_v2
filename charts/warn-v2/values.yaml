@@ -13,18 +13,13 @@ database:
   secretName: warn-v2-db
   secretKey: url
 
-# Anthropic API key for self-heal + enrichment agents.
+# Anthropic API key for the enrichment agent.
 anthropic:
   secretName: warn-v2-anthropic
   secretKey: api-key
 
-github:
-  # GITHUB_TOKEN with `repo` + `workflow` scopes for the self-heal PR opener.
-  secretName: warn-v2-github
-  secretKey: token
-
 snapshotStorage:
-  # NFS PVC for raw scrape snapshots (replay material for self-heal).
+  # NFS PVC for raw scrape snapshots (replay material for debugging/repair).
   storageClass: nfs-client
   size: 10Gi
 

@@ -59,8 +59,8 @@ enrichment.
 | `has_superseded` | superseded duplicates present | `mark-superseded --state XX --dry-run` then commit |
 | `low_enrichment` | <50% of notices have an enriched company | `enrich --state XX` |
 | `dead_links` | sampled `raw_notice_url`s 404 | fix scraper URL pattern (new code) |
-| `row_drift` | last OK run below `expected_row_range` min | `heal --state XX` (silent partial parse) |
-| `scraper_*` | last run status not `ok` | `heal --state XX` |
+| `row_drift` | last OK run below `expected_row_range` min | `/heal-scraper XX` (silent partial parse) |
+| `scraper_*` | last run status not `ok` | `/heal-scraper XX` |
 | `date_sanity` | future notice_date or effective<notice | inspect parser date handling |
 | `count_outliers` | layoff_count <=0 or >50,000 | inspect parser count handling |
 | `blocked` / `no_data` | known-blocked source or empty | re-check source access |

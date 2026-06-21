@@ -1,8 +1,8 @@
 """Shared coercers and small utilities used across state scrapers.
 
 These exist so per-state scrapers stay tiny and the same date/int/string parsing
-rules are applied consistently — when the self-heal agent regenerates a parser,
-it only has to call these helpers rather than reinvent them.
+rules are applied consistently — when a parser is repaired after a site
+reformats, it only has to call these helpers rather than reinvent them.
 """
 from __future__ import annotations
 
