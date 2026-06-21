@@ -49,22 +49,32 @@ class FLScraper:
         self.source_url = URL_TEMPLATE.format(year=datetime.now().year)
 
     def fetch(self) -> bytes:
-        try:
-            r = httpx.get(self.source_url, headers=_UA, timeout=60, follow_redirects=True)
-            r.raise_for_status()
-            return r.content
-        except httpx.HTTPError as e:
-            raise ScrapeFailed(f"GET {self.source_url}: {e}") from e
+        # FL paginates at 100 rows/page. Fetch every page for the current year
+        # and concatenate the raw page bytes so parse() (which scans all
+        # DataTables) sees the whole year. A single-page fetch would silently cap
+        # the daily run at the newest 100 notices — older rows would never get
+        # re-scraped, so a value that was once stored wrong (e.g. a layoff_count
+        # mis-parse) could never be corrected. Reuses the historical paginator.
+        chunks = _fetch_fl_year(self, datetime.now().year)
+        if not chunks:
+            raise ScrapeFailed(f"GET {self.source_url}: no result pages")
+        return b"\n".join(chunks)
 
     def parse(self, raw: bytes) -> list[NoticeRow]:
         soup = BeautifulSoup(raw, "html.parser")
-        table = soup.find("table", id="DataTable") or soup.find("table")
-        if table is None:
+        # fetch() concatenates one HTML document per result page, so a parsed
+        # blob can hold several DataTables — collect rows across all of them.
+        tables = soup.find_all("table", id="DataTable") or soup.find_all("table")
+        if not tables:
             raise ParseFailed("no <table> found in FL DataTable page")
 
         rows: list[NoticeRow] = []
-        body = table.find("tbody") or table
-        for tr in body.find_all("tr"):
+        trs = [
+            tr
+            for table in tables
+            for tr in (table.find("tbody") or table).find_all("tr")
+        ]
+        for tr in trs:
             cells = tr.find_all("td")
             if len(cells) < 5:
                 continue
