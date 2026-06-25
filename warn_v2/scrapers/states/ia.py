@@ -4,10 +4,16 @@ Source: https://workforce.iowa.gov/employers/resources/warn/notices
 Data:   Cumulative Excel workbook (ADA-compliant version of the Tableau
         visualization).  The file is hosted at a stable media endpoint.
 
-Excel columns (A-L, row 1 = header):
-  Company | Address Line 1 | City | County | St | ZIP |
-  Notice Type | Emp # | Notice Date | Layoff Date |
+Excel columns (12, A-L):
+  Company | Street Address | City | County | State | ZIP |
+  Notice Type | Number of Employees Affected | Notice Date | Layoff Date |
   Local Workforce Area | Industry
+
+The header row is located by its labels, not a fixed offset: as of 2026-06 the
+workbook prepends a title/source/description banner above the table, and some
+columns were relabelled from their earlier names ("Address Line 1" ->
+"Street Address", "Emp #" -> "Number of Employees Affected", "St" -> "State").
+``parse()`` accepts both the current and legacy labels.
 
 Dates are Excel datetime objects (converted natively by openpyxl).
 
@@ -82,16 +88,28 @@ class IAScraper:
         rows: list[NoticeRow] = []
         header: dict[str, int] = {}
 
-        for row_idx, row in enumerate(ws.iter_rows(values_only=True)):
-            if row_idx == 0:
-                for col_idx, val in enumerate(row):
-                    if val is not None:
-                        header[str(val).strip().upper()] = col_idx
+        for row in ws.iter_rows(values_only=True):
+            if not header:
+                # Locate the header row. Iowa prepends a title/source/description
+                # banner above the table (added 2026-06), so the header is no
+                # longer guaranteed to be row 0 — detect it by its column labels.
+                labels = {
+                    str(val).strip().upper(): col_idx
+                    for col_idx, val in enumerate(row)
+                    if val is not None
+                }
+                if "COMPANY" in labels and "NOTICE DATE" in labels:
+                    header = labels
                 continue
 
-            def _col(name: str, _r: tuple = row) -> object:
-                idx = header.get(name, -1)
-                return _r[idx] if 0 <= idx < len(_r) else None
+            def _col(*names: str, _r: tuple = row) -> object:
+                # Accept column-name aliases so the parser handles both the
+                # current and legacy Iowa header labels.
+                for name in names:
+                    idx = header.get(name, -1)
+                    if 0 <= idx < len(_r):
+                        return _r[idx]
+                return None
 
             employer = as_str(_col("COMPANY"))
             if not employer:
@@ -110,21 +128,18 @@ class IAScraper:
             else:
                 zip_str = as_str(zip_raw)
 
+            emp_raw = _col("NUMBER OF EMPLOYEES AFFECTED", "EMP #")
             rows.append(
                 NoticeRow(
                     state="IA",
                     employer=employer,
                     notice_date=notice_date,
                     effective_date=_as_date(_col("LAYOFF DATE")),
-                    layoff_count=(
-                        as_int(_col("EMP #"))
-                        if _col("EMP #") is not None
-                        else None
-                    ),
+                    layoff_count=as_int(emp_raw) if emp_raw is not None else None,
                     city=as_str(_col("CITY")) or None,
                     county=as_str(_col("COUNTY")) or None,
                     zip=zip_str,
-                    address=as_str(_col("ADDRESS LINE 1")) or None,
+                    address=as_str(_col("STREET ADDRESS", "ADDRESS LINE 1")) or None,
                     closure_type=as_str(_col("NOTICE TYPE")) or None,
                     source_url=_SOURCE_URL,
                     extra={
@@ -135,6 +150,8 @@ class IAScraper:
             )
 
         wb.close()
+        if not header:
+            raise ParseFailed("IA Excel: header row (Company/Notice Date) not found")
         if not rows:
             raise ParseFailed("IA Excel: no data rows found")
         return _dedup_zip_variance(rows)
