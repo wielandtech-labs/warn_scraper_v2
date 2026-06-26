@@ -236,13 +236,13 @@ def test_no_data_flag_for_registered_state_without_notices(db) -> None:
 
 
 def test_blocked_flag_when_blocked_state_has_rows(db) -> None:
-    # Blocked states (AR/NH/OK/TN/WY) aren't registered, so they only appear in
-    # the audit if legacy notices exist (e.g. TN, whose scraper was built before
-    # the IP block). When they do appear, the blocked flag must fire.
-    _notice(db, nid="tn1", state="TN", notice_date=date(2026, 1, 1))
+    # Blocked states (AR/NH/OK/WY) aren't registered, so they only appear in the
+    # audit if legacy notices exist. When they do appear, the blocked flag must
+    # fire.
+    _notice(db, nid="ok1", state="OK", notice_date=date(2026, 1, 1))
     db.commit()
-    tn = _one(audit_states(db, today=REF), "TN")
-    assert "blocked" in tn.flags
+    ok = _one(audit_states(db, today=REF), "OK")
+    assert "blocked" in ok.flags
 
 
 # ---------------------------------------------------------------------------
