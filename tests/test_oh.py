@@ -15,7 +15,7 @@ FIXTURE = (
     / "scrapers"
     / "fixtures"
     / "oh"
-    / "sample.html"
+    / "sample.csv"
 )
 
 
@@ -30,12 +30,15 @@ def test_oh_parses_fixture(oh_sample: bytes) -> None:
     assert len(rows) >= 5
     assert all(r.state == "OH" for r in rows)
 
-    first = rows[0]
-    assert "Toledo" in first.employer or first.employer
-    assert first.notice_date == date(2026, 4, 9)
-    assert first.layoff_count == 116
-    assert first.city == "Toledo"
-    assert first.county == "Lucas"
+    # Assert on a known notice (the fixture is a frozen snapshot); the CSV is
+    # newest-first, so don't rely on positional order.
+    ash = next(r for r in rows if r.employer == "Advanced Specialty Hospitals of Toledo")
+    assert ash.notice_date == date(2026, 4, 9)
+    assert ash.layoff_count == 116
+    assert ash.city == "Toledo"
+    assert ash.county == "Lucas"
+    assert ash.closure_type == "Closure"
+    assert ash.raw_notice_url is not None and ash.raw_notice_url.endswith(".pdf")
 
 
 def test_oh_layoff_counts_present(oh_sample: bytes) -> None:
@@ -52,7 +55,7 @@ def test_oh_validation_passes(oh_sample: bytes) -> None:
     assert result.ok, result.reason
 
 
-def test_oh_raises_without_table() -> None:
+def test_oh_raises_without_header() -> None:
     scraper = get_scraper("OH")
     with pytest.raises(ParseFailed):
         scraper.parse(b"<html><body><p>no table here</p></body></html>")
