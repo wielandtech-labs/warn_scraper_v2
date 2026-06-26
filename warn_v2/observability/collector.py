@@ -125,8 +125,9 @@ class WarnCollector(Collector):
                 labels=["state"],
             )
             for state, dur_sum, count in rows:
-                # add_metric(labels, quantiles, sum_value, count_value)
-                c.add_metric([state], {}, float(dur_sum or 0.0), float(count))
+                # add_metric(labels, count_value, sum_value) — there is no
+                # quantiles arg on SummaryMetricFamily.
+                c.add_metric([state], float(count), float(dur_sum or 0.0))
             yield c
 
             # ------------------------------------------------------------------

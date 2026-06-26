@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+from prometheus_client import CollectorRegistry, generate_latest
 from sqlalchemy.orm import Session, sessionmaker
 
 from warn_v2.db.models import ScraperRun
@@ -73,3 +74,23 @@ def test_never_succeeded_state_is_absent(
     samples = _samples(_GAUGE)
     assert "OK" not in samples
     assert "TX" in samples
+
+
+def test_generate_latest_renders_duration_summary(
+    db_session_factory: sessionmaker[Session],
+) -> None:
+    # Regression: SummaryMetricFamily.add_metric is (labels, count, sum) — passing
+    # a quantiles dict as count made generate_latest() raise TypeError and 500 the
+    # whole /metrics endpoint. Render the full registry and assert it succeeds.
+    now = datetime.now(UTC)
+    with db_session_factory() as s:
+        _add(s, "CA", "ok", now - timedelta(hours=1))
+        _add(s, "TX", "ok", now - timedelta(minutes=30))
+        s.commit()
+
+    registry = CollectorRegistry()
+    registry.register(WarnCollector())
+
+    output = generate_latest(registry).decode()
+    assert "warn_scrape_duration_seconds_count" in output
+    assert "warn_scrape_duration_seconds_sum" in output
