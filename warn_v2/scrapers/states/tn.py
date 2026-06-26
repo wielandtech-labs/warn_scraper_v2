@@ -13,17 +13,23 @@ Company cell has an anchor tag linking to a per-notice PDF hosted on tn.gov.
 Notice/Type contains a notice number (e.g. "#202500055"), not a layoff type;
 we capture it in extra["notice_number"].
 
-Note: tn.gov resets TLS connections from some HTTP clients on Windows; the
-scraper uses a standard HTTPX call which works fine on Linux deployments.
+Note: tn.gov's WAF resets the TLS connection (Errno 104) for non-browser TLS
+fingerprints — a plain httpx GET succeeds from a residential browser but is RST
+from server/container deployments (same IP, different ClientHello). We fetch via
+curl_cffi with ``impersonate="chrome"`` so the handshake matches a real Chrome,
+which the WAF accepts.
 """
 from __future__ import annotations
 
-import httpx
+import time
+
 from bs4 import BeautifulSoup
+from curl_cffi import requests as cffi_requests
+from curl_cffi.requests.exceptions import RequestException
 
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
-from warn_v2.scrapers.registry import register  # noqa: F401 — kept for when TN is re-enabled
+from warn_v2.scrapers.registry import register
 
 SOURCE_URL = (
     "https://www.tn.gov/workforce/general-resources/"
@@ -31,12 +37,10 @@ SOURCE_URL = (
 )
 _BASE_URL = "https://www.tn.gov"
 
-_UA = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
-    )
-}
+# The WAF still RSTs a fraction (~1 in 4) of otherwise-valid Chrome handshakes,
+# so a single GET is flaky even with impersonation; retry a few times.
+_FETCH_ATTEMPTS = 4
+_FETCH_BACKOFF = 2.0
 
 
 class TNScraper:
@@ -46,12 +50,19 @@ class TNScraper:
     required_fields = frozenset({"employer", "notice_date"})
 
     def fetch(self) -> bytes:
-        try:
-            r = httpx.get(SOURCE_URL, headers=_UA, timeout=30, follow_redirects=True)
-            r.raise_for_status()
-            return r.content
-        except httpx.HTTPError as e:
-            raise ScrapeFailed(f"GET {SOURCE_URL}: {e}") from e
+        last_exc: RequestException | None = None
+        for attempt in range(1, _FETCH_ATTEMPTS + 1):
+            try:
+                r = cffi_requests.get(
+                    SOURCE_URL, impersonate="chrome", timeout=30, allow_redirects=True
+                )
+                r.raise_for_status()
+                return r.content
+            except RequestException as e:
+                last_exc = e
+                if attempt < _FETCH_ATTEMPTS:
+                    time.sleep(_FETCH_BACKOFF)
+        raise ScrapeFailed(f"GET {SOURCE_URL}: {last_exc}") from last_exc
 
     def parse(self, raw: bytes) -> list[NoticeRow]:
         soup = BeautifulSoup(raw, "html.parser")
@@ -123,7 +134,4 @@ def _text(cell) -> str:
     return " ".join(cell.get_text(" ", strip=True).split())
 
 
-# tn.gov resets TLS connections from server/container environments (TLS
-# fingerprinting or IP-based block). Deferred until a proxy or alternative
-# source is available.
-# register(TNScraper())
+register(TNScraper())

@@ -32,4 +32,5 @@ electronically available records.
 | WV | [wv.md](wv.md) | ⚠ wfwvbsr@wv.gov (general box) | email | pre-2021 | draft | — | — |
 
 Not drafted (request would be futile): AR (confidential by state law), NH, OK,
-TN, WY (no public data / access blockers — see historical-sources.md).
+WY (no public data / access blockers — see historical-sources.md). TN's live
+source is now scraped (no access blocker as of 2026-06-26).
