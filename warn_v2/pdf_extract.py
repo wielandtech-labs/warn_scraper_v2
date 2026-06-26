@@ -59,12 +59,46 @@ _ADDR_RE = re.compile(
 
 _ZIP_RE = re.compile(r"\b(\d{5})(?:-\d{4})?\b")
 
-# City-state-zip at end of address line: "Anchorage, AK 99501".
-# Captures (city, state, zip) so callers can prefer in-state worksite matches over
-# the state-official recipient block at the top of a WARN letter.
-_CITY_STATE_ZIP_RE = re.compile(
-    r"([A-Za-z][A-Za-z .]{1,30}),\s*([A-Z]{2})\s+(\d{5})(?:-\d{4})?\b"
+# Full state name -> USPS abbreviation. WARN letters often spell the state out
+# ("Kapolei, Hawaii 96707"), which a 2-letter-only pattern would drop — losing the
+# worksite even though it's right there in the text.
+_STATE_TO_ABBR: dict[str, str] = {
+    "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR",
+    "california": "CA", "colorado": "CO", "connecticut": "CT", "delaware": "DE",
+    "district of columbia": "DC", "florida": "FL", "georgia": "GA", "hawaii": "HI",
+    "idaho": "ID", "illinois": "IL", "indiana": "IN", "iowa": "IA", "kansas": "KS",
+    "kentucky": "KY", "louisiana": "LA", "maine": "ME", "maryland": "MD",
+    "massachusetts": "MA", "michigan": "MI", "minnesota": "MN", "mississippi": "MS",
+    "missouri": "MO", "montana": "MT", "nebraska": "NE", "nevada": "NV",
+    "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY",
+    "north carolina": "NC", "north dakota": "ND", "ohio": "OH", "oklahoma": "OK",
+    "oregon": "OR", "pennsylvania": "PA", "rhode island": "RI",
+    "south carolina": "SC", "south dakota": "SD", "tennessee": "TN", "texas": "TX",
+    "utah": "UT", "vermont": "VT", "virginia": "VA", "washington": "WA",
+    "west virginia": "WV", "wisconsin": "WI", "wyoming": "WY",
+}
+# Longest-first so "West Virginia" wins over "Virginia" in the alternation.
+_STATE_NAME_ALT = "|".join(
+    sorted((re.escape(n) for n in _STATE_TO_ABBR), key=len, reverse=True)
 )
+
+# City-state-zip at end of address line: "Anchorage, AK 99501" or "Kapolei, Hawaii
+# 96707". Captures (city, state, zip) so callers can prefer in-state worksite
+# matches over the state-official recipient block at the top of a WARN letter. The
+# 2-letter branch stays case-sensitive (uppercase); full names match any case via
+# the scoped (?i:...) group. Normalize the state with _normalize_state.
+_CITY_STATE_ZIP_RE = re.compile(
+    r"([A-Za-z][A-Za-z .]{1,30}),\s*"
+    r"([A-Z]{2}|(?i:" + _STATE_NAME_ALT + r"))"
+    r"\s+(\d{5})(?:-\d{4})?\b"
+)
+
+
+def _normalize_state(raw: str) -> str | None:
+    """USPS abbreviation for a captured state token (2-letter or full name)."""
+    if len(raw) == 2:
+        return raw.upper()
+    return _STATE_TO_ABBR.get(raw.lower())
 
 # Cap OCR to the first few pages — the worksite/recipient addresses are always on
 # the opening page(s), and OCR is slow (~seconds/page).
@@ -189,7 +223,10 @@ def _choose_city_zip(text: str, state: str | None) -> tuple[str, str] | None:
         # recipient block's markers onto a nearby worksite line.
         window = " ".join(lines[max(0, i - 1): i + 1])
         for m in _CITY_STATE_ZIP_RE.finditer(line):
-            c, st, z = m.group(1).strip().title(), m.group(2).upper(), m.group(3)
+            st = _normalize_state(m.group(2))
+            if st is None:
+                continue
+            c, z = m.group(1).strip().title(), m.group(3)
             recip = (st, z) in _RECIPIENT_ZIPS or bool(_RECIPIENT_CUE.search(window))
             worksite = bool(_WORKSITE_CUE.search(window))
             cands.append((c, st, z, worksite, recip))
