@@ -27,11 +27,16 @@ from warn_v2.scrapers.registry import register
 _PAGE_URL = "https://www.dws.state.nm.us/Rapid-Response"
 _PDF_TMPL = "https://www.dws.state.nm.us/Portals/0/DM/Business/{year}_WARN.pdf"
 
+# A realistic browser User-Agent is required: the dws.state.nm.us WAF rejects
+# requests whose UA looks automated (the old "warn-v2/0.1" token returned a
+# 200 "The requested URL was rejected" stub instead of the PDF — 2026-06).
 _UA = {
     "User-Agent": (
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) warn-v2/0.1"
-    )
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/pdf,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
 }
 
 
