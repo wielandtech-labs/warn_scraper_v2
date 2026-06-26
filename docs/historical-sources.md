@@ -137,6 +137,6 @@ except where flagged.
 ## Blocked — no request drafted
 
 AR (WARN data confidential by state law — a request would be denied), NH (no
-public listing; Akamai-blocked), OK (Salesforce auth wall), TN (scraper built,
-tn.gov blocks container IPs), WY (no public data). Re-verify periodically per
-STATE_AUDIT.md.
+public listing; Akamai-blocked), OK (Salesforce auth wall), WY (no public data).
+Re-verify periodically per STATE_AUDIT.md. (TN's live source is now scraped as of
+2026-06-26; historical depth = whatever the live archive table lists.)
