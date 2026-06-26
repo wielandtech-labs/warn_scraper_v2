@@ -118,6 +118,23 @@ class ScraperRunOut(BaseModel):
     error: str | None
 
 
+class StateStatusOut(BaseModel):
+    """Per-state scraper health: the latest run plus the latest *successful* run.
+
+    Powers the public status page. One row per state that has any run history;
+    states that have never run are absent (the frontend fills those in).
+    """
+
+    state: str
+    last_run_at: datetime
+    last_status: str
+    last_finished_at: datetime | None
+    rows_scraped: int | None
+    rows_new: int | None
+    error: str | None
+    last_success_at: datetime | None
+
+
 class Page[T](BaseModel):
     items: list[T]
     total: int
