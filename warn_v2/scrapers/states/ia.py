@@ -102,11 +102,11 @@ class IAScraper:
                     header = labels
                 continue
 
-            def _col(*names: str, _r: tuple = row) -> object:
+            def _col(*names: str, _r: tuple = row, _h: dict = header) -> object:
                 # Accept column-name aliases so the parser handles both the
                 # current and legacy Iowa header labels.
                 for name in names:
-                    idx = header.get(name, -1)
+                    idx = _h.get(name, -1)
                     if 0 <= idx < len(_r):
                         return _r[idx]
                 return None
