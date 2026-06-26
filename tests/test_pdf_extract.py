@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date
 from unittest.mock import MagicMock, patch
 
-from warn_v2.pdf_extract import _parse_text, extract_warn_fields
+from warn_v2.pdf_extract import _normalize_state, _parse_text, extract_warn_fields
 
 # ---------------------------------------------------------------------------
 # _parse_text — direct text parsing (no pdfplumber needed)
@@ -182,6 +182,51 @@ def test_city_zip_excludes_recipient_by_marker():
     result = _parse_text(text, "WV")
     assert result["city"] == "Moorefield"
     assert result["zip"] == "26836"
+
+
+# ---------------------------------------------------------------------------
+# Full state-name worksites (WARN letters often spell the state out)
+# ---------------------------------------------------------------------------
+
+def test_normalize_state():
+    assert _normalize_state("HI") == "HI"
+    assert _normalize_state("hi") == "HI"
+    assert _normalize_state("Hawaii") == "HI"
+    assert _normalize_state("WEST VIRGINIA") == "WV"
+    assert _normalize_state("Notastate") is None
+
+
+def test_city_zip_full_state_name_worksite():
+    # Real HI WARN pattern: recipient (DLIR, 96813) spelled out, worksite spelled out.
+    text = (
+        "Department of Labor and Industrial Relations\nHonolulu, Hawaii 96813\n"
+        "operations located at 1001 Kamokila Blvd, Kapolei, Hawaii 96707\n"
+    )
+    result = _parse_text(text, "HI")
+    assert result["city"] == "Kapolei"
+    assert result["zip"] == "96707"
+
+
+def test_city_zip_full_state_name_recipient_zip_still_excluded():
+    # The 96813 recipient is excluded even when the state is spelled "Hawaii".
+    text = (
+        "Rapid Response Unit\nHonolulu, Hawaii 96813\n"
+        "the facility located at 91-110 Hanua St, Kapolei, Hawaii 96707\n"
+    )
+    result = _parse_text(text, "HI")
+    assert result["city"] == "Kapolei"
+    assert result["zip"] == "96707"
+
+
+def test_city_zip_multiword_state_name_longest_match():
+    # "West Virginia" must win over "Virginia" (longest-first alternation).
+    text = (
+        "The Honorable Governor\nCharleston, West Virginia 25305\n"
+        "plant located at 1 Moore Ave, Lorado, West Virginia 25630\n"
+    )
+    result = _parse_text(text, "WV")
+    assert result["city"] == "Lorado"
+    assert result["zip"] == "25630"
 
 
 # ---------------------------------------------------------------------------
