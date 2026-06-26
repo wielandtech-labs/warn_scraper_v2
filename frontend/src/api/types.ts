@@ -68,6 +68,18 @@ export interface ScraperRunOut {
   error: string | null;
 }
 
+// /scraper-runs/status — per-state scraper health for the status page.
+export interface StateStatusOut {
+  state: string;
+  last_run_at: string;
+  last_status: string;
+  last_finished_at: string | null;
+  rows_scraped: number | null;
+  rows_new: number | null;
+  error: string | null;
+  last_success_at: string | null;
+}
+
 export interface Page<T> {
   items: T[];
   total: number;

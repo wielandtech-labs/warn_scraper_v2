@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from warn_v2.api.deps import PaginationParams, get_db
-from warn_v2.api.schemas import Page, ScraperRunOut
+from warn_v2.api.schemas import Page, ScraperRunOut, StateStatusOut
 from warn_v2.db.models import ScraperRun
 
 router = APIRouter(prefix="/scraper-runs", tags=["scraper-runs"])
@@ -35,3 +35,53 @@ def list_scraper_runs(
     total = db.scalar(count_stmt) or 0
     items = list(db.scalars(stmt.offset(pagination.offset).limit(pagination.limit)))
     return Page(items=items, total=total, limit=pagination.limit, offset=pagination.offset)
+
+
+@router.get("/status", response_model=list[StateStatusOut])
+def scraper_status(db: Session = Depends(get_db)) -> list[StateStatusOut]:
+    """Per-state scraper health for the public status page.
+
+    Returns one row per state with run history: its latest attempt (status,
+    row counts, error) plus when it last succeeded. Two grouped queries keep
+    this O(states) rather than N+1, and avoid window functions so it runs
+    identically on SQLite (tests) and Postgres (prod).
+    """
+    # Latest run per state: max(started_at) grouped, joined back for the full row.
+    latest = (
+        select(ScraperRun.state, func.max(ScraperRun.started_at).label("mx"))
+        .group_by(ScraperRun.state)
+        .subquery()
+    )
+    latest_runs = db.scalars(
+        select(ScraperRun).join(
+            latest,
+            and_(
+                ScraperRun.state == latest.c.state,
+                ScraperRun.started_at == latest.c.mx,
+            ),
+        )
+    )
+
+    # Latest successful run per state — only the timestamp is needed.
+    success_rows = db.execute(
+        select(ScraperRun.state, func.max(ScraperRun.started_at))
+        .where(ScraperRun.status == "ok")
+        .group_by(ScraperRun.state)
+    )
+    last_success = dict(success_rows.all())
+
+    out = [
+        StateStatusOut(
+            state=r.state,
+            last_run_at=r.started_at,
+            last_status=r.status,
+            last_finished_at=r.finished_at,
+            rows_scraped=r.rows_scraped,
+            rows_new=r.rows_new,
+            error=r.error,
+            last_success_at=last_success.get(r.state),
+        )
+        for r in latest_runs
+    ]
+    out.sort(key=lambda s: s.state)
+    return out

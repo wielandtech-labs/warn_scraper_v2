@@ -15,6 +15,7 @@ import { MapPage } from "./routes/map";
 import { StatsPage } from "./routes/stats";
 import { StatesIndexPage } from "./routes/states-index";
 import { StateDetailPage } from "./routes/state-detail";
+import { StatusPage } from "./routes/status";
 import { AboutPage } from "./routes/content/about";
 import { WarnActPage } from "./routes/content/warn-act";
 import { MethodologyPage } from "./routes/content/methodology";
@@ -192,6 +193,12 @@ const stateDetailRoute = createRoute({
   component: StateDetailPage,
 });
 
+const statusRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/status",
+  component: StatusPage,
+});
+
 // Static content pages (Phase 3). Defined explicitly (not via a loop) so each
 // path is a literal for TanStack's route-tree typing, matching the routes above.
 const aboutRoute = createRoute({
@@ -241,6 +248,7 @@ const routeTree = rootRoute.addChildren([
   statsRoute,
   statesIndexRoute,
   stateDetailRoute,
+  statusRoute,
   aboutRoute,
   warnActRoute,
   methodologyRoute,
