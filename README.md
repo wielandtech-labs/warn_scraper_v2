@@ -121,8 +121,10 @@ The scraper runs in a K3s homelab cluster managed by Flux GitOps (see
   in under 60 s; scraper now uses `wait_until="load"` + `wait_for_selector("table")`.
 - **MA**: mass.gov CSV endpoints reject plain httpx (403); scraper now downloads
   CSVs via the Playwright browser context so session cookies are shared.
-- **TN**: `tn.gov` resets TLS from container/server IPs; scraper is written but
-  `register()` is commented out. Re-enable with a proxy or residential IP.
+- **TN** *(resolved 2026-06-26, PR #88)*: `tn.gov`'s WAF resets TLS connections
+  for non-browser fingerprints; scraper now fetches via `curl_cffi`
+  (`impersonate="chrome"`) with a short retry loop (the WAF still RSTs ~1 in 4
+  handshakes). No proxy needed.
 
 **Running a one-off migration or scrape on the cluster:**
 
@@ -163,11 +165,11 @@ kubectl run scrape-tx -n warn-v2 \
 
 ### Phase 3 coverage
 
-46 jurisdictions implemented (45 states + DC):
+47 jurisdictions implemented (46 states + DC):
 
 | Implemented | Deferred |
 |-------------|---------|
-| AK, AL, AZ, CA, CO, CT, DC, DE, FL, GA, HI, IA, ID, IL, IN, KS, KY, LA, MA, MD, ME, MI, MN, MO, MS, MT, NC, ND, NE, NJ, NM, NV, NY, OH, OR, PA, RI, SC, SD, TX, UT, VA, VT, WA, WI, WV | AR, NH, WY (no public data) · OK (Salesforce/Aura auth) · TN (container TLS block) |
+| AK, AL, AZ, CA, CO, CT, DC, DE, FL, GA, HI, IA, ID, IL, IN, KS, KY, LA, MA, MD, ME, MI, MN, MO, MS, MT, NC, ND, NE, NJ, NM, NV, NY, OH, OR, PA, RI, SC, SD, TN, TX, UT, VA, VT, WA, WI, WV | AR, NH, WY (no public data) · OK (Salesforce/Aura auth) |
 
 See [`docs/deferred-states.md`](docs/deferred-states.md) for investigation notes on each deferred state.
 

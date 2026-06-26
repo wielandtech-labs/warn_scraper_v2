@@ -226,8 +226,8 @@ Findings the DB can't tell us — confirmed against the live sources.
   MT now 2015-2026, RI 2009-2026. GA scraper `fetch_failed` — now `ok`.
 - **Blocked (not registered scrapers; appear in the audit only if legacy rows
   exist):** AR (confidential by law), NH (no public listing), OK
-  (Salesforce/Aura auth wall), TN (scraper built; tn.gov blocks container IPs),
-  WY (no public data). Re-verify each blocker periodically.
+  (Salesforce/Aura auth wall), WY (no public data). Re-verify each blocker
+  periodically. (TN was unblocked 2026-06-26 via `curl_cffi` TLS impersonation.)
 
 ## Backlog (genuinely new code, not just a command)
 
