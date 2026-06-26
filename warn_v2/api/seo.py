@@ -98,6 +98,14 @@ def page_meta_for_path(path: str) -> PageMeta:
     if path == "/":
         return PageMeta(DEFAULT_TITLE, DEFAULT_DESCRIPTION, "/")
 
+    if path == "/status":
+        return PageMeta(
+            "Scraper status — WARN Tracker",
+            "Live status of WARN Tracker's state scrapers: which jurisdictions "
+            "are operational and when each last successfully updated.",
+            "/status",
+        )
+
     if path == "/states":
         return PageMeta(
             "Layoffs by state — WARN Tracker",

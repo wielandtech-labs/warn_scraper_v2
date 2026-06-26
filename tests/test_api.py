@@ -1,7 +1,7 @@
 """Integration tests for the FastAPI read-only API."""
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -409,6 +409,57 @@ def test_scraper_runs_state_filter(api_client, db):
     body = resp.json()
     assert body["total"] == 1
     assert body["items"][0]["state"] == "TX"
+
+
+def test_scraper_status_empty(api_client, db):
+    db.commit()
+    resp = api_client.get("/api/scraper-runs/status")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_scraper_status_aggregates(api_client, db):
+    now = datetime.now(UTC)
+
+    def _at(state, status, ago, **kw):
+        db.add(
+            ScraperRun(
+                state=state,
+                started_at=now - timedelta(days=ago),
+                finished_at=now - timedelta(days=ago),
+                status=status,
+                **kw,
+            )
+        )
+
+    # CA: two successes — latest run and last success are both the newer one.
+    _at("CA", "ok", 3, rows_scraped=100, rows_new=5)
+    _at("CA", "ok", 1, rows_scraped=120, rows_new=8)
+    # TX: succeeded once, then its latest run failed — last success is the older ok.
+    _at("TX", "ok", 4, rows_scraped=50, rows_new=2)
+    _at("TX", "parse_failed", 1, error="bad table")
+    # NV: never succeeded.
+    _at("NV", "fetch_failed", 2, error="403")
+    db.commit()
+
+    body = api_client.get("/api/scraper-runs/status").json()
+    assert [r["state"] for r in body] == ["CA", "NV", "TX"]  # sorted, one per state
+    rows = {r["state"]: r for r in body}
+
+    ca = rows["CA"]
+    assert ca["last_status"] == "ok"
+    assert ca["rows_new"] == 8 and ca["rows_scraped"] == 120
+    assert ca["last_run_at"] == ca["last_success_at"]
+
+    tx = rows["TX"]
+    assert tx["last_status"] == "parse_failed"
+    assert tx["error"] == "bad table"
+    assert tx["last_success_at"] is not None
+    assert tx["last_success_at"] < tx["last_run_at"]  # success predates the failure
+
+    nv = rows["NV"]
+    assert nv["last_status"] == "fetch_failed"
+    assert nv["last_success_at"] is None
 
 
 # ---------------------------------------------------------------------------

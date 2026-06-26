@@ -41,6 +41,9 @@
   .badge-slate {
     @apply badge bg-slate-100 text-slate-700;
   }
+  .badge-red {
+    @apply badge bg-red-100 text-red-800;
+  }
 }
 
 /* Tailwind Preflight is in @layer base (a named layer), so it has lower cascade

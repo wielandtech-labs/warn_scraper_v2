@@ -18,6 +18,7 @@ import type {
   ScraperRunOut,
   SearchResults,
   StateStat,
+  StateStatusOut,
 } from "./types";
 
 export class ApiError extends Error {
@@ -158,6 +159,9 @@ export const api = {
   // ---------- Scraper runs ----------
   listRuns: (q: { state?: string; status?: string; limit?: number; offset?: number } = {}) =>
     get<Page<ScraperRunOut>>("/api/scraper-runs" + qs(q)),
+
+  /** Per-state scraper health (latest run + last success) for the status page. */
+  listScraperStatus: () => get<StateStatusOut[]>("/api/scraper-runs/status"),
 
   // ---------- Stats ----------
   statsByState: (
