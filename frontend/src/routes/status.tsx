@@ -13,7 +13,6 @@ const UNSUPPORTED: Record<string, string> = {
   NH: "New Hampshire does not publish WARN notices online; available only by records request.",
   WY: "Wyoming publishes no structured WARN listing.",
   OK: "Oklahoma moved to a Salesforce portal that needs a browser token — scraper pending.",
-  TN: "Tennessee resets TLS connections from server IPs; the scraper works only from a residential IP.",
 };
 
 type Health = "operational" | "failing" | "unsupported" | "never";
