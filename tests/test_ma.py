@@ -7,6 +7,7 @@ import pytest
 from warn_v2.pipeline.validate import validate
 from warn_v2.scrapers.base import ParseFailed
 from warn_v2.scrapers.registry import get_scraper
+from warn_v2.scrapers.states.ma import _discover_csv_links
 
 FIXTURE = (
     Path(__file__).resolve().parent.parent
@@ -53,3 +54,43 @@ def test_ma_raises_on_bad_input() -> None:
     scraper = get_scraper("MA")
     with pytest.raises(ParseFailed):
         scraper.parse(b"not valid json")
+
+
+class _FakePage:
+    """Minimal Playwright Page stub for _discover_csv_links.
+
+    Yields no CSV anchor for the first ``empty_loads`` navigations (mimicking
+    Akamai's bot-challenge page from a datacenter IP) and the real link
+    afterwards.
+    """
+
+    def __init__(self, empty_loads: int) -> None:
+        self.empty_loads = empty_loads
+        self.goto_calls = 0
+
+    def goto(self, url: str, **kwargs: object) -> None:
+        self.goto_calls += 1
+
+    def wait_for_selector(self, selector: str, **kwargs: object) -> None:
+        if self.goto_calls <= self.empty_loads:
+            raise TimeoutError("no anchor yet")
+
+    def eval_on_selector_all(self, selector: str, script: str) -> list[str]:
+        if self.goto_calls <= self.empty_loads:
+            return []
+        return ["https://www.mass.gov/files/csv/2026-06/WARN%20Report.csv"]
+
+
+def test_ma_discover_retries_past_akamai_challenge() -> None:
+    # First navigation returns the challenge page (no link); a reload clears it.
+    page = _FakePage(empty_loads=1)
+    urls = _discover_csv_links(page, attempts=3)
+    assert urls == ["https://www.mass.gov/files/csv/2026-06/WARN%20Report.csv"]
+    assert page.goto_calls == 2  # reloaded once before the link appeared
+
+
+def test_ma_discover_returns_empty_after_exhausting_attempts() -> None:
+    page = _FakePage(empty_loads=99)
+    urls = _discover_csv_links(page, attempts=3)
+    assert urls == []
+    assert page.goto_calls == 3  # tried every attempt, then gave up
