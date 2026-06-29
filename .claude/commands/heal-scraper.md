@@ -145,11 +145,19 @@ prod scrape (`17 7 * * *`). Windows Task Scheduler example (daily 08:30):
 ```powershell
 $claude = (Get-Command claude).Source
 $action = New-ScheduledTaskAction -Execute $claude `
-  -Argument '-p "/heal-scraper" --permission-mode acceptEdits' `
+  -Argument '-p "/heal-scraper" --dangerously-skip-permissions' `
   -WorkingDirectory 'C:\Users\rapha\workspace\warn_scraper_v2'
 $trigger = New-ScheduledTaskTrigger -Daily -At 8:30am
 Register-ScheduledTask -TaskName 'warn-heal-scraper' -Action $action -Trigger $trigger
 ```
+
+**Why `--dangerously-skip-permissions` (auto mode).** In headless `-p` mode the
+first un-allowlisted tool call aborts the whole run (no one to answer a prompt);
+`--permission-mode acceptEdits` clears file edits but **not** the venv-python /
+`git` / `gh` Bash this op runs, so it would abort at the first such step. For a
+trusted task that only opens draft PRs (never merges), bypassing prompts is safe —
+the "never merge" rule is what bounds it. Don't pair this flag with anything that
+merges.
 
 Output is draft PRs for human review — nothing deploys until you merge. Validate
 the headless `claude -p "/heal-scraper"` invocation once interactively before
