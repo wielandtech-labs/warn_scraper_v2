@@ -82,12 +82,10 @@ class MAScraper(PlaywrightScraper):
                     )
                     page = ctx.new_page()
 
-                    # Step 1: load index page to establish Akamai session.
-                    page.goto(SOURCE_URL, wait_until="load", timeout=60_000)
-                    hrefs = page.eval_on_selector_all(
-                        "a[href*='.csv']", "els => els.map(e => e.href)"
-                    )
-                    csv_urls = list(dict.fromkeys(hrefs))  # deduplicate, keep order
+                    # Step 1: load index page and find the weekly-CSV download
+                    # link(s).  Retries with a reload to clear Akamai's bot
+                    # challenge (see _discover_csv_links).
+                    csv_urls = _discover_csv_links(page)
 
                     if not csv_urls:
                         raise ScrapeFailed("MA: no CSV links found on mass.gov WARN page")
@@ -224,6 +222,42 @@ def _parse_csv(csv_text: str, url: str) -> list[NoticeRow]:
             )
         )
     return rows
+
+
+def _discover_csv_links(page, attempts: int = 3) -> list[str]:
+    """Return the weekly-CSV download URLs on the mass.gov WARN page.
+
+    The CSV download anchor is server-rendered into the page, so a clean
+    (residential) request finds it on the first load.  From datacenter IPs
+    (the cluster) Akamai serves a bot-challenge page on the first navigation;
+    its sensor JS then sets the clearance cookie, so a *reload* returns the
+    real content.  We therefore reload-and-retry until the anchor appears,
+    which is what fixes the recurring "no CSV links found" cluster failure.
+    """
+    for attempt in range(1, attempts + 1):
+        page.goto(SOURCE_URL, wait_until="load", timeout=60_000)
+        try:
+            # Wait for the anchor in the DOM (state="attached": it may live in a
+            # collapsed download region and not be "visible").
+            page.wait_for_selector(
+                "a[href*='.csv']", state="attached", timeout=15_000
+            )
+        except Exception:
+            pass  # fall through to the explicit check + reload below
+
+        hrefs = page.eval_on_selector_all(
+            "a[href*='.csv']", "els => els.map(e => e.href)"
+        )
+        csv_urls = list(dict.fromkeys(hrefs))  # deduplicate, keep order
+        if csv_urls:
+            return csv_urls
+
+        log.warning(
+            "MA: no CSV link on attempt %d/%d; reloading to clear Akamai challenge",
+            attempt, attempts,
+        )
+
+    return []
 
 
 register(MAScraper())
