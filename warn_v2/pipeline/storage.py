@@ -6,6 +6,8 @@ from collections.abc import Iterable
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
+from warn_v2.scrapers._helpers import norm
+
 from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
@@ -61,6 +63,51 @@ def _derive_location_city(row: NoticeRow) -> str | None:
     return None
 
 
+def _merge_worksite_rows(rows: Iterable[NoticeRow]) -> list[NoticeRow]:
+    """Collapse rows sharing a ``notice_id`` into one, summing distinct worksites.
+
+    Sources like CA EDD publish one row per *worksite*: a single notice can list
+    several sites for the same employer/date/city/zip, differing only by street
+    address (e.g. Intel's four Santa Clara campuses). ``notice_id`` excludes the
+    address, so those rows collapse to one — and the plain upsert would keep only
+    the last worksite's ``layoff_count``, discarding the rest and badly
+    under-counting affected workers (and manufacturing spurious count==1 rows).
+
+    For each ``notice_id`` group we first drop exact-worksite duplicates (same
+    normalized address) so a true duplicate row is never double-counted, then sum
+    ``layoff_count`` across the remaining distinct addresses. The first row of the
+    group represents the merged notice, carrying the summed count (left ``None``
+    only when every row's count was ``None`` — never coerced to 0).
+
+    Idempotent: a re-scrape reads the whole source file, so the group and its sum
+    are identical, and the upsert *replaces* the stored count rather than
+    accumulating. Groups with a single row are returned unchanged.
+
+    Known limit: rows with no address can't be told apart, so distinct same-city
+    worksites in address-less sources still collapse to one.
+    """
+    groups: dict[str, list[NoticeRow]] = {}
+    for row in rows:
+        groups.setdefault(notice_id(row), []).append(row)
+
+    merged: list[NoticeRow] = []
+    for group in groups.values():
+        if len(group) == 1:
+            merged.append(group[0])
+            continue
+        seen_addresses: set[str] = set()
+        total: int | None = None
+        for row in group:
+            addr = norm(row.address or "")
+            if addr and addr in seen_addresses:
+                continue  # exact-worksite duplicate — count it once
+            seen_addresses.add(addr)
+            if row.layoff_count is not None:
+                total = (total or 0) + row.layoff_count
+        merged.append(replace(group[0], layoff_count=total))
+    return merged
+
+
 def upsert_notices(session: Session, rows: Iterable[NoticeRow]) -> tuple[int, int]:
     """Insert new notices; fill in nullable fields on existing rows.
 
@@ -77,6 +124,10 @@ def upsert_notices(session: Session, rows: Iterable[NoticeRow]) -> tuple[int, in
     new = 0
     dialect = session.bind.dialect.name if session.bind is not None else ""
     now = datetime.now(UTC)
+
+    # Collapse per-worksite rows that share a notice_id into one notice, summing
+    # their distinct-address layoff counts (see _merge_worksite_rows).
+    rows = _merge_worksite_rows(rows)
 
     for row in rows:
         seen += 1

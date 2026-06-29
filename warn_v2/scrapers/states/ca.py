@@ -91,7 +91,15 @@ def _is_numeric_token(s: str) -> bool:
 _COMPANY_KEYS = ("company", "employer", "company name")
 _NOTICE_DATE_KEYS = ("notice date", "received date", "date received")
 _EFFECTIVE_DATE_KEYS = ("effective date", "layoff date")
-_LAYOFF_COUNT_KEYS = ("no. of employees", "number of employees", "employees affected")
+# "employees" (bare) matches the FY2019-20 archive PDF, whose header column is
+# just "Employees" rather than "No. Of Employees" — without it that whole file
+# parses to a zero layoff count.
+_LAYOFF_COUNT_KEYS = (
+    "no. of employees",
+    "number of employees",
+    "employees affected",
+    "employees",
+)
 _COUNTY_KEYS = ("county/parish", "county")
 _CITY_KEYS = ("city",)
 _ZIP_KEYS = ("zip", "zip code")

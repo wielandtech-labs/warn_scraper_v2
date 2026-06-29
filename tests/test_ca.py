@@ -56,6 +56,23 @@ def test_ca_numeric_summary_rows_are_dropped() -> None:
     assert rows[0].employer == "Acme Corp"
 
 
+def test_ca_employees_header_variant_is_parsed() -> None:
+    """The FY2019-20 archive PDF labels the count column just 'Employees'.
+
+    Without that key in _LAYOFF_COUNT_KEYS the whole file parsed to a 0 count.
+    """
+    df = pd.DataFrame({
+        "Company": ["Harbor Bay Club", "MD2 Industries"],
+        "Notice Date": [date(2020, 6, 10), date(2020, 3, 20)],
+        "City": ["Alameda", "Long Beach"],
+        "Employees": [80, 109],
+        "Layoff/Closure": ["Layoff", "Closure"],
+    })
+    rows = _parse_df(df)
+
+    assert [r.layoff_count for r in rows] == [80, 109]
+
+
 def test_ca_end_to_end_persists(ca_golden_xlsx_bytes, db) -> None:
     scraper = get_scraper("CA")
     rows = scraper.parse(ca_golden_xlsx_bytes)
