@@ -6,8 +6,6 @@ from collections.abc import Iterable
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
-from warn_v2.scrapers._helpers import norm
-
 from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
@@ -17,6 +15,7 @@ from warn_v2.companies.normalize import canonical_name
 from warn_v2.db.models import Company, Location, Notice
 from warn_v2.geo.geocoder import geocode as _geocode
 from warn_v2.pipeline.dedup import notice_id
+from warn_v2.scrapers._helpers import norm
 from warn_v2.scrapers.base import NoticeRow
 
 # First non-null wins: once set, don't overwrite (geocoded location, address, type).
