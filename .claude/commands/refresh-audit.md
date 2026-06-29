@@ -140,19 +140,33 @@ access** and `gh` auth. Validate `claude -p "/refresh-audit"` once interactively
 confirm WSL `kubectl` reaches the cluster and the `GH_TOKEN` shim resolves
 non-interactively — before trusting a scheduled run.
 
+**Auto mode (no prompts).** In headless `-p` mode there's no one to answer a
+permission prompt, and the **first un-allowlisted tool call aborts the whole run**
+with a non-zero exit (it doesn't hang or skip). `--permission-mode acceptEdits`
+auto-approves file edits but **not** the `wsl kubectl` / `git` / `gh` Bash this
+routine runs — so it would abort at the first `git` step, *after* touching the
+cluster. For a trusted, bounded task (read-only audit + a PR it never merges), run
+with **`--dangerously-skip-permissions`** (≡ `--permission-mode bypassPermissions`),
+which skips all prompts. This also avoids allowlisting the `GH_TOKEN` shim (a
+`git credential fill` pipeline that's awkward to express as an allow rule). Don't
+hand this flag to anything that *merges* — the success criteria above (never merge)
+are what keep auto mode safe.
+
 The audit is a slow-moving snapshot, so **weekly** is plenty. Windows Task Scheduler
 example (Mondays 09:00, after the nightly scrape/enrich window):
 
 ```powershell
 $claude = (Get-Command claude).Source
 $action = New-ScheduledTaskAction -Execute $claude `
-  -Argument '-p "/refresh-audit" --permission-mode acceptEdits' `
+  -Argument '-p "/refresh-audit" --dangerously-skip-permissions' `
   -WorkingDirectory 'C:\Users\rapha\workspace\warn_scraper_v2'
 $trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday -At 9:00am
 Register-ScheduledTask -TaskName 'warn-refresh-audit' -Action $action -Trigger $trigger
 ```
 
-Output is a draft PR for human review — nothing deploys until you merge.
+`-WorkingDirectory` sets the cwd (the proven mechanism — there's no need for a
+`claude` cwd flag). Output is a draft PR for human review — nothing deploys until
+you merge.
 
 - **Run once, interactively:** `/refresh-audit`
 - **Re-check on an interval:** `/loop 7d /refresh-audit`
