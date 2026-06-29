@@ -80,6 +80,49 @@ def test_upsert_is_idempotent(db) -> None:
     assert db.query(Location).count() == 1
 
 
+def test_upsert_sums_distinct_worksites(db) -> None:
+    """Per-worksite rows sharing a notice_id are merged, summing their counts.
+
+    Two sites for one employer/date/city/zip differ only by street address (as
+    CA EDD publishes them); they collapse to one notice whose layoff_count is the
+    sum, not the last site's value.
+    """
+    rows = [
+        _row(address="2 Folsom Street", layoff_count=31),
+        _row(address="1 Harrison Street", layoff_count=1),
+    ]
+    seen, new = upsert_notices(db, rows)
+    db.commit()
+
+    assert (seen, new) == (1, 1)
+    notice = db.query(Notice).one()
+    assert notice.layoff_count == 32
+
+
+def test_upsert_does_not_double_count_exact_duplicates(db) -> None:
+    """Two identical worksite rows (same address) count once, never summed."""
+    rows = [_row(address="2 Folsom Street"), _row(address="2 Folsom Street")]
+    upsert_notices(db, rows)
+    db.commit()
+
+    assert db.query(Notice).one().layoff_count == 50  # not 100
+
+
+def test_upsert_worksite_sum_is_idempotent(db) -> None:
+    """Re-scraping the same worksite batch keeps the summed count stable."""
+    rows = [
+        _row(address="2 Folsom Street", layoff_count=31),
+        _row(address="1 Harrison Street", layoff_count=1),
+    ]
+    upsert_notices(db, rows)
+    db.commit()
+    seen, new = upsert_notices(db, rows)
+    db.commit()
+
+    assert (seen, new) == (1, 0)
+    assert db.query(Notice).one().layoff_count == 32
+
+
 def test_upsert_creates_distinct_locations(db) -> None:
     rows = [
         _row(employer="Acme Inc", city="Oakland", zip="94607"),
