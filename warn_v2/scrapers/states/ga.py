@@ -47,9 +47,12 @@ class GAScraper(PlaywrightScraper):
             page.select_option(
                 "select[name='DataTables_Table_0_length']", "-1"
             )
-        # Table rows are rendered synchronously from the AJAX payload, so a
-        # brief selector wait is enough for the DOM to settle.
-        page.wait_for_selector("table tbody tr", timeout=10_000)
+        # The AJAX payload returns quickly, but DataTables is slow to paint the
+        # rows into the DOM: the site's Content-Security-Policy blocks the
+        # responsive extension on cdn.datatables.net, so DataTables stalls on
+        # the failed CDN loads (~20s observed) before rendering.  Wait well past
+        # that for the first row to appear.
+        page.wait_for_selector("table tbody tr", timeout=45_000)
 
     def parse(self, raw: bytes) -> list[NoticeRow]:
         soup = BeautifulSoup(raw, "html.parser")
