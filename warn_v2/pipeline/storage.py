@@ -303,6 +303,21 @@ def enrich_notice_location(
             session.flush()
             return True
     elif not existing_loc.zip and zip_:
+        # A different location may already hold (state, city, zip); promoting in
+        # place would violate uq_locations_state_city_zip (prod: two CT "Conduent
+        # (Remote)" notices both resolving to CT/Remote/06109). Rebind to the
+        # existing twin rather than colliding.
+        twin = session.execute(
+            select(Location).where(
+                Location.state == existing_loc.state,
+                Location.city == existing_loc.city,
+                Location.zip == zip_,
+            ).limit(1)
+        ).scalar_one_or_none()
+        if twin is not None and twin.id != existing_loc.id:
+            notice.location = twin
+            session.flush()
+            return True
         existing_loc.zip = zip_
         # Re-geocode with the now-known zip
         from warn_v2.geo.geocoder import geocode as _geocode

@@ -333,6 +333,45 @@ def test_location_zip_merge_skipped_when_ambiguous(db) -> None:
     )
 
 
+def test_enrich_location_rebinds_to_existing_twin(db) -> None:
+    """Promoting a zip-less location must not collide with an existing
+    (state, city, zip) row.
+
+    Regression: two CT "Conduent (Remote)" notices both resolve to
+    (CT, Remote, 06109). One already owns that location; promoting the other's
+    zip-less row in place raised a UniqueViolation that crashed the whole
+    pdf-downloader job. The notice should rebind to the existing twin instead.
+    """
+    from warn_v2.pipeline.storage import enrich_notice_location
+
+    # Notice A: already enriched, owns (CT, Remote, 06109).
+    upsert_notices(db, [
+        _row(state="CT", employer="Conduent A", city="Remote", zip="06109"),
+    ])
+    # Notice B: same (state, city) but still zip-less.
+    upsert_notices(db, [
+        _row(state="CT", employer="Conduent B", city="Remote", zip=None,
+             notice_date=date(2026, 2, 1)),
+    ])
+    db.commit()
+
+    twin = db.query(Location).filter(Location.zip == "06109").one()
+    notice_b = db.query(Notice).filter(Notice.employer == "Conduent B").one()
+    assert notice_b.location is not None
+    assert notice_b.location.id != twin.id
+    assert (notice_b.location.zip or "") == ""
+    before = db.query(Location).count()
+
+    changed = enrich_notice_location(
+        db, notice_b, city="Remote", zip_="06109", address=None
+    )
+    db.commit()
+
+    assert changed is True
+    assert notice_b.location.id == twin.id          # rebound to the twin
+    assert db.query(Location).count() == before      # zip-less row left in place
+
+
 def test_upsert_sanitizes_multi_value_naics(db) -> None:
     """A source cell holding several NAICS codes must not overflow VARCHAR(8).
 
