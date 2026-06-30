@@ -12,7 +12,11 @@ spec:
   failedJobsHistoryLimit: 5
   jobTemplate:
     spec:
-      backoffLimit: 1
+      # No retry: download-pdfs already isolates each notice (a single bad row
+      # can't abort the run) and skips notices it has already stored, so a
+      # Job-level retry mainly re-fetches the sources that legitimately errored.
+      # A failed run recovers on the next daily pass instead.
+      backoffLimit: 0
       template:
         metadata:
           labels:
