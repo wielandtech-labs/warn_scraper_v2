@@ -119,7 +119,22 @@ def download_pdfs(
 
         pending_commit = 0
         for notice in notices:
-            result = _process_one(session, notice, pdf_dir=pdf_dir, dry_run=dry_run)
+            # Isolate each notice in a SAVEPOINT so an unexpected error rolls
+            # back only that notice, leaving the in-flight batch intact, then
+            # log and carry on. Without this a single poison row aborts the
+            # whole job (and every nightly retry) — e.g. a location ZIP-promotion
+            # hitting uq_locations_state_city_zip.
+            try:
+                with session.begin_nested():
+                    result = _process_one(
+                        session, notice, pdf_dir=pdf_dir, dry_run=dry_run
+                    )
+            except Exception:
+                log.exception(
+                    "download-pdfs: unexpected error on %s %s — skipping",
+                    notice.state, notice.notice_id[:8],
+                )
+                result = "errors"
             stats[result] += 1
             if result in ("fetched", "enriched"):
                 pending_commit += 1
