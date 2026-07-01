@@ -53,9 +53,21 @@ _DESCRIPTIVE_CLAUSE = re.compile(
     r"formerly|f/k/a|a/k/a|n/k/a)\b.*$",
     re.IGNORECASE,
 )
+# "Advance Stores Company, Incorporated and its subsidiary, Golden State ..." ->
+# keep the parent. The subsidiary keyword trails "and its" rather than a bare
+# comma, so _DESCRIPTIVE_CLAUSE (comma-anchored) misses it.
+_SUBSIDIARY_CLAUSE = re.compile(r"\s+and\s+its\s+subsidiar(?:y|ies)\b.*$", re.IGNORECASE)
+# Trailing footnote/status annotation introduced by a spaced asterisk:
+# "... *Due to COVID-19 Tampa, FL 33607". The required leading whitespace keeps
+# mid-name stars ("E*Trade") safe.
+_TRAILING_STAR_NOTE = re.compile(r"\s+\*.*$")
+# An unbalanced trailing "(" with no closing paren: "Tyson Foods, Inc. (Amarillo
+# B-Shift Operations". Balanced parens keep their ")", so this never fires on them.
+_TRAILING_OPEN_PAREN = re.compile(r"\s*\([^()]*$")
 # Any trailing parenthetical, applied repeatedly: "(Remote Employees ...)",
 # "(KI Jones Elementary)", "(6230)". Supersedes the old numeric-only rule.
-_TRAILING_PAREN = re.compile(r"\s*\([^()]*\)\s*$")
+# Tolerates trailing footnote stars glued to the paren ("(CANCELLED)**").
+_TRAILING_PAREN = re.compile(r"\s*\([^()]*\)\**\s*$")
 # Appended worksite address, anchored on a trailing US state+ZIP — high
 # precision. The leading-number requirement keeps real leading-number names
 # ("10x Genomics", "3M", "10 Roads") safe; the middle is length-bounded so a
@@ -114,10 +126,17 @@ def search_name(name: str | None) -> str:
     if not name:
         return ""
     s = html.unescape(name).translate(_SMART_QUOTES)  # "McDonald&rsquo;s" -> "McDonald's"
+    # Collapse embedded newlines/runs of whitespace up front: every trailing-
+    # anchored rule below uses ``.*$``, which can't cross a "\n", so a multi-line
+    # stored name would silently defeat the descriptive/paren/address strips.
+    s = _WS.sub(" ", s)
     s = _HASH_STORE_NO.sub(" ", _LEADING_STORE_NO.sub("", s))
     s = _DBA.sub("", s)
     s = _DESCRIPTIVE_CLAUSE.sub("", s)
+    s = _SUBSIDIARY_CLAUSE.sub("", s)
     s = _truncate_repeated_entity(s)
+    s = _TRAILING_STAR_NOTE.sub("", s)
+    s = _TRAILING_OPEN_PAREN.sub("", s)
     s = _TRAILING_ADDR_ZIP.sub("", s)
     # Trailing parens can stack ("Foo (Bar) (1234)"); strip until stable.
     while True:
@@ -198,7 +217,15 @@ def match_is_consistent(original: str, matched: str) -> bool:
     different firms is not evidence they're the same company, so the shared set
     must contain at least one non-generic token.
     """
-    shared = _significant_tokens(original) & _significant_tokens(matched)
+    orig = _significant_tokens(original)
+    if not orig:
+        # Ampersand/short names ("AT&T", "H&M") reduce to no significant tokens
+        # (punctuation dropped, single letters excluded), so there's nothing to
+        # check faithfulness against. Auto-rejecting would lock every such
+        # company out of a DUNS forever; trust the provider's own match +
+        # similarity threshold instead.
+        return True
+    shared = orig & _significant_tokens(matched)
     return bool(shared - _GENERIC_MATCH_TOKENS)
 
 
