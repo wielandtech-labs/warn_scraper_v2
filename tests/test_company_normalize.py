@@ -183,6 +183,46 @@ def test_search_name_keeps_facility_like_real_names():
     assert search_name("Acme Data Center") == "Acme Data Center"
 
 
+def test_search_name_collapses_embedded_newlines():
+    # Multi-line stored names would otherwise defeat every trailing-anchored
+    # rule (".*$" can't cross a "\n"), leaving the clause un-stripped.
+    assert search_name(
+        "Hollywood Palladium, a subsidiary of Live Nation\nEntertainment, Inc."
+    ) == "Hollywood Palladium"
+    assert search_name(
+        "Advance Stores Company, Incorporated and its subsidiary,\nGolden State Supply LLC"
+    ) == "Advance Stores Company, Incorporated"
+
+
+def test_search_name_strips_and_its_subsidiary_clause():
+    assert search_name(
+        "Advance Stores Company, Incorporated and its subsidiary, Golden State Supply LLC"
+    ) == "Advance Stores Company, Incorporated"
+    assert search_name("Acme Corp and its subsidiaries") == "Acme Corp"
+
+
+def test_search_name_strips_trailing_star_annotation():
+    # Footnote/status tails glued to a paren, or introduced by a spaced asterisk.
+    assert search_name("Health Net, Inc. (CANCELLED)**") == "Health Net, Inc."
+    assert search_name(
+        "Bloomin' Brands (Outback Steakhouse) *Due to COVID-19 Tampa, FL 33607"
+    ) == "Bloomin' Brands"
+    assert search_name(
+        "Busch Gardens Williamsburg *Due to COVID-19 Williamsburg, VA 23185"
+    ) == "Busch Gardens Williamsburg"
+
+
+def test_search_name_preserves_mid_name_star():
+    # A "*" without leading whitespace is part of the name, not an annotation.
+    assert search_name("E*Trade Financial") == "E*Trade Financial"
+
+
+def test_search_name_strips_unbalanced_open_paren():
+    assert search_name("Tyson Foods, Inc. (Amarillo B-Shift Operations") == (
+        "Tyson Foods, Inc."
+    )
+
+
 def test_search_name_long_input_is_safe():
     # Guard against ReDoS in the address regex: a digit-prefixed name with no
     # real ZIP must return promptly, not backtrack catastrophically.
@@ -217,3 +257,10 @@ def test_match_is_consistent_rejects_generic_only_overlap():
     assert not match_is_consistent("Acme Healthcare", "Sutter Healthcare")
     assert not match_is_consistent("Midwest Logistics", "Eastern Logistics")
     assert not match_is_consistent("Premier Staffing", "National Staffing Solutions")
+
+
+def test_match_is_consistent_trusts_provider_for_tokenless_names():
+    # Ampersand/short names reduce to no significant tokens; auto-rejecting would
+    # lock them out of a DUNS forever, so trust the provider's match instead.
+    assert match_is_consistent("AT&T", "AT&T Inc")
+    assert match_is_consistent("H&M", "H&M Inc")
