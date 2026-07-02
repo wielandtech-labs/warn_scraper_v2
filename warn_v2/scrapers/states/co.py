@@ -5,9 +5,12 @@ from the "WARN Listings" page:
   https://cdle.colorado.gov/employers/layoff-separations/layoff-warn-list
 
 fetch() scrapes that page (browser UA — it 403s non-browser agents) for the
-per-year sheet links, fills gaps from a known-sheet registry, downloads every
-sheet's CSV export, and returns a JSON envelope
+per-year sheet links, fills gaps from a known-sheet registry, downloads the
+CSV export of the two newest sheets (current year, plus the prior year for
+late revisions around the boundary), and returns a JSON envelope
 ``{"sheets": [{"year", "url", "csv"}, ...]}`` so raw snapshots stay replayable.
+Older sheets are immutable and ingested once via
+``warn-v2 backfill-historical --state CO`` (see ``_fetch_co_year``).
 
 The yearly schemas vary and parse() maps them by header aliases:
   2015-2018  Company Name | Layoff Total | Workforce Region | WARN Date | Reason
@@ -162,9 +165,9 @@ def _discover_sheet_urls() -> dict[int, str]:
 class COScraper:
     state = "CO"
     source_url = SOURCE_URL
-    # ~880 notices across the 2015-2026 sheets; far fewer means whole sheets
-    # went missing.
-    expected_row_range = (100, 10_000)
+    # Two newest sheets: ~25-100 rows mid-year; low minimum because the
+    # current-year sheet is near-empty every January.
+    expected_row_range = (5, 10_000)
     required_fields = frozenset({"employer", "notice_date"})
 
     def fetch(self) -> bytes:
@@ -183,8 +186,11 @@ class COScraper:
             for year, url in _KNOWN_SHEETS.items():
                 sheets.setdefault(year, url)
 
+        # Only the two newest sheets: history never changes and is ingested
+        # via backfill-historical; the prior year still catches late entries
+        # around the year boundary.
         payload: list[dict[str, object]] = []
-        for year in sorted(sheets, reverse=True):
+        for year in sorted(sheets, reverse=True)[:2]:
             url = sheets[year]
             try:
                 r = httpx.get(url, timeout=60, follow_redirects=True)
@@ -232,6 +238,31 @@ class COScraper:
                 "the CDLE source has probably moved"
             )
         return rows
+
+
+def _fetch_co_year(year: int) -> bytes | None:
+    """Download one year's sheet for ``backfill-historical`` (None = no sheet).
+
+    Registry first — the historical sheet set is fixed; discovery only for
+    years the registry doesn't know yet.
+    """
+    url = _KNOWN_SHEETS.get(year)
+    if url is None:
+        url = _discover_sheet_urls().get(year)
+    if url is None:
+        return None
+    try:
+        r = httpx.get(url, timeout=60, follow_redirects=True)
+        r.raise_for_status()
+    except httpx.HTTPError as e:
+        raise ScrapeFailed(f"GET {url}: {e}") from e
+    return json.dumps({"sheets": [{"year": year, "url": url, "csv": r.text}]}).encode()
+
+
+def _parse_co_year(raw: bytes, year: int) -> list[NoticeRow]:
+    """Parse one year's envelope without the regular scraper's staleness guard."""
+    sheet = json.loads(raw)["sheets"][0]
+    return _parse_sheet(sheet["csv"], int(sheet.get("year", year)), sheet["url"])
 
 
 def _parse_sheet(csv_text: str, year: int, url: str) -> list[NoticeRow]:
