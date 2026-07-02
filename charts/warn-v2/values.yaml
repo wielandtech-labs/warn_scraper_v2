@@ -175,5 +175,26 @@ alertDigest:
     requests: { cpu: 50m, memory: 128Mi }
     limits:   { cpu: 300m, memory: 256Mi }
 
+# Storage for the per-state economic sentiment markdown reports. Written by
+# the weekly sentimentReport CronJob, read (read-only) by the api pod for
+# GET /api/reports/{state}. 51 small markdown files — 1Gi is generous.
+reportStorage:
+  enabled: false        # flip on in HelmRelease
+  storageClass: nfs-client
+  size: 1Gi
+
+# Weekly per-state economic sentiment reports (warn-v2 sentiment-report).
+# Deterministic trend tables from the DB plus an LLM narrative from the
+# cluster's shared Ollama service (GPU node) — the job pod itself needs no
+# GPU, it is just an HTTP client. Requires reportStorage.enabled.
+sentimentReport:
+  enabled: false            # flip on in HelmRelease after reportStorage
+  schedule: "37 10 * * 1"   # weekly Monday 10:37, clear of the 04:30-09:17 daily jobs
+  ollamaBaseUrl: "http://ollama.ai.svc.cluster.local:11434"
+  ollamaModel: "gpt-oss:20b"
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+
 migrations:
   enabled: true   # set false only if you manage migrations out-of-band

@@ -35,11 +35,22 @@ spec:
             - name: PDF_DIR
               value: /var/pdfs
             {{- end }}
-          {{- if .Values.pdfStorage.enabled }}
+            {{- if .Values.reportStorage.enabled }}
+            - name: REPORTS_DIR
+              value: /var/reports
+            {{- end }}
+          {{- if or .Values.pdfStorage.enabled .Values.reportStorage.enabled }}
           volumeMounts:
+            {{- if .Values.pdfStorage.enabled }}
             - name: pdfs
               mountPath: /var/pdfs
               readOnly: true
+            {{- end }}
+            {{- if .Values.reportStorage.enabled }}
+            - name: reports
+              mountPath: /var/reports
+              readOnly: true
+            {{- end }}
           {{- end }}
           readinessProbe:
             httpGet:
@@ -55,11 +66,18 @@ spec:
             periodSeconds: 30
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}
-      {{- if .Values.pdfStorage.enabled }}
+      {{- if or .Values.pdfStorage.enabled .Values.reportStorage.enabled }}
       volumes:
+        {{- if .Values.pdfStorage.enabled }}
         - name: pdfs
           persistentVolumeClaim:
             claimName: {{ include "warn-v2.fullname" . }}-pdfs
+        {{- end }}
+        {{- if .Values.reportStorage.enabled }}
+        - name: reports
+          persistentVolumeClaim:
+            claimName: {{ include "warn-v2.fullname" . }}-reports
+        {{- end }}
       {{- end }}
 ---
 apiVersion: v1
