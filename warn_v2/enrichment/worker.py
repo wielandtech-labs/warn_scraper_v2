@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Collection
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
@@ -46,8 +47,10 @@ def find_pending(
     rerun_below: float | None = None,
     recent_years: int | None = None,
     provider_attempted: bool | None = None,
+    order_by: str = "impact",
+    exclude_ids: Collection[int] | None = None,
 ) -> list[Company]:
-    """Return companies that need enrichment, highest-impact first.
+    """Return companies that need enrichment, in ``order_by`` order.
 
     Selects companies with ``enriched_at IS NULL``.  If ``rerun_below`` is set,
     also includes companies whose ``enrichment_confidence < rerun_below``.
@@ -58,12 +61,24 @@ def find_pending(
     ``provider_attempted`` filters on the D&B attempt stamp: ``False`` = only
     companies the provider hasn't tried yet (provider-only main flow), ``True``
     = only already-attempted ones (backup-tier runs), ``None`` = no filter.
+    ``exclude_ids`` drops the given company ids — used to dedupe a second,
+    differently-ordered batch against the first.
 
-    Companies are ordered by total **workers affected** across their
-    (non-superseded) WARN notices, descending — so the scarce DUNS/provider
-    lookups are spent on the biggest layoffs first.
+    ``order_by`` picks which end of the queue this batch works:
+      - "impact" (default): total workers affected across the company's
+        non-superseded notices, descending — the scarce DUNS/provider lookups
+        go to the biggest layoffs first.
+      - "recency": most recent non-superseded notice date, descending —
+        freshly-noticed companies enrich while they still fall inside the
+        sentiment reports' 90-day window.
     """
+    if order_by not in ("impact", "recency"):
+        raise ValueError(f"unknown order_by: {order_by!r}")
+
     stmt = select(Company)
+
+    if exclude_ids:
+        stmt = stmt.where(Company.id.not_in(list(exclude_ids)))
 
     if rerun_below is not None:
         from sqlalchemy import or_
@@ -104,19 +119,33 @@ def find_pending(
             )
         )
 
-    # Rank by total workers affected across the company's own (non-superseded)
-    # notices. coalesce -> 0 sorts companies with no/blank layoff counts last.
     # Tie-break on id for a deterministic order across runs.
-    affected = (
-        select(func.coalesce(func.sum(Notice.layoff_count), 0))
-        .where(
-            Notice.company_id == Company.id,
-            Notice.is_superseded.is_(False),
+    if order_by == "impact":
+        # Rank by total workers affected across the company's own (non-superseded)
+        # notices. coalesce -> 0 sorts companies with no/blank layoff counts last.
+        affected = (
+            select(func.coalesce(func.sum(Notice.layoff_count), 0))
+            .where(
+                Notice.company_id == Company.id,
+                Notice.is_superseded.is_(False),
+            )
+            .correlate(Company)
+            .scalar_subquery()
         )
-        .correlate(Company)
-        .scalar_subquery()
-    )
-    stmt = stmt.order_by(affected.desc(), Company.id)
+        stmt = stmt.order_by(affected.desc(), Company.id)
+    else:
+        # Rank by the company's most recent (non-superseded) notice date;
+        # companies with no dated notices sort last.
+        latest_notice = (
+            select(func.max(Notice.notice_date))
+            .where(
+                Notice.company_id == Company.id,
+                Notice.is_superseded.is_(False),
+            )
+            .correlate(Company)
+            .scalar_subquery()
+        )
+        stmt = stmt.order_by(latest_notice.desc().nullslast(), Company.id)
 
     stmt = stmt.limit(limit)
     return list(session.scalars(stmt))
@@ -211,6 +240,7 @@ def enrich_batch(
     client: LLMClient,
     *,
     limit: int = 50,
+    recent_limit: int = 0,
     state_filter: str | None = None,
     rerun_below: float | None = None,
     dry_run: bool = False,
@@ -239,6 +269,13 @@ def enrich_batch(
 
     ``inter_delay_s`` (default 30 s) is the sleep inserted *between* companies
     to respect Anthropic token-per-minute limits.  Set to 0 in tests.
+
+    ``recent_limit`` works the pile from the other end: in addition to the
+    ``limit`` highest-impact companies, up to ``recent_limit`` companies
+    ordered by most-recent notice date (deduped against the impact batch) are
+    enriched in the same run. Impact first — if a provider daily cap lands
+    mid-run, the biggest layoffs were already attempted and the recency
+    remainder stays queued for the next run.
     """
     from warn_v2.enrichment.lookup import edgar_lookup
 
@@ -258,12 +295,27 @@ def enrich_batch(
         recent_years=recent_years,
         provider_attempted=provider_attempted,
     )
+    n_impact = len(companies)
+    if recent_limit:
+        companies += find_pending(
+            session,
+            limit=recent_limit,
+            state_filter=state_filter,
+            rerun_below=rerun_below,
+            recent_years=recent_years,
+            provider_attempted=provider_attempted,
+            order_by="recency",
+            exclude_ids={c.id for c in companies},
+        )
     if not companies:
         log.info("enrich_batch: no pending companies found")
         return {"total": 0, "enriched": 0, "skipped": 0, "provider": 0,
                 "provider_miss": 0, "provider_rejected": 0, "edgar": 0, "claude": 0}
 
-    log.info("enrich_batch: found %d company/companies to enrich", len(companies))
+    log.info(
+        "enrich_batch: found %d company/companies to enrich (%d impact + %d recency)",
+        len(companies), n_impact, len(companies) - n_impact,
+    )
     enriched = 0
     skipped = 0
     stats_provider = 0

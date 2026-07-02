@@ -100,6 +100,17 @@ def list_states() -> None:
 
 @main.command()
 @click.option("--limit", default=10, show_default=True, help="Max companies to enrich per run")
+@click.option(
+    "--recent-limit",
+    default=0,
+    show_default=True,
+    metavar="N",
+    help=(
+        "Additionally enrich up to N companies ordered by most-recent notice "
+        "date (deduped against the impact-ordered --limit batch) — works the "
+        "queue from both ends."
+    ),
+)
 @click.option("--state", default=None, help="Only enrich companies from this state's notices")
 @click.option(
     "--rerun-below",
@@ -136,6 +147,7 @@ def list_states() -> None:
 )
 def enrich(
     limit: int,
+    recent_limit: int,
     state: str | None,
     rerun_below: float | None,
     dry_run: bool,
@@ -158,6 +170,7 @@ def enrich(
     Examples:
       warn-v2 enrich                        # D&B-only on untried companies
       warn-v2 enrich --limit 200            # larger batch
+      warn-v2 enrich --limit 25 --recent-limit 25  # 25 biggest + 25 most recent
       warn-v2 enrich --tiers edgar,claude   # backup pass over D&B misses
       warn-v2 enrich --tiers provider,edgar,claude  # old full cascade
       warn-v2 enrich --recent-years 2       # only companies with recent notices
@@ -194,6 +207,7 @@ def enrich(
                 session,
                 client,
                 limit=limit,
+                recent_limit=recent_limit,
                 state_filter=state,
                 rerun_below=rerun_below,
                 dry_run=dry_run,
