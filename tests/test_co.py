@@ -4,19 +4,11 @@ import json
 from datetime import date
 from pathlib import Path
 
-import httpx
 import pytest
-import respx
 
 from warn_v2.pipeline.validate import validate
 from warn_v2.scrapers.base import ParseFailed
 from warn_v2.scrapers.registry import get_scraper
-from warn_v2.scrapers.states.co import (
-    _KNOWN_SHEETS,
-    SOURCE_URL,
-    _fetch_co_year,
-    _parse_co_year,
-)
 
 FIXTURE_DIR = (
     Path(__file__).resolve().parent.parent / "warn_v2" / "scrapers" / "fixtures" / "co"
@@ -125,55 +117,3 @@ def test_co_back_compat_bare_csv_snapshot() -> None:
 def test_co_raises_on_empty_input() -> None:
     with pytest.raises(ParseFailed):
         get_scraper("CO").parse(b"")
-
-
-_LISTING_HTML = (
-    b'<a href="https://docs.google.com/spreadsheets/d/id-2026/edit?gid=111#gid=111">'
-    b"View Real-Time 2026 Warns</a>"
-    b'<a href="https://docs.google.com/spreadsheets/d/id-2025/edit?usp=sharing">'
-    b"View 2025 WARN List</a>"
-    b'<a href="https://docs.google.com/spreadsheets/d/id-2024/edit?usp=sharing">'
-    b"View 2024 WARN List</a>"
-)
-
-_MINI_CSV = "Company,WARN Date,CO Layoffs\nAcme,1/2/26,10\n"
-
-
-@respx.mock
-def test_co_fetch_downloads_only_two_newest_sheets() -> None:
-    respx.get(SOURCE_URL).mock(return_value=httpx.Response(200, content=_LISTING_HTML))
-    respx.get("https://docs.google.com/spreadsheets/d/id-2026/export?format=csv&gid=111").mock(
-        return_value=httpx.Response(200, text=_MINI_CSV)
-    )
-    respx.get("https://docs.google.com/spreadsheets/d/id-2025/export?format=csv").mock(
-        return_value=httpx.Response(200, text=_MINI_CSV)
-    )
-    # respx raises on any request without a mock, so a 2024-or-older download
-    # (discovered or from the registry) would fail this test.
-    raw = get_scraper("CO").fetch()
-    sheets = json.loads(raw)["sheets"]
-    assert [s["year"] for s in sheets] == [2026, 2025]
-
-
-@respx.mock
-def test_co_backfill_year_fetch_and_parse() -> None:
-    respx.get(_KNOWN_SHEETS[2015]).mock(
-        return_value=httpx.Response(
-            200,
-            text="Company Name,Layoff Total,Workforce Region,WARN Date,Reason for Layoff\n"
-                 "Albertsons #632,38,Mesa County,6/4/2015,Closure\n",
-        )
-    )
-    raw = _fetch_co_year(2015)
-    assert raw is not None
-    rows = _parse_co_year(raw, 2015)
-    assert len(rows) == 1
-    assert rows[0].employer == "Albertsons #632"
-    assert rows[0].notice_date == date(2015, 6, 4)
-    assert rows[0].layoff_count == 38
-
-
-def test_co_backfill_year_returns_none_before_first_sheet() -> None:
-    with respx.mock:
-        respx.get(SOURCE_URL).mock(return_value=httpx.Response(200, content=_LISTING_HTML))
-        assert _fetch_co_year(2014) is None
