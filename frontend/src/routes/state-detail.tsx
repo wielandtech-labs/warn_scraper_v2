@@ -19,13 +19,18 @@ import {
   toRangeQuery,
   type TimeRange,
 } from "../components/TimeRangeToggle";
+import { UnavailableNotice } from "../components/UnavailableNotice";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { STATE_NAMES, fmtDate, fmtNum, fmtPeriod, stateName } from "../lib/format";
+import { LAW_BLOCKED } from "../lib/unavailable";
 
 export function StateDetailPage() {
   const { state } = useParams({ from: "/states/$state" });
   const code = state.toUpperCase();
   const valid = code in STATE_NAMES;
+  // State law blocks publication of these states' notices — no data will ever
+  // arrive, so skip the stats fetches and show an explainer instead.
+  const blocked = code in LAW_BLOCKED;
   const name = stateName(code);
 
   useDocumentTitle(
@@ -39,22 +44,22 @@ export function StateDetailPage() {
   const byState = useQuery({
     queryKey: ["stats", "by-state", { after }],
     queryFn: () => api.statsByState({ after }),
-    enabled: valid,
+    enabled: valid && !blocked,
   });
   const overTime = useQuery({
     queryKey: ["stats", "over-time", { state: code, after, bucket }],
     queryFn: () => api.statsOverTime({ state: code, after, bucket }),
-    enabled: valid,
+    enabled: valid && !blocked,
   });
   const topEmployers = useQuery({
     queryKey: ["stats", "top-employers", { state: code, after }, 10],
     queryFn: () => api.statsTopEmployers({ state: code, after, limit: 10 }),
-    enabled: valid,
+    enabled: valid && !blocked,
   });
   const recent = useQuery({
     queryKey: ["notices", { state: code, after, limit: 10 }],
     queryFn: () => api.listNotices({ state: code, after, limit: 10 }),
-    enabled: valid,
+    enabled: valid && !blocked,
   });
 
   if (!valid) {
@@ -64,6 +69,20 @@ export function StateDetailPage() {
         <Link to="/states" className="mt-2 inline-block text-sm font-medium text-sky-700 hover:underline">
           ← Browse all states
         </Link>
+      </div>
+    );
+  }
+
+  if (blocked) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <Link to="/states" className="text-sm font-medium text-sky-700 hover:underline">
+            ← All states
+          </Link>
+          <h1 className="mt-1 text-2xl font-semibold">{name} layoffs &amp; WARN notices</h1>
+        </div>
+        <UnavailableNotice state={code} />
       </div>
     );
   }
