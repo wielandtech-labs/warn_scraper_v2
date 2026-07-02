@@ -15,7 +15,6 @@ import type {
   Page,
   ParentGroupStat,
   PeriodStat,
-  ReportInfo,
   ScraperRunOut,
   SearchResults,
   StateStat,
@@ -229,8 +228,6 @@ export const api = {
   ) => get<IndustryStat[]>("/api/stats/industries" + qs(q)),
 
   // ---------- Sentiment reports ----------
-  /** States that currently have a generated sentiment report. */
-  listReports: () => get<ReportInfo[]>("/api/reports"),
   /** One state's latest sentiment report as raw markdown (404 if none). */
   getReport: (state: string) =>
     getText(`/api/reports/${encodeURIComponent(state)}`),

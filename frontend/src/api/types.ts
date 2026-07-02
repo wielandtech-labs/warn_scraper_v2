@@ -112,13 +112,6 @@ export interface StateStat {
   layoff_total: number;
 }
 
-/** A per-state sentiment report available from /api/reports. */
-export interface ReportInfo {
-  state: string;
-  state_name: string;
-  generated_at: string; // ISO timestamp (file mtime)
-}
-
 export interface MonthStat {
   month: string; // "YYYY-MM"
   notice_count: number;
