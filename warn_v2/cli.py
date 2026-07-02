@@ -411,6 +411,43 @@ def backfill_notice_dates_cmd(dry_run: bool, state: str | None) -> None:
     click.echo(f"updated={stats['updated']}{suffix}")
 
 
+@main.command("backfill-ny-layoff-counts")
+@click.option("--dry-run", is_flag=True, help="Preview counts without writing")
+@click.option("--limit", type=int, default=None, help="Max notices to process")
+@click.option(
+    "--pdf-dir",
+    default="/var/pdfs",
+    show_default=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Root directory for stored PDFs (read-only here)",
+)
+def backfill_ny_layoff_counts_cmd(dry_run: bool, limit: int | None, pdf_dir: Path) -> None:
+    """Fill NULL layoff_count on pre-Tableau NY notices from their WARN UNIT PDFs.
+
+    NY notices from the old dol.ny.gov HTML listing (pre-April 2025) have no
+    layoff_count and the current Tableau CSV doesn't cover them. Their
+    raw_notice_url redirects to the NY DOL WARN UNIT summary PDF, which
+    publishes "Total Number of Affected Workers". Fill-only: never overwrites
+    an existing count. One-shot — safe to re-run (already-filled rows drop out
+    of the candidate set).
+
+    \b
+    Examples:
+      warn-v2 backfill-ny-layoff-counts --dry-run    # preview
+      warn-v2 backfill-ny-layoff-counts              # commit
+    """
+    from warn_v2.scripts.backfill_ny_layoff_counts import backfill_ny_layoff_counts
+
+    stats = backfill_ny_layoff_counts(dry_run=dry_run, limit=limit, pdf_dir=pdf_dir)
+    suffix = " (dry run — nothing written)" if dry_run else ""
+    click.echo(
+        f"considered={stats['considered']} filled={stats['filled']} "
+        f"no_count={stats['no_count']} errors={stats['errors']}{suffix}"
+    )
+    if stats["errors"] and not stats["filled"]:
+        sys.exit(1)
+
+
 @main.command("backfill-historical")
 @click.option(
     "--state", required=True,
