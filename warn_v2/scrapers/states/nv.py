@@ -164,7 +164,10 @@ _ARCHIVE_SOURCES: dict[int, str] = {
         "https://detr.nv.gov/Content/Media/WARN_and_Non-WARN_Master_w_Logo_12082023.pdf"
     ),
     2024: "https://detr.nv.gov/content/media/WARN_and_Non_WARN_Master_w_Logo_12_30.24.pdf",
-    2025: "https://detr.nv.gov/content/media/WARN_and_Non_WARN_Master_w_Logo_05_15.25.pdf",
+    # The 06_03 snapshot (through Jun 3) is the newest 2025 file and the one
+    # the 2025 x-bounds were measured from — the older 05_15 snapshot renders
+    # at a different page size and parses 0 rows.
+    2025: "https://detr.nv.gov/content/media/WARN_and_Non_WARN_Master_w_Logo_06_03.25.pdf",
 }
 
 # Column x-boundaries per archive file (upper bound per column, measured from
