@@ -168,7 +168,7 @@ def _head_tags(meta: PageMeta) -> str:
     url = escape(meta.canonical, quote=True)
     base = escape(site_base_url(), quote=True)
     feed = base + "/feed.rss"
-    image = base + "/og-image.png"  # 1200×630 card in frontend/public/
+    image = base + "/og-image.png"  # 1200x630 card in frontend/public/
     return (
         f'\n    <link rel="canonical" href="{url}" />'
         f'\n    <meta property="og:site_name" content="WARN Tracker" />'
