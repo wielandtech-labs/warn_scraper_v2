@@ -7,18 +7,21 @@ aggregated public WARN data.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from warn_v2.companies.naics import SECTOR_NAME
 from warn_v2.reports.aggregate import NATIONAL_CODE, NATIONAL_NAME
 from warn_v2.reports.generate import INDUSTRIES_JSON
 from warn_v2.states import STATE_NAMES
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -77,8 +80,21 @@ def list_industry_scorecards() -> list[IndustryScorecard]:
     if not path.is_file():
         return []
     generated_at = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
-    rows = json.loads(path.read_text(encoding="utf-8"))
-    return [IndustryScorecard(**row, generated_at=generated_at) for row in rows]
+    # The file on the PVC can be up to a week older than the running code, so
+    # tolerate schema drift: skip rows the current model can't parse instead
+    # of 500ing the endpoint until the next weekly CronJob rewrites the file.
+    try:
+        rows = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        log.warning("unreadable %s: %s", INDUSTRIES_JSON, exc)
+        return []
+    out: list[IndustryScorecard] = []
+    for row in rows:
+        try:
+            out.append(IndustryScorecard(**row, generated_at=generated_at))
+        except (ValidationError, TypeError) as exc:
+            log.warning("skipping stale %s row: %s", INDUSTRIES_JSON, exc)
+    return out
 
 
 @router.get("/industries/{sector}")

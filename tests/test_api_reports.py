@@ -125,6 +125,23 @@ def test_industry_scorecard_listing_missing_file(client):
     assert resp.json() == []
 
 
+def test_industry_scorecard_listing_tolerates_stale_rows(client, tmp_path):
+    # The PVC file can be a week older than the running code — rows the
+    # current model can't parse are skipped, never a 500.
+    rows = [_SCORECARDS[0], {"sector": "92"}]  # second row missing required keys
+    (tmp_path / "industries.json").write_text(json.dumps(rows), encoding="utf-8")
+    resp = client.get("/api/reports/industries")
+    assert resp.status_code == 200
+    assert [r["sector"] for r in resp.json()] == ["31-33"]
+
+
+def test_industry_scorecard_listing_corrupt_json(client, tmp_path):
+    (tmp_path / "industries.json").write_text("not json", encoding="utf-8")
+    resp = client.get("/api/reports/industries")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
 def test_industry_report_served(client, tmp_path):
     (tmp_path / "industry_31-33.md").write_text("# Manufacturing scorecard\n", encoding="utf-8")
     resp = client.get("/api/reports/industries/31-33")

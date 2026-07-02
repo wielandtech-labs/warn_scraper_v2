@@ -205,8 +205,9 @@ def test_render_industry_scorecard():
     # → 0.5*16.7 + 0.3*44.4 + 0.2*37.5 ≈ 29 → Grade D.
     assert "**Score: 29/100 — Grade D (elevated)**" in md
     assert "How this score works" in md
-    assert "> Based only on notices with an enriched NAICS code (10 of 100" in md
-    assert "10%)" in md
+    assert "> Notices attributed to this sector: 10 of 100" in md
+    assert "(10%)" in md
+    assert "undercount" in md
     assert "Pressure is rising." in md
     assert "## Where this sector is shedding jobs — by state" in md
     assert "| California | 5 | 400 | 100 | +300 | +300% |" in md
