@@ -33,6 +33,13 @@ def _signed(n: int) -> str:
     return f"{n:+d}" if n else "0"
 
 
+def _escape_cell(text: str) -> str:
+    """Neutralize scraped strings (county names) for markdown table cells:
+    a literal | breaks the row, and <> could smuggle HTML past the
+    narrative-only sanitization."""
+    return text.replace("|", "\\|").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def _pct_cell(row: DeltaRow) -> str:
     if row.pct_change is not None:
         return f"{row.pct_change:+.0f}%"
@@ -48,7 +55,7 @@ def _delta_table(rows: list[DeltaRow], label: str, limit: int = 15) -> str:
     ]
     for r in rows[:limit]:
         lines.append(
-            f"| {r.name} | {r.cur_notices} | {r.cur_layoffs} | {r.prior_layoffs} "
+            f"| {_escape_cell(r.name)} | {r.cur_notices} | {r.cur_layoffs} | {r.prior_layoffs} "
             f"| {_signed(r.delta_layoffs)} | {_pct_cell(r)} |"
         )
     return "\n".join(lines)

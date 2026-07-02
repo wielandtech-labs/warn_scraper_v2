@@ -132,6 +132,22 @@ def test_render_empty_state():
 # write_report
 # ---------------------------------------------------------------------------
 
+def test_table_cells_escape_scraped_strings():
+    md = render_report(
+        _agg(
+            counties=[
+                DeltaRow(
+                    key="Weird | <County>", name="Weird | <County>",
+                    cur_notices=1, cur_layoffs=10, prior_notices=0, prior_layoffs=0,
+                ),
+            ],
+        ),
+        None,
+        narrative_status="skipped",
+    )
+    assert "| Weird \\| &lt;County&gt; | 1 | 10 |" in md
+
+
 def test_write_report_atomic(tmp_path):
     path = write_report(tmp_path / "reports", "CA", "# hello\n")
     assert path == tmp_path / "reports" / "CA.md"

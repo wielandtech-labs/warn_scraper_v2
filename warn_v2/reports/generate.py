@@ -116,5 +116,5 @@ def generate_reports(
             write_report(reports_dir, code, content)
         counters["generated"] += 1
         if progress:
-            progress(f"{code} narrative={status} bytes={len(content)}")
+            progress(f"{code} narrative={status} chars={len(content)}")
     return counters
