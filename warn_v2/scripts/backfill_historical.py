@@ -221,6 +221,16 @@ def backfill_historical(
 # Mode 2 — archive-file list (CA)
 # ---------------------------------------------------------------------------
 
+# Some archives (KY SharePoint) 403 httpx's default User-Agent for file
+# downloads even though the discovery API accepts it — send a browser UA.
+_FETCH_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+    )
+}
+
+
 def _backfill_url_list(
     scraper, spec: BackfillSpec, stats: dict[str, int], *, dry_run: bool
 ) -> None:
@@ -244,7 +254,7 @@ def _backfill_url_list(
             # Wayback throttles request bursts; pace replay downloads.
             time.sleep(3)
         try:
-            r = httpx.get(url, timeout=120, follow_redirects=True)
+            r = httpx.get(url, headers=_FETCH_HEADERS, timeout=120, follow_redirects=True)
             r.raise_for_status()
             raw = r.content
         except httpx.HTTPError as e:
