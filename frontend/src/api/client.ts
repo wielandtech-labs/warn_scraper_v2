@@ -48,6 +48,16 @@ async function get<T>(path: string): Promise<T> {
   return (await resp.json()) as T;
 }
 
+/** Like get(), but for endpoints that return plain text (e.g. markdown). */
+async function getText(path: string): Promise<string> {
+  const resp = await fetch(path);
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new ApiError(resp.status, text || resp.statusText);
+  }
+  return await resp.text();
+}
+
 // Same-origin fetch sends the session cookie by default; no credentials flag needed.
 async function post<T>(path: string, body?: unknown): Promise<T> {
   const resp = await fetch(path, {
@@ -216,6 +226,11 @@ export const api = {
       before?: string;
     } = {},
   ) => get<IndustryStat[]>("/api/stats/industries" + qs(q)),
+
+  // ---------- Sentiment reports ----------
+  /** One state's latest sentiment report as raw markdown (404 if none). */
+  getReport: (state: string) =>
+    getText(`/api/reports/${encodeURIComponent(state)}`),
 
   // ---------- Search ----------
   search: (q: string, limit = 8) =>
