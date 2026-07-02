@@ -294,3 +294,243 @@ def _parse_date(text: str) -> date | None:
     """Parse a date string to a date object."""
     from warn_v2.scrapers._helpers import as_date
     return as_date(text)
+
+
+# ---------------------------------------------------------------------------
+# Conservative layoff-count extraction (backfill-layoff-counts)
+# ---------------------------------------------------------------------------
+# CT/HI/WV publish no counts on their listing pages — the count exists only in
+# the letter body. Unlike the download-time count regexes above (best-effort,
+# first match wins), this path bulk-fills NULLs, so it prefers explicit totals
+# and returns None on ambiguity rather than guessing.
+
+_COUNT_NOUN = r"(?:employees?|workers?|positions?|individuals?)"
+_COUNT_APPROX = r"(?:approximately\s+|about\s+|roughly\s+|up\s+to\s+)?"
+_COUNT_NUM = r"(\d{1,3},\d{3}|\d{1,4})"
+# Letters spell out small totals ("the total number of affected employees in
+# West Virginia is one").
+_COUNT_WORD_TO_NUM = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+}
+_COUNT_NUM_OR_WORD = (
+    r"(\d{1,3},\d{3}|\d{1,4}|" + "|".join(_COUNT_WORD_TO_NUM) + r")"
+)
+# Bounded filler between the number and its noun ("100 full- and part-time
+# positions", "71 Greenbrier Mineral employees"). No commas: a comma marks a
+# clause/date boundary ("July 3, 2026, all employees ...").
+_COUNT_GAP3 = r"(?:[\w&.'\-/()]+\s+){0,3}?"
+_COUNT_GAP6 = r"(?:[\w&.'\-/()]+\s+){0,6}?"
+_COUNT_AFFECTED = (
+    r"(?:affected|impacted|laid[\s-]+off|terminated|separated|eliminated|"
+    r"displaced)"
+)
+_COUNT_MONTHS = (
+    r"(?:january|february|march|april|may|june|july|august|september|"
+    r"october|november|december)"
+)
+
+# Tier 1 — explicit totals. In every pattern, group 1 is the count token.
+_COUNT_TOTAL_RES = [
+    # "the total separation of 73 employees" / "a total of 205 employees"
+    re.compile(
+        rf"\btotal\s+(?:\w+\s+){{0,2}}of\s+{_COUNT_APPROX}{_COUNT_NUM}"
+        rf"\s+{_COUNT_GAP3}{_COUNT_NOUN}",
+        re.I,
+    ),
+    # "In total, this action will affect 205 employees"
+    re.compile(
+        rf"\bin\s+total\b[^.]{{0,80}}?\b(?:affect|impact)\w*\s+"
+        rf"{_COUNT_APPROX}{_COUNT_NUM}\b",
+        re.I,
+    ),
+    # "The total number of affected employees in West Virginia is one"
+    re.compile(
+        rf"\btotal\s+number\s+of\s+(?:affected|impacted)\s+{_COUNT_NOUN}"
+        rf"[^.\d]{{0,60}}?(?:is|was|will\s+be|:)\s+{_COUNT_NUM_OR_WORD}\b",
+        re.I,
+    ),
+    # "Approximate number of employees affected: 4" /
+    # "Approximate number of employees to be laid off: 8" — the affected-word
+    # is required, so establishment headcounts ("Number of employees at
+    # Store: 8", "... employed by the establishment is 86") never match.
+    re.compile(
+        rf"\bnumber\s+of\s+{_COUNT_NOUN}\s+"
+        rf"(?:to\s+be\s+|being\s+|who\s+will\s+be\s+)?{_COUNT_AFFECTED}"
+        rf"\s*[:\-]?\s*{_COUNT_NUM_OR_WORD}\b",
+        re.I,
+    ),
+]
+
+# Tier 2 — the count adjacent to the layoff action.
+_COUNT_ACTION_RES = [
+    # "will affect 205 employees" / "affecting 150 full-time employees"
+    re.compile(
+        rf"\b(?:affect|impact)(?:s|ing|ed)?\s+{_COUNT_APPROX}{_COUNT_NUM}"
+        rf"\s+{_COUNT_GAP3}{_COUNT_NOUN}",
+        re.I,
+    ),
+    # "approximately 300 workers will be affected" /
+    # "100 full- and part-time positions will be eliminated" /
+    # "71 Greenbrier Mineral employees at the Mines will be terminated"
+    re.compile(
+        rf"\b{_COUNT_APPROX}{_COUNT_NUM}\s+{_COUNT_GAP3}{_COUNT_NOUN}"
+        rf"\s+{_COUNT_GAP6}will\s+be\s+{_COUNT_AFFECTED}",
+        re.I,
+    ),
+    # "laying off approximately 530 ... employees" /
+    # "the permanent separation of 78 employees"
+    re.compile(
+        rf"\b(?:lay(?:ing)?\s+off|layoffs?\s+of|termination\s+of|"
+        rf"separation\s+of|elimination\s+of|displacement\s+of)\s+"
+        rf"{_COUNT_APPROX}{_COUNT_NUM}\s+{_COUNT_GAP3}{_COUNT_NOUN}",
+        re.I,
+    ),
+    # "All 10 employees have been notified of their separation date"
+    re.compile(rf"\ball\s+{_COUNT_NUM}\s+{_COUNT_NOUN}\b", re.I),
+]
+
+# Tier 3 — count+noun in a sentence that mentions the layoff action at all
+# ("This mass layoff will affect every WVURC employee, which ... is 507
+# employees").
+_COUNT_ACTION_CUE = re.compile(
+    r"affect|impact|lay[\s-]*off|laid[\s-]+off|terminat|separat|eliminat|"
+    r"displac|reduction\s+in\s+force",
+    re.I,
+)
+_COUNT_NUM_NOUN_RE = re.compile(
+    rf"(?<![\d,]){_COUNT_NUM}\s+{_COUNT_GAP3}{_COUNT_NOUN}\b", re.I
+)
+
+# Tier 4 — a positions/counts table. Header names the count column; data rows
+# end with the count, optionally followed by a separation date.
+_COUNT_TABLE_HEADER_RE = re.compile(
+    rf"(?:#|\bno\.?|\bnumber)\s*(?:of\s+)?(?:affected\s+|impacted\s+)?"
+    rf"{_COUNT_NOUN}|\bnumber\s+impacted\b|"
+    rf"\b{_COUNT_NOUN}\s+(?:impacted|affected)\b",
+    re.I,
+)
+_COUNT_ROW_DATE = (
+    rf"(?:\d{{1,2}}[/-]\d{{1,2}}[/-]\d{{2,4}}|{_COUNT_MONTHS}\s+\d{{1,2}},?\s+\d{{4}})"
+)
+_COUNT_TABLE_ROW_RE = re.compile(
+    rf"^.*?[A-Za-z]{{2,}}.*?\s(\d{{1,4}})(?:\s+{_COUNT_ROW_DATE})?\s*$", re.I
+)
+_COUNT_GRAND_TOTAL_RE = re.compile(
+    r"\bgrand\s+total\b\D{0,40}?(\d{1,4})\s*$", re.I
+)
+_COUNT_TOTAL_WORD_RE = re.compile(r"\btotal\b", re.I)
+_COUNT_PAGE_LINE_RE = re.compile(r"\bpage\b", re.I)
+
+
+def _count_candidate(m: re.Match, text: str) -> int | None:
+    """Validate a count match; None rejects it.
+
+    Group 1 is the count token. Rejects zero/implausible values, bare years
+    (a count of exactly 1900-2099 at one site is far less likely than a date
+    leak), day-of-month reads ("on July 3 2026 all employees ..."), and
+    matches whose filler words contain a year (the gap swallowed a date).
+    """
+    tok = m.group(1).lower()
+    value = _COUNT_WORD_TO_NUM.get(tok)
+    if value is None:
+        try:
+            value = int(tok.replace(",", ""))
+        except ValueError:
+            return None
+    if not 1 <= value <= 9999 or 1900 <= value <= 2099:
+        return None
+    before = text[max(0, m.start(1) - 12): m.start(1)]
+    if re.search(_COUNT_MONTHS + r"\s*$", before, re.I):
+        return None
+    after_num = text[m.end(1): m.end(0)]
+    if re.search(r"\b(?:19|20)\d{2}\b", after_num):
+        return None
+    return value
+
+
+def _count_from_table(lines: list[str]) -> int | None:
+    """Count from a positions table: Grand Total row, else the column sum.
+
+    Requires a header line naming the count column. Subtotal rows ("Assembly
+    Total 57") make row-vs-subtotal indistinguishable, so without a Grand
+    Total they yield None. Per-row counts are capped at 999 — a four-digit
+    trailing number on one row is a year/ZIP leak, not a job-category count.
+    """
+    start = next(
+        (i for i, ln in enumerate(lines) if _COUNT_TABLE_HEADER_RE.search(ln)),
+        None,
+    )
+    if start is None:
+        return None
+
+    rows: list[int] = []
+    saw_subtotal = False
+    for line in lines[start + 1:]:
+        if _COUNT_PAGE_LINE_RE.search(line):  # "WARN - RRT/June 2026 Page 2"
+            continue
+        gm = _COUNT_GRAND_TOTAL_RE.search(line)
+        if gm:
+            value = int(gm.group(1))
+            if 1 <= value <= 9999 and not 1900 <= value <= 2099:
+                return value
+            continue
+        m = _COUNT_TABLE_ROW_RE.match(line)
+        if not m:
+            continue
+        if _COUNT_TOTAL_WORD_RE.search(line):
+            saw_subtotal = True
+            continue
+        value = int(m.group(1))
+        if 1 <= value <= 999:
+            rows.append(value)
+
+    if saw_subtotal or not rows:
+        return None
+    total = sum(rows)
+    return total if total <= 9999 else None
+
+
+def extract_layoff_count(text: str) -> int | None:
+    """Conservative affected-employee count from WARN letter text.
+
+    Serves ``backfill-layoff-counts`` (states whose listings publish no
+    count). Tiers, most explicit first:
+
+      1. explicit totals ("a total of 73 employees", "number of employees
+         affected: 4")
+      2. action-adjacent counts ("will affect 205 employees", "laying off
+         approximately 530 ... employees")
+      3. count+noun inside a sentence mentioning the layoff action
+      4. a positions table: Grand Total row, else the count-column sum
+
+    A tier with conflicting values returns None (ambiguous — e.g. per-site
+    breakdowns with no stated total); an empty tier falls through. Tables
+    rank last because a multi-state letter's table spans every state while
+    the prose states the in-state total ("the total number of affected
+    employees in West Virginia is one").
+    """
+    flat = re.sub(r"\s+", " ", text)
+
+    for tier in (_COUNT_TOTAL_RES, _COUNT_ACTION_RES):
+        values: set[int] = set()
+        for rx in tier:
+            for m in rx.finditer(flat):
+                value = _count_candidate(m, flat)
+                if value is not None:
+                    values.add(value)
+        if values:
+            return values.pop() if len(values) == 1 else None
+
+    values = set()
+    for sentence in re.split(r"(?<=[.!?])\s+", flat):
+        if not _COUNT_ACTION_CUE.search(sentence):
+            continue
+        for m in _COUNT_NUM_NOUN_RE.finditer(sentence):
+            value = _count_candidate(m, sentence)
+            if value is not None:
+                values.add(value)
+    if values:
+        return values.pop() if len(values) == 1 else None
+
+    return _count_from_table(text.splitlines())
