@@ -1,5 +1,5 @@
 import type { IndustryStat } from "../api/types";
-import { daysAgoIso, US_STATES } from "../lib/format";
+import { daysAgoIso, stateName, US_STATES } from "../lib/format";
 
 export interface FilterValues {
   state?: string;
@@ -60,11 +60,13 @@ export function FilterBar({
           onChange={(e) => update({ state: e.target.value || undefined })}
         >
           <option value="">All states</option>
-          {US_STATES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
+          {[...US_STATES]
+            .sort((a, b) => stateName(a).localeCompare(stateName(b)))
+            .map((s) => (
+              <option key={s} value={s}>
+                {stateName(s)}
+              </option>
+            ))}
         </select>
       </label>
 
