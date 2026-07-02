@@ -4,7 +4,11 @@ from __future__ import annotations
 from datetime import date
 
 from warn_v2.db.models import Company, Location, Notice
-from warn_v2.reports.aggregate import MIN_NOTICES, compute_state_aggregates
+from warn_v2.reports.aggregate import (
+    MIN_NOTICES,
+    compute_national_aggregates,
+    compute_state_aggregates,
+)
 
 # Fixed clock for every test. Windows (90d, inclusive):
 #   current: 2026-04-03 .. 2026-07-01
@@ -177,3 +181,42 @@ def test_prompt_payload_shape(db):
         "layoffs_prior",
         "delta_layoffs",
     }
+    assert "top_states" not in payload  # national-only key
+
+
+def test_national_totals_sum_across_states(db):
+    _notice(db, state="CA", notice_date=date(2026, 5, 1), layoff_count=100)
+    _notice(db, state="TX", notice_date=date(2026, 5, 2), layoff_count=50)
+    _notice(db, state="TX", notice_date=date(2026, 5, 3), layoff_count=999, is_superseded=True)
+    _notice(db, state="NY", notice_date=date(2026, 2, 1), layoff_count=30)  # prior window
+    db.commit()
+
+    agg = compute_national_aggregates(db, as_of=AS_OF)
+    assert agg.state == "US"
+    assert agg.state_name == "United States"
+    assert (agg.cur_notices, agg.cur_layoffs) == (2, 150)
+    assert (agg.prior_notices, agg.prior_layoffs) == (1, 30)
+    assert agg.counties == []
+
+
+def test_national_states_table_merges_windows(db):
+    _notice(db, state="CA", notice_date=date(2026, 5, 1), layoff_count=100)
+    _notice(db, state="NY", notice_date=date(2026, 2, 1), layoff_count=30)  # prior only
+    db.commit()
+
+    agg = compute_national_aggregates(db, as_of=AS_OF)
+    by_key = {r.key: r for r in agg.states}
+    assert by_key["CA"].name == "California"
+    assert (by_key["CA"].cur_layoffs, by_key["CA"].prior_layoffs) == (100, 0)
+    # A state active only in the prior window still gets a row.
+    assert (by_key["NY"].cur_layoffs, by_key["NY"].prior_layoffs) == (0, 30)
+
+
+def test_national_payload_includes_top_states(db):
+    _notice(db, state="CA", notice_date=date(2026, 5, 1), layoff_count=100)
+    db.commit()
+
+    payload = compute_national_aggregates(db, as_of=AS_OF).to_prompt_payload()
+    assert payload["state"] == "US"
+    assert payload["top_states"][0]["name"] == "California"
+    assert payload["top_states"][0]["layoffs_current"] == 100

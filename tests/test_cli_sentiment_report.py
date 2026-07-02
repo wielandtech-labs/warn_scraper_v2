@@ -8,7 +8,7 @@ import pytest
 from click.testing import CliRunner
 
 from warn_v2 import cli
-from warn_v2.db.models import Notice
+from warn_v2.db.models import Company, Notice
 from warn_v2.reports import ollama as ollama_mod
 from warn_v2.reports.ollama import OllamaUnavailable
 
@@ -29,17 +29,24 @@ class FakeNarrativeClient:
         return "Layoff activity increased."
 
 
-def _seed_state(db, state: str, n: int = 6) -> None:
+def _seed_state(db, state: str, n: int = 6, naics: str | None = None) -> None:
     """Enough recent notices to clear the MIN_NOTICES narrative threshold."""
     recent = date.today() - timedelta(days=10)
+    company_id = None
+    if naics is not None:
+        comp = Company(name=f"CliCo {state} {naics}", naics_code=naics)
+        db.add(comp)
+        db.flush()
+        company_id = comp.id
     for i in range(n):
         db.add(
             Notice(
-                notice_id=f"cli_{state}_{i}",
+                notice_id=f"cli_{state}_{naics or 'plain'}_{i}",
                 state=state,
                 employer=f"Employer {i}",
                 notice_date=recent,
                 layoff_count=10,
+                company_id=company_id,
             )
         )
     db.commit()
@@ -115,3 +122,73 @@ def test_unknown_state_rejected(db, fake_client, tmp_path):
     )
     assert result.exit_code == 1
     assert "unknown state" in result.output
+
+
+def test_state_run_writes_no_national_or_industry_files(db, fake_client, tmp_path):
+    _seed_state(db, "CA")
+    result = CliRunner().invoke(
+        cli.main, ["sentiment-report", "--state", "CA", "--reports-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 0, result.output
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["CA.md"]
+
+
+def test_full_run_writes_national_and_industry_files(db, fake_client, tmp_path):
+    _seed_state(db, "CA", naics="311999")
+    result = CliRunner().invoke(
+        cli.main, ["sentiment-report", "--reports-dir", str(tmp_path), "--skip-llm"]
+    )
+    assert result.exit_code == 0, result.output
+    names = {p.name for p in tmp_path.iterdir()}
+    assert "CA.md" in names and "WY.md" in names  # all states
+    assert "US.md" in names
+    assert "industry_31-33.md" in names and "industry_92.md" in names  # all sectors
+    assert "industries.json" in names
+    # 51 states + national + 20 sectors.
+    assert "total=72" in result.output
+    us = (tmp_path / "US.md").read_text(encoding="utf-8")
+    assert us.startswith("# United States (US)")
+    assert "by state" in us
+    scorecard = (tmp_path / "industry_31-33.md").read_text(encoding="utf-8")
+    assert "Industry Scorecard" in scorecard
+    assert "Score:" in scorecard
+
+
+def test_industry_run_writes_single_scorecard_no_json(db, fake_client, tmp_path):
+    _seed_state(db, "CA", naics="311999")
+    result = CliRunner().invoke(
+        cli.main, ["sentiment-report", "--industry", "31-33", "--reports-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 0, result.output
+    assert fake_client.calls == 1
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["industry_31-33.md"]
+    content = (tmp_path / "industry_31-33.md").read_text(encoding="utf-8")
+    assert "Layoff activity increased." in content
+
+
+def test_unknown_industry_rejected(db, fake_client, tmp_path):
+    result = CliRunner().invoke(
+        cli.main, ["sentiment-report", "--industry", "ZZ", "--reports-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 1
+    assert "unknown industry" in result.output
+
+
+def test_state_and_industry_mutually_exclusive(db, fake_client, tmp_path):
+    result = CliRunner().invoke(
+        cli.main,
+        ["sentiment-report", "--state", "CA", "--industry", "31-33",
+         "--reports-dir", str(tmp_path)],
+    )
+    assert result.exit_code == 1
+    assert "mutually exclusive" in result.output
+
+
+def test_full_dry_run_writes_nothing(db, fake_client, tmp_path):
+    _seed_state(db, "CA", naics="311999")
+    result = CliRunner().invoke(
+        cli.main,
+        ["sentiment-report", "--reports-dir", str(tmp_path), "--skip-llm", "--dry-run"],
+    )
+    assert result.exit_code == 0, result.output
+    assert list(tmp_path.iterdir()) == []

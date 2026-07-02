@@ -1,4 +1,4 @@
-"""Deterministic per-state aggregates behind the sentiment reports.
+"""Deterministic per-state and national aggregates behind the sentiment reports.
 
 Every number in a report comes from here — the LLM narrative layer only turns
 these figures into prose and never computes anything itself. Query idioms
@@ -8,7 +8,7 @@ buckets via substr(cast(date as text), 1, 7).
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -22,6 +22,12 @@ from warn_v2.states import STATE_NAMES
 # Below this many notices across both 90-day windows the deltas are noise, so
 # the narrative is skipped (the deterministic tables still render).
 MIN_NOTICES = 5
+
+# Pseudo-jurisdiction for the national roll-up. Deliberately NOT in
+# STATE_NAMES — that dict feeds the sitemap/state pages, where "US" would be a
+# bogus entry. The reports API whitelists it separately.
+NATIONAL_CODE = "US"
+NATIONAL_NAME = "United States"
 
 
 @dataclass(slots=True)
@@ -66,10 +72,11 @@ class StateAggregates:
     yoy_prior_notices: int
     yoy_prior_layoffs: int
     closure_split: dict[str, int]  # current-window notice counts by closure_category
-    counties: list[DeltaRow]  # sorted by cur_layoffs desc
+    counties: list[DeltaRow]  # sorted by cur_layoffs desc (empty for national)
     sectors: list[DeltaRow]  # sorted by cur_layoffs desc
     monthly: list[tuple[str, int, int]]  # ("YYYY-MM", notices, layoffs), oldest first
     naics_coverage_pct: float  # % of current-window notices with an enriched NAICS
+    states: list[DeltaRow] = field(default_factory=list)  # national only: per-state deltas
 
     @property
     def sufficient(self) -> bool:
@@ -117,6 +124,7 @@ class StateAggregates:
             },
             "top_counties": rows(self.counties),
             "top_sectors": rows(self.sectors),
+            **({"top_states": rows(self.states)} if self.states else {}),
             "monthly": [
                 {"month": m, "notices": n, "layoffs": lt} for m, n, lt in self.monthly
             ],
@@ -132,17 +140,22 @@ def _int(value) -> int:
     return int(value)
 
 
-def _in_window(stmt, state: str, start: date, end: date):
-    return stmt.where(
+def _in_window(stmt, state: str | None, start: date, end: date):
+    """state=None means national: no per-state filter."""
+    stmt = stmt.where(
         Notice.is_superseded.is_(False),
-        Notice.state == state,
         Notice.notice_date.is_not(None),
         Notice.notice_date >= start,
         Notice.notice_date <= end,
     )
+    if state is not None:
+        stmt = stmt.where(Notice.state == state)
+    return stmt
 
 
-def _window_totals(session: Session, state: str, start: date, end: date) -> tuple[int, int]:
+def _window_totals(
+    session: Session, state: str | None, start: date, end: date
+) -> tuple[int, int]:
     stmt = select(
         func.count(Notice.notice_id), func.coalesce(func.sum(Notice.layoff_count), 0)
     )
@@ -150,7 +163,9 @@ def _window_totals(session: Session, state: str, start: date, end: date) -> tupl
     return _int(row[0]), _int(row[1])
 
 
-def _closure_split(session: Session, state: str, start: date, end: date) -> dict[str, int]:
+def _closure_split(
+    session: Session, state: str | None, start: date, end: date
+) -> dict[str, int]:
     stmt = select(Notice.closure_category, func.count(Notice.notice_id)).group_by(
         Notice.closure_category
     )
@@ -159,7 +174,7 @@ def _closure_split(session: Session, state: str, start: date, end: date) -> dict
 
 
 def _county_window(
-    session: Session, state: str, start: date, end: date
+    session: Session, state: str | None, start: date, end: date
 ) -> dict[str, tuple[int, int]]:
     """(notices, layoffs) per county; unlocated notices land in "Unknown"."""
     county = func.coalesce(Location.county, "Unknown")
@@ -178,7 +193,7 @@ def _county_window(
 
 
 def _sector_window(
-    session: Session, state: str, start: date, end: date
+    session: Session, state: str | None, start: date, end: date
 ) -> dict[str, tuple[int, int]]:
     """(notices, layoffs) per NAICS sector id. Inner join to Company: an
     un-enriched notice has no NAICS, so it appears only in county/total figures
@@ -205,7 +220,7 @@ def _sector_window(
     return out
 
 
-def _naics_covered(session: Session, state: str, start: date, end: date) -> int:
+def _naics_covered(session: Session, state: str | None, start: date, end: date) -> int:
     stmt = (
         select(func.count(Notice.notice_id))
         .select_from(Notice)
@@ -215,7 +230,9 @@ def _naics_covered(session: Session, state: str, start: date, end: date) -> int:
     return _int(session.execute(_in_window(stmt, state, start, end)).scalar())
 
 
-def _monthly_series(session: Session, state: str, start: date) -> list[tuple[str, int, int]]:
+def _monthly_series(
+    session: Session, state: str | None, start: date
+) -> list[tuple[str, int, int]]:
     period = func.substr(cast(Notice.notice_date, String), 1, 7).label("period")
     stmt = (
         select(
@@ -225,14 +242,26 @@ def _monthly_series(session: Session, state: str, start: date) -> list[tuple[str
         )
         .where(
             Notice.is_superseded.is_(False),
-            Notice.state == state,
             Notice.notice_date.is_not(None),
             Notice.notice_date >= start,
         )
         .group_by(period)
         .order_by(period)
     )
+    if state is not None:
+        stmt = stmt.where(Notice.state == state)
     return [(r[0], _int(r[1]), _int(r[2])) for r in session.execute(stmt).all()]
+
+
+def _state_window(session: Session, start: date, end: date) -> dict[str, tuple[int, int]]:
+    """(notices, layoffs) per state — the national report's geographic axis."""
+    stmt = select(
+        Notice.state,
+        func.count(Notice.notice_id),
+        func.coalesce(func.sum(Notice.layoff_count), 0),
+    ).group_by(Notice.state)
+    rows = session.execute(_in_window(stmt, None, start, end)).all()
+    return {r[0]: (_int(r[1]), _int(r[2])) for r in rows}
 
 
 def _merge_deltas(
@@ -277,7 +306,27 @@ def compute_state_aggregates(
     Windows are inclusive: current = [as_of-89d, as_of], prior = the 90 days
     before that; YoY compares the trailing 365 days with the 365 before.
     """
-    code = state.upper()
+    return _compute_aggregates(session, state.upper(), as_of=as_of, window_days=window_days)
+
+
+def compute_national_aggregates(
+    session: Session,
+    *,
+    as_of: date | None = None,
+    window_days: int = 90,
+) -> StateAggregates:
+    """National roll-up: same windows and figures as a state report across all
+    non-superseded notices, with a per-state table instead of counties."""
+    return _compute_aggregates(session, None, as_of=as_of, window_days=window_days)
+
+
+def _compute_aggregates(
+    session: Session,
+    code: str | None,
+    *,
+    as_of: date | None,
+    window_days: int,
+) -> StateAggregates:
     as_of = as_of or date.today()
     cur_start = as_of - timedelta(days=window_days - 1)
     prior_start = as_of - timedelta(days=2 * window_days - 1)
@@ -291,11 +340,21 @@ def compute_state_aggregates(
     yoy_cur_n, yoy_cur_l = _window_totals(session, code, yoy_cur_start, as_of)
     yoy_prior_n, yoy_prior_l = _window_totals(session, code, yoy_prior_start, yoy_prior_end)
 
-    counties = _merge_deltas(
-        _county_window(session, code, cur_start, as_of),
-        _county_window(session, code, prior_start, prior_end),
-        lambda k: k,
-    )
+    if code is None:
+        # National: a 51-state county table is noise — group by state instead.
+        counties: list[DeltaRow] = []
+        states = _merge_deltas(
+            _state_window(session, cur_start, as_of),
+            _state_window(session, prior_start, prior_end),
+            lambda k: STATE_NAMES.get(k, k),
+        )
+    else:
+        counties = _merge_deltas(
+            _county_window(session, code, cur_start, as_of),
+            _county_window(session, code, prior_start, prior_end),
+            lambda k: k,
+        )
+        states = []
     sectors = _merge_deltas(
         _sector_window(session, code, cur_start, as_of),
         _sector_window(session, code, prior_start, prior_end),
@@ -304,8 +363,8 @@ def compute_state_aggregates(
     covered = _naics_covered(session, code, cur_start, as_of)
 
     return StateAggregates(
-        state=code,
-        state_name=STATE_NAMES.get(code, code),
+        state=code if code is not None else NATIONAL_CODE,
+        state_name=STATE_NAMES.get(code, code) if code is not None else NATIONAL_NAME,
         as_of=as_of,
         cur_start=cur_start,
         cur_end=as_of,
@@ -324,4 +383,5 @@ def compute_state_aggregates(
         sectors=sectors,
         monthly=_monthly_series(session, code, _month_start_back(as_of, 11)),
         naics_coverage_pct=(covered / cur_n * 100.0) if cur_n else 0.0,
+        states=states,
     )
