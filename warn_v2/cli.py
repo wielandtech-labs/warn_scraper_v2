@@ -470,9 +470,8 @@ def backfill_historical_cmd(
     the current year.
 
     \b
-    Supported states: AZ, CA, DC, DE, FL, HI, IL, KS, KY, MD, ME, MN, MS, NM,
-    OH, TX, VT, WI.
-    CO is excluded — its Google Sheets export is cumulative since 2019.
+    Supported states: AZ, CA, CO, DC, DE, FL, HI, IL, KS, KY, MD, ME, MN, MS,
+    NM, OH, TX, VT, WI.
     Per-state earliest years and the dedup protocol: docs/historical-sources.md.
     Dry runs print a duplicate preview (already_exists / near_miss counts).
 
