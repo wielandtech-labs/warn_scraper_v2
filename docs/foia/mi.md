@@ -3,7 +3,7 @@
 - **To:** leo-warn@michigan.gov (the LEO WARN FAQ directs requests for notices no longer posted online to this address / FOIA)
 - **Method:** email
 - **Statute:** Michigan Freedom of Information Act, Act 442 of 1976 (MCL 15.231 et seq.)
-- **Years sought:** earliest electronically available → 2023 (michigan.gov removed pre-2025 notices from the public search; DB coverage starts 2024)
+- **Years sought:** earliest electronically available → Oct 2024 (michigan.gov removed pre-2025 notices from the public search; DB coverage starts 2024-11 — window widened 2026-07-02 per coverage-vs-aggregators.md)
 - **Recipient verified:** 2026-06-12 — michigan.gov/leo WARN pages/FAQ
 
 **Subject:** FOIA request — historical WARN Act notices
@@ -14,7 +14,7 @@ Pursuant to the Michigan Freedom of Information Act (Act 442 of 1976, MCL 15.231
 et seq.), I request copies of all electronically available records of Worker
 Adjustment and Retraining Notification (WARN) Act notices received by the
 Department of Labor and Economic Opportunity, from the earliest electronically
-available date through December 31, 2023. I understand from the Department's WARN
+available date through October 31, 2024. I understand from the Department's WARN
 FAQ that notices older than those posted on michigan.gov must be requested rather
 than downloaded — this is such a request. A complete export through the present is
 equally welcome if that is easier to produce.

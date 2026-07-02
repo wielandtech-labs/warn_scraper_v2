@@ -111,32 +111,42 @@ delete Jobs after.
 
 Email/portal drafts live in [docs/foia/](foia/) — one file per state, tracker in
 [foia/README.md](foia/README.md). Recipients verified on agency sites 2026-06-12
-except where flagged.
+except where flagged; rows added 2026-07-02 come from the aggregator cross-check
+in [coverage-vs-aggregators.md](coverage-vs-aggregators.md).
 
 | State | Years sought | Recipient | Method | Statute |
 |-------|--------------|-----------|--------|---------|
+| AZ | pre-2016 — ⚠ probe AZ Job Connection (JobLink) date-range search first | GovQA `desaz.govqa.us` / PublicRecordsRequest@azdes.gov | portal or email — **must declare non-commercial purpose** | A.R.S. §39-121 et seq. |
 | CT | pre-2019 | CT DOL Records Center | **GovQA portal** (`dolct.govqa.us`) | CT FOIA |
+| DE | pre-2016 — ⚠ probe Delaware JobLink date-range search first | dol.foia@delaware.gov (FOIA Coordinator) | email (state web form alt.) — "any citizen" caveat | 29 Del. C. ch. 100 |
 | FL | pre-2020 | PRRequest@commerce.fl.gov | email (JustFOIA portal alt.) | Ch. 119, F.S. |
 | GA | pre-2023 | GDOL via `dol.georgia.gov/email-us` | **web form** (no records email published) | O.C.G.A. §50-18-70 |
 | HI | pre-2019 | dlir.director@hawaii.gov | email | UIPA (HRS ch. 92F) |
 | IA | pre-2021 | RecordsRequest@IWD.Iowa.gov | email | Iowa Code ch. 22 |
 | LA | pre-2025 | HiRE@lwc.la.gov | email (online system alt.) | La. R.S. 44:1 et seq. |
 | MA | pre-FY2022 | eolwdpress@mass.gov | email — **agency invites this** | M.G.L. c. 66 |
-| MI | pre-2024 | leo-warn@michigan.gov | email | MI FOIA (Act 442 of 1976) |
+| MD | pre-2010 (published log starts 2010) | dllr.pio@maryland.gov — "Records Request" in subject | email | MPIA (GP §4-101 et seq.) |
+| MI | pre-Nov 2024 (site pruned all pre-2025; widened 2026-07-02) | leo-warn@michigan.gov | email | MI FOIA (Act 442 of 1976) |
 | MO | pre-2019 | meghan.maskeryluecke@dhewd.mo.gov (General Counsel), cc info@dhewd.mo.gov | email | Sunshine Law (§610 RSMo) |
 | MS | pre-PY2020 | communications@mdes.ms.gov | email | Miss. Code §25-61 |
 | ND | pre-2015 | ⚠ no records email published — call (701) 328-2825 for address | phone→email | NDCC ch. 44-04 |
 | NE | pre-2023 | NDOL.RapidResponse@nebraska.gov | email | Neb. Rev. Stat. §84-712 |
+| NH | all years — split custody, send in parallel (see nh.md) | masslayoff@nhes.nh.gov + NH DOL Commissioner + AG | email + mail — ⚠ NHES addresses verified via archive captures only (nh.gov blocks fetchers) | RSA 91-A |
 | NM | pre-2016 | tammy.gallegos-burke@dws.nm.gov (named on agency site for older records) | email | IPRA (NMSA ch. 14, art. 2) |
-| NV | pre-2024 | detrmedia@detr.nv.gov, cc rapidresponse@detr.nv.gov | email + **required request form** | NRS 239 |
+| NV | pre-2017 (detr.nv.gov publishes 2017+ — 2017–2024 is a scraper backfill; narrowed 2026-07-02) | detrmedia@detr.nv.gov, cc rapidresponse@detr.nv.gov | email + **required request form** | NRS 239 |
+| OK | all years (portal is auth-walled) | forms.office.com/g/kQHiUiCvas + CustodianOfRecords@oesc.ok.gov | form + email — ⚠ OESC posts a $25/hr search fee; letter contests it as non-commercial | 51 O.S. §24A.1 et seq. |
 | OR | pre-2020 (existence inquiry) | HECC Office of Workforce Investments | email | ORS 192 |
 | SC | pre-2026 | FOIA@dew.sc.gov | email | S.C. Code §30-4-10 et seq. |
+| TN | pre-2025 (need is pre-2021; 2021–2024 also on the live reports page) | TDLWD.PublicRecords@tn.gov, cc Sabra.Bledsoe@tn.gov | email — ⚠ **TPRA is TN-citizens-only**; framed as voluntary release, TN co-requester as fallback | T.C.A. §10-7-503 |
+| TX | pre-2020 | warn.list@twc.texas.gov (published for older notices); formal: twc.govqa.us / open.records@twc.texas.gov | email, PIA portal fallback | Gov't Code ch. 552 |
 | UT | pre-2026 | infodisclosure@utah.gov (GRAMA office, *not* the rapid-response box) | email (openrecords.utah.gov alt.) | GRAMA |
 | WV | pre-2021 | ⚠ wfwvbsr@wv.gov (general box; no FOIA email published — ask to route) | email | W. Va. Code §29B-1 |
 
 ## Blocked — no request drafted
 
-AR (WARN data confidential by state law — a request would be denied), NH (no
-public listing; Akamai-blocked), OK (Salesforce auth wall), WY (no public data).
-Re-verify periodically per STATE_AUDIT.md. (TN's live source is now scraped as of
-2026-06-26; historical depth = whatever the live archive table lists.)
+AR (WARN data confidential by state law — a request would be denied), WY (no
+public data). Re-verify periodically per STATE_AUDIT.md. NH/OK/TN moved to Tier 3
+on 2026-07-02: layoffdata.com shows their records exist (NH since 2009, OK since
+1999, TN since 2012), so requests are not futile — see coverage-vs-aggregators.md.
+(TN's live source is scraped again as of 2026-06-26; historical depth = whatever
+the live archive table lists.)

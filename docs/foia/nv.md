@@ -4,7 +4,7 @@
 - **Cc:** rapidresponse@detr.nv.gov
 - **Method:** email — ⚠ DETR requires its **public records request form** (download at `https://detr.nv.gov/Page/Public_Records_Request`); fill it out and attach it to this email
 - **Statute:** Nevada Public Records Act, NRS ch. 239
-- **Years sought:** earliest electronically available → 2023 (detr.nv.gov publishes 2024+)
+- **Years sought:** earliest electronically available → 2016 (detr.nv.gov publishes per-year notice archives 2017+, re-checked 2026-07-02 — 2017–2024 is a scraper backfill, not a records request; see coverage-vs-aggregators.md)
 - **Fees noted by agency:** $0.50/page, billed only past $25
 - **Recipient verified:** 2026-06-12 — detr.nv.gov/Page/Public_Records_Request
 
@@ -16,7 +16,7 @@ Attached is a completed public records request form. Pursuant to the Nevada Publ
 Records Act (NRS ch. 239), I request copies of all electronically available
 records of Worker Adjustment and Retraining Notification (WARN) Act notices
 received by DETR, from the earliest electronically available date through December
-31, 2023. Notices from 2024 onward are already published on detr.nv.gov; this
+31, 2016. Notices from 2017 onward are already published on detr.nv.gov; this
 request covers the years before that. A complete export through the present is
 equally welcome if that is easier to produce.
 
