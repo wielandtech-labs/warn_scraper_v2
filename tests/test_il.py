@@ -139,6 +139,79 @@ def test_il_raises_on_empty() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Archive-format files (2020 through mid-2025)
+# ---------------------------------------------------------------------------
+
+# Real archive header layout (e.g. "September 2024 Monthly WARN Report.xlsx"):
+# colon-suffixed, extra COMPANY CONTACT / PHONE columns, and the workers
+# column titled "# WORKERS AFFECTED:".
+_ARCHIVE_COLS = [
+    "COMPANY NAME:", "DBA:", "COMPANY ADDRESS:", "CITY, STATE, ZIP:",
+    "COMPANY CONTACT:", "PHONE:", "UNION:", "BUMPING RIGHTS:",
+    "LOCAL WORKFORCE AREA:", "REGION NUMBER:", "TYPE OF COMPANY:",
+    "TYPE OF EVENT:", "WARN RECEIVED DATE:", "FIRST LAYOFF DATE:",
+    "ENDING LAYOFF DATE:", "LAYOFF SCHEDULE:", "# WORKERS AFFECTED:",
+    "TYPE OF LAYOFF:", "EVENT CAUSES:       ", "COUNTY:", "COMPANY NAICS:",
+]
+
+_ARCHIVE_ROWS = [
+    ("Amazon", None, "1111 N Cherry Ave.", "Chicago, IL 60642",
+     "Jane Doe", "202-555-0100", "No", "No", 7, "Northeast 4",
+     "Warehousing and Storage", "Closing",
+     date(2024, 9, 16), date(2024, 11, 13), None, None,
+     211, "Permanent", "Relocation", "Cook", "493110"),
+    # Multi-worksite filing: one whitespace-padded number per site in the
+    # workers cell (mirrors the address cell), as in "Sep 2025" for
+    # Carolina Therapeutic Services.
+    ("Carolina Therapeutic Services", "CTS Health, Inc.",
+     "2715 N. Central Ave.                   56 E. 47th",
+     "Chicago, IL 60639", "T. McKeiver", "704-555-0147", "No", "No",
+     7, "Northeast 4", "Health Care and Social Assistance", "Temp. layoff",
+     date(2025, 9, 26), date(2025, 9, 26), None, None,
+     "27                                      4                                        2",
+     "Temporary", "Financial", "Cook", 621330),
+    # Blank workers cell stays None.
+    ("No Count Co", None, "1 Main St", "Springfield, IL 62701",
+     None, None, "No", "No", 3, "Central", "Retail", "Layoff",
+     date(2024, 9, 3), date(2024, 10, 31), None, None,
+     None, "Permanent", None, "Sangamon", None),
+]
+
+
+def _build_archive_xlsx(rows: list[tuple] = _ARCHIVE_ROWS) -> bytes:
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(_ARCHIVE_COLS)
+    for r in rows:
+        ws.append(list(r))
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def test_il_archive_hash_workers_header_parsed() -> None:
+    """'# WORKERS AFFECTED:' header variant must yield counts (was dropped)."""
+    scraper = get_scraper("IL")
+    rows = scraper.parse(_build_archive_xlsx())
+    assert rows[0].layoff_count == 211
+    assert rows[0].employer == "Amazon"
+    assert rows[0].notice_date == date(2024, 9, 16)
+
+
+def test_il_multi_worksite_workers_cell_summed() -> None:
+    """Whitespace-packed per-site numbers ('27   4   2') sum to one count."""
+    scraper = get_scraper("IL")
+    rows = scraper.parse(_build_archive_xlsx())
+    assert rows[1].layoff_count == 27 + 4 + 2
+
+
+def test_il_archive_blank_workers_cell_is_none() -> None:
+    scraper = get_scraper("IL")
+    rows = scraper.parse(_build_archive_xlsx())
+    assert rows[2].layoff_count is None
+
+
+# ---------------------------------------------------------------------------
 # NAICS storage — Company.naics_code
 # ---------------------------------------------------------------------------
 
