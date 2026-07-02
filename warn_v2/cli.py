@@ -102,6 +102,7 @@ def list_states() -> None:
 @click.option("--limit", default=10, show_default=True, help="Max companies to enrich per run")
 @click.option(
     "--recent-limit",
+    type=click.IntRange(min=0),
     default=0,
     show_default=True,
     metavar="N",
