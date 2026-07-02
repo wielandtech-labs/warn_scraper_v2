@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 
 import { api } from "../api/client";
+import { SkeletonBlock } from "../components/Skeleton";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { fmtDate, fmtNum } from "../lib/format";
 import { SOURCE_LABEL } from "./companies";
 
@@ -28,11 +30,21 @@ export function CompanyDetail() {
     enabled: !Number.isNaN(id),
   });
 
+  useDocumentTitle(
+    company.data ? `${company.data.name} — WARN Tracker` : undefined,
+  );
+
   if (Number.isNaN(id)) {
     return <div className="card text-red-600">Invalid company ID.</div>;
   }
   if (company.isLoading) {
-    return <div className="card text-slate-500">Loading…</div>;
+    return (
+      <div className="card space-y-3">
+        <SkeletonBlock className="h-7 w-2/3" />
+        <SkeletonBlock className="h-4 w-1/3" />
+        <SkeletonBlock className="h-24 w-full" />
+      </div>
+    );
   }
   if (company.isError || !company.data) {
     return (

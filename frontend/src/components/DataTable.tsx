@@ -6,12 +6,14 @@ import {
   type ColumnDef,
   type SortingState,
 } from "@tanstack/react-table";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 interface DataTableProps<T> {
   data: T[];
   columns: ColumnDef<T, unknown>[];
   emptyMessage?: string;
+  /** Optional recovery action rendered under the empty message (e.g. clear filters). */
+  emptyAction?: ReactNode;
   /** Server-side sort control. When provided, client-side getSortedRowModel is disabled. */
   sortBy?: string;
   sortDir?: "asc" | "desc";
@@ -22,6 +24,7 @@ export function DataTable<T>({
   data,
   columns,
   emptyMessage = "No results.",
+  emptyAction,
   sortBy,
   sortDir,
   onSortChange,
@@ -48,7 +51,10 @@ export function DataTable<T>({
 
   if (data.length === 0) {
     return (
-      <div className="card text-center text-sm text-slate-500">{emptyMessage}</div>
+      <div className="card text-center text-sm text-slate-500">
+        <p>{emptyMessage}</p>
+        {emptyAction && <div className="mt-3">{emptyAction}</div>}
+      </div>
     );
   }
 
@@ -123,25 +129,43 @@ export function DataTable<T>({
                     ? sortDir
                     : false
                   : h.column.getIsSorted();
+                const sortLabel = flexRender(h.column.columnDef.header, h.getContext());
                 return (
                   <th
                     key={h.id}
-                    className={`px-3 py-2 font-medium ${canSort ? "cursor-pointer select-none hover:bg-slate-100" : ""}`}
-                    onClick={
-                      isServer && canSort
-                        ? () => {
-                            const id = h.column.id;
-                            onSortChange!(
-                              id,
-                              sortBy === id && sortDir === "desc" ? "asc" : "desc",
-                            );
-                          }
-                        : h.column.getToggleSortingHandler()
+                    aria-sort={
+                      sorted === "asc"
+                        ? "ascending"
+                        : sorted === "desc"
+                          ? "descending"
+                          : undefined
                     }
+                    className={`font-medium ${canSort ? "" : "px-3 py-2"}`}
                   >
-                    {flexRender(h.column.columnDef.header, h.getContext())}
-                    {sorted === "asc" && " ▲"}
-                    {sorted === "desc" && " ▼"}
+                    {canSort ? (
+                      // A real <button> so keyboard users can reach and toggle the sort.
+                      <button
+                        type="button"
+                        className="w-full select-none px-3 py-2 text-left font-medium uppercase tracking-wide hover:bg-slate-100"
+                        onClick={
+                          isServer
+                            ? () => {
+                                const id = h.column.id;
+                                onSortChange!(
+                                  id,
+                                  sortBy === id && sortDir === "desc" ? "asc" : "desc",
+                                );
+                              }
+                            : h.column.getToggleSortingHandler()
+                        }
+                      >
+                        {sortLabel}
+                        {sorted === "asc" && " ▲"}
+                        {sorted === "desc" && " ▼"}
+                      </button>
+                    ) : (
+                      sortLabel
+                    )}
                   </th>
                 );
               })}

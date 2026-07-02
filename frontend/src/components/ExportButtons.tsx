@@ -1,3 +1,5 @@
+import { useAuth } from "../hooks/useAuth";
+
 type ExportParam = string | number | boolean | undefined | null;
 
 /**
@@ -12,6 +14,12 @@ export function ExportButtons({
   basePath: string;
   params: Record<string, ExportParam>;
 }) {
+  const auth = useAuth();
+  // Mirrors FREE_EXPORT_CAP in warn_v2/api/routes/exports.py — surfaced here
+  // so free-tier users aren't silently handed a truncated file.
+  const capped = !auth.data || auth.data.role === "free";
+  const capNote = "Anonymous and free exports are capped at 1,000 rows.";
+
   const href = (format: "csv" | "json") => {
     const sp = new URLSearchParams({ format });
     for (const [k, v] of Object.entries(params)) {
@@ -25,15 +33,22 @@ export function ExportButtons({
       <a
         className="rounded-md border border-slate-300 px-2 py-1 font-medium text-slate-700 hover:bg-slate-50"
         href={href("csv")}
+        title={capped ? capNote : undefined}
       >
         CSV
       </a>
       <a
         className="rounded-md border border-slate-300 px-2 py-1 font-medium text-slate-700 hover:bg-slate-50"
         href={href("json")}
+        title={capped ? capNote : undefined}
       >
         JSON
       </a>
+      {capped && (
+        <span className="hidden text-xs text-slate-400 md:inline">
+          first 1,000 rows
+        </span>
+      )}
     </div>
   );
 }

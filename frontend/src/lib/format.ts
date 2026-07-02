@@ -16,6 +16,16 @@ export function fmtNum(n: number | null | undefined): string {
   return new Intl.NumberFormat().format(n);
 }
 
+const compactFmt = new Intl.NumberFormat(undefined, {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+/** Compact form for chart axis ticks: 12 345 → "12.3K". */
+export function fmtCompact(n: number): string {
+  return compactFmt.format(n);
+}
+
 export function fmtMonth(m: string): string {
   // "YYYY-MM" → "Jan 2026"
   if (!/^\d{4}-\d{2}$/.test(m)) return m;

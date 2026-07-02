@@ -14,6 +14,8 @@ import {
 import { api } from "../api/client";
 import { AlertSignup } from "../components/AlertSignup";
 import { NoticeMap } from "../components/NoticeMap";
+import { QueryError } from "../components/QueryError";
+import { SkeletonChart, SkeletonRows } from "../components/Skeleton";
 import {
   TimeRangeToggle,
   toRangeQuery,
@@ -21,7 +23,7 @@ import {
 } from "../components/TimeRangeToggle";
 import { UnavailableNotice } from "../components/UnavailableNotice";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import { STATE_NAMES, fmtDate, fmtNum, fmtPeriod, stateName } from "../lib/format";
+import { STATE_NAMES, fmtCompact, fmtDate, fmtNum, fmtPeriod, stateName } from "../lib/format";
 import { LAW_BLOCKED } from "../lib/unavailable";
 
 export function StateDetailPage() {
@@ -144,39 +146,60 @@ export function StateDetailPage() {
       <div className="card">
         <h2 className="mb-3 text-lg font-semibold">Notices and layoffs over time</h2>
         {overTime.isLoading ? (
-          <div className="flex h-72 items-center justify-center text-slate-500">Loading…</div>
+          <SkeletonChart height={300} />
+        ) : overTime.isError ? (
+          <QueryError
+            message="Error loading the chart."
+            onRetry={() => overTime.refetch()}
+          />
         ) : timeData.length === 0 ? (
           <div className="flex h-24 items-center justify-center text-sm text-slate-500">
             No notices recorded for {name} in this period.
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={timeData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="label" tick={{ fontSize: 12 }} minTickGap={24} />
-              <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(v: number) => fmtNum(v)} />
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="notice_count"
-                name="Notices"
-                stroke="#0369a1"
-                strokeWidth={2}
-                dot={false}
-              />
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="layoff_total"
-                name="Workers affected"
-                stroke="#dc2626"
-                strokeWidth={2}
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <div
+            role="img"
+            aria-label={`Line chart of notice counts and workers affected in ${name} over time`}
+          >
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={timeData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="label" tick={{ fontSize: 12 }} minTickGap={24} />
+                {/* Axis ticks are colored to match their series, so the dual
+                    axes are readable without cross-referencing the legend. */}
+                <YAxis
+                  yAxisId="left"
+                  tick={{ fontSize: 12, fill: "#0369a1" }}
+                  tickFormatter={fmtCompact}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  tick={{ fontSize: 12, fill: "#dc2626" }}
+                  tickFormatter={fmtCompact}
+                />
+                <Tooltip formatter={(v: number) => fmtNum(v)} />
+                <Line
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="notice_count"
+                  name="Notices"
+                  stroke="#0369a1"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="layoff_total"
+                  name="Workers affected"
+                  stroke="#dc2626"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         )}
       </div>
 
@@ -189,9 +212,7 @@ export function StateDetailPage() {
         <section>
           <h2 className="mb-2 text-lg font-semibold">Top employers</h2>
           <div className="card divide-y divide-slate-100 p-0">
-            {topEmployers.isLoading && (
-              <div className="p-4 text-sm text-slate-500">Loading…</div>
-            )}
+            {topEmployers.isLoading && <SkeletonRows rows={5} />}
             {topEmployers.data?.length === 0 && (
               <div className="p-4 text-sm text-slate-500">No data yet.</div>
             )}
@@ -228,7 +249,7 @@ export function StateDetailPage() {
             </Link>
           </div>
           <div className="card divide-y divide-slate-100 p-0">
-            {recent.isLoading && <div className="p-4 text-sm text-slate-500">Loading…</div>}
+            {recent.isLoading && <SkeletonRows rows={5} />}
             {recent.data?.items.length === 0 && (
               <div className="p-4 text-sm text-slate-500">No notices yet.</div>
             )}

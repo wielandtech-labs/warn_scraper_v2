@@ -7,6 +7,9 @@ import { api } from "../api/client";
 import { DataTable } from "../components/DataTable";
 import { ExportButtons } from "../components/ExportButtons";
 import { Pagination } from "../components/Pagination";
+import { QueryError } from "../components/QueryError";
+import { SkeletonTable } from "../components/Skeleton";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import type { CompanyOut, ParentGroupStat } from "../api/types";
 import { fmtNum } from "../lib/format";
 
@@ -21,6 +24,7 @@ export const SOURCE_LABEL: Record<string, string> = {
 };
 
 export function CompaniesPage() {
+  useDocumentTitle("Companies & corporate families — WARN Tracker");
   const navigate = useNavigate({ from: "/companies" });
   const search = useSearch({ from: "/companies" });
   const view = search.view ?? "companies";
@@ -262,7 +266,10 @@ function CompaniesView() {
         />
       </div>
 
-      {query.isLoading && <div className="card text-sm text-slate-500">Loading…</div>}
+      {query.isLoading && <SkeletonTable rows={10} />}
+      {query.isError && (
+        <QueryError message="Error loading companies." onRetry={() => query.refetch()} />
+      )}
       {query.data && (
         <>
           <DataTable
@@ -347,7 +354,13 @@ function FamiliesView() {
         list grows as enrichment links subsidiaries to a shared parent.
       </p>
 
-      {query.isLoading && <div className="card text-sm text-slate-500">Loading…</div>}
+      {query.isLoading && <SkeletonTable rows={10} />}
+      {query.isError && (
+        <QueryError
+          message="Error loading corporate families."
+          onRetry={() => query.refetch()}
+        />
+      )}
       {query.data && (
         <DataTable
           data={query.data}

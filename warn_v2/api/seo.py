@@ -77,6 +77,33 @@ _CONTENT_PAGES: dict[str, tuple[str, str]] = {
 }
 
 
+# Top-level app views (client-rendered lists/maps). Bespoke titles for
+# per-page indexing and link unfurls; the sitemap already advertises these
+# paths (see routes/seo.py `_APP_PAGES`).
+_APP_PAGES_META: dict[str, tuple[str, str]] = {
+    "/notices": (
+        "Layoff notices — WARN Tracker",
+        "Search and filter every WARN Act layoff and closure notice on record "
+        "by state, employer, industry, and date. Export as CSV or JSON.",
+    ),
+    "/companies": (
+        "Companies & corporate families — WARN Tracker",
+        "The employers behind US WARN notices, de-duplicated and enriched — "
+        "with corporate family groupings and total workers affected.",
+    ),
+    "/map": (
+        "Layoff map — WARN Tracker",
+        "Interactive map of US WARN Act layoff and closure notices, "
+        "filterable by state, industry, and date.",
+    ),
+    "/stats": (
+        "Layoff statistics & trends — WARN Tracker",
+        "Charts of US WARN notices over time and by state, industry, and "
+        "employer.",
+    ),
+}
+
+
 def content_page_paths() -> list[str]:
     """Paths of the static content pages — for sitemap + footer generation."""
     return sorted(_CONTENT_PAGES)
@@ -86,7 +113,7 @@ def page_meta_for_path(path: str) -> PageMeta:
     """Resolve a request path to its SEO metadata.
 
     Falls back to site defaults for any path without bespoke metadata (e.g.
-    ``/notices``, ``/map``) — those still get a correct canonical URL.
+    ``/login``, detail pages) — those still get a correct canonical URL.
     """
     # Normalise: strip query/fragment and a trailing slash (except root).
     path = path.split("?", 1)[0].split("#", 1)[0]
@@ -126,7 +153,7 @@ def page_meta_for_path(path: str) -> PageMeta:
                 f"/states/{code}",
             )
 
-    content = _CONTENT_PAGES.get(path)
+    content = _CONTENT_PAGES.get(path) or _APP_PAGES_META.get(path)
     if content:
         return PageMeta(content[0], content[1], path)
 
@@ -139,16 +166,23 @@ def _head_tags(meta: PageMeta) -> str:
     t = escape(meta.title, quote=True)
     d = escape(meta.description, quote=True)
     url = escape(meta.canonical, quote=True)
-    feed = escape(site_base_url(), quote=True) + "/feed.rss"
+    base = escape(site_base_url(), quote=True)
+    feed = base + "/feed.rss"
+    image = base + "/og-image.png"  # 1200x630 card in frontend/public/
     return (
         f'\n    <link rel="canonical" href="{url}" />'
+        f'\n    <meta property="og:site_name" content="WARN Tracker" />'
         f'\n    <meta property="og:type" content="website" />'
         f'\n    <meta property="og:title" content="{t}" />'
         f'\n    <meta property="og:description" content="{d}" />'
         f'\n    <meta property="og:url" content="{url}" />'
-        f'\n    <meta name="twitter:card" content="summary" />'
+        f'\n    <meta property="og:image" content="{image}" />'
+        f'\n    <meta property="og:image:width" content="1200" />'
+        f'\n    <meta property="og:image:height" content="630" />'
+        f'\n    <meta name="twitter:card" content="summary_large_image" />'
         f'\n    <meta name="twitter:title" content="{t}" />'
         f'\n    <meta name="twitter:description" content="{d}" />'
+        f'\n    <meta name="twitter:image" content="{image}" />'
         f'\n    <link rel="alternate" type="application/rss+xml" '
         f'title="WARN Tracker — latest notices" href="{feed}" />'
     )

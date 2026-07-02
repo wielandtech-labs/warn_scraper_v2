@@ -6,14 +6,18 @@ import { useMemo } from "react";
 import { api } from "../api/client";
 import { DataTable } from "../components/DataTable";
 import { ExportButtons } from "../components/ExportButtons";
-import { FilterBar, type FilterValues } from "../components/FilterBar";
+import { EMPTY_FILTERS, FilterBar, type FilterValues } from "../components/FilterBar";
 import { Pagination } from "../components/Pagination";
+import { QueryError } from "../components/QueryError";
+import { SkeletonTable } from "../components/Skeleton";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { fmtDate, fmtNum } from "../lib/format";
 import type { NoticeOut } from "../api/types";
 
 const PAGE_SIZE = 50;
 
 export function NoticesPage() {
+  useDocumentTitle("Layoff notices — WARN Tracker");
   const navigate = useNavigate({ from: "/notices" });
   const search = useSearch({ from: "/notices" });
   const page = search.page ?? 1;
@@ -47,9 +51,11 @@ export function NoticesPage() {
     queryFn: () => api.statsIndustries(),
   });
 
-  const handleFilterChange = (next: FilterValues) => {
+  const handleFilterChange = (next: FilterValues, opts?: { replace?: boolean }) => {
     navigate({
       search: (prev) => ({ ...prev, ...next, page: 1 }),
+      // Debounced typing replaces the history entry so Back skips keystrokes.
+      replace: opts?.replace,
     });
   };
 
@@ -136,11 +142,9 @@ export function NoticesPage() {
         industries={industriesQuery.data}
       />
 
-      {query.isLoading && <div className="card text-center text-sm text-slate-500">Loading…</div>}
+      {query.isLoading && <SkeletonTable rows={10} />}
       {query.isError && (
-        <div className="card text-center text-sm text-red-600">
-          Error loading notices.
-        </div>
+        <QueryError message="Error loading notices." onRetry={() => query.refetch()} />
       )}
       {query.data && (
         <>
@@ -148,6 +152,15 @@ export function NoticesPage() {
             data={query.data.items}
             columns={columns}
             emptyMessage="No notices match your filters."
+            emptyAction={
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => handleFilterChange(EMPTY_FILTERS)}
+              >
+                Clear all filters
+              </button>
+            }
             sortBy={sortBy}
             sortDir={sortDir}
             onSortChange={handleSortChange}
