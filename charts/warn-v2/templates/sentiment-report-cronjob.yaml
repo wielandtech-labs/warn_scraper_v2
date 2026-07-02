@@ -1,0 +1,49 @@
+{{- if and .Values.sentimentReport.enabled .Values.reportStorage.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "warn-v2.fullname" . }}-sentiment-report
+  labels:
+    {{- include "warn-v2.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.sentimentReport.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      # No retry: a state whose narrative failed still gets a figures-only
+      # report, and the next weekly run self-heals. No activeDeadlineSeconds
+      # either — 51 sequential 20b generations can legitimately take >1h.
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            {{- include "warn-v2.labels" . | nindent 12 }}
+            app.kubernetes.io/component: sentiment-report
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: sentiment-report
+              image: {{ include "warn-v2.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              args:
+                - sentiment-report
+                - --reports-dir
+                - /var/reports
+              env:
+                {{- include "warn-v2.envSecrets" . | nindent 16 }}
+                - name: OLLAMA_BASE_URL
+                  value: {{ .Values.sentimentReport.ollamaBaseUrl | quote }}
+                - name: OLLAMA_MODEL
+                  value: {{ .Values.sentimentReport.ollamaModel | quote }}
+              volumeMounts:
+                - name: reports
+                  mountPath: /var/reports
+              resources:
+                {{- toYaml .Values.sentimentReport.resources | nindent 16 }}
+          volumes:
+            - name: reports
+              persistentVolumeClaim:
+                claimName: {{ include "warn-v2.fullname" . }}-reports
+{{- end }}
