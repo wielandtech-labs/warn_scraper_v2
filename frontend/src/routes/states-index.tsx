@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 
 import { api } from "../api/client";
+import { QueryError } from "../components/QueryError";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { STATE_NAMES, US_STATES, fmtNum } from "../lib/format";
 
@@ -45,7 +46,16 @@ export function StatesIndexPage() {
         </div>
       )}
 
-      {!byState.isLoading && (
+      {byState.isError && (
+        <QueryError
+          message="Error loading state totals."
+          onRetry={() => byState.refetch()}
+        />
+      )}
+
+      {/* Don't render the grid until data arrives — with no data every state
+          would confidently show zeros. */}
+      {byState.data && (
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {rows.map((s) => (
           <Link

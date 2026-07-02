@@ -113,7 +113,7 @@ def page_meta_for_path(path: str) -> PageMeta:
     """Resolve a request path to its SEO metadata.
 
     Falls back to site defaults for any path without bespoke metadata (e.g.
-    ``/notices``, ``/map``) — those still get a correct canonical URL.
+    ``/login``, detail pages) — those still get a correct canonical URL.
     """
     # Normalise: strip query/fragment and a trailing slash (except root).
     path = path.split("?", 1)[0].split("#", 1)[0]

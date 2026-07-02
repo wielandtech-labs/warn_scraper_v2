@@ -84,7 +84,12 @@ export function FilterBar({
   }, [employerInput, values]);
 
   const hasAnyFilter = FILTER_KEYS.some((k) => values[k]);
-  const clearAll = () => onChange(EMPTY_FILTERS);
+  const clearAll = () => {
+    // Also drop uncommitted employer text — if it hasn't hit the URL yet the
+    // sync effect won't fire, and the pending debounce would re-apply it.
+    setEmployerInput("");
+    onChange(EMPTY_FILTERS);
+  };
 
   // Subsectors of the currently-selected sector (drives the drill-down dropdown).
   // Empty when no sector is selected (no match), so the dropdown stays hidden.
