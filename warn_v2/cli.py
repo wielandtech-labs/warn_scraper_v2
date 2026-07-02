@@ -271,6 +271,26 @@ def mark_superseded_cmd(dry_run: bool, state: str | None, force: bool) -> None:
     click.echo(f"marked={stats['marked']} skipped={stats['skipped']}{suffix}")
 
 
+@main.command("purge-impossible-dates")
+@click.option("--dry-run", is_flag=True, help="Preview matches without deleting")
+@click.option("--state", default=None, help="Limit to one state abbreviation, e.g. CO")
+def purge_impossible_dates_cmd(dry_run: bool, state: str | None) -> None:
+    """Delete notices dated before the WARN Act (1988) or far in the future.
+
+    \b
+    One-shot cleanup for rows ingested before validate.filter_bad_dates
+    existed (e.g. CO's junk 1957 form submission). The scrape-time guard
+    keeps purged rows from coming back.
+
+    Always run with --dry-run first and review the output before committing.
+    """
+    from warn_v2.scripts.purge_impossible_dates import purge_impossible_dates
+
+    stats = purge_impossible_dates(dry_run=dry_run, state_filter=state)
+    suffix = " (dry run — nothing deleted)" if dry_run else ""
+    click.echo(f"matched={stats['matched']} deleted={stats['deleted']}{suffix}")
+
+
 @main.command("consolidate-companies")
 @click.option("--dry-run", is_flag=True, help="Preview merges without writing")
 @click.option("--force", is_flag=True, help="Bypass the 50%% guardrail")
@@ -405,6 +425,43 @@ def backfill_notice_dates_cmd(dry_run: bool, state: str | None) -> None:
     stats = backfill_notice_dates(dry_run=dry_run, state_filter=state)
     suffix = " (dry run — nothing written)" if dry_run else ""
     click.echo(f"updated={stats['updated']}{suffix}")
+
+
+@main.command("backfill-ny-layoff-counts")
+@click.option("--dry-run", is_flag=True, help="Preview counts without writing")
+@click.option("--limit", type=int, default=None, help="Max notices to process")
+@click.option(
+    "--pdf-dir",
+    default="/var/pdfs",
+    show_default=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Root directory for stored PDFs (read-only here)",
+)
+def backfill_ny_layoff_counts_cmd(dry_run: bool, limit: int | None, pdf_dir: Path) -> None:
+    """Fill NULL layoff_count on pre-Tableau NY notices from their WARN UNIT PDFs.
+
+    NY notices from the old dol.ny.gov HTML listing (pre-April 2025) have no
+    layoff_count and the current Tableau CSV doesn't cover them. Their
+    raw_notice_url redirects to the NY DOL WARN UNIT summary PDF, which
+    publishes "Total Number of Affected Workers". Fill-only: never overwrites
+    an existing count. One-shot — safe to re-run (already-filled rows drop out
+    of the candidate set).
+
+    \b
+    Examples:
+      warn-v2 backfill-ny-layoff-counts --dry-run    # preview
+      warn-v2 backfill-ny-layoff-counts              # commit
+    """
+    from warn_v2.scripts.backfill_ny_layoff_counts import backfill_ny_layoff_counts
+
+    stats = backfill_ny_layoff_counts(dry_run=dry_run, limit=limit, pdf_dir=pdf_dir)
+    suffix = " (dry run — nothing written)" if dry_run else ""
+    click.echo(
+        f"considered={stats['considered']} filled={stats['filled']} "
+        f"no_count={stats['no_count']} errors={stats['errors']}{suffix}"
+    )
+    if stats["errors"] and not stats["filled"]:
+        sys.exit(1)
 
 
 @main.command("backfill-historical")
@@ -1133,6 +1190,66 @@ def send_alert_digest_cmd() -> None:
         f"subscriptions={summary['subscriptions']} emailed={summary['emailed']} "
         f"notices={summary['notices']} failed={summary['failed']}"
     )
+
+
+@main.command("sentiment-report")
+@click.option("--state", default=None, help="One state abbreviation, e.g. CA (default: all)")
+@click.option(
+    "--reports-dir",
+    default="/var/reports",
+    show_default=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Directory for the per-state markdown reports",
+)
+@click.option("--skip-llm", is_flag=True, help="Write deterministic tables only (no Ollama call)")
+@click.option("--dry-run", is_flag=True, help="Compute and render but write no files")
+def sentiment_report_cmd(
+    state: str | None, reports_dir: Path, skip_llm: bool, dry_run: bool
+) -> None:
+    """Generate per-state economic sentiment markdown reports.
+
+    Deterministic layoff-trend figures (trailing 90 days vs the prior 90 by
+    county and NAICS sector, plus a 12-month series) with a narrative written
+    by the cluster's Ollama service (OLLAMA_BASE_URL / OLLAMA_MODEL). A failed
+    narrative degrades that state's report to figures-only; the run exits
+    non-zero only when every attempted narrative failed (systemic outage).
+
+    \b
+    Examples:
+      warn-v2 sentiment-report                       # all states (weekly CronJob)
+      warn-v2 sentiment-report --state CA            # one state
+      warn-v2 sentiment-report --skip-llm --dry-run  # offline smoke test
+    """
+    from warn_v2.db.session import session_scope
+    from warn_v2.reports.generate import generate_reports
+    from warn_v2.reports.ollama import build_ollama_client
+    from warn_v2.states import is_valid_state
+
+    if state and not is_valid_state(state):
+        click.echo(f"unknown state: {state!r}", err=True)
+        sys.exit(1)
+
+    client = None if skip_llm else build_ollama_client()
+    with session_scope() as session:
+        stats = generate_reports(
+            session,
+            client,
+            reports_dir=reports_dir,
+            states=[state] if state else None,
+            dry_run=dry_run,
+            progress=click.echo,
+        )
+
+    suffix = " (dry run — nothing written)" if dry_run else ""
+    click.echo(
+        f"generated={stats['generated']} insufficient={stats['insufficient']} "
+        f"narrative_ok={stats['narrative_ok']} narrative_failed={stats['narrative_failed']} "
+        f"total={stats['total']}{suffix}"
+    )
+    # Partial narrative failures are degraded output, not job failures; all
+    # attempted narratives failing means Ollama is down — surface that.
+    if stats["narrative_failed"] and not stats["narrative_ok"]:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

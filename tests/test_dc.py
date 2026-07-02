@@ -55,3 +55,32 @@ def test_dc_raises_without_table() -> None:
     scraper = get_scraper("DC")
     with pytest.raises(ParseFailed):
         scraper.parse(b"<html><body><p>no table</p></body></html>")
+
+
+# 2020-era year page: count header spelled out ("Number to Employees Affected",
+# space between "to" and "Employees") and comma-thousands count cells.
+_2020_TABLE = b"""
+<html><body><table>
+  <tr>
+    <th>Notice Date</th><th>Organization Name</th>
+    <th>Number to Employees Affected</th>
+    <th>Effective Layoff Date</th><th>Code Type</th>
+  </tr>
+  <tr>
+    <td>October 22, 2020</td><td>Washington Metropolitan Area</td>
+    <td>1,604</td><td>December 25, 2020</td><td>1</td>
+  </tr>
+  <tr>
+    <td>October 22, 2020</td><td>Cosmos Club</td>
+    <td>70</td><td>May 4, 2020</td><td>1</td>
+  </tr>
+</table></body></html>
+"""
+
+
+def test_dc_2020_header_variant_and_comma_counts() -> None:
+    """Older year pages ('Number to Employees Affected', '1,604') yield counts."""
+    scraper = get_scraper("DC")
+    rows = scraper.parse(_2020_TABLE)
+    assert [r.layoff_count for r in rows] == [1604, 70]
+    assert rows[0].notice_date == date(2020, 10, 22)

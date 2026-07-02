@@ -13,6 +13,11 @@ Excel columns (A-T, row 1 = header):
   EVENT CAUSES | CEJA RELATED | COUNTY | COMPANY NAICS
 
 Dates in the Excel file are stored as Excel/Python datetime objects.
+
+Archive files (2020 through mid-2025) title the workers column
+"# WORKERS AFFECTED" and may carry extra COMPANY CONTACT / PHONE columns;
+the header map handles both variants. Multi-worksite filings pack one
+number per site into the workers cell ('27   4   2') — summed on parse.
 """
 from __future__ import annotations
 
@@ -45,6 +50,29 @@ _UA = {
 
 # Matches href containing MonthlyWARN or Monthly WARN (both .xlsx and .xls)
 _XL_HREF_RE = re.compile(r"[Mm]onthly.?[Ww][Aa][Rr][Nn].*\.xlsx?", re.I)
+
+# Workers-affected column header variants: current files use "WORKERS AFFECTED:",
+# archive files from 2020 through mid-2025 use "# WORKERS AFFECTED:".
+_WORKERS_KEYS = ("WORKERS AFFECTED", "# WORKERS AFFECTED")
+
+# Thousands separator between digits ("1,604" -> "1604").
+_THOUSANDS_RE = re.compile(r"(?<=\d),(?=\d{3}\b)")
+
+
+def _workers_count(val: object) -> int | None:
+    """WORKERS AFFECTED cell value -> count.
+
+    Multi-worksite filings pack one number per site into a single
+    whitespace-padded cell ('27   4   2', mirroring the address cell) — sum them.
+    """
+    n = as_int(val)
+    if n is not None:
+        return n
+    s = as_str(val)
+    if not s:
+        return None
+    tokens = re.findall(r"\d+", _THOUSANDS_RE.sub("", s))
+    return sum(int(t) for t in tokens) if tokens else None
 
 
 def _discover_latest_url() -> str:
@@ -146,6 +174,7 @@ class ILScraper:
         ws = wb.active
         rows: list[NoticeRow] = []
         header: dict[str, int] = {}
+        workers_key: str | None = None
 
         for row_idx, row in enumerate(ws.iter_rows(values_only=True)):
             # Build header map from first row
@@ -154,6 +183,7 @@ class ILScraper:
                     if val is not None:
                         key = " ".join(str(val).split()).upper().rstrip(":")
                         header[key] = col_idx
+                workers_key = next((k for k in _WORKERS_KEYS if k in header), None)
                 continue
 
             current_row = row  # bind loop variable for closure
@@ -174,8 +204,7 @@ class ILScraper:
                 continue
 
             effective_date = _as_date(_col("FIRST LAYOFF DATE"))
-            workers_raw = _col("WORKERS AFFECTED")
-            layoff_count = as_int(workers_raw) if workers_raw is not None else None
+            layoff_count = _workers_count(_col(workers_key)) if workers_key else None
 
             city_state_zip = as_str(_col("CITY, STATE, ZIP")) or None
             city = _parse_city(city_state_zip)

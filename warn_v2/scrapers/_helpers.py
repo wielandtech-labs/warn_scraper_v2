@@ -66,9 +66,16 @@ def as_date(value: Any) -> date | None:
     return d
 
 
+# Thousands separator between digits ("1,604" -> "1604"); requires exactly a
+# 3-digit group after the comma so list-like strings ("50, 60") stay unparsed.
+_THOUSANDS_RE = re.compile(r"(?<=\d),(?=\d{3}\b)")
+
+
 def as_int(value: Any) -> int | None:
     if is_blank(value):
         return None
+    if isinstance(value, str):
+        value = _THOUSANDS_RE.sub("", value)
     try:
         return int(float(value))
     except (ValueError, TypeError):
