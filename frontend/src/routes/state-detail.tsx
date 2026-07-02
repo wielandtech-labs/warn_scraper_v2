@@ -11,11 +11,12 @@ import {
   YAxis,
 } from "recharts";
 
-import { api } from "../api/client";
+import { api, ApiError } from "../api/client";
 import { AlertSignup } from "../components/AlertSignup";
 import { NoticeMap } from "../components/NoticeMap";
 import { QueryError } from "../components/QueryError";
-import { SkeletonChart, SkeletonRows } from "../components/Skeleton";
+import { ReportMarkdown } from "../components/ReportMarkdown";
+import { SkeletonBlock, SkeletonChart, SkeletonRows } from "../components/Skeleton";
 import {
   TimeRangeToggle,
   toRangeQuery,
@@ -63,6 +64,17 @@ export function StateDetailPage() {
     queryFn: () => api.listNotices({ state: code, after, limit: 10 }),
     enabled: valid && !blocked,
   });
+  // Weekly sentiment report — a 404 just means none has been generated yet
+  // (new deploy, fresh volume), so don't retry it and hide the card instead.
+  const report = useQuery({
+    queryKey: ["report", code],
+    queryFn: () => api.getReport(code),
+    enabled: valid && !blocked,
+    retry: (failureCount, error) =>
+      !(error instanceof ApiError && error.status === 404) && failureCount < 2,
+  });
+  const reportMissing =
+    report.isError && report.error instanceof ApiError && report.error.status === 404;
 
   if (!valid) {
     return (
@@ -202,6 +214,26 @@ export function StateDetailPage() {
           </div>
         )}
       </div>
+
+      {!reportMissing && (
+        <div className="card">
+          <h2 className="mb-3 text-lg font-semibold">Economic outlook</h2>
+          {report.isLoading ? (
+            <div className="space-y-2">
+              <SkeletonBlock className="h-4 w-1/3" />
+              <SkeletonBlock className="h-24 w-full" />
+              <SkeletonBlock className="h-4 w-2/3" />
+            </div>
+          ) : report.isError ? (
+            <QueryError
+              message="Error loading the sentiment report."
+              onRetry={() => report.refetch()}
+            />
+          ) : report.data ? (
+            <ReportMarkdown markdown={report.data} skipH1 />
+          ) : null}
+        </div>
+      )}
 
       <div className="card">
         <h2 className="mb-3 text-lg font-semibold">Layoffs across {name}</h2>
