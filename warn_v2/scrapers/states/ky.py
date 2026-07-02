@@ -70,22 +70,117 @@ def _discover_csv_url(year: int) -> str | None:
         return None
 
 
-def _fetch_ky_year(year: int) -> bytes | None:
-    """Download the year's cumulative CSV for backfill-historical.
+# The SharePoint folders switched to cumulative CSV exports in 2025; the
+# .xlsx workbooks uploaded alongside them carry one sheet per year back to
+# 2017, so a single recent workbook holds the whole pre-CSV history.  Sheets
+# for CSV-era years are skipped — those rows are already ingested from the
+# CSVs, and the workbook renders some fields differently (county format),
+# which would insert near-miss duplicates.
+_CSV_ERA_START = 2025
 
-    Returns None when the SharePoint folder has no CSV — folders for 2020 and
-    earlier exist but are empty (verified 2026-06-12), so KY history bottoms
-    out at 2021 on this platform.
+
+def _discover_workbook_urls() -> list[str]:
+    """Find the most recently modified .xlsx workbook for backfill-historical.
+
+    Searches the current year's folder first, then back one year — CSV-only
+    folders (no .xlsx) are skipped.  Returns at most one URL: any single
+    workbook contains every historical year as its own sheet, so ingesting
+    more than one would only re-insert the same rows.
+
+    Only 2021-and-earlier folders hold .xls (pre-xml) files; those same years
+    appear as sheets in the newer .xlsx workbooks, so xlrd is not needed.
     """
-    csv_url = _discover_csv_url(year)
-    if csv_url is None:
-        return None
+    from datetime import date
+
+    year = date.today().year
+    for y in (year, year - 1):
+        api_url = _SP_API.format(year=y) + "?$select=Name,TimeLastModified"
+        try:
+            r = httpx.get(api_url, headers=_UA, timeout=30, follow_redirects=True)
+            r.raise_for_status()
+        except httpx.HTTPError:
+            continue
+        soup = BeautifulSoup(r.content, "xml")
+        candidates: list[tuple[str, str]] = []  # (last_modified, name)
+        for props in soup.find_all("properties"):
+            name_tag = props.find("Name")
+            mod_tag = props.find("TimeLastModified")
+            if name_tag is None or not name_tag.text.lower().endswith(".xlsx"):
+                continue
+            candidates.append((mod_tag.text if mod_tag else "", name_tag.text))
+        if candidates:
+            latest = max(candidates)[1]
+            path = f"/WARN notices/WARN Notices {y}/{latest}"
+            return [_BASE_URL + path.replace(" ", "%20")]
+    return []
+
+
+def parse_ky_workbook(raw: bytes) -> list[NoticeRow]:
+    """Parse the per-year sheets of a KY WARN workbook (pre-CSV-era years only).
+
+    Sheet names are years; columns (2024-era, older sheets vary slightly):
+      Date Received | Region | County | Company Name | NAICS Code | Employees |
+      Closure or Layoff? | Projected Date | Trade | Notice URL | Notice Link
+    """
+    import openpyxl
+
     try:
-        r = httpx.get(csv_url, headers=_UA, timeout=60, follow_redirects=True)
-        r.raise_for_status()
-        return r.content
-    except httpx.HTTPError as e:
-        raise ScrapeFailed(f"GET {csv_url}: {e}") from e
+        wb = openpyxl.load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
+    except Exception as e:
+        raise ParseFailed(f"KY workbook: could not open: {e}") from e
+
+    rows: list[NoticeRow] = []
+    for ws in wb.worksheets:
+        try:
+            sheet_year = int(str(ws.title).strip())
+        except ValueError:
+            continue
+        if sheet_year >= _CSV_ERA_START:
+            continue
+
+        col: dict[str, int] = {}
+        for values in ws.iter_rows(values_only=True):
+            if not col:
+                header = [_normalize_header(str(c)) if c is not None else "" for c in values]
+                # Old sheets title the county column "County: Local  Name".
+                col = {
+                    ("county" if h.startswith("county") else h): i
+                    for i, h in enumerate(header)
+                    if h
+                }
+                if "company name" not in col or "date received" not in col:
+                    raise ParseFailed(
+                        f"KY workbook sheet {ws.title!r}: unexpected header {header}"
+                    )
+                continue
+
+            def _get(key: str, _col=col, _values=values) -> object:
+                i = _col.get(key)
+                return _values[i] if i is not None and i < len(_values) else None
+
+            employer = as_str(_get("company name"))
+            if not employer:
+                continue
+            notice_date = as_date(_get("date received"))
+            if notice_date is None:
+                continue
+            rows.append(
+                NoticeRow(
+                    state="KY",
+                    employer=employer,
+                    notice_date=notice_date,
+                    effective_date=as_date(_get("projected date")),
+                    layoff_count=as_int(_get("employees")),
+                    closure_type=as_str(_get("closure or layoff?")),
+                    county=as_str(_get("county")),
+                    raw_notice_url=as_str(_get("notice url")) or None,
+                    source_url=_LANDING_URL,
+                    extra={"wda": as_str(_get("region")) or ""},
+                )
+            )
+    if not rows:
+        raise ParseFailed("KY workbook: no pre-CSV-era rows parsed")
+    return rows
 
 
 def _normalize_header(h: str) -> str:

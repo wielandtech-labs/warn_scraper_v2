@@ -2,14 +2,21 @@
 
 Source: https://www.laworks.net/Downloads/WFD/WarnNotices{year}.pdf (PDF).
 
-Schema (live as of May 2026):
-  Company Name | Address | Notice Date | Layoff Date | Employees Affected | (empty) | Industry
+Two layout eras (both lattice tables, one file per year):
+  2026+: title banner row, then header
+         Company Name | Address | Notice Date | Layoff Date |
+         Employees Affected | (empty) | Industry
+  2025:  no banner, header repeated on every page, and NO Address column —
+         the Company Name cell holds "employer\\nstreet\\ncity, LA zip" on
+         separate lines (address lines start with a street number).
 
-The PDF has a single page with a single lattice table. Row 0 is a title banner,
-row 1 is the header, rows 2+ are data. City and ZIP are extracted from the
-Address column (format: "street, city, LA zip").
+parse() detects the header row (first row containing "company name") instead of
+assuming fixed banner/header positions, so both eras parse. City and ZIP are
+extracted from the address (format: "street, city, LA zip").
 
 Note: URL uses www (not www2) as of 2026. Falls back to prior year on failure.
+laworks.net prunes old files — only 2025+ resolve (pre-2025 → records request);
+`backfill-historical --state LA` ingests the still-published years.
 """
 from __future__ import annotations
 
@@ -46,6 +53,23 @@ def _source_url(year: int) -> str:
     return _PDF_URL.format(year=year)
 
 
+def _fetch_la_year(year: int) -> bytes | None:
+    """Download one year's PDF for backfill-historical.
+
+    Returns None when the file is gone — laworks.net prunes old years
+    (2020-2023 verified 404 on 2026-06-12), so LA history bottoms out at
+    whatever the site still serves.
+    """
+    url = _source_url(year)
+    try:
+        r = httpx.get(url, headers=_UA, timeout=60, follow_redirects=True)
+    except httpx.HTTPError as e:
+        raise ScrapeFailed(f"GET {url}: {e}") from e
+    if r.status_code != 200 or b"%PDF" not in r.content[:8]:
+        return None
+    return r.content
+
+
 class LAScraper:
     state = "LA"
     source_url = _PDF_URL.format(year=date.today().year)
@@ -67,65 +91,113 @@ class LAScraper:
         raise ScrapeFailed(f"Could not fetch LA WARN PDF for {year} or {year - 1}")
 
     def parse(self, raw: bytes) -> list[NoticeRow]:
-        import io
+        return parse_la_pdf(raw, self.source_url)
 
-        try:
-            pdf = pdfplumber.open(io.BytesIO(raw))
-        except Exception as e:
-            raise ParseFailed(f"pdfplumber could not open LA PDF: {e}") from e
 
-        with pdf:
-            all_rows: list[list] = []
-            for page in pdf.pages:
-                tbl = page.extract_table(
-                    table_settings={
-                        "vertical_strategy": "lines",
-                        "horizontal_strategy": "lines",
-                    }
-                )
-                if tbl:
-                    all_rows.extend(tbl)
+def parse_la_pdf(raw: bytes, source_url: str) -> list[NoticeRow]:
+    import io
 
-        if len(all_rows) < 2:
-            raise ParseFailed(f"LA PDF: too few table rows ({len(all_rows)})")
+    try:
+        pdf = pdfplumber.open(io.BytesIO(raw))
+    except Exception as e:
+        raise ParseFailed(f"pdfplumber could not open LA PDF: {e}") from e
 
-        # Row 0 is a title banner, row 1 is the header.
-        header = [_norm(c).lower() for c in all_rows[1]]
-        col = {name: i for i, name in enumerate(header) if name}
-        if "company name" not in col:
-            raise ParseFailed(f"LA PDF: unexpected header: {header[:6]}")
-
-        rows: list[NoticeRow] = []
-        for raw_row in all_rows[2:]:
-            employer_raw = raw_row[col.get("company name", 0)]
-            employer = as_str(_norm(employer_raw))
-            if not employer:
-                continue
-            notice_date = as_date(_norm(raw_row[col.get("notice date", 2)]))
-            if notice_date is None:
-                continue
-
-            address = _norm(raw_row[col.get("address", 1)])
-            city, zip_code = _city_zip_la(address)
-
-            industry_idx = col.get("industry", 6)
-            industry = as_str(_norm(raw_row[industry_idx])) if industry_idx < len(raw_row) else None
-
-            rows.append(
-                NoticeRow(
-                    state="LA",
-                    employer=employer,
-                    notice_date=notice_date,
-                    effective_date=as_date(_norm(raw_row[col.get("layoff date", 3)])),
-                    layoff_count=as_int(_norm(raw_row[col.get("employees affected", 4)])),
-                    city=city,
-                    zip=zip_code,
-                    address=as_str(address),
-                    source_url=self.source_url,
-                    extra={"industry": industry or ""},
-                )
+    with pdf:
+        all_rows: list[list] = []
+        for page in pdf.pages:
+            tbl = page.extract_table(
+                table_settings={
+                    "vertical_strategy": "lines",
+                    "horizontal_strategy": "lines",
+                }
             )
-        return rows
+            if tbl:
+                all_rows.extend(tbl)
+
+    if len(all_rows) < 2:
+        raise ParseFailed(f"LA PDF: too few table rows ({len(all_rows)})")
+
+    # Header position varies by era (2026 has a banner row above it; 2025
+    # repeats it on every page) — detect it by content, skip every repeat.
+    col: dict[str, int] = {}
+    rows: list[NoticeRow] = []
+    for raw_row in all_rows:
+        header = [_norm(c).lower() for c in raw_row]
+        if "company name" in header:
+            if not col:
+                col = {name: i for i, name in enumerate(header) if name}
+            continue
+        if not col:
+            continue  # banner/preamble rows before the first header
+
+        if "address" in col:
+            employer = as_str(_norm(raw_row[col["company name"]]))
+            address = _norm(raw_row[col["address"]])
+        else:
+            # 2025 era: employer + address share the Company Name cell,
+            # one per line — address starts at the first street-number line.
+            employer, address = _split_company_address(raw_row[col["company name"]])
+        if not employer:
+            continue
+        notice_date = as_date(_norm(raw_row[col["notice date"]]))
+        if notice_date is None:
+            continue
+
+        city, zip_code = _city_zip_la(address)
+
+        industry_idx = col.get("industry")
+        industry = (
+            as_str(_norm(raw_row[industry_idx]))
+            if industry_idx is not None and industry_idx < len(raw_row)
+            else None
+        )
+
+        rows.append(
+            NoticeRow(
+                state="LA",
+                employer=employer,
+                notice_date=notice_date,
+                effective_date=_layoff_date(raw_row[col["layoff date"]]),
+                layoff_count=as_int(_norm(raw_row[col["employees affected"]])),
+                city=city,
+                zip=zip_code,
+                address=as_str(address),
+                source_url=source_url,
+                extra={"industry": industry or ""},
+            )
+        )
+    if not col:
+        raise ParseFailed("LA PDF: no header row with 'Company Name' found")
+    return rows
+
+
+def _layoff_date(cell) -> date | None:
+    """Parse a Layoff Date cell; ranges like '7/31/25 to 12/31/25' use the start."""
+    text = _norm(cell)
+    parsed = as_date(text)
+    if parsed is None and " to " in text:
+        parsed = as_date(text.split(" to ", 1)[0])
+    return parsed
+
+
+_ADDRESS_LINE_RE = re.compile(r"^\(?\d")
+
+
+def _split_company_address(cell) -> tuple[str | None, str]:
+    """Split a merged 'employer\\nstreet\\ncity, LA zip' cell (2025 era).
+
+    Lines up to the first one that starts with a street number (optionally
+    parenthesised) are the employer; that line onward is the address. Some
+    notices carry no address lines at all.
+    """
+    lines = [ln.strip() for ln in str(cell or "").splitlines() if ln.strip()]
+    for i, line in enumerate(lines):
+        if i > 0 and _ADDRESS_LINE_RE.match(line):
+            return (
+                as_str(" ".join(lines[:i])),
+                " ".join(" ".join(lines[i:]).split()),
+            )
+    return as_str(" ".join(lines)), ""
 
 
 def _norm(cell) -> str:
@@ -145,8 +217,10 @@ def _city_zip_la(address: str) -> tuple[str | None, str | None]:
     """
     if not address:
         return None, None
-    zip_match = _ZIP_RE.search(address)
-    zip_code = zip_match.group(1) if zip_match else None
+    # Last match, not first — 5-digit street numbers ("13800 Old Gentilly Rd")
+    # would otherwise shadow the real ZIP at the end of the address.
+    zip_matches = _ZIP_RE.findall(address)
+    zip_code = zip_matches[-1] if zip_matches else None
 
     la_idx = address.lower().find(", la")
     if la_idx == -1:

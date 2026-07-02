@@ -88,3 +88,61 @@ def test_nv_raises_on_bad_pdf() -> None:
     scraper = get_scraper("NV")
     with pytest.raises(ParseFailed):
         scraper.parse(b"this is not a pdf file")
+
+
+# ---------------------------------------------------------------------------
+# Per-year archive PDFs (backfill-historical)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def nv_archive_2017() -> bytes:
+    return (FIXTURE.parent / "archive_2017.pdf").read_bytes()
+
+
+@pytest.fixture
+def nv_archive_2025() -> bytes:
+    return (FIXTURE.parent / "archive_2025.pdf").read_bytes()
+
+
+def test_nv_archive_lattice_era(nv_archive_2017: bytes) -> None:
+    """2017-2020 files are lattice tables parsed via extract_table."""
+    from warn_v2.scrapers.states.nv import parse_nv_archive
+
+    rows = parse_nv_archive(nv_archive_2017, 2017)
+    assert len(rows) == 18
+    assert all(r.notice_date.year == 2017 for r in rows)
+    first = rows[0]
+    assert first.employer == "Save-A-Lot"
+    assert first.notice_date == date(2017, 1, 19)
+    assert first.layoff_count == 64
+    assert first.city == "Las Vegas"
+    assert first.county == "Clark"
+    assert first.closure_type == "Closure"
+
+
+def test_nv_archive_word_era(nv_archive_2025: bytes) -> None:
+    """2022+ files have no grid lines; per-era x-boundaries assign columns."""
+    from warn_v2.scrapers.states.nv import parse_nv_archive
+
+    rows = parse_nv_archive(nv_archive_2025, 2025)
+    assert len(rows) >= 15
+    assert all(r.notice_date.year == 2025 for r in rows)
+    # Count column is right-aligned; the digit-leading employer "7 BEARS, LLC"
+    # must not be folded into the count.
+    bears = next(r for r in rows if "BEARS" in r.employer)
+    assert bears.employer.startswith("7 BEARS")
+    assert bears.layoff_count == 25
+    assert bears.extra["notification"] == "Non-WARN"
+    luxor = next(r for r in rows if "Luxor" in r.employer)
+    assert luxor.layoff_count == 25
+    assert luxor.city == "Las Vegas"
+    assert luxor.county == "Clark"
+
+
+def test_nv_fetch_year_skips_unpublished_years() -> None:
+    """2021 (scanned image) and 2016-and-earlier have no usable archive."""
+    from warn_v2.scrapers.states.nv import _fetch_nv_year
+
+    assert _fetch_nv_year(2021) is None
+    assert _fetch_nv_year(2016) is None
