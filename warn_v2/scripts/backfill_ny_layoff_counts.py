@@ -56,10 +56,10 @@ _UA = {
 }
 
 _TOTAL_RE = re.compile(
-    r"Total\s+Number\s+of\s+Affected\s+Workers\s*:\s*([\d,]+)", re.I
+    r"Total\s+Number\s+of\s+Affected\s+Workers\s*:\s*(\d[\d,]*)", re.I
 )
 _SITE_RE = re.compile(
-    r"Number\s+of\s+Affected\s+(?:Workers|Employees)\s+at\s+Site\s*:\s*([\d,]+)",
+    r"Number\s+of\s+Affected\s+(?:Workers|Employees)\s+at\s+Site\s*:\s*(\d[\d,]*)",
     re.I,
 )
 
