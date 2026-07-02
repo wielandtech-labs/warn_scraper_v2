@@ -13,6 +13,16 @@ sources only).
 
 ## Progress (update as backfills run)
 
+- **2026-07-02 — CO backfilled in prod** (found in the aggregator cross-check,
+  PR #103; fixed in PR #110): the scraper had been frozen on CDLE's 2021 sheet,
+  reporting "ok" daily with 43 rows since Dec 2021. The nightly scrape on the
+  #110 image did the full 12-sheet sweep: **44 → 811 notices (2015–2026,
+  +768)**; 811 vs the 842 parsed rows = intra-source duplicates collapsing to
+  one content hash. Existing rows hashed identically (no duplicate churn). The
+  junk 1957 form-spam row was purged via a one-shot GitOps Job (w_homelab
+  #569) and `as_date`'s 1988 floor blocks re-entry. The regular scraper now
+  reads only the two newest sheets; history re-runs via
+  `backfill-historical --state CO`.
 - **2026-07-02 — KY correction + KY/LA/NV backfill routes added** (aggregator
   cross-check follow-up, PR #103):
   - **KY**: the 2026-06-12 run's "+54 (2021+)" was wrong — the 2021–2024
@@ -91,7 +101,7 @@ delete Jobs after.
 
 | State | DB floor | Source / route | Available back to | Backfill route |
 |-------|----------|----------------|-------------------|----------------|
-| CO | 2021 (frozen; see PR #110) | one Google Sheet per year linked from `cdle.colorado.gov/employers/layoff-separations/layoff-warn-list` (co.py registry + link discovery; regular scraper reads only the two newest sheets) | **2015** | year loop (`--state CO`, 2015+) |
+| CO | ~~2021~~ **2015 ✅** | one Google Sheet per year linked from `cdle.colorado.gov/employers/layoff-separations/layoff-warn-list` (co.py registry + link discovery; regular scraper reads only the two newest sheets) | **2015** | **done 2026-07-02** (+768, via the #110 full sweep); re-runs via year loop (`--state CO`) |
 | KS | ~~2026~~ **1999 ✅** | `kansasworks.com/search/warn_lookups?q[notice_on_gteq]=YYYY-01-01` (JobLink date-range search) | **1999** | **done 2026-06-12** (+542) |
 | ME | ~~2026~~ **2012 ✅** | `joblink.maine.gov/search/warn_lookups` (JobLink) | **2012** | **done 2026-06-12** (+76) |
 | VT | ~~2026~~ **2003 ✅** | `vermontjoblink.com/search/warn_lookups` (JobLink) | **2003** | **done 2026-06-12** (+91) |
