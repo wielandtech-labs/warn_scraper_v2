@@ -4,16 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { api } from "../api/client";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { STATE_NAMES, US_STATES, fmtDate, fmtNum } from "../lib/format";
-
-// Jurisdictions that will never go "Operational" by design — documented in
-// docs/deferred-states.md. Shown with a neutral badge + tooltip so a permanent
-// no-source state doesn't read as a fresh outage. Keep in sync with that doc.
-const UNSUPPORTED: Record<string, string> = {
-  AR: "WARN notices are confidential under Arkansas law (A.C.A. § 11-10-314); none are published.",
-  NH: "New Hampshire does not publish WARN notices online; available only by records request.",
-  WY: "Wyoming publishes no structured WARN listing.",
-  OK: "Oklahoma moved to a Salesforce portal that needs a browser token — scraper pending.",
-};
+import { UNSUPPORTED } from "../lib/unavailable";
 
 type Health = "operational" | "failing" | "unsupported" | "never";
 
