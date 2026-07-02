@@ -1253,50 +1253,116 @@ def send_alert_digest_cmd() -> None:
 @main.command("sentiment-report")
 @click.option("--state", default=None, help="One state abbreviation, e.g. CA (default: all)")
 @click.option(
+    "--industry",
+    default=None,
+    metavar="SECTOR",
+    help="One NAICS sector id, e.g. 31-33 (generates only that scorecard)",
+)
+@click.option(
     "--reports-dir",
     default="/var/reports",
     show_default=True,
     type=click.Path(file_okay=False, path_type=Path),
-    help="Directory for the per-state markdown reports",
+    help="Directory for the markdown reports",
 )
 @click.option("--skip-llm", is_flag=True, help="Write deterministic tables only (no Ollama call)")
 @click.option("--dry-run", is_flag=True, help="Compute and render but write no files")
 def sentiment_report_cmd(
-    state: str | None, reports_dir: Path, skip_llm: bool, dry_run: bool
+    state: str | None,
+    industry: str | None,
+    reports_dir: Path,
+    skip_llm: bool,
+    dry_run: bool,
 ) -> None:
-    """Generate per-state economic sentiment markdown reports.
+    """Generate economic sentiment markdown reports.
 
-    Deterministic layoff-trend figures (trailing 90 days vs the prior 90 by
-    county and NAICS sector, plus a 12-month series) with a narrative written
-    by the cluster's Ollama service (OLLAMA_BASE_URL / OLLAMA_MODEL). A failed
-    narrative degrades that state's report to figures-only; the run exits
-    non-zero only when every attempted narrative failed (systemic outage).
+    Deterministic layoff-trend figures (trailing 90 days vs the prior 90, plus
+    a 12-month series) with a narrative written by the cluster's Ollama
+    service (OLLAMA_BASE_URL / OLLAMA_MODEL). The default run covers every
+    state, a national roll-up (US.md), and a scorecard per NAICS sector
+    (industry_{sector}.md + industries.json). A failed narrative degrades that
+    report to figures-only; the run exits non-zero only when every attempted
+    narrative failed (systemic outage).
 
     \b
     Examples:
-      warn-v2 sentiment-report                       # all states (weekly CronJob)
+      warn-v2 sentiment-report                       # states + national + industries
       warn-v2 sentiment-report --state CA            # one state
+      warn-v2 sentiment-report --industry 31-33      # one sector scorecard
       warn-v2 sentiment-report --skip-llm --dry-run  # offline smoke test
     """
+    from warn_v2.companies.naics import SECTOR_NAME
     from warn_v2.db.session import session_scope
-    from warn_v2.reports.generate import generate_reports
+    from warn_v2.reports.aggregate import NATIONAL_CODE
+    from warn_v2.reports.generate import (
+        generate_industry_reports,
+        generate_national_report,
+        generate_reports,
+        write_report,
+    )
     from warn_v2.reports.ollama import build_ollama_client
     from warn_v2.states import is_valid_state
 
+    if state and industry:
+        click.echo("--state and --industry are mutually exclusive", err=True)
+        sys.exit(1)
     if state and not is_valid_state(state):
         click.echo(f"unknown state: {state!r}", err=True)
         sys.exit(1)
+    if industry and industry not in SECTOR_NAME:
+        click.echo(f"unknown industry: {industry!r}", err=True)
+        sys.exit(1)
 
     client = None if skip_llm else build_ollama_client()
+    stats = {
+        "generated": 0,
+        "insufficient": 0,
+        "narrative_ok": 0,
+        "narrative_failed": 0,
+        "total": 0,
+    }
+
+    def merge(group: dict[str, int]) -> None:
+        for k in stats:
+            stats[k] += group[k]
+
     with session_scope() as session:
-        stats = generate_reports(
-            session,
-            client,
-            reports_dir=reports_dir,
-            states=[state] if state else None,
-            dry_run=dry_run,
-            progress=click.echo,
-        )
+        if industry is None:
+            merge(
+                generate_reports(
+                    session,
+                    client,
+                    reports_dir=reports_dir,
+                    states=[state] if state else None,
+                    dry_run=dry_run,
+                    progress=click.echo,
+                )
+            )
+        if state is None and industry is None:
+            content, status = generate_national_report(session, client)
+            if not dry_run:
+                write_report(reports_dir, NATIONAL_CODE, content)
+            key = {
+                "ok": "narrative_ok",
+                "llm_unavailable": "narrative_failed",
+                "insufficient_data": "insufficient",
+            }.get(status)
+            if key:
+                stats[key] += 1
+            stats["generated"] += 1
+            stats["total"] += 1
+            click.echo(f"{NATIONAL_CODE} narrative={status} chars={len(content)}")
+        if state is None:
+            merge(
+                generate_industry_reports(
+                    session,
+                    client,
+                    reports_dir=reports_dir,
+                    sectors=[industry] if industry else None,
+                    dry_run=dry_run,
+                    progress=click.echo,
+                )
+            )
 
     suffix = " (dry run — nothing written)" if dry_run else ""
     click.echo(
