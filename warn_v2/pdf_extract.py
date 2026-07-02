@@ -349,10 +349,12 @@ _COUNT_TOTAL_RES = [
     ),
     # "The total number of affected employees in West Virginia is one" /
     # "Total number of affected WGH employees: 291" (company abbreviation
-    # between the affected-word and the noun)
+    # between the affected-word and the noun). The gap is case-sensitively
+    # capitalized so lowercase connectives can't dilute the affected-word
+    # ("total number of affected and unaffected employees ... is 500").
     re.compile(
         rf"\btotal\s+number\s+of\s+(?:affected|impacted)\s+"
-        rf"{_COUNT_GAP3}{_COUNT_NOUN}"
+        rf"(?-i:(?:[A-Z][\w&.'\-]*\s+){{0,3}}?){_COUNT_NOUN}"
         rf"[^.\d]{{0,60}}?(?:\b(?:is|was|will\s+be)\s+|:\s*)"
         rf"{_COUNT_NUM_OR_WORD}\b",
         re.I,
@@ -484,8 +486,24 @@ def _count_candidate(m: re.Match, text: str) -> int | None:
     # Dollar amounts, and phone/store/statute fragments ("808-943-6670",
     # "(808) 469-4900", "#057", "639.6") — the digits directly follow a
     # joining character, so they are part of a larger token, not a count.
-    joiners = "$-/.#" + chr(0x2013) + chr(0x2014)  # plus en dash + em dash
-    if m.start(1) > 0 and text[m.start(1) - 1] in joiners:
+    # Hyphen variants cover pdfminer's ToUnicode output (U+2010/U+2011,
+    # U+2212); en/em dashes are excluded — they punctuate prose right before
+    # legitimate counts ("the closing—75 employees ...") and essentially
+    # never join phone digits.
+    joiners = "$-/.#" + chr(0x2010) + chr(0x2011) + chr(0x2212)
+    start = m.start(1)
+    if start > 0 and text[start - 1] in joiners:
+        return None
+    # Line-wrapped fragments ("808-943-\n6670" flattens to "943- 6670"):
+    # a digit + joiner + space right before the number is the same token
+    # split across lines. A worded label ("laid off - 120") is not — the
+    # joiner there follows a letter, not a digit.
+    if (
+        start >= 3
+        and text[start - 1] == " "
+        and text[start - 2] in joiners
+        and text[start - 3].isdigit()
+    ):
         return None
     before = text[max(0, m.start(1) - 12): m.start(1)]
     if re.search(_COUNT_MONTHS + r"\s*$", before, re.I):

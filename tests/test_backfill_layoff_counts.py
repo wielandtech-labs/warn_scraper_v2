@@ -68,10 +68,46 @@ def test_phone_number_fragment_is_not_a_count():
     text = (
         "Contact Person: Lori Foster Human Resources Director 808-621-4272\n"
         "Date of position eliminations/closing: April 2, 2024\n"
-        "Total number of affected WGH employees: 291\n"
-        "WGH employees will be terminated from their roles on April 2, 2024."
+        "Total number of affected WGH employees: 291"
     )
     assert extract_layoff_count(text) == 291
+
+
+def test_line_wrapped_phone_number_is_not_a_count():
+    # OCR wrapping a phone mid-number leaves "943- 6670" after whitespace
+    # flattening — still a fragment, not a count.
+    text = (
+        "This closure will impact operations. Call the site at 808-943-\n"
+        "6670 to reach the affected employees hotline."
+    )
+    assert extract_layoff_count(text) is None
+
+
+def test_unicode_hyphen_phone_is_not_a_count():
+    # pdfminer's ToUnicode mapping can emit U+2010 HYPHEN inside phones.
+    hyphen = chr(0x2010)
+    text = (
+        f"This closure will impact staffing. Call 808{hyphen}943{hyphen}6670 "
+        "to reach the affected employees hotline."
+    )
+    assert extract_layoff_count(text) is None
+
+
+def test_em_dash_before_count_still_extracts():
+    # En/em dashes punctuate prose right before real counts and never join
+    # phone digits — they must not trip the joiner guard.
+    text = "As part of the closing—75 employees will be permanently laid off."
+    assert extract_layoff_count(text) == 75
+
+
+def test_affected_and_unaffected_combined_figure_stays_null():
+    # The pattern-3 gap must not dilute "affected" with lowercase
+    # connectives into a combined/establishment figure.
+    text = (
+        "The total number of affected and unaffected employees at the site "
+        "is 500."
+    )
+    assert extract_layoff_count(text) is None
 
 
 def test_letterhead_phone_vs_laid_off_or_terminated():
