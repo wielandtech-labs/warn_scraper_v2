@@ -89,10 +89,17 @@ def test_meta_content_pages_have_bespoke_titles():
         assert meta.path == path
 
 
+def test_meta_app_pages_have_bespoke_titles():
+    for path in ("/notices", "/companies", "/map", "/stats"):
+        meta = page_meta_for_path(path)
+        assert meta.title != DEFAULT_TITLE
+        assert meta.path == path
+
+
 def test_meta_unknown_route_keeps_canonical_path():
-    meta = page_meta_for_path("/notices")
+    meta = page_meta_for_path("/no-such-page")
     assert meta.title == DEFAULT_TITLE
-    assert meta.path == "/notices"
+    assert meta.path == "/no-such-page"
 
 
 # --- render_index -----------------------------------------------------------
@@ -111,6 +118,8 @@ def test_render_index_injects_canonical_and_og():
     html = render_index(_BASE_HTML, meta)
     assert f'rel="canonical" href="{site_base_url()}/states/CA"' in html
     assert 'property="og:title" content="T"' in html
+    assert f'property="og:image" content="{site_base_url()}/og-image.png"' in html
+    assert 'name="twitter:card" content="summary_large_image"' in html
     assert 'type="application/rss+xml"' in html
     # injected before the single closing head tag
     assert html.count("</head>") == 1

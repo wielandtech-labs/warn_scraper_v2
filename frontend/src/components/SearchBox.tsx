@@ -44,6 +44,10 @@ export function SearchBox() {
         value={value}
         placeholder="Search companies or notices…"
         aria-label="Search companies or notices"
+        role="combobox"
+        aria-expanded={showPanel}
+        aria-controls="global-search-results"
+        aria-autocomplete="list"
         className="w-44 rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400 sm:w-56"
         onChange={(e) => {
           setValue(e.target.value);
@@ -60,6 +64,9 @@ export function SearchBox() {
       />
       {showPanel && (
         <div
+          id="global-search-results"
+          role="listbox"
+          aria-label="Search results"
           className="absolute right-0 z-20 mt-1 max-h-96 w-80 overflow-auto rounded-md border border-slate-200 bg-white shadow-lg"
           onMouseDown={() => {
             // Keep focus/panel alive through the click on an item.
@@ -81,6 +88,8 @@ export function SearchBox() {
                 <button
                   key={`c${c.id}`}
                   type="button"
+                  role="option"
+                  aria-selected={false}
                   className="block w-full truncate px-3 py-2 text-left text-sm hover:bg-sky-50"
                   onClick={() => {
                     close();
@@ -104,6 +113,8 @@ export function SearchBox() {
                 <button
                   key={`n${n.notice_id}`}
                   type="button"
+                  role="option"
+                  aria-selected={false}
                   className="block w-full px-3 py-2 text-left text-sm hover:bg-sky-50"
                   onClick={() => {
                     close();

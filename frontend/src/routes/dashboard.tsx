@@ -16,14 +16,18 @@ import {
 
 import { api } from "../api/client";
 import { AlertSignup } from "../components/AlertSignup";
+import { QueryError } from "../components/QueryError";
+import { SkeletonBlock, SkeletonChart, SkeletonRows } from "../components/Skeleton";
 import {
   TimeRangeToggle,
   toRangeQuery,
   type TimeRange,
 } from "../components/TimeRangeToggle";
-import { fmtDate, fmtNum, fmtPeriod } from "../lib/format";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { fmtCompact, fmtDate, fmtNum, fmtPeriod } from "../lib/format";
 
 export function Dashboard() {
+  useDocumentTitle("WARN Tracker — US layoff & closure notices");
   const [range, setRange] = useState<TimeRange>("all");
   const { after, bucket } = toRangeQuery(range);
 
@@ -76,20 +80,28 @@ export function Dashboard() {
           <div className="text-xs uppercase tracking-wide text-slate-500">
             Total notices
           </div>
-          <div className="mt-1 text-3xl font-semibold">{fmtNum(totalNotices)}</div>
+          <div className="mt-1 text-3xl font-semibold">
+            {byState.isLoading ? <SkeletonBlock className="h-9 w-24" /> : fmtNum(totalNotices)}
+          </div>
         </div>
         <div className="card">
           <div className="text-xs uppercase tracking-wide text-slate-500">
             Workers affected
           </div>
-          <div className="mt-1 text-3xl font-semibold">{fmtNum(totalLayoffs)}</div>
+          <div className="mt-1 text-3xl font-semibold">
+            {byState.isLoading ? <SkeletonBlock className="h-9 w-24" /> : fmtNum(totalLayoffs)}
+          </div>
         </div>
         <div className="card">
           <div className="text-xs uppercase tracking-wide text-slate-500">
             States covered
           </div>
           <div className="mt-1 text-3xl font-semibold">
-            {fmtNum(byState.data?.length ?? null)}
+            {byState.isLoading ? (
+              <SkeletonBlock className="h-9 w-24" />
+            ) : (
+              fmtNum(byState.data?.length ?? null)
+            )}
           </div>
         </div>
       </div>
@@ -99,61 +111,89 @@ export function Dashboard() {
       <div className="card">
         <h2 className="mb-3 text-lg font-semibold">Layoffs over time</h2>
         {overTime.isLoading ? (
-          <div className="flex h-72 items-center justify-center text-slate-500">Loading…</div>
+          <SkeletonChart height={300} />
+        ) : overTime.isError ? (
+          <QueryError
+            message="Error loading the layoffs-over-time chart."
+            onRetry={() => overTime.refetch()}
+          />
         ) : timeData.length === 0 ? (
           <div className="flex h-24 items-center justify-center text-sm text-slate-500">
             No notices in this period.
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={timeData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="label" tick={{ fontSize: 12 }} minTickGap={24} />
-              <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(v: number) => fmtNum(v)} />
-              <Legend />
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="notice_count"
-                name="Notices"
-                stroke="#0369a1"
-                strokeWidth={2}
-                dot={false}
-              />
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="layoff_total"
-                name="Workers affected"
-                stroke="#dc2626"
-                strokeWidth={2}
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <div
+            role="img"
+            aria-label="Line chart of notice counts and workers affected over time"
+          >
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={timeData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="label" tick={{ fontSize: 12 }} minTickGap={24} />
+                {/* Axis ticks are colored to match their series, so the dual
+                    axes are readable without cross-referencing the legend. */}
+                <YAxis
+                  yAxisId="left"
+                  tick={{ fontSize: 12, fill: "#0369a1" }}
+                  tickFormatter={fmtCompact}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  tick={{ fontSize: 12, fill: "#dc2626" }}
+                  tickFormatter={fmtCompact}
+                />
+                <Tooltip formatter={(v: number) => fmtNum(v)} />
+                <Legend />
+                <Line
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="notice_count"
+                  name="Notices"
+                  stroke="#0369a1"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="layoff_total"
+                  name="Workers affected"
+                  stroke="#dc2626"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         )}
       </div>
 
       <div className="card">
         <h2 className="mb-3 text-lg font-semibold">Workers affected by industry</h2>
         {industries.isLoading ? (
-          <div className="flex h-72 items-center justify-center text-slate-500">Loading…</div>
+          <SkeletonChart height={288} />
+        ) : industries.isError ? (
+          <QueryError
+            message="Error loading the industry chart."
+            onRetry={() => industries.refetch()}
+          />
         ) : industryData.length === 0 ? (
           <div className="flex h-24 items-center justify-center text-sm text-slate-500">
             No industry data for this period.
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={Math.max(240, industryData.length * 28)}>
-            <BarChart layout="vertical" data={industryData} margin={{ left: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis type="number" tick={{ fontSize: 12 }} />
-              <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={180} />
-              <Tooltip formatter={(v: number) => fmtNum(v)} />
-              <Bar dataKey="layoff_total" name="Workers affected" fill="#0369a1" />
-            </BarChart>
-          </ResponsiveContainer>
+          <div role="img" aria-label="Bar chart of workers affected by industry">
+            <ResponsiveContainer width="100%" height={Math.max(240, industryData.length * 28)}>
+              <BarChart layout="vertical" data={industryData} margin={{ left: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis type="number" tick={{ fontSize: 12 }} tickFormatter={fmtCompact} />
+                <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={180} />
+                <Tooltip formatter={(v: number) => fmtNum(v)} />
+                <Bar dataKey="layoff_total" name="Workers affected" fill="#0369a1" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         )}
       </div>
 
@@ -165,7 +205,15 @@ export function Dashboard() {
           </Link>
         </div>
         <div className="card divide-y divide-slate-100 p-0">
-          {recent.isLoading && <div className="p-4 text-sm text-slate-500">Loading…</div>}
+          {recent.isLoading && <SkeletonRows rows={5} />}
+          {recent.isError && (
+            <div className="p-4">
+              <QueryError
+                message="Error loading recent notices."
+                onRetry={() => recent.refetch()}
+              />
+            </div>
+          )}
           {recent.data?.items.map((n) => (
             <Link
               key={n.notice_id}
@@ -191,9 +239,7 @@ export function Dashboard() {
       <section>
         <h2 className="mb-2 text-lg font-semibold">Top employers (by layoff count)</h2>
         <div className="card divide-y divide-slate-100 p-0">
-          {topEmployers.isLoading && (
-            <div className="p-4 text-sm text-slate-500">Loading…</div>
-          )}
+          {topEmployers.isLoading && <SkeletonRows rows={5} />}
           {topEmployers.data?.map((e) => (
             <div key={e.employer} className="flex items-baseline justify-between px-4 py-3">
               <div className="min-w-0 truncate">

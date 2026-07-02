@@ -35,9 +35,17 @@ export function StatesIndexPage() {
       </div>
 
       {byState.isLoading && (
-        <div className="card text-center text-sm text-slate-500">Loading…</div>
+        <div aria-hidden className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 9 }, (_, i) => (
+            <div key={i} className="card animate-pulse space-y-2">
+              <div className="h-4 w-1/2 rounded bg-slate-200" />
+              <div className="h-3 w-1/3 rounded bg-slate-200" />
+            </div>
+          ))}
+        </div>
       )}
 
+      {!byState.isLoading && (
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {rows.map((s) => (
           <Link
@@ -59,6 +67,7 @@ export function StatesIndexPage() {
           </Link>
         ))}
       </div>
+      )}
     </div>
   );
 }

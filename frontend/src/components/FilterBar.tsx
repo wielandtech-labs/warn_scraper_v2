@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 import type { IndustryStat } from "../api/types";
 import { daysAgoIso, stateName, US_STATES } from "../lib/format";
 
@@ -11,11 +13,29 @@ export interface FilterValues {
   before?: string;
 }
 
+const FILTER_KEYS = [
+  "state",
+  "employer",
+  "closure_category",
+  "industry",
+  "subsector",
+  "after",
+  "before",
+] as const;
+
+/** Every filter key explicitly `undefined` — spread over existing search
+ *  params to clear them (a bare `{}` would leave them untouched). */
+export const EMPTY_FILTERS: FilterValues = Object.fromEntries(
+  FILTER_KEYS.map((k) => [k, undefined]),
+) as FilterValues;
+
 const CLOSURE_TYPES = ["Closure", "Layoff"] as const;
 
 export interface FilterBarProps {
   values: FilterValues;
-  onChange: (next: FilterValues) => void;
+  /** `opts.replace` asks the page to replace (not push) the history entry —
+   *  used for debounced typing so Back doesn't walk through keystrokes. */
+  onChange: (next: FilterValues, opts?: { replace?: boolean }) => void;
   showEmployer?: boolean;
   /** When provided, render an Industry (NAICS sector) dropdown of these options. */
   industries?: IndustryStat[];
@@ -34,14 +54,37 @@ export function FilterBar({
   showEmployer = true,
   industries,
 }: FilterBarProps) {
-  const update = (patch: Partial<FilterValues>) => {
+  const update = (patch: Partial<FilterValues>, opts?: { replace?: boolean }) => {
     const next: FilterValues = { ...values, ...patch };
     // Strip empty strings so they don't end up in the URL.
     (Object.keys(next) as (keyof FilterValues)[]).forEach((k) => {
       if (next[k] === "") delete next[k];
     });
-    onChange(next);
+    onChange(next, opts);
   };
+
+  // Employer input is kept locally and applied after a debounce, so each
+  // keystroke doesn't fire an API query and push a history entry.
+  const [employerInput, setEmployerInput] = useState(values.employer ?? "");
+  useEffect(() => {
+    // External change (back/forward, Clear all) wins over stale local input.
+    setEmployerInput(values.employer ?? "");
+  }, [values.employer]);
+  // `values` is a dep so a pending timer is rescheduled with the current
+  // filters — otherwise firing it would merge the employer into a stale
+  // snapshot and drop a dropdown change made during the debounce window.
+  useEffect(() => {
+    if ((values.employer ?? "") === employerInput) return;
+    const t = setTimeout(
+      () => update({ employer: employerInput || undefined }, { replace: true }),
+      300,
+    );
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employerInput, values]);
+
+  const hasAnyFilter = FILTER_KEYS.some((k) => values[k]);
+  const clearAll = () => onChange(EMPTY_FILTERS);
 
   // Subsectors of the currently-selected sector (drives the drill-down dropdown).
   // Empty when no sector is selected (no match), so the dropdown stays hidden.
@@ -140,8 +183,8 @@ export function FilterBar({
             type="search"
             className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
             placeholder="e.g. Acme"
-            value={values.employer || ""}
-            onChange={(e) => update({ employer: e.target.value || undefined })}
+            value={employerInput}
+            onChange={(e) => setEmployerInput(e.target.value)}
           />
         </label>
       )}
@@ -186,6 +229,7 @@ export function FilterBar({
             <button
               key={label}
               type="button"
+              aria-pressed={active}
               onClick={() =>
                 days === null
                   ? update({ after: undefined, before: undefined })
@@ -201,6 +245,15 @@ export function FilterBar({
             </button>
           );
         })}
+        {hasAnyFilter && (
+          <button
+            type="button"
+            onClick={clearAll}
+            className="ml-auto text-xs font-medium text-sky-700 hover:underline"
+          >
+            Clear all filters
+          </button>
+        )}
       </div>
     </div>
   );
