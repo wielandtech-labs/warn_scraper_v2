@@ -189,7 +189,8 @@ reportStorage:
 # GPU, it is just an HTTP client. Requires reportStorage.enabled.
 sentimentReport:
   enabled: false            # flip on in HelmRelease after reportStorage
-  schedule: "37 10 * * 1"   # weekly Monday 10:37, clear of the 04:30-09:17 daily jobs
+  schedule: "7 2 * * 1"     # weekly Monday 02:07 — before the 03:00 DB backup and
+                            # the 04:30-09:17 daily jobs; reports ready by morning
   ollamaBaseUrl: "http://ollama.ai.svc.cluster.local:11434"
   ollamaModel: "gpt-oss:20b"
   resources:
