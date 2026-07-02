@@ -64,3 +64,25 @@ def test_ri_raises_on_bad_xlsx() -> None:
     scraper = get_scraper("RI")
     with pytest.raises(ParseFailed):
         scraper.parse(b"this is not an xlsx file")
+
+
+def test_ri_parses_truncated_central_directory(ri_sample_xlsx: bytes) -> None:
+    """The 2026-06-29 upload is cut off mid-central-directory (no EOCD record);
+    the member data is intact, so the rebuild fallback must recover all rows."""
+    scraper = get_scraper("RI")
+    expected = scraper.parse(ri_sample_xlsx)
+
+    cen = ri_sample_xlsx.rfind(b"PK\x01\x02")
+    assert cen > 0
+    truncated = ri_sample_xlsx[: cen + 20]  # ends inside a central-dir entry
+    with pytest.raises(Exception):
+        import io
+
+        import openpyxl
+
+        openpyxl.load_workbook(io.BytesIO(truncated))  # sanity: really corrupt
+
+    rows = scraper.parse(truncated)
+    assert len(rows) == len(expected)
+    assert rows[0].employer == expected[0].employer
+    assert rows[0].layoff_count == expected[0].layoff_count
