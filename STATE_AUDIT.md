@@ -180,6 +180,39 @@ recover only a few messy CO/CT rows — low value.
 
 Findings the DB can't tell us — confirmed against the live sources.
 
+- **Missing/zero `layoff_count` investigation (2026-07-02)** — every state with
+  Count% < 100 in the 2026-06-29 table was classified against its live source:
+  - **CA — already healed.** The 2026-06-29 table's 72% was captured just before
+    PR #97 (header variant + worksite sum) deployed; the cumulative EDD XLSX
+    re-parse COALESCE-filled ~4,400 counts. Residual today: **18** rows, almost
+    all 2020 COVID-era, blank at source.
+  - **IL — real parser gap, fixed** (PR #105): archive monthly Excels
+    (2020→mid-2025) title the column `# WORKERS AFFECTED:`; exact-match lookup
+    dropped 871/1,025 counts the files actually contain. **Post-deploy: re-run
+    `backfill-historical --state IL`** to heal prod.
+  - **DC — real parser gap, fixed** (PR #106): the 2020 year page spells out
+    "Number to Employees Affected" (alias missing) and uses comma-thousands
+    ("1,604") that `as_int` rejected — 52/52 of the 2020 backfill batch were
+    dropped. **Post-deploy: re-run `backfill-historical --state DC`.**
+  - **PA — mostly source-side, partial fix** (PR #108): ~14 of 150 null rows
+    carry free-text counts ("5 (within PA)", "501 @ Etters; 595 @ Philadelphia")
+    now extracted; the rest publish no usable number (no `# AFFECTED` label,
+    unknown/TBD, or non-first location blocks). Heals on nightly scrape.
+  - **NY — legacy rows, not a current-parser gap**: all 54 nulls predate the
+    Apr-2025 Tableau-dashboard cutover (old `dol.ny.gov/warn-…` detail-page
+    rows); 2026 rows are 100% filled. The old per-notice pages still resolve and
+    show the count — a one-shot backfill from `raw_notice_url` would close it.
+  - **CT / HI / WV — expected**: the listings publish no counts (CT: PDF blob
+    library; HI: PDF-link paragraphs; WV: employer+date anchors). Counts exist
+    only inside the stored per-notice PDFs — extraction via the existing
+    OCR/pdf_extract pipeline is the enhancement that would close these.
+  - **Zero counts (`count_outliers`) are genuine source zeros**, not parser
+    artifacts: rescissions (NY "(Rescission)", VA "*notice rescinded") and
+    0-listed filings (FL/IN Yellow Corporation 2023, MD Capital One 2020).
+    No >50k outliers exist in the current data.
+  - **Small tails elsewhere** (MD 43, IN 21, MS 7, CO 6, MI 5, WI 4, MT 4, AK 2,
+    NE 2, NJ 1): blank/TBD cells at source — spot-checked, not systemic.
+
 - **Scraper health at this run (2026-06-29)** — GA, MA, and SD reported
   `fetch_failed` (status `broken`). `fetch_failed` is often a transient source
   block rather than a parser break (see `/heal-scraper` classification); run
