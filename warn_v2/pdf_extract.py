@@ -347,20 +347,25 @@ _COUNT_TOTAL_RES = [
         rf"{_COUNT_APPROX}{_COUNT_NUM}\b",
         re.I,
     ),
-    # "The total number of affected employees in West Virginia is one"
+    # "The total number of affected employees in West Virginia is one" /
+    # "Total number of affected WGH employees: 291" (company abbreviation
+    # between the affected-word and the noun)
     re.compile(
-        rf"\btotal\s+number\s+of\s+(?:affected|impacted)\s+{_COUNT_NOUN}"
+        rf"\btotal\s+number\s+of\s+(?:affected|impacted)\s+"
+        rf"{_COUNT_GAP3}{_COUNT_NOUN}"
         rf"[^.\d]{{0,60}}?(?:\b(?:is|was|will\s+be)\s+|:\s*)"
         rf"{_COUNT_NUM_OR_WORD}\b",
         re.I,
     ),
     # "Approximate number of employees affected: 4" /
-    # "Approximate number of employees to be laid off: 8" — the affected-word
-    # is required, so establishment headcounts ("Number of employees at
-    # Store: 8", "... employed by the establishment is 86") never match.
+    # "Approximate number of employees to be laid off or terminated: 120" —
+    # the affected-word is required, so establishment headcounts ("Number of
+    # employees at Store: 8", "... employed by the establishment is 86")
+    # never match.
     re.compile(
         rf"\bnumber\s+of\s+{_COUNT_NOUN}\s+"
         rf"(?:to\s+be\s+|being\s+|who\s+will\s+be\s+)?{_COUNT_AFFECTED}"
+        rf"(?:\s+or\s+{_COUNT_AFFECTED})?"
         rf"\s*[:\-]?\s*{_COUNT_NUM_OR_WORD}\b",
         re.I,
     ),
@@ -476,7 +481,11 @@ def _count_candidate(m: re.Match, text: str) -> int | None:
         return None
     if "," not in tok and 1900 <= value <= 2099:
         return None
-    if m.start(1) > 0 and text[m.start(1) - 1] == "$":
+    # Dollar amounts, and phone/store/statute fragments ("808-943-6670",
+    # "(808) 469-4900", "#057", "639.6") — the digits directly follow a
+    # joining character, so they are part of a larger token, not a count.
+    joiners = "$-/.#" + chr(0x2013) + chr(0x2014)  # plus en dash + em dash
+    if m.start(1) > 0 and text[m.start(1) - 1] in joiners:
         return None
     before = text[max(0, m.start(1) - 12): m.start(1)]
     if re.search(_COUNT_MONTHS + r"\s*$", before, re.I):
