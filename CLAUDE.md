@@ -45,6 +45,14 @@ Make infrastructure changes in the repo, commit, and push. Do not apply
 manifests directly to the cluster unless the user explicitly asks for a
 break-glass operation.
 
+## Ruff
+
+Ruff is pinned exactly in `pyproject.toml` (dev extras) so lint results don't
+drift when a new ruff release ships new rules. To upgrade: bump the pin, run
+`uv lock`, and fix any new findings in the **same PR** (CI runs
+`ruff check .` repo-wide, so new rules surface in files the PR doesn't
+otherwise touch).
+
 ## Test suite
 
 Run with: `cd warn_scrapper_v2 && .venv\Scripts\pytest` (uv not on PATH here;

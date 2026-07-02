@@ -36,7 +36,10 @@ dependencies = [
 dev = [
     "pytest>=8.2",
     "pytest-cov>=5.0",
-    "ruff>=0.5",
+    # Pinned exactly: CI lints with whatever it resolves, so an unpinned ruff
+    # means new releases fail CI in untouched files. Upgrade = bump this pin,
+    # run `uv lock`, and fix any new findings in the same PR.
+    "ruff==0.15.20",
     "mypy>=1.10",
     "respx>=0.21",
 ]
