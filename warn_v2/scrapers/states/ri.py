@@ -11,11 +11,19 @@ Each sheet starts with a title row, two blank rows, then the header row, then da
 "Closing Yes/No" = "Yes" maps to closure_type "Closure".
 "Number Affected" can be an integer (native) or a messy string like
 "9,891 Remote Workers (2 from RI)"; we extract the first integer found.
+
+The workbook RI uploaded on 2026-06-29 is truncated mid-central-directory (no
+end-of-central-directory record), which zipfile rejects outright even though
+every member's local entry + data is intact. ``_rebuild_zip`` recovers such
+files by walking the local file headers and re-archiving the members.
 """
 from __future__ import annotations
 
 import io
 import re
+import struct
+import zipfile
+import zlib
 
 import httpx
 import openpyxl
@@ -60,8 +68,13 @@ class RIScraper:
     def parse(self, raw: bytes) -> list[NoticeRow]:
         try:
             wb = openpyxl.load_workbook(io.BytesIO(raw))
-        except Exception as e:
-            raise ParseFailed(f"RI XLSX: could not open workbook: {e}") from e
+        except Exception as first_err:
+            try:
+                wb = openpyxl.load_workbook(io.BytesIO(_rebuild_zip(raw)))
+            except Exception:
+                raise ParseFailed(
+                    f"RI XLSX: could not open workbook: {first_err}"
+                ) from first_err
 
         rows: list[NoticeRow] = []
         for sheet_name in wb.sheetnames:
@@ -145,6 +158,36 @@ def _parse_sheet(ws) -> list[NoticeRow]:
             )
         )
     return rows
+
+
+def _rebuild_zip(data: bytes) -> bytes:
+    """Re-archive a zip whose central directory is truncated/missing.
+
+    Walks the sequential local file headers (``PK\\x03\\x04``), decompresses
+    each member, and writes them into a fresh in-memory archive. Only handles
+    entries whose sizes are in the local header (no data-descriptor flag) —
+    which is how Excel writes xlsx. Raises on anything unrecoverable.
+    """
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zout:
+        pos = 0
+        while True:
+            i = data.find(b"PK\x03\x04", pos)
+            if i < 0 or len(data) < i + 30:
+                break
+            _, _, flags, method, _, _, _, csize, _, nlen, elen = struct.unpack(
+                "<IHHHHHIIIHH", data[i : i + 30]
+            )
+            if flags & 0x0008:  # sizes deferred to a data descriptor — can't walk
+                raise ValueError("zip member uses a data descriptor")
+            name = data[i + 30 : i + 30 + nlen].decode("utf-8", "replace")
+            start = i + 30 + nlen + elen
+            comp = data[start : start + csize]
+            if len(comp) < csize:  # member itself truncated — stop at what we have
+                break
+            zout.writestr(name, zlib.decompress(comp, -15) if method == 8 else comp)
+            pos = start + csize
+    return out.getvalue()
 
 
 def _parse_count(value) -> int | None:
