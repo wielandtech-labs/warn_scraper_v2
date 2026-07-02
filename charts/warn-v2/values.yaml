@@ -57,7 +57,12 @@ scraper:
 enricher:
   enabled: true  # override to false in HelmRelease until Phase 4 is ready
   schedule: "23 */6 * * *"  # every 6h
-  limit: 10       # max companies to enrich per CronJob run
+  limit: 10       # max companies to enrich per CronJob run (impact-ordered)
+  # Two-ended queue: additionally enrich this many companies ordered by
+  # most-recent notice date (deduped against the impact batch), so freshly
+  # noticed companies enrich while they still fall inside the sentiment
+  # reports' 90-day window. 0 = impact-only (today's behavior).
+  recentLimit: 0
   recentYears: 2  # only enrich companies with notices in the last N years
   # Enrichment tiers, comma-separated (provider, edgar, claude). Passed
   # explicitly as --tiers so prod behavior never silently depends on the
@@ -72,8 +77,9 @@ enricher:
   providerModule: ""  # override ENRICHMENT_PROVIDER_MODULE (baked into the image ENV by default)
   imagePullSecrets: []  # e.g. [{ name: ghcr-wielandtech-labs }] for the private image
   # Provider throttle overrides (HOOVERS_MAX_PER_RUN / HOOVERS_MAX_PER_DAY).
-  # Blank => the image defaults (25 / 60). Raise maxPerDay if limit*runs/day
-  # would otherwise hit the daily cap and fall through to EDGAR/Claude.
+  # Blank => the image defaults (25 / 60). Size maxPerRun to limit+recentLimit
+  # and maxPerDay to (limit+recentLimit)*runs/day (e.g. 50 / 200 for a 25+25
+  # split on the 6-hourly schedule) so no run hits the cap mid-batch.
   maxPerRun: ""
   maxPerDay: ""
   resources:

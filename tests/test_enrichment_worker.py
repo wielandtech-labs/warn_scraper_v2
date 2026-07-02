@@ -192,6 +192,56 @@ def test_find_pending_impact_excludes_superseded(db) -> None:
     assert ids.index(active_small.id) < ids.index(sup_heavy.id)
 
 
+def test_find_pending_orders_by_recency(db) -> None:
+    old = _company(db, name="Old Notice Co")
+    new = _company(db, name="New Notice Co")
+    mid = _company(db, name="Mid Notice Co")
+    none = _company(db, name="No Notices Co")  # no dated notices -> last
+    db.flush()
+    _notice(db, old.id, notice_date=date(2025, 3, 1), layoff_count=9000)
+    _notice(db, new.id, notice_date=date(2026, 6, 15), layoff_count=5)
+    _notice(db, mid.id, notice_date=date(2026, 1, 10), layoff_count=50)
+    # An older second notice must not drag "new" down: recency = max(notice_date).
+    _notice(db, new.id, notice_date=date(2024, 1, 1), layoff_count=5)
+    db.commit()
+
+    ids = [p.id for p in find_pending(db, order_by="recency")]
+    # new (2026-06-15) > mid (2026-01-10) > old (2025-03-01) > none
+    assert ids.index(new.id) < ids.index(mid.id) < ids.index(old.id) < ids.index(none.id)
+
+
+def test_find_pending_recency_excludes_superseded(db) -> None:
+    # A superseded fresh notice must not make a stale company look recent.
+    stale = _company(db, name="Stale Co")
+    active = _company(db, name="Active Co")
+    db.flush()
+    fresh_sup = _notice(db, stale.id, notice_date=date(2026, 6, 20), layoff_count=10)
+    fresh_sup.is_superseded = True
+    _notice(db, stale.id, notice_date=date(2025, 1, 1), layoff_count=10)
+    _notice(db, active.id, notice_date=date(2026, 5, 1), layoff_count=10)
+    db.commit()
+
+    ids = [p.id for p in find_pending(db, order_by="recency")]
+    assert ids.index(active.id) < ids.index(stale.id)
+
+
+def test_find_pending_exclude_ids(db) -> None:
+    a = _company(db, name="A Co")
+    b = _company(db, name="B Co")
+    db.commit()
+
+    ids = [p.id for p in find_pending(db, exclude_ids={a.id})]
+    assert a.id not in ids
+    assert b.id in ids
+
+
+def test_find_pending_rejects_unknown_order(db) -> None:
+    import pytest
+
+    with pytest.raises(ValueError):
+        find_pending(db, order_by="alphabetical")
+
+
 # ---------------------------------------------------------------------------
 # enrich_batch tests
 # ---------------------------------------------------------------------------
@@ -227,6 +277,38 @@ def test_enrich_batch_idempotent(db, monkeypatch) -> None:
     stats2 = enrich_batch(db, _StubClient())
     assert stats2["total"] == 0
     assert stats2["enriched"] == 0
+
+
+def test_enrich_batch_recent_limit_works_both_ends(db, monkeypatch) -> None:
+    """recent_limit adds a recency-ordered batch, deduped against the impact
+    batch — a company that is both biggest and most recent occupies one impact
+    slot and the recency batch tops up with the next-most-recent."""
+    order: list[str] = []
+
+    def _recording_run(ctx, client, **kw):
+        order.append(ctx.company_name)
+        return _stub_run()(ctx, client, **kw)
+
+    monkeypatch.setattr("warn_v2.enrichment.worker.run_enrichment", _recording_run)
+
+    big_old = _company(db, name="Big Old")  # impact 900, stale
+    big_new = _company(db, name="Big New")  # impact 500 AND newest -> overlap candidate
+    small_new = _company(db, name="Small New")  # impact 50, fresh
+    small_mid = _company(db, name="Small Mid")  # impact 10, mid-age
+    db.flush()
+    _notice(db, big_old.id, notice_date=date(2025, 1, 1), layoff_count=900)
+    _notice(db, big_new.id, notice_date=date(2026, 6, 1), layoff_count=500)
+    _notice(db, small_new.id, notice_date=date(2026, 6, 15), layoff_count=50)
+    _notice(db, small_mid.id, notice_date=date(2026, 3, 1), layoff_count=10)
+    db.commit()
+
+    stats = enrich_batch(db, _StubClient(), limit=2, recent_limit=2, inter_delay_s=0)
+
+    # Impact batch: Big Old (900), Big New (500). Recency batch: Small New
+    # (2026-06-15), then — Big New already taken — Small Mid (2026-03-01).
+    assert stats["total"] == 4
+    assert stats["enriched"] == 4
+    assert order == ["Big Old", "Big New", "Small New", "Small Mid"]
 
 
 def test_enrich_batch_counts_skipped_on_no_propose(db, monkeypatch) -> None:
