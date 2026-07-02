@@ -53,7 +53,10 @@ from warn_v2.scrapers.states.dc import _fetch_dc_year
 from warn_v2.scrapers.states.fl import _fetch_fl_year
 from warn_v2.scrapers.states.hi import _fetch_hi_year
 from warn_v2.scrapers.states.il import _discover_archive_xlsx_urls as _discover_il_xlsx_urls
-from warn_v2.scrapers.states.ky import _fetch_ky_year
+from warn_v2.scrapers.states.ky import _discover_workbook_urls as _discover_ky_workbook_urls
+from warn_v2.scrapers.states.ky import parse_ky_workbook
+from warn_v2.scrapers.states.la import _fetch_la_year, parse_la_pdf
+from warn_v2.scrapers.states.la import _source_url as _la_source_url
 from warn_v2.scrapers.states.md import _fetch_md_year
 from warn_v2.scrapers.states.mn import (
     _discover_archive_pdf_urls as _discover_mn_pdf_urls,
@@ -63,6 +66,7 @@ from warn_v2.scrapers.states.mn import (
 )
 from warn_v2.scrapers.states.ms import _discover_pdf_urls as _discover_ms_pdf_urls
 from warn_v2.scrapers.states.nm import _discover_archive_pdf_urls as _discover_nm_pdf_urls
+from warn_v2.scrapers.states.nv import _fetch_nv_year, parse_nv_archive
 from warn_v2.scrapers.states.oh import _fetch_oh_year, parse_oh_year
 from warn_v2.scrapers.states.tx import _fetch_tx_year
 from warn_v2.scrapers.states.wi import _fetch_wi_archive_year, parse_wi_archive_html
@@ -110,7 +114,26 @@ _BACKFILL: dict[str, BackfillSpec] = {
     "TX": BackfillSpec(year_start=2020, fetch_year=_fetch_tx_year),
     "FL": BackfillSpec(year_start=2020, fetch_year=_fetch_fl_year),
     "HI": BackfillSpec(year_start=2019, fetch_year=lambda s, y: _fetch_hi_year(y)),
-    "KY": BackfillSpec(year_start=2021, fetch_year=lambda s, y: _fetch_ky_year(y)),
+    # KY: one recent .xlsx workbook holds every year back to 2017 as its own
+    # sheet (the per-year CSVs only exist for 2025+ — see parse_ky_workbook).
+    "KY": BackfillSpec(
+        discover_urls=lambda: _discover_ky_workbook_urls(),
+        parse_for_url=lambda u: parse_ky_workbook,
+    ),
+    # LA: per-year PDFs; laworks.net prunes old files, only 2025+ resolve
+    # (fetch returns None for pruned years). Pre-2025 → records request.
+    "LA": BackfillSpec(
+        year_start=2025,
+        fetch_year=lambda s, y: _fetch_la_year(y),
+        parse_year=lambda b, y: parse_la_pdf(b, _la_source_url(y)),
+    ),
+    # NV: per-year archive PDFs 2017+ in three layout eras; 2021 is a scanned
+    # image (skipped) and 2025 coverage ends June 3 — see nv._ARCHIVE_SOURCES.
+    "NV": BackfillSpec(
+        year_start=2017,
+        fetch_year=lambda s, y: _fetch_nv_year(y),
+        parse_year=lambda b, y: parse_nv_archive(b, y),
+    ),
     # NM: yearly PDFs back to 2016 with irregular filenames — discover from hub.
     "NM": BackfillSpec(discover_urls=lambda: _discover_nm_pdf_urls()),
     # MD: archived per-year pages warn{year}.shtml verified back to 2010; old

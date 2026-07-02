@@ -5,6 +5,7 @@ import io
 import json
 import logging
 from datetime import date
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -238,7 +239,7 @@ def test_backfill_historical_ca_upserts_rows_xlsx(db) -> None:
     "state",
     [
         "CA", "DC", "AZ", "DE", "KS", "ME", "VT", "TX", "FL", "HI", "KY", "NM",
-        "MD", "WI", "MN", "MS", "IL", "OH",
+        "MD", "WI", "MN", "MS", "IL", "OH", "LA", "NV",
     ],
 )
 def test_supported_states_in_registry(state) -> None:
@@ -333,39 +334,61 @@ def test_hi_fetch_year_200_and_404():
 
 
 @respx.mock
-def test_ky_fetch_year_downloads_discovered_csv():
-    from warn_v2.scrapers.states.ky import _fetch_ky_year
+def test_ky_discover_workbook_picks_most_recently_modified_xlsx():
+    """The workbook route ignores CSVs and picks the newest .xlsx by
+    TimeLastModified (file names are too inconsistent to sort)."""
+    from warn_v2.scrapers.states.ky import _discover_workbook_urls
 
+    year = date.today().year
     api = (
         "https://kcc.ky.gov/_api/web/GetFolderByServerRelativeUrl("
-        "'/WARN notices/WARN Notices 2022')/Files"
+        f"'/WARN notices/WARN Notices {year}')/Files?$select=Name,TimeLastModified"
     )
     feed = (
         b"<?xml version='1.0'?><feed xmlns:d='http://schemas.microsoft.com/ado/"
-        b"2007/08/dataservices'><entry><d:Name>2022-12-31 WARN.csv</d:Name>"
-        b"</entry></feed>"
+        b"2007/08/dataservices' xmlns:m='http://schemas.microsoft.com/ado/2007/"
+        b"08/dataservices/metadata'>"
+        b"<entry><content><m:properties><d:Name>WARN Report latest.csv</d:Name>"
+        b"<d:TimeLastModified>2026-07-01T15:54:53Z</d:TimeLastModified>"
+        b"</m:properties></content></entry>"
+        b"<entry><content><m:properties><d:Name>WARN  Notice newest.xlsx</d:Name>"
+        b"<d:TimeLastModified>2026-04-24T19:59:03Z</d:TimeLastModified>"
+        b"</m:properties></content></entry>"
+        b"<entry><content><m:properties><d:Name>WARN Notice older.xlsx</d:Name>"
+        b"<d:TimeLastModified>2026-01-20T09:06:05Z</d:TimeLastModified>"
+        b"</m:properties></content></entry>"
+        b"</feed>"
     )
     respx.get(api).mock(return_value=httpx.Response(200, content=feed))
-    respx.get(
-        "https://kcc.ky.gov/WARN%20notices/WARN%20Notices%202022/2022-12-31%20WARN.csv"
-    ).mock(return_value=httpx.Response(200, content=b"csv-bytes"))
 
-    assert _fetch_ky_year(2022) == b"csv-bytes"
+    urls = _discover_workbook_urls()
+    assert urls == [
+        f"https://kcc.ky.gov/WARN%20notices/WARN%20Notices%20{year}/"
+        "WARN%20%20Notice%20newest.xlsx"
+    ]
 
 
-@respx.mock
-def test_ky_fetch_year_returns_none_for_empty_folder():
-    from warn_v2.scrapers.states.ky import _fetch_ky_year
+def test_ky_workbook_parses_per_year_sheets_pre_csv_era_only():
+    """Real workbook fixture: one sheet per year 2017-2026; sheets for the
+    CSV era (2025+) are skipped so backfill cannot duplicate CSV rows."""
+    from warn_v2.scrapers.states.ky import parse_ky_workbook
 
-    api = (
-        "https://kcc.ky.gov/_api/web/GetFolderByServerRelativeUrl("
-        "'/WARN notices/WARN Notices 2015')/Files"
+    fixture = (
+        Path(__file__).resolve().parent.parent
+        / "warn_v2" / "scrapers" / "fixtures" / "ky" / "workbook.xlsx"
     )
-    respx.get(api).mock(
-        return_value=httpx.Response(200, content=b"<?xml version='1.0'?><feed></feed>")
-    )
+    rows = parse_ky_workbook(fixture.read_bytes())
 
-    assert _fetch_ky_year(2015) is None
+    years = {r.notice_date.year for r in rows}
+    assert min(years) == 2017
+    assert max(years) <= 2024
+    assert len(rows) > 300  # 2017-2024 sheets hold ~356 rows
+    assert all(r.state == "KY" for r in rows)
+    sample = next(r for r in rows if r.employer == "Bel USA, Inc")
+    assert sample.notice_date == date(2024, 12, 11)
+    assert sample.layoff_count == 270
+    assert sample.county == "Hardin"
+    assert sample.closure_type == "Closure"
 
 
 @respx.mock
