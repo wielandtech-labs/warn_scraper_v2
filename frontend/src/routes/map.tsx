@@ -7,6 +7,7 @@ import MarkerClusterGroup from "react-leaflet-cluster";
 
 import { api } from "../api/client";
 import { FilterBar, type FilterValues } from "../components/FilterBar";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { fmtDate, fmtNum } from "../lib/format";
 import "../lib/leafletIcon"; // sets the default marker icon (Vite asset fix)
 
@@ -73,6 +74,7 @@ function ViewportWatcher({ onChange }: { onChange: (v: Viewport) => void }) {
 }
 
 export function MapPage() {
+  useDocumentTitle("Layoff map — WARN Tracker");
   const navigate = useNavigate({ from: "/map" });
   const search = useSearch({ from: "/map" });
   const [bbox, setBbox] = useState<Bbox | null>(null);

@@ -2,7 +2,10 @@ import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 
-import { api } from "../api/client";
+import { api, ApiError } from "../api/client";
+import { QueryError } from "../components/QueryError";
+import { SkeletonBlock } from "../components/Skeleton";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { fmtDate, fmtNum } from "../lib/format";
 
 export function NoticeDetail() {
@@ -12,8 +15,25 @@ export function NoticeDetail() {
     queryFn: () => api.getNotice(noticeId),
   });
 
+  useDocumentTitle(
+    query.data ? `${query.data.employer} — WARN notice — WARN Tracker` : undefined,
+  );
+
   if (query.isLoading) {
-    return <div className="card text-sm text-slate-500">Loading…</div>;
+    return (
+      <div className="card space-y-3">
+        <SkeletonBlock className="h-7 w-2/3" />
+        <SkeletonBlock className="h-4 w-1/3" />
+        <SkeletonBlock className="h-24 w-full" />
+      </div>
+    );
+  }
+  // A 404 is a bad link — offer the way back. Anything else is transient, so
+  // offer a retry instead.
+  if (query.isError && !(query.error instanceof ApiError && query.error.status === 404)) {
+    return (
+      <QueryError message="Error loading this notice." onRetry={() => query.refetch()} />
+    );
   }
   if (query.isError || !query.data) {
     return (

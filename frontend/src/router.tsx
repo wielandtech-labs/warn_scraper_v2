@@ -2,6 +2,7 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  Link,
   Outlet,
 } from "@tanstack/react-router";
 
@@ -258,4 +259,31 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
 ]);
 
-export const router = createRouter({ routeTree, scrollRestoration: true });
+// Rendered inside the root route's Layout for any URL that matches no route.
+function NotFound() {
+  return (
+    <div className="card mx-auto max-w-md text-center">
+      <h1 className="text-2xl font-semibold">Page not found</h1>
+      <p className="mt-2 text-sm text-slate-600">
+        The page you're looking for doesn't exist or may have moved.
+      </p>
+      <div className="mt-4 flex justify-center gap-4 text-sm font-medium">
+        <Link to="/" className="text-sky-700 hover:underline">
+          Dashboard
+        </Link>
+        <Link to="/notices" className="text-sky-700 hover:underline">
+          Notices
+        </Link>
+        <Link to="/states" className="text-sky-700 hover:underline">
+          Browse states
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+export const router = createRouter({
+  routeTree,
+  scrollRestoration: true,
+  defaultNotFoundComponent: NotFound,
+});

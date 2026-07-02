@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 
 import { api } from "../api/client";
+import { QueryError } from "../components/QueryError";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { STATE_NAMES, US_STATES, fmtNum } from "../lib/format";
 
@@ -35,9 +36,26 @@ export function StatesIndexPage() {
       </div>
 
       {byState.isLoading && (
-        <div className="card text-center text-sm text-slate-500">Loading…</div>
+        <div aria-hidden className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 9 }, (_, i) => (
+            <div key={i} className="card animate-pulse space-y-2">
+              <div className="h-4 w-1/2 rounded bg-slate-200" />
+              <div className="h-3 w-1/3 rounded bg-slate-200" />
+            </div>
+          ))}
+        </div>
       )}
 
+      {byState.isError && (
+        <QueryError
+          message="Error loading state totals."
+          onRetry={() => byState.refetch()}
+        />
+      )}
+
+      {/* Don't render the grid until data arrives — with no data every state
+          would confidently show zeros. */}
+      {byState.data && (
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {rows.map((s) => (
           <Link
@@ -59,6 +77,7 @@ export function StatesIndexPage() {
           </Link>
         ))}
       </div>
+      )}
     </div>
   );
 }
