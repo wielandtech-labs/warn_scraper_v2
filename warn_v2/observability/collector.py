@@ -40,7 +40,7 @@ class WarnCollector(Collector):
     def _collect(self):
         from sqlalchemy import func, select
 
-        from warn_v2.db.models import Company, ScraperRun
+        from warn_v2.db.models import SCRAPER_SUCCESS_STATUSES, Company, ScraperRun
         from warn_v2.db.session import get_session_factory
 
         with get_session_factory()() as s:
@@ -139,12 +139,13 @@ class WarnCollector(Collector):
             # ------------------------------------------------------------------
             rows = s.execute(
                 select(ScraperRun.state, func.max(ScraperRun.started_at))
-                .where(ScraperRun.status == "ok")
+                .where(ScraperRun.status.in_(SCRAPER_SUCCESS_STATUSES))
                 .group_by(ScraperRun.state)
             ).all()
             g = GaugeMetricFamily(
                 "warn_scrape_last_success_timestamp_seconds",
-                "Unix timestamp of the most recent successful (status=ok) scrape, per state.",
+                "Unix timestamp of the most recent successful "
+                "(ok or not_modified) scrape, per state.",
                 labels=["state"],
             )
             for state, ts in rows:

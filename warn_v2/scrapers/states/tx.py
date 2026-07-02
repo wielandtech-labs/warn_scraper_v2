@@ -23,6 +23,7 @@ import pandas as pd
 
 from warn_v2.scrapers._helpers import ColumnMap, as_date, as_int, as_str, norm
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
+from warn_v2.scrapers.http_cache import conditional_get
 from warn_v2.scrapers.registry import register
 
 URL_TEMPLATE = "https://www.twc.texas.gov/sites/default/files/oei/docs/warn-act-listings-{year}-twc.xlsx"
@@ -51,10 +52,9 @@ class TXScraper:
         for candidate in (year, year - 1):
             url = URL_TEMPLATE.format(year=candidate)
             try:
-                r = httpx.get(url, timeout=60, follow_redirects=True)
-                r.raise_for_status()
+                content = conditional_get(url, state=self.state, timeout=60)
                 self.source_url = url
-                return r.content
+                return content
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == 404:
                     last_err = e

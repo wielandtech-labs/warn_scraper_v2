@@ -32,6 +32,7 @@ import pdfplumber
 
 from warn_v2.scrapers._helpers import as_date, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
+from warn_v2.scrapers.http_cache import conditional_get
 from warn_v2.scrapers.registry import register
 
 _PDF_URL = "https://detr.nv.gov/content/media/WARN_and_Non_WARN_Master_w_Logo.pdf"
@@ -367,9 +368,8 @@ class NVScraper:
 
     def fetch(self) -> bytes:
         try:
-            r = httpx.get(_PDF_URL, headers=_UA, timeout=60, follow_redirects=True)
-            r.raise_for_status()
-            return r.content
+            # Conditional GET: raises NotModified when the master PDF is unchanged.
+            return conditional_get(_PDF_URL, state=self.state, headers=_UA, timeout=60)
         except httpx.HTTPError as e:
             raise ScrapeFailed(f"GET {_PDF_URL}: {e}") from e
 

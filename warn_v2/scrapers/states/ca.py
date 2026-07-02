@@ -25,6 +25,7 @@ from warn_v2.scrapers._helpers import (
     zip_from,
 )
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
+from warn_v2.scrapers.http_cache import conditional_get
 from warn_v2.scrapers.registry import register
 
 SOURCE_URL = "https://edd.ca.gov/Jobs_and_Training/warn/WARN_Report.xlsx"
@@ -117,9 +118,7 @@ class CAScraper:
 
     def fetch(self) -> bytes:
         try:
-            r = httpx.get(self.source_url, timeout=60, follow_redirects=True)
-            r.raise_for_status()
-            return r.content
+            return conditional_get(self.source_url, state=self.state, timeout=60)
         except httpx.HTTPError as e:
             raise ScrapeFailed(f"GET {self.source_url}: {e}") from e
 

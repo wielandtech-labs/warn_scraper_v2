@@ -201,6 +201,11 @@ class Subscription(Base):
     )
 
 
+# ScraperRun statuses that mean the run reached the source successfully
+# (every consumer that gates on "ok" must accept both).
+SCRAPER_SUCCESS_STATUSES = ("ok", "not_modified")
+
+
 class ScraperRun(Base):
     __tablename__ = "scraper_runs"
 
@@ -211,9 +216,31 @@ class ScraperRun(Base):
     rows_scraped: Mapped[int | None] = mapped_column(Integer)
     rows_new: Mapped[int | None] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
-    # ok | fetch_failed | parse_failed | validation_failed | storage_failed
+    # ok | not_modified | fetch_failed | parse_failed | validation_failed | storage_failed
+    # not_modified is a success: the source was reachable but unchanged since the
+    # last run (conditional GET), so parse/store were skipped (rows_scraped NULL).
     error: Mapped[str | None] = mapped_column(Text)
     snapshot_path: Mapped[str | None] = mapped_column(String(1024))
+
+
+class SourceCache(Base):
+    """HTTP validators per source-file URL, for conditional GETs.
+
+    Written by ``warn_v2.scrapers.http_cache.conditional_get``. ``fetched_at``
+    is the last time a full body was downloaded (NOT bumped on 304s — the
+    staleness guard forces a periodic full download to distrust long 304
+    streaks from broken servers). ``state`` lets the runner invalidate a
+    state's rows when a run fails after fetch (content fetched ≠ ingested).
+    """
+
+    __tablename__ = "source_cache"
+
+    url: Mapped[str] = mapped_column(String(1024), primary_key=True)
+    state: Mapped[str] = mapped_column(String(2), nullable=False, index=True)
+    etag: Mapped[str | None] = mapped_column(String(256))
+    last_modified: Mapped[str | None] = mapped_column(String(128))  # raw header, echoed verbatim
+    content_hash: Mapped[str | None] = mapped_column(String(64))  # sha256 hex of the body
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class CrossCheckRun(Base):

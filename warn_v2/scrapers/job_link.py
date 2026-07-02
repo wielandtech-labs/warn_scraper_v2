@@ -79,6 +79,15 @@ class JobLinkScraper:
         if not self.state or not self.host:
             raise TypeError(f"{type(self).__name__} must set `state` and `host`")
         self.source_url = _build_url(self.host)
+        self._skip_detail_urls: set[str] = set()
+
+    def set_skip_detail_urls(self, urls: set[str]) -> None:
+        """Runner hook (see base.DetailSkipping): detail URLs to not re-fetch.
+
+        Replaces (never merges) the previous set — registry instances are
+        process singletons, so each run must fully reset it.
+        """
+        self._skip_detail_urls = set(urls)
 
     def fetch(self, year: int | None = None) -> bytes:
         """Fetch search results page + all linked detail pages.
@@ -117,6 +126,18 @@ class JobLinkScraper:
                     )
                     if full not in detail_urls:
                         detail_urls.append(full)
+
+        # Detail pages only add address + layoff_count; once those are stored
+        # the page never needs re-fetching (the runner passes those URLs in).
+        if self._skip_detail_urls:
+            n_before = len(detail_urls)
+            detail_urls = [u for u in detail_urls if u not in self._skip_detail_urls]
+            if n_before - len(detail_urls):
+                log.info(
+                    "%s: skipping %d already-stored detail pages",
+                    self.state,
+                    n_before - len(detail_urls),
+                )
 
         # Fetch each detail page; best-effort (failures silently omitted).
         # A short inter-request delay avoids 429 rate-limiting from the

@@ -209,6 +209,20 @@ def test_scraper_failure_flag(db) -> None:
     assert "scraper_fetch_failed" in ga.flags
 
 
+def test_not_modified_run_adds_no_scraper_flag(db) -> None:
+    # A conditional-GET short-circuit is a success; rows_scraped is NULL so the
+    # row-drift check must stay silent too.
+    now = datetime.now(UTC)
+    db.add(ScraperRun(state="NV", started_at=now, status="not_modified",
+                      rows_scraped=None))
+    db.add(Notice(notice_id="nv1", state="NV", employer="X", notice_date=date(2026, 1, 1)))
+    db.commit()
+
+    nv = _one(audit_states(db, state_filter="NV", today=REF), "NV")
+    assert not [f for f in nv.flags if f.startswith("scraper_")]
+    assert "row_drift" not in nv.flags
+
+
 # ---------------------------------------------------------------------------
 # Enrichment
 # ---------------------------------------------------------------------------

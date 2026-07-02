@@ -30,6 +30,10 @@ spec:
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               args:
                 - scrape-all
+                {{- if .Values.scraper.skipStates }}
+                - --skip
+                - {{ .Values.scraper.skipStates | quote }}
+                {{- end }}
                 {{- if .Values.scraper.tolerateFailures }}
                 - --tolerate
                 - {{ .Values.scraper.tolerateFailures | quote }}
