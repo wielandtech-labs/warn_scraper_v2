@@ -104,3 +104,37 @@ def test_pa_raises_on_bad_html() -> None:
     scraper = get_scraper("PA")
     with pytest.raises(ParseFailed):
         scraper.parse(b"<html><body>no accordion here</body></html>")
+
+
+# ---------------------------------------------------------------------------
+# '# AFFECTED' free-text values (all real strings from the live page)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("75", 75),
+        ("5 (within PA)", 5),
+        ("9 Pennsylvania workers (209 total)", 9),
+        ("14 Pennsylvania residents", 14),
+        ("105 (91 Temporary Layoffs and 14 Permanent Layoffs)", 105),
+        ("206 (198 P/T and 8 F/T Employees)", 206),
+        ("60 (all employees work remotely)", 60),
+        ("501 @ Etters location; 595 @ Philadelphia location", 1096),
+        # Ambiguous or unknown -> None (leading number is NOT the PA count)
+        ("430 nationwide; unknown number of PA residents impacted", None),
+        ("81 Total – 13 of which reside in PA", None),
+        ("9,236 Nationwide; PA total pending verification", None),
+        ("Unknown", None),
+        ("unknown", None),
+        ("TBD", None),
+        ("To be determined", None),
+        ("", None),
+        (None, None),
+    ],
+)
+def test_pa_parse_affected(raw, expected) -> None:
+    from warn_v2.scrapers.states.pa import _parse_affected
+
+    assert _parse_affected(raw) == expected

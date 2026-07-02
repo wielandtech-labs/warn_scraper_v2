@@ -67,6 +67,32 @@ _INVISIBLE_RE = re.compile(r"[​‌‍﻿]")
 
 _LABEL_PREFIXES = ("COUNTY:", "# AFFECTED:", "EFFECTIVE DATE:", "CLOSURE OR LAYOFF:")
 
+# "# AFFECTED" free-text values. A leading count is trusted when followed only
+# by end-of-string, a parenthetical, or a PA-workers qualifier ("5 (within PA)",
+# "9 Pennsylvania workers (209 total)") — but NOT by nationwide/total wording
+# ("430 nationwide; unknown number of PA residents", "81 Total – 13 of which
+# reside in PA"), where the leading number is not the PA count.
+_AFFECTED_LEAD_RE = re.compile(r"^(\d[\d,]*)\s*(?=$|\(|pennsylvania\b|pa\b)", re.I)
+# Per-location segments: "501 @ Etters location; 595 @ Philadelphia location"
+_AFFECTED_AT_RE = re.compile(r"(\d[\d,]*)\s*@")
+
+
+def _parse_affected(raw: str | None) -> int | None:
+    """Parse the '# AFFECTED' value; None for unknown/TBD/ambiguous text."""
+    if raw is None:
+        return None
+    n = as_int(raw)
+    if n is not None:
+        return n
+    s = raw.strip()
+    ats = _AFFECTED_AT_RE.findall(s)
+    if len(ats) >= 2:
+        return sum(int(a.replace(",", "")) for a in ats)
+    m = _AFFECTED_LEAD_RE.match(s)
+    if m:
+        return int(m.group(1).replace(",", ""))
+    return None
+
 
 def _is_label(s: str) -> bool:
     return any(s.upper().startswith(p) for p in _LABEL_PREFIXES)
@@ -170,11 +196,7 @@ def _parse_panel(
                 employer=employer,
                 notice_date=notice_date,
                 effective_date=_parse_effective_date(lbl.get("EFFECTIVE DATE", "")),
-                layoff_count=(
-                    as_int(lbl.get("# AFFECTED"))
-                    if lbl.get("# AFFECTED") is not None
-                    else None
-                ),
+                layoff_count=_parse_affected(lbl.get("# AFFECTED")),
                 city=_extract_city(addr),
                 county=as_str(lbl.get("COUNTY")) or None,
                 zip=zip_from(None, address),
