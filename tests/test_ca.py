@@ -1,7 +1,9 @@
+from collections import Counter
 from datetime import date
 
 import pandas as pd
 
+from warn_v2.db.models import Notice
 from warn_v2.pipeline.storage import upsert_notices
 from warn_v2.pipeline.validate import validate
 from warn_v2.scrapers.registry import get_scraper
@@ -26,6 +28,10 @@ def test_ca_parses_golden_fixture(ca_golden_xlsx_bytes, ca_golden_expected) -> N
 
     total_layoffs = sum(r.layoff_count or 0 for r in rows)
     assert total_layoffs == ca_golden_expected["total_layoffs"]
+
+    # The "Layoff/\nClosure" header (EDD wraps it with a newline) must map to
+    # closure_type — prod stored NULL for every CA notice while this was missed.
+    assert [r.closure_type for r in rows] == ca_golden_expected["closure_types"]
 
 
 def test_ca_golden_fixture_passes_validation(ca_golden_xlsx_bytes) -> None:
@@ -73,12 +79,21 @@ def test_ca_employees_header_variant_is_parsed() -> None:
     assert [r.layoff_count for r in rows] == [80, 109]
 
 
-def test_ca_end_to_end_persists(ca_golden_xlsx_bytes, db) -> None:
+def test_ca_end_to_end_persists(ca_golden_xlsx_bytes, ca_golden_expected, db) -> None:
     scraper = get_scraper("CA")
     rows = scraper.parse(ca_golden_xlsx_bytes)
     seen, new = upsert_notices(db, rows)
     db.commit()
     assert seen == new == len(rows)
+
+    # EDD's "Layoff Permanent" / "Closure Temporary" values must normalize into
+    # the filterable closure_category buckets at storage time.
+    stored = db.query(Notice).filter(Notice.state == "CA").all()
+    by_category = Counter(n.closure_category for n in stored)
+    assert by_category == {
+        "Layoff": ca_golden_expected["layoff_category_count"],
+        "Closure": ca_golden_expected["closure_category_count"],
+    }
 
     # Idempotent re-run
     seen2, new2 = upsert_notices(db, rows)
