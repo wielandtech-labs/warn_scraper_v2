@@ -53,11 +53,36 @@ def test_labeled_number_of_employees_affected():
 
 
 def test_labeled_number_to_be_laid_off_ignores_store_headcount():
+    # Distinct numbers so a match on the headcount line would fail the test.
     text = (
-        "Number of employees at Store: 8\n"
+        "Number of employees at Store: 12\n"
         "Approximate number of\nemployees to be laid off: 8\n"
     )
     assert extract_layoff_count(text) == 8
+
+
+def test_employs_a_total_of_is_headcount_not_layoff():
+    text = (
+        "The facility currently employs a total of 500 employees. "
+        "Approximately 25 employees will be laid off."
+    )
+    assert extract_layoff_count(text) == 25
+
+
+def test_total_workforce_of_is_headcount_not_layoff():
+    text = (
+        "The site has a total workforce of 500 employees. "
+        "Approximately 25 employees will be affected."
+    )
+    assert extract_layoff_count(text) == 25
+
+
+def test_employs_total_with_unquantified_action_stays_null():
+    text = (
+        "The Company employs a total of 86 employees at the restaurant. "
+        "All positions will be eliminated."
+    )
+    assert extract_layoff_count(text) is None
 
 
 def test_establishment_headcount_alone_is_not_a_count():
@@ -131,6 +156,40 @@ def test_dates_and_day_numbers_are_not_counts():
     assert extract_layoff_count(text) is None
 
 
+def test_day_first_date_is_not_a_count():
+    assert extract_layoff_count("On 3 July all employees will be terminated.") is None
+
+
+def test_notice_period_boilerplate_is_not_a_count():
+    text = (
+        "The Company is providing 60 days' notice to employees affected by "
+        "this closure. A list of positions is attached."
+    )
+    assert extract_layoff_count(text) is None
+
+
+def test_dollar_amount_is_not_a_count():
+    text = (
+        "Each employee will receive a $500 payment to employees who will "
+        "be terminated."
+    )
+    assert extract_layoff_count(text) is None
+
+
+def test_comma_thousands_count_is_not_a_year():
+    text = "This action will affect approximately 1,900 employees at the plant."
+    assert extract_layoff_count(text) == 1900
+
+
+def test_word_tail_is_not_an_is_verb():
+    # "th-is 3" must not satisfy the "... is N" total pattern.
+    text = (
+        "The total number of affected employees for this 3 facility closure "
+        "has not been determined."
+    )
+    assert extract_layoff_count(text) is None
+
+
 def test_no_number_returns_none():
     # Parkhurst (WV): "all Company employees", never quantified.
     text = (
@@ -192,6 +251,65 @@ def test_table_subtotals_without_grand_total_are_ambiguous():
         "Assembly Total 57\n"
         "Molding Setter 6\n"
     )
+    assert extract_layoff_count(text) is None
+
+
+def test_subtotal_word_variant_also_ambiguous():
+    text = (
+        "Number of Employees Impacted\n"
+        "Assembler 30\n"
+        "Welder 27\n"
+        "Subtotal 57\n"
+        "Painter 6\n"
+    )
+    assert extract_layoff_count(text) is None
+
+
+def test_prose_mention_of_count_column_is_not_a_table_header():
+    # A sentence about the count must not open a table scan that then sums
+    # a later address line ("Suite 200").
+    text = (
+        "The number of employees affected by this action cannot yet be "
+        "determined.\n"
+        "Please contact Jane Doe, 100 Main Plaza, Suite 200\n"
+    )
+    assert extract_layoff_count(text) is None
+
+
+def test_contact_line_after_table_poisons_sum():
+    text = (
+        "Job Title Number of Affected Individuals\n"
+        "Pharmacy Technician 4\n"
+        "Pharmacist 3\n"
+        "If you have any questions call our office at Building 3 Room 312\n"
+    )
+    assert extract_layoff_count(text) is None
+
+
+def test_four_digit_row_poisons_table():
+    text = (
+        "Number of Employees Impacted\n"
+        "Assembler 1200\n"
+        "Setter 30\n"
+    )
+    assert extract_layoff_count(text) is None
+
+
+def test_wrapped_row_fragment_poisons_table():
+    # A wrapped row ("... Associate" / "I 1") must yield None, not an
+    # undersum that silently drops the wrapped position.
+    text = (
+        "Position Titles Number Impacted\n"
+        "Customer Experience Associate I 1\n"
+        "Customer Experience Associate II 1\n"
+        "Customer Experience Associate\n"
+        "I 1\n"
+    )
+    assert extract_layoff_count(text) is None
+
+
+def test_single_row_table_not_trusted():
+    text = "Number of Employees Impacted\nAssembler 30\n"
     assert extract_layoff_count(text) is None
 
 
