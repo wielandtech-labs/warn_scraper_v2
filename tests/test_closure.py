@@ -16,6 +16,8 @@ from warn_v2.closure import normalize_closure_category
         "Closing",
         "CL",          # Wisconsin / Indiana code
         " cl ",
+        "Closure Permanent",   # CA EDD vocabulary
+        "Closure Temporary",
     ],
 )
 def test_closure_variants(raw: str) -> None:
@@ -33,6 +35,9 @@ def test_closure_variants(raw: str) -> None:
         "RIF",
         "LO",          # Indiana code
         "WR",          # Wisconsin work-reduction code
+        "Layoff Permanent",              # CA EDD vocabulary
+        "Layoff Temporary",
+        "Layoff Not known at this time",
     ],
 )
 def test_layoff_variants(raw: str) -> None:

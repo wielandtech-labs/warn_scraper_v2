@@ -49,29 +49,31 @@ def db(db_session_factory: sessionmaker[Session]) -> Iterator[Session]:
 
 # ----- CA golden fixture -----
 
+# Layoff/Closure values use EDD's real vocabulary ("Layoff Permanent",
+# "Closure Temporary", "Layoff Not known at this time"), not bare "Layoff".
 _CA_GOLDEN_ROWS = [
     ("Acme Robotics Inc", "Alameda", date(2026, 1, 15), date(2026, 3, 15),
-     "Layoff", 250, "1 Main St, Oakland, CA 94607"),
+     "Layoff Permanent", 250, "1 Main St, Oakland, CA 94607"),
     ("Beta Foods LLC", "Los Angeles", date(2026, 2, 1), date(2026, 4, 1),
-     "Closure", 75, "200 Sunset Blvd, Los Angeles, CA 90028"),
+     "Closure Permanent", 75, "200 Sunset Blvd, Los Angeles, CA 90028"),
     ("Cascade Logistics", "San Diego", date(2026, 2, 10), date(2026, 4, 10),
-     "Layoff", 120, "500 Harbor Dr, San Diego, CA 92101"),
+     "Layoff Temporary", 120, "500 Harbor Dr, San Diego, CA 92101"),
     ("Delta Semi Corp", "Santa Clara", date(2026, 3, 5), date(2026, 5, 4),
-     "Layoff", 800, "1100 Tech Pkwy, San Jose, CA 95110"),
+     "Layoff Permanent", 800, "1100 Tech Pkwy, San Jose, CA 95110"),
     ("Echo Retail Stores", "Orange", date(2026, 3, 20), date(2026, 5, 19),
-     "Closure", 45, "75 Fashion Way, Anaheim, CA 92802"),
+     "Closure Temporary", 45, "75 Fashion Way, Anaheim, CA 92802"),
     ("Foxtrot Media", "San Francisco", date(2026, 4, 1), date(2026, 5, 31),
-     "Layoff", 60, "300 Market St, San Francisco, CA 94103"),
+     "Layoff Permanent", 60, "300 Market St, San Francisco, CA 94103"),
     ("Gamma BioTech", "San Mateo", date(2026, 4, 10), date(2026, 6, 9),
-     "Layoff", 30, "12 Genome Ct, Foster City, CA 94404"),
+     "Layoff Not known at this time", 30, "12 Genome Ct, Foster City, CA 94404"),
     ("Helios Solar Manufacturing", "Riverside", date(2026, 4, 22), date(2026, 6, 21),
-     "Layoff", 410, "9000 Sunrise Rd, Riverside, CA 92501"),
+     "Layoff Permanent", 410, "9000 Sunrise Rd, Riverside, CA 92501"),
     ("Indigo Apparel Co", "Sacramento", date(2026, 5, 1), date(2026, 6, 30),
-     "Closure", 22, "1 Capitol Ave, Sacramento, CA 95814"),
+     "Closure Permanent", 22, "1 Capitol Ave, Sacramento, CA 95814"),
     ("Juno Restaurants Group", "San Bernardino", date(2026, 5, 5), date(2026, 7, 4),
-     "Layoff", 180, "450 Citrus St, Ontario, CA 91761"),
+     "Layoff Permanent", 180, "450 Citrus St, Ontario, CA 91761"),
     ("Krypton Cloud Services", "Santa Clara", date(2026, 5, 10), date(2026, 7, 9),
-     "Layoff", 95, "10 Datacenter Way, Sunnyvale, CA 94089"),
+     "Layoff Permanent", 95, "10 Datacenter Way, Sunnyvale, CA 94089"),
 ]
 
 
@@ -80,7 +82,9 @@ def ca_golden_xlsx_bytes() -> bytes:
     """Build a CA-shaped XLSX in memory, mimicking the EDD report.
 
     The real file has two preamble rows before the header; we replicate that so
-    the scraper's header-detection logic is exercised.
+    the scraper's header-detection logic is exercised. Headers carry EDD's
+    embedded newlines ("Layoff/\\nClosure") — the wrapped Layoff/Closure header
+    is what made prod store every CA closure_type as NULL until 2026-07.
     """
     wb = Workbook()
     ws = wb.active
@@ -90,10 +94,10 @@ def ca_golden_xlsx_bytes() -> bytes:
     ws.append([
         "Company",
         "County/Parish",
-        "Notice Date",
-        "Effective Date",
-        "Layoff/Closure",
-        "No. Of Employees",
+        "Notice\nDate",
+        "Effective \nDate",
+        "Layoff/\nClosure",
+        "No. Of\nEmployees",
         "Address",
     ])
     for r in _CA_GOLDEN_ROWS:
@@ -114,6 +118,13 @@ def ca_golden_expected() -> dict:
         "first_notice_date": "2026-01-15",
         "first_zip": "94607",
         "total_layoffs": sum(r[5] for r in _CA_GOLDEN_ROWS),
+        "closure_types": [r[4] for r in _CA_GOLDEN_ROWS],
+        "layoff_category_count": sum(
+            1 for r in _CA_GOLDEN_ROWS if r[4].startswith("Layoff")
+        ),
+        "closure_category_count": sum(
+            1 for r in _CA_GOLDEN_ROWS if r[4].startswith("Closure")
+        ),
     }
 
 

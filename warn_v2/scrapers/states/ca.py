@@ -104,7 +104,9 @@ _COUNTY_KEYS = ("county/parish", "county")
 _CITY_KEYS = ("city",)
 _ZIP_KEYS = ("zip", "zip code")
 _ADDRESS_KEYS = ("address", "location address")
-_TYPE_KEYS = ("layoff/closure", "type", "closure type")
+# EDD wraps this header inside the cell ("Layoff/\nClosure"); norm() collapses
+# the newline to a space, so the wrapped spelling is "layoff/ closure".
+_TYPE_KEYS = ("layoff/closure", "layoff/ closure", "type", "closure type")
 
 
 class CAScraper:
