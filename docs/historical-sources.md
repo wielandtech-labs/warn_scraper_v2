@@ -43,7 +43,17 @@ sources only).
     via Wayback replay. ~600 rows 2017–2025H1. Gaps: **2021** is a scanned
     image (needs OCR), **Jun–Dec 2025** is published nowhere (the master
     rotated to 2026 before the scraper first ran) → keep in the NV request.
-  - All three still need the one-off prod Jobs per the runbook below.
+  - **Prod runs done same day** (image `963e168`, one-off Jobs per the
+    runbook): **LA +23** (2025-01 floor, 28 total), **KY +343** (floor
+    2025→2017-01, 427 total), **NV +584** (floor 2025→2017-01, 601 total;
+    2020 alone holds 369). All dry-run near-miss previews and
+    `mark-superseded --dry-run` passes came back **zero**. The first dry-run
+    caught two bugs fixed in PR #122: KY's SharePoint 403s httpx's default
+    UA on file downloads (Mode-2 fetch now sends a browser UA), and the NV
+    2025 entry pointed at the `05_15.25` snapshot whose page size differs
+    from the `06_03.25` file the x-bounds were measured from (0 rows).
+    In-batch hash dedup explains seen-vs-inserted deltas (e.g. KY 356→343):
+    same employer + date rows collapse to one `notice_id`.
 - **2026-06-12 — KS / ME / VT backfilled in prod** (image `2a1a93a`, one-off
   Jobs per the runbook below): KS 7→549 active (1999–2026, +542), ME 3→79
   (2012–2026, +76), VT 4→96 (2003–2026, +91). Dry-run near-miss previews and
@@ -111,7 +121,7 @@ delete Jobs after.
 | NJ | 2026 | cumulative `nj.gov/labor/assets/PDFs/WARN/WARN_Notice_Archive.xlsx` (year range unknown — parse first); per-year PDF only 2023 | TBD (parse xlsx) | ingest cumulative xlsx |
 | NM | ~~2025~~ **2016 ✅** | per-year PDFs on `dws.nm.gov/Rapid-Response` (filenames vary 2016–2018 → discovered from the hub's anchors) | **2016** | **done 2026-06-12** (+109); pre-2016 → request |
 | HI | ~~2026~~ **2019 ✅** | `labor.hawaii.gov/wdc/{year}-warn-notices/`; hub `real-time-warn-updates` lists 2019–2026 | **2019** | **done 2026-06-12** (+401); pre-2019 → UIPA request |
-| KY | 2025 (~~2021 claim was wrong~~) | per-year CSVs exist only for **2025+**; the 2021–2024 folders hold `.xls`/`.xlsx` instead, and any recent `.xlsx` workbook carries **one sheet per year back to 2017** (verified 2026-07-02; see Progress) | **2017** | `backfill-historical --state KY` (workbook route) — prod run pending; pre-2017 → request |
+| KY | ~~2025~~ **2017 ✅** (the earlier "2021 ✅" claim was wrong) | per-year CSVs exist only for **2025+**; the 2021–2024 folders hold `.xls`/`.xlsx` instead, and any recent `.xlsx` workbook carries **one sheet per year back to 2017** (verified 2026-07-02; see Progress) | **2017** | **done 2026-07-02** (+343, workbook route); pre-2017 → request |
 | MO | 2019 | `jobs.mo.gov/warn/{year}` — the regular scraper **already crawls 2019–present every run**; DB is complete | 2019 | **no backfill needed**; pre-2019 → request (drafted) |
 | OH | 2026 | Four eras (probed 2026-06-12), all via httpx — **no Playwright**: **1996–2006** per-year PDFs (`WARN_{y}.pdf` / `Warn_{y}.pdf`, Wayback replay); **2007–2019** `.stm` files that actually serve Excel-exported PDFs (Wayback, slug variants tried); **2020–2022** `archive.stm?year=Y` HTML (live-table layout, Wayback); **2021–2024** live portal pages with the table embedded as JSON in `div#js-placeholder-json-data` (incl. per-notice PDF URLs). **2025 unaccounted for** (no live page, nothing in CDX) | **1996** | year loop + era-dispatch parser (implemented, Wave 2B); 2025 → investigate/FOIA |
 | PA | 2024 | Live AEM page holds accordion sections **2023–2026 only** (probed 2026-06-12). Pre-2023 → Wayback snapshots of the older dli.pa.gov WARN pages | **2001** | Wave 2B: Wayback-era parse; strict dedup (286 superseded rows already; `--year-end 2022` on the real run) |
@@ -124,8 +134,8 @@ delete Jobs after.
 | MA | 2025 | mass.gov WARN page publishes **FY22–FY25 XLSX reports** | FY2022 | ingest FY xlsx; pre-FY22 → email (invited) |
 | WA | 2026 | `fortress.wa.gov/esd/file/warn/Public/SearchWARN.aspx` — ASP.NET `__VIEWSTATE` pagination the scraper doesn't follow (10+ pages; depth unknown) | TBD | implement postback paging, then reassess |
 | OR | 2020 | HECC site states it retains only **six years** of WARN records; `data.oregon.gov` Socrata dataset `ijbz-jpx8` exists (content unverified) | ~mid-2020 | check Socrata dataset; pre-2020 → inquiry |
-| NV | 2025 | per-year PDFs under `detr.nv.gov/Content/Media/` in three layout eras (see `nv._ARCHIVE_SOURCES`); 2023 pruned live → Wayback; **2021 is a scanned image (OCR needed)**; 2025 snapshot ends Jun 3 | **2017** | `backfill-historical --state NV` — prod run pending; 2021 + Jun–Dec 2025 + pre-2017 → request |
-| LA | 2026 | `WarnNotices{year}.pdf` — only 2025+ still resolve; the 2025 file's layout (no Address column) now parses | **2025** | `backfill-historical --state LA` — prod run pending; pre-2025 → request (drafted) |
+| NV | ~~2025~~ **2017 ✅** | per-year PDFs under `detr.nv.gov/Content/Media/` in three layout eras (see `nv._ARCHIVE_SOURCES`); 2023 pruned live → Wayback; **2021 is a scanned image (OCR needed)**; 2025 snapshot ends Jun 3 | **2017** | **done 2026-07-02** (+584); 2021 + Jun–Dec 2025 + pre-2017 → request |
+| LA | ~~2026~~ **2025 ✅** | `WarnNotices{year}.pdf` — only 2025+ still resolve; the 2025 file's layout (no Address column) now parses | **2025** | **done 2026-07-02** (+23); pre-2025 → request (drafted) |
 
 ## Tier 2 — investigated, resolved
 
