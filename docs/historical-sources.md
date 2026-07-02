@@ -70,7 +70,6 @@ delete Jobs after.
 
 | State | DB floor | Source / route | Available back to | Backfill route |
 |-------|----------|----------------|-------------------|----------------|
-| CO | 2021 (frozen; see PR #110) | one Google Sheet per year linked from `cdle.colorado.gov/employers/layoff-separations/layoff-warn-list` (co.py registry + link discovery; regular scraper reads only the two newest sheets) | **2015** | year loop (`--state CO`, 2015+) |
 | KS | ~~2026~~ **1999 ✅** | `kansasworks.com/search/warn_lookups?q[notice_on_gteq]=YYYY-01-01` (JobLink date-range search) | **1999** | **done 2026-06-12** (+542) |
 | ME | ~~2026~~ **2012 ✅** | `joblink.maine.gov/search/warn_lookups` (JobLink) | **2012** | **done 2026-06-12** (+76) |
 | VT | ~~2026~~ **2003 ✅** | `vermontjoblink.com/search/warn_lookups` (JobLink) | **2003** | **done 2026-06-12** (+91) |
