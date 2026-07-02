@@ -31,6 +31,15 @@ _UA = {
 
 _CODE_TYPE = {"1": "Layoff", "2": "Permanent Closures"}
 
+# Count-column header variants across year pages: current pages run the words
+# together ("toemployees"); older pages (e.g. 2020) spell it out.
+_COUNT_HEADERS = (
+    "number toemployees affected",
+    "number to employees affected",
+    "number of employees affected",
+    "employees affected",
+)
+
 
 def _source_url(year: int) -> str:
     return _URL.format(year=year)
@@ -107,10 +116,8 @@ class DCScraper:
                 as_date(_text(cells[eff_col])) if eff_col is not None else None
             )
 
-            count_col = (
-                col.get("number toemployees affected")
-                or col.get("number of employees affected")
-                or col.get("employees affected")
+            count_col = next(
+                (col[k] for k in _COUNT_HEADERS if k in col), None
             )
             layoff_count = (
                 as_int(_text(cells[count_col])) if count_col is not None else None
