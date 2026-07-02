@@ -255,6 +255,26 @@ def mark_superseded_cmd(dry_run: bool, state: str | None, force: bool) -> None:
     click.echo(f"marked={stats['marked']} skipped={stats['skipped']}{suffix}")
 
 
+@main.command("purge-impossible-dates")
+@click.option("--dry-run", is_flag=True, help="Preview matches without deleting")
+@click.option("--state", default=None, help="Limit to one state abbreviation, e.g. CO")
+def purge_impossible_dates_cmd(dry_run: bool, state: str | None) -> None:
+    """Delete notices dated before the WARN Act (1988) or far in the future.
+
+    \b
+    One-shot cleanup for rows ingested before validate.filter_bad_dates
+    existed (e.g. CO's junk 1957 form submission). The scrape-time guard
+    keeps purged rows from coming back.
+
+    Always run with --dry-run first and review the output before committing.
+    """
+    from warn_v2.scripts.purge_impossible_dates import purge_impossible_dates
+
+    stats = purge_impossible_dates(dry_run=dry_run, state_filter=state)
+    suffix = " (dry run — nothing deleted)" if dry_run else ""
+    click.echo(f"matched={stats['matched']} deleted={stats['deleted']}{suffix}")
+
+
 @main.command("consolidate-companies")
 @click.option("--dry-run", is_flag=True, help="Preview merges without writing")
 @click.option("--force", is_flag=True, help="Bypass the 50%% guardrail")
