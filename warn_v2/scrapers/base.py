@@ -15,6 +15,15 @@ class ScrapeFailed(Exception):
     """Raised by fetch() when the source can't be retrieved."""
 
 
+class NotModified(Exception):
+    """Raised by fetch() when the source is unchanged since the last run.
+
+    Signals the runner to record a ``not_modified`` run (a success) and skip
+    parse/validate/store. Raised by ``http_cache.conditional_get`` on a 304 or
+    a byte-identical body.
+    """
+
+
 class ParseFailed(Exception):
     """Raised by parse() when the raw bytes can't be interpreted."""
 
@@ -63,4 +72,20 @@ class StateScraper(Protocol):
 
     def parse(self, raw: bytes) -> list[NoticeRow]:
         """Pure function from raw bytes to notices. Raise ParseFailed on failure."""
+        ...
+
+
+@runtime_checkable
+class DetailSkipping(Protocol):
+    """Optional scraper hook: skip re-fetching per-notice detail pages.
+
+    Scrapers whose fetch() downloads one detail page per notice (the JobLink
+    family) implement this so the runner can pass in the detail URLs whose
+    data is already fully stored. fetch() then only downloads detail pages for
+    new/incomplete notices; parse() stays a pure function on the (smaller)
+    bundle, and the COALESCE upsert keeps previously stored values.
+    """
+
+    def set_skip_detail_urls(self, urls: set[str]) -> None:
+        """Replace the skip set for the next fetch(). Called before every run."""
         ...

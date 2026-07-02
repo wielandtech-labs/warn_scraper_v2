@@ -1,0 +1,92 @@
+{{- /*
+Optional schedule-tier CronJobs (see values scraper.hotStates / slowStates):
+a second lightweight daily pass for high-velocity states and a weekly pass for
+slow publishers excluded from the main run via scraper.skipStates. Both clone
+the main scraper Job shape (no-retry, snapshots mount) but pass an explicit
+--states list and no --tolerate (GA stays on the main run only).
+*/}}
+{{- if and .Values.scraper.hotStates.enabled .Values.scraper.hotStates.states }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "warn-v2.fullname" . }}-scraper-hot
+  labels:
+    {{- include "warn-v2.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.scraper.hotStates.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            {{- include "warn-v2.labels" . | nindent 12 }}
+            app.kubernetes.io/component: scraper-hot
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: scraper
+              image: {{ include "warn-v2.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              args:
+                - scrape-all
+                - --states
+                - {{ .Values.scraper.hotStates.states | quote }}
+              env:
+                {{- include "warn-v2.envSecrets" . | nindent 16 }}
+              volumeMounts:
+                - name: snapshots
+                  mountPath: /var/snapshots
+              resources:
+                {{- toYaml .Values.scraper.resources | nindent 16 }}
+          volumes:
+            - name: snapshots
+              persistentVolumeClaim:
+                claimName: {{ include "warn-v2.fullname" . }}-snapshots
+{{- end }}
+{{- if and .Values.scraper.slowStates.enabled .Values.scraper.slowStates.states }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "warn-v2.fullname" . }}-scraper-slow
+  labels:
+    {{- include "warn-v2.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.scraper.slowStates.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            {{- include "warn-v2.labels" . | nindent 12 }}
+            app.kubernetes.io/component: scraper-slow
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: scraper
+              image: {{ include "warn-v2.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              args:
+                - scrape-all
+                - --states
+                - {{ .Values.scraper.slowStates.states | quote }}
+              env:
+                {{- include "warn-v2.envSecrets" . | nindent 16 }}
+              volumeMounts:
+                - name: snapshots
+                  mountPath: /var/snapshots
+              resources:
+                {{- toYaml .Values.scraper.resources | nindent 16 }}
+          volumes:
+            - name: snapshots
+              persistentVolumeClaim:
+                claimName: {{ include "warn-v2.fullname" . }}-snapshots
+{{- end }}

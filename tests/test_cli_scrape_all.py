@@ -72,3 +72,29 @@ def test_tolerate_is_case_insensitive(patched: dict[str, str]) -> None:
     patched.update({"GA": "fetch_failed"})
     result = CliRunner().invoke(cli.main, ["scrape-all", "--tolerate", "ga"])
     assert result.exit_code == 0, result.output
+
+
+def test_not_modified_counts_as_success(patched: dict[str, str]) -> None:
+    patched.update({"CA": "ok", "NV": "not_modified"})
+    result = CliRunner().invoke(cli.main, ["scrape-all"])
+    assert result.exit_code == 0, result.output
+    assert "failed" not in result.output
+
+
+def test_skip_excludes_states(patched: dict[str, str]) -> None:
+    # MS would fail, but --skip keeps it out of the run entirely.
+    patched.update({"CA": "ok", "MS": "fetch_failed"})
+    result = CliRunner().invoke(cli.main, ["scrape-all", "--skip", "ms"])
+    assert result.exit_code == 0, result.output
+    assert "MS" not in result.output
+
+
+def test_skip_composes_with_states(patched: dict[str, str]) -> None:
+    patched.update({"CA": "ok", "TX": "ok", "MS": "ok"})
+    result = CliRunner().invoke(
+        cli.main, ["scrape-all", "--states", "CA,MS", "--skip", "MS"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "CA" in result.output
+    assert "MS" not in result.output
+    assert "TX" not in result.output

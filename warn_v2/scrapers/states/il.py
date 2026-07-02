@@ -26,6 +26,7 @@ from bs4 import BeautifulSoup
 
 from warn_v2.scrapers._helpers import as_int, as_str, zip_from
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
+from warn_v2.scrapers.http_cache import conditional_get
 from warn_v2.scrapers.registry import register
 
 _ARCHIVE_URL = (
@@ -128,11 +129,11 @@ class ILScraper:
     required_fields = frozenset({"employer", "notice_date"})
 
     def fetch(self) -> bytes:
+        # Discovery GET stays unconditional; the monthly XLSX download is
+        # conditional (a new month means a new URL, i.e. a plain first fetch).
         xl_url = _discover_latest_url()
         try:
-            r = httpx.get(xl_url, headers=_UA, timeout=60, follow_redirects=True)
-            r.raise_for_status()
-            return r.content
+            return conditional_get(xl_url, state=self.state, headers=_UA, timeout=60)
         except httpx.HTTPError as e:
             raise ScrapeFailed(f"IL: GET {xl_url}: {e}") from e
 
