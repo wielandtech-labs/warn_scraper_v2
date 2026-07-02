@@ -38,7 +38,13 @@ from datetime import date, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from warn_v2.db.models import Company, Location, Notice, ScraperRun
+from warn_v2.db.models import (
+    SCRAPER_SUCCESS_STATUSES,
+    Company,
+    Location,
+    Notice,
+    ScraperRun,
+)
 from warn_v2.geo.bbox import STATE_BBOX as _BBOX
 from warn_v2.scrapers.registry import all_states, get_scraper
 
@@ -113,7 +119,7 @@ class StateAudit:
             self.flags = flags
             return
 
-        if self.last_status and self.last_status != "ok":
+        if self.last_status and self.last_status not in SCRAPER_SUCCESS_STATUSES:
             flags.append(f"scraper_{self.last_status}")
         if (
             self.expected_min is not None

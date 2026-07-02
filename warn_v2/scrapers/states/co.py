@@ -168,6 +168,10 @@ class COScraper:
     required_fields = frozenset({"employer", "notice_date"})
 
     def fetch(self) -> bytes:
+        # No conditional GET here: fetch() bundles every yearly sheet into one
+        # envelope, so skipping unchanged sheets would shrink the parse below
+        # expected_row_range — and Google export endpoints lack stable
+        # validators anyway.
         try:
             sheets = _discover_sheet_urls()
         except ScrapeFailed as e:

@@ -51,6 +51,7 @@ from warn_v2.db.models import CrossCheckRun, Notice
 from warn_v2.db.session import session_scope
 from warn_v2.pipeline.dedup import notice_id
 from warn_v2.pipeline.validate import filter_bad_dates
+from warn_v2.scrapers import http_cache
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed, StateScraper
 from warn_v2.scrapers.registry import all_states, get_scraper
 
@@ -121,8 +122,12 @@ def cross_check_state(
     # fetch → parse, mirroring runner.run_state's error handling but without
     # snapshotting or persisting. A source we can't retrieve/parse can't be used
     # to verify, so we record the failure and skip the diff.
+    # http_cache.bypass(): cross-check must see the live source unconditionally
+    # — a conditional GET here could consume a change event (updating the
+    # cache) that the nightly scrape then 304s on without ever storing it.
     try:
-        raw = scraper.fetch()
+        with http_cache.bypass():
+            raw = scraper.fetch()
     except ScrapeFailed as e:
         cc.status, cc.error = "fetch_failed", str(e)
         return cc

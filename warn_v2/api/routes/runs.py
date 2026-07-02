@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from warn_v2.api.deps import PaginationParams, get_db
 from warn_v2.api.schemas import Page, ScraperRunOut, StateStatusOut
-from warn_v2.db.models import ScraperRun
+from warn_v2.db.models import SCRAPER_SUCCESS_STATUSES, ScraperRun
 
 router = APIRouter(prefix="/scraper-runs", tags=["scraper-runs"])
 
@@ -65,7 +65,7 @@ def scraper_status(db: Session = Depends(get_db)) -> list[StateStatusOut]:
     # Latest successful run per state — only the timestamp is needed.
     success_rows = db.execute(
         select(ScraperRun.state, func.max(ScraperRun.started_at))
-        .where(ScraperRun.status == "ok")
+        .where(ScraperRun.status.in_(SCRAPER_SUCCESS_STATUSES))
         .group_by(ScraperRun.state)
     )
     last_success = dict(success_rows.all())

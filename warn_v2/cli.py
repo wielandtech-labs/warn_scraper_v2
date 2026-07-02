@@ -24,17 +24,28 @@ def main(log_level: str) -> None:
 @click.option("--state", required=True, help="State abbreviation, e.g. CA")
 def scrape(state: str) -> None:
     """Run the scraper for one state against the live source and persist results."""
+    from warn_v2.db.models import SCRAPER_SUCCESS_STATUSES
+
     scraper = get_scraper(state)
     run = run_state(scraper)
     click.echo(
         f"{run.state} status={run.status} rows={run.rows_scraped} new={run.rows_new}"
     )
-    if run.status != "ok":
+    if run.status not in SCRAPER_SUCCESS_STATUSES:
         sys.exit(1)
 
 
 @main.command(name="scrape-all")
 @click.option("--states", default=None, help="Comma-separated subset, e.g. CA,TX")
+@click.option(
+    "--skip",
+    default=None,
+    help=(
+        "Comma-separated states to exclude from the run (slow publishers "
+        "scraped on their own less-frequent schedule; see the Helm "
+        "scraper.skipStates / slowStates values)."
+    ),
+)
 @click.option(
     "--tolerate",
     default=None,
@@ -46,14 +57,19 @@ def scrape(state: str) -> None:
         "every nightly Job as Failed (which churns CronJob history and pod logs)."
     ),
 )
-def scrape_all(states: str | None, tolerate: str | None) -> None:
+def scrape_all(states: str | None, skip: str | None, tolerate: str | None) -> None:
     """Run all registered scrapers.
 
     Exits non-zero only if a *non-tolerated* state failed. Tolerated-state
     failures are reported on stderr but don't fail the run — sustained outages
     are caught by alerting off the scraper_runs table, not the job exit code.
     """
+    from warn_v2.db.models import SCRAPER_SUCCESS_STATUSES
+
     targets = [s.strip().upper() for s in states.split(",")] if states else all_states()
+    if skip:
+        skip_set = {s.strip().upper() for s in skip.split(",")}
+        targets = [t for t in targets if t not in skip_set]
     tolerated = {s.strip().upper() for s in tolerate.split(",")} if tolerate else set()
     failed: list[str] = []
     tolerated_failures: list[str] = []
@@ -63,7 +79,7 @@ def scrape_all(states: str | None, tolerate: str | None) -> None:
         click.echo(
             f"{run.state} status={run.status} rows={run.rows_scraped} new={run.rows_new}"
         )
-        if run.status != "ok":
+        if run.status not in SCRAPER_SUCCESS_STATUSES:
             (tolerated_failures if run.state in tolerated else failed).append(run.state)
     if tolerated_failures:
         click.echo(
@@ -873,6 +889,59 @@ def audit_cmd(state: str | None, as_json: bool, markdown: bool, check_links: boo
         click.echo(render_markdown(audits))
     else:
         click.echo(render_table(audits))
+
+
+@main.command("cadence-report")
+@click.option("--state", default=None, help="Limit to one state abbreviation, e.g. CA")
+@click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON")
+@click.option("--markdown", is_flag=True, help="Emit a markdown table (with caveats)")
+@click.option(
+    "--since-days",
+    type=int,
+    default=None,
+    metavar="N",
+    help="Only consider runs from the last N days (default: all history)",
+)
+def cadence_report_cmd(
+    state: str | None, as_json: bool, markdown: bool, since_days: int | None
+) -> None:
+    """Report how often each state's source actually publishes new notices.
+
+    Aggregates scraper_runs history per state: how many runs found new rows,
+    the median gap between new-row days, and a suggested schedule tier
+    (hot/steady/slow/dormant). Sampling is once per day, so intra-day
+    publication frequency is not detectable; backfill spikes inflate old
+    history — prefer --since-days 90.
+
+    \b
+    Examples:
+      warn-v2 cadence-report                       # table for all jurisdictions
+      warn-v2 cadence-report --state CA            # one state
+      warn-v2 cadence-report --json                # machine-readable
+      warn-v2 cadence-report --markdown --since-days 180
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from warn_v2.db.session import session_scope
+    from warn_v2.scripts.cadence import (
+        cadence_states,
+        render_json,
+        render_markdown,
+        render_table,
+    )
+
+    since = (
+        datetime.now(UTC) - timedelta(days=since_days) if since_days else None
+    )
+    with session_scope() as session:
+        rows = cadence_states(session, state_filter=state, since=since)
+
+    if as_json:
+        click.echo(render_json(rows))
+    elif markdown:
+        click.echo(render_markdown(rows))
+    else:
+        click.echo(render_table(rows))
 
 
 @main.command("cross-check")

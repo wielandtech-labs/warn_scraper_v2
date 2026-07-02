@@ -70,6 +70,13 @@ with `uv run alembic merge heads -m "..."`. Postgres-only DDL must be guarded
 with a dialect check (tests use SQLite via `create_all`). See
 `warn_v2/db/migrations/README`.
 
+Autogenerate needs a live DB at head to diff against, and `alembic upgrade head`
+does NOT run on SQLite (an old migration has an unguarded `ALTER COLUMN ... TYPE`).
+Workaround for a new-table migration without touching prod: point DATABASE_URL at
+a scratch SQLite file, `Base.metadata.create_all(engine)` then `drop()` the new
+model's table, `alembic stamp head`, then `alembic revision --autogenerate` —
+the diff contains exactly the new table.
+
 ## Production gate
 
 Merging to main is a production deploy (the image-tag chain above runs

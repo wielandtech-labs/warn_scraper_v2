@@ -31,6 +31,25 @@ scraper:
   # flaky source doesn't mark every Job Failed and churn CronJob/pod-log history.
   # Sustained outages are caught by alerting off scraper_runs, not the exit code.
   tolerateFailures: "GA"  # GA: Playwright source is timeout-prone
+  # Schedule tiering — fill the lists from `warn-v2 cadence-report` (prod).
+  # All three ship empty/disabled: behavior is identical to today until set.
+  # States excluded from the daily all-states run; keep equal to
+  # slowStates.states so they still run on the weekly pass.
+  skipStates: ""
+  # Optional second lightweight pass for high-velocity, cheap states
+  # (cadence tier `hot`, non-Playwright). Never include GA here — it stays
+  # on the main run only, where --tolerate covers it.
+  hotStates:
+    enabled: false
+    states: ""              # e.g. "CA,TX,NY,FL"
+    schedule: "17 19 * * *" # 12h offset from the main run
+  # Optional weekly pass for slow publishers removed from the daily run via
+  # skipStates (cadence tier `slow`/`dormant`, e.g. expensive Playwright
+  # sources publishing weekly-or-slower).
+  slowStates:
+    enabled: false
+    states: ""              # keep equal to skipStates
+    schedule: "17 6 * * 1"  # Mondays, before the daily run
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 1000m, memory: 1Gi }

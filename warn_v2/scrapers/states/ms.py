@@ -28,6 +28,7 @@ from bs4 import BeautifulSoup
 
 from warn_v2.scrapers._helpers import as_date, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
+from warn_v2.scrapers.http_cache import conditional_get
 from warn_v2.scrapers.registry import register
 
 _LANDING_URL = "https://mdes.ms.gov/information-center/warn-information/"
@@ -191,12 +192,12 @@ class MSScraper:
     required_fields = frozenset({"employer", "notice_date"})
 
     def fetch(self) -> bytes:
+        # The landing-page discovery GET stays unconditional (small, needed to
+        # find the latest quarterly); only the PDF download is conditional.
         urls = _discover_pdf_urls()
         pdf_url = urls[0] if urls else _FALLBACK_URL
         try:
-            r = httpx.get(pdf_url, headers=_UA, timeout=60, follow_redirects=True)
-            r.raise_for_status()
-            return r.content
+            return conditional_get(pdf_url, state=self.state, headers=_UA, timeout=60)
         except httpx.HTTPError as e:
             raise ScrapeFailed(f"GET {pdf_url}: {e}") from e
 

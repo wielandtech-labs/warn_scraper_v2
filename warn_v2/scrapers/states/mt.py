@@ -21,6 +21,7 @@ import openpyxl
 
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
+from warn_v2.scrapers.http_cache import conditional_get
 from warn_v2.scrapers.registry import register
 
 PAGE_URL = "https://wsd.dli.mt.gov/wioa/related-links/warn-notice-page"
@@ -42,9 +43,7 @@ class MTScraper:
 
     def fetch(self) -> bytes:
         try:
-            r = httpx.get(SOURCE_URL, headers=_UA, timeout=60, follow_redirects=True)
-            r.raise_for_status()
-            return r.content
+            return conditional_get(SOURCE_URL, state=self.state, headers=_UA, timeout=60)
         except httpx.HTTPError as e:
             raise ScrapeFailed(f"GET {SOURCE_URL}: {e}") from e
 
