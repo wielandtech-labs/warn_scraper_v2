@@ -209,6 +209,10 @@ Findings the DB can't tell us — confirmed against the live sources.
     library; HI: PDF-link paragraphs; WV: employer+date anchors). Counts exist
     only inside the stored per-notice PDFs — extraction via the existing
     OCR/pdf_extract pipeline is the enhancement that would close these.
+    Addressed by `backfill-layoff-counts` (PR #113): conservative fill-only
+    extraction from the stored PDFs. **Post-deploy: run the one-off in-cluster
+    `backfill-layoff-counts` Job** (dry-run first); letters stating no total
+    (e.g. "all employees" unquantified, redacted tables) correctly stay NULL.
   - **Zero counts (`count_outliers`) are genuine source zeros**, not parser
     artifacts: rescissions (NY "(Rescission)", VA "*notice rescinded") and
     0-listed filings (FL/IN Yellow Corporation 2023, MD Capital One 2020).

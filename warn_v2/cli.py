@@ -448,6 +448,50 @@ def backfill_ny_layoff_counts_cmd(dry_run: bool, limit: int | None, pdf_dir: Pat
         sys.exit(1)
 
 
+@main.command("backfill-layoff-counts")
+@click.option("--dry-run", is_flag=True, help="Preview counts without writing")
+@click.option(
+    "--state", default=None,
+    help="Limit to one state abbreviation (default: CT, HI, WV)",
+)
+@click.option("--limit", type=int, default=None, help="Max notices to process")
+@click.option(
+    "--pdf-dir",
+    default="/var/pdfs",
+    show_default=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Root directory of stored PDFs",
+)
+def backfill_layoff_counts_cmd(
+    dry_run: bool, state: str | None, limit: int | None, pdf_dir: Path
+) -> None:
+    """Fill NULL layoff_count from stored per-notice PDFs (CT/HI/WV).
+
+    These states publish no worker counts on their listing pages; the count
+    exists only inside the letter PDFs already stored by download-pdfs. Text
+    is read via pdfplumber with OCR fallback for scanned letters (HI/WV), and
+    the count extracted conservatively: explicit totals preferred, NULL kept
+    when ambiguous, existing counts never overwritten (fill-only).
+
+    \b
+    Examples:
+      warn-v2 backfill-layoff-counts --dry-run       # preview impact
+      warn-v2 backfill-layoff-counts                 # CT+HI+WV
+      warn-v2 backfill-layoff-counts --state CT      # one state only
+    """
+    from warn_v2.scripts.backfill_layoff_counts import backfill_layoff_counts
+
+    stats = backfill_layoff_counts(
+        state, limit=limit, dry_run=dry_run, pdf_dir=pdf_dir
+    )
+    suffix = " (dry run — nothing written)" if dry_run else ""
+    click.echo(
+        f"considered={stats['considered']} filled={stats['filled']} "
+        f"no_count={stats['no_count']} no_text={stats['no_text']} "
+        f"missing={stats['missing']} errors={stats['errors']}{suffix}"
+    )
+
+
 @main.command("backfill-historical")
 @click.option(
     "--state", required=True,
