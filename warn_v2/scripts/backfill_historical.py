@@ -15,9 +15,6 @@ Per-state fetch/parse helpers live next to the regular scraper in
 ``warn_v2/scrapers/states/<st>.py`` (see ``ca._discover_archive_urls``,
 ``dc._fetch_dc_year``); this module holds only the registry and the loops.
 
-CO is excluded: its Google Sheets export is append-only since 2019, so the
-regular scraper already captures all historical CO data in one download.
-
 Dry runs log a duplicate preview: rows already in the DB, rows that would
 insert, and *near misses* — rows matching an existing notice on
 (state, employer, notice_date) but hashing to a different ``notice_id``
@@ -49,6 +46,7 @@ from warn_v2.pipeline.storage import upsert_notices
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.registry import get_scraper
 from warn_v2.scrapers.states.ca import _discover_archive_urls, parse_ca_pdf
+from warn_v2.scrapers.states.co import _fetch_co_year, _parse_co_year
 from warn_v2.scrapers.states.dc import _fetch_dc_year
 from warn_v2.scrapers.states.fl import _fetch_fl_year
 from warn_v2.scrapers.states.hi import _fetch_hi_year
@@ -99,6 +97,13 @@ _BACKFILL: dict[str, BackfillSpec] = {
         parse_for_url=lambda u: parse_ca_pdf if u.lower().endswith(".pdf") else None,
     ),
     "DC": BackfillSpec(year_start=2013, fetch_year=lambda s, y: _fetch_dc_year(y)),
+    # CO: one Google Sheet per year, 2015+; the regular scraper reads only the
+    # two newest. _parse_co_year skips the scraper's staleness guard.
+    "CO": BackfillSpec(
+        year_start=2015,
+        fetch_year=lambda s, y: _fetch_co_year(y),
+        parse_year=lambda b, y: _parse_co_year(b, y),
+    ),
     "AZ": BackfillSpec(year_start=2016, fetch_year=_joblink_fetch),
     "DE": BackfillSpec(year_start=2016, fetch_year=_joblink_fetch),
     # JobLink platforms verified searchable to these years (2026-06-12 probes,
