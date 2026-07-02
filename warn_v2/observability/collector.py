@@ -144,7 +144,8 @@ class WarnCollector(Collector):
             ).all()
             g = GaugeMetricFamily(
                 "warn_scrape_last_success_timestamp_seconds",
-                "Unix timestamp of the most recent successful (ok or not_modified) scrape, per state.",
+                "Unix timestamp of the most recent successful "
+                "(ok or not_modified) scrape, per state.",
                 labels=["state"],
             )
             for state, ts in rows:

@@ -29,6 +29,7 @@ Usage::
 """
 from __future__ import annotations
 
+import itertools
 import json
 import statistics
 from dataclasses import asdict, dataclass
@@ -158,9 +159,7 @@ def cadence_states(
         sc.avg_rows_new = new_rows_sum[state] / sc.runs_with_new
         ordered = sorted(dates)
         if len(ordered) >= 2:
-            gaps = [
-                (b - a).days for a, b in zip(ordered, ordered[1:], strict=False)
-            ]
+            gaps = [(b - a).days for a, b in itertools.pairwise(ordered)]
             sc.median_gap_days = float(statistics.median(gaps))
 
     for sc in results.values():

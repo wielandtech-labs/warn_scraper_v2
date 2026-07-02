@@ -38,8 +38,9 @@ def http(monkeypatch: pytest.MonkeyPatch):
     """Stub httpx.get inside http_cache; test sets .response, reads .requests."""
 
     class _Recorder:
-        response: _Resp = _Resp(200, b"body")
-        requests: list[dict] = []
+        def __init__(self) -> None:
+            self.response: _Resp = _Resp(200, b"body")
+            self.requests: list[dict] = []
 
         def __call__(self, url: str, *, headers=None, timeout=None, follow_redirects=None):
             self.requests.append({"url": url, "headers": dict(headers or {})})
