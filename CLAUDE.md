@@ -30,6 +30,15 @@ dependencies change, or chart metadata changes.
 
 **Do not bump when:** only `warn_v2/`, `tests/`, scripts, or docs change.
 
+**Version collisions silently drop template changes.** Flux packages the chart
+with `reconcileStrategy: ChartVersion`: if `version:` doesn't change, the chart
+is NOT repackaged and your template edits never deploy — Helm keeps rendering
+the old template with the new values (seen 2026-07-02: two PRs both targeted
+0.1.21; a rebase deduped the identical bump, and the second PR's new CronJob
+arg never rendered despite `Ready=True` everywhere). **Before merging a chart
+PR, re-check that its `version:` is strictly greater than current `main`'s** —
+if another chart PR merged first, bump again on top.
+
 ## Cluster access
 
 - `kubectl` / `flux` live in WSL — prefix all commands with `wsl` from PowerShell.
