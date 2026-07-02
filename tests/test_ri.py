@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import zipfile
 from datetime import date
 from pathlib import Path
 
@@ -75,7 +76,7 @@ def test_ri_parses_truncated_central_directory(ri_sample_xlsx: bytes) -> None:
     cen = ri_sample_xlsx.rfind(b"PK\x01\x02")
     assert cen > 0
     truncated = ri_sample_xlsx[: cen + 20]  # ends inside a central-dir entry
-    with pytest.raises(Exception):
+    with pytest.raises(zipfile.BadZipFile):
         import io
 
         import openpyxl
