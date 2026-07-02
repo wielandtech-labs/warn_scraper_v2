@@ -61,6 +61,109 @@ def test_labeled_number_to_be_laid_off_ignores_store_headcount():
     assert extract_layoff_count(text) == 8
 
 
+def test_phone_number_fragment_is_not_a_count():
+    # Wahiawa General Hospital (HI, prod dry-run): the HR contact's phone
+    # ("808-621-4272") must not beat the labeled total — which itself needs
+    # to tolerate a company abbreviation between "affected" and "employees".
+    text = (
+        "Contact Person: Lori Foster Human Resources Director 808-621-4272\n"
+        "Date of position eliminations/closing: April 2, 2024\n"
+        "Total number of affected WGH employees: 291"
+    )
+    assert extract_layoff_count(text) == 291
+
+
+def test_line_wrapped_phone_number_is_not_a_count():
+    # OCR wrapping a phone mid-number leaves "943- 6670" after whitespace
+    # flattening — still a fragment, not a count.
+    text = (
+        "This closure will impact operations. Call the site at 808-943-\n"
+        "6670 to reach the affected employees hotline."
+    )
+    assert extract_layoff_count(text) is None
+
+
+def test_unicode_hyphen_phone_is_not_a_count():
+    # pdfminer's ToUnicode mapping can emit U+2010 HYPHEN inside phones.
+    hyphen = chr(0x2010)
+    text = (
+        f"This closure will impact staffing. Call 808{hyphen}943{hyphen}6670 "
+        "to reach the affected employees hotline."
+    )
+    assert extract_layoff_count(text) is None
+
+
+def test_em_dash_before_count_still_extracts():
+    # En/em dashes punctuate prose right before real counts and never join
+    # phone digits — they must not trip the joiner guard.
+    text = "As part of the closing—75 employees will be permanently laid off."
+    assert extract_layoff_count(text) == 75
+
+
+def test_affected_and_unaffected_combined_figure_stays_null():
+    # The pattern-3 gap must not dilute "affected" with lowercase
+    # connectives into a combined/establishment figure.
+    text = (
+        "The total number of affected and unaffected employees at the site "
+        "is 500."
+    )
+    assert extract_layoff_count(text) is None
+
+
+def test_letterhead_phone_vs_laid_off_or_terminated():
+    # University Health Partners (HI, prod dry-run): letterhead phone
+    # "(808) 469-4900" must lose to "to be laid off or terminated: 120";
+    # the establishment headcount (480) must not match either.
+    text = (
+        "677 Ala Moana Boulevard, Suite 1001, Honolulu, HI 96813 (808) 469-4900\n"
+        "UHP will be experiencing a reduction in its workforce. As a result "
+        "of this action, many of our current employees whose positions will "
+        "be impacted by this restructuring will have employment offered to "
+        "them through Queen's.\n"
+        "Number of employees at covered establishment:\n480\n"
+        "Approximate number of employees to be laid off or terminated:\n120"
+    )
+    assert extract_layoff_count(text) == 120
+
+
+def test_store_phone_in_attachment_is_not_a_count():
+    # Islands Restaurants (HI, prod dry-run): the store phone "808-943-6670"
+    # sat three gap-tokens before "Employees" in OCR-flattened text.
+    text = (
+        "List of Islands Restaurants in Hawaii impacted by Government "
+        "mandated shutdown Store # Store Name Address City State Zip County "
+        "Store Phone #057 Ala Moana 1450 Ala Moana Blvd., #4230, Honolulu HI "
+        "96814 Honolulu 808-943-6670 Exhibit B Furloughed Employees/Restaurant "
+        "# of Furloughed Employees Restaurant Location"
+    )
+    assert extract_layoff_count(text) is None
+
+
+def test_contact_phone_before_positions_table_loses_to_table():
+    # Durham School Services (CT, prod dry-run): "203-269-4171" directly
+    # preceded "The following positions are affected:" — the phone must be
+    # rejected so the position table (sum 27) wins.
+    text = (
+        "990 Northrup Rd, Wallingford, CT 06492\n"
+        "203-269-4171\n"
+        "The following positions are affected:\n"
+        "Position # of affected Employees First Date of Anticipated\n"
+        "Bus Assistant 17 June 15, 2022\n"
+        "Casual Driver 6 June 15, 2022\n"
+        "Driver In Training 4 June 15, 2022\n"
+    )
+    assert extract_layoff_count(text) == 27
+
+
+def test_roughly_n_positions_laid_off():
+    # Kyoya Ohana (HI, prod dry-run): verified-legitimate large count.
+    text = (
+        "Roughly 3000 positions have been or will be temporarily laid off "
+        "starting March 12, 2020."
+    )
+    assert extract_layoff_count(text) == 3000
+
+
 def test_employs_a_total_of_is_headcount_not_layoff():
     text = (
         "The facility currently employs a total of 500 employees. "
