@@ -124,7 +124,8 @@ def test_pa_raises_on_bad_html() -> None:
         ("501 @ Etters location; 595 @ Philadelphia location", 1096),
         # Ambiguous or unknown -> None (leading number is NOT the PA count)
         ("430 nationwide; unknown number of PA residents impacted", None),
-        ("81 Total – 13 of which reside in PA", None),
+        # Live text uses an en-dash (chr avoids the literal, per ruff RUF001).
+        ("81 Total " + chr(0x2013) + " 13 of which reside in PA", None),
         ("9,236 Nationwide; PA total pending verification", None),
         ("Unknown", None),
         ("unknown", None),

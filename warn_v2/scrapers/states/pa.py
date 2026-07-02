@@ -70,7 +70,7 @@ _LABEL_PREFIXES = ("COUNTY:", "# AFFECTED:", "EFFECTIVE DATE:", "CLOSURE OR LAYO
 # "# AFFECTED" free-text values. A leading count is trusted when followed only
 # by end-of-string, a parenthetical, or a PA-workers qualifier ("5 (within PA)",
 # "9 Pennsylvania workers (209 total)") — but NOT by nationwide/total wording
-# ("430 nationwide; unknown number of PA residents", "81 Total – 13 of which
+# ("430 nationwide; unknown number of PA residents", "81 Total - 13 of which
 # reside in PA"), where the leading number is not the PA count.
 _AFFECTED_LEAD_RE = re.compile(r"^(\d[\d,]*)\s*(?=$|\(|pennsylvania\b|pa\b)", re.I)
 # Per-location segments: "501 @ Etters location; 595 @ Philadelphia location"
