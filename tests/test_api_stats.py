@@ -293,6 +293,30 @@ def test_no_projection_on_last_day_of_period(api_client, db, monkeypatch):
     assert body[-1]["projected_notice_count"] is None
 
 
+def test_no_projection_early_in_month(api_client, db, monkeypatch):
+    _notice(db, state="CA", employer="A", notice_date=date(2026, 7, 1), layoff_count=500)
+    db.commit()
+
+    # Day 2 of July: <10% elapsed, the 15.5x pace would blow out the y-axis.
+    _freeze_today(monkeypatch, date(2026, 7, 2))
+    body = api_client.get("/api/stats/over-time?bucket=month").json()
+    assert body[-1]["projected_notice_count"] is None
+    # Day 4: >=10% elapsed, projection kicks in.
+    _freeze_today(monkeypatch, date(2026, 7, 4))
+    body = api_client.get("/api/stats/over-time?bucket=month").json()
+    assert body[-1]["projected_notice_count"] is not None
+
+
+def test_no_projection_early_in_year(api_client, db, monkeypatch):
+    _freeze_today(monkeypatch, date(2026, 1, 20))  # yday 20: <10% of 365
+    _notice(db, state="CA", employer="A", notice_date=date(2026, 1, 5), layoff_count=500)
+    db.commit()
+
+    body = api_client.get("/api/stats/over-time?bucket=year").json()
+    assert body[-1]["period"] == "2026"
+    assert body[-1]["projected_notice_count"] is None
+
+
 def test_projection_floor_at_actual(api_client, db, monkeypatch):
     _freeze_today(monkeypatch, date(2026, 7, 30))  # scale 31/30: rounds back to actual
     _notice(db, state="CA", employer="A", notice_date=date(2026, 7, 5), layoff_count=1)
