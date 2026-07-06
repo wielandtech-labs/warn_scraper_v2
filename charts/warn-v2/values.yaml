@@ -222,5 +222,21 @@ sentimentReport:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 500m, memory: 512Mi }
 
+# Self-serve accounts (POST /api/auth/signup + password reset). The endpoints
+# ship dark and 503 until this is on. Requires smtp.enabled (verification and
+# reset emails).
+signup:
+  enabled: false          # flip on in HelmRelease after smtp.enabled
+
+# Stripe self-serve billing for the paid API tier. Checkout/portal/webhook
+# 503 until enabled. Seal the secret with these three keys; register the
+# webhook in the Stripe dashboard as https://<host>/api/billing/webhook.
+stripe:
+  enabled: false              # flip on in HelmRelease once warn-v2-stripe exists
+  secretName: warn-v2-stripe
+  secretKeyKey: secret-key       # sk_live_... / sk_test_...
+  webhookSecretKey: webhook-secret  # whsec_...
+  priceIdKey: price-id           # price_... for the single paid tier
+
 migrations:
   enabled: true   # set false only if you manage migrations out-of-band
