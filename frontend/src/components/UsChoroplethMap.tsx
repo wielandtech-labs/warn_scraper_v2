@@ -165,7 +165,7 @@ export function UsChoroplethMap({ data }: { data: StateDatum[] }) {
 
       {hover && hovered && (
         <div
-          className="pointer-events-none absolute z-10 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs shadow-md dark:border-slate-800 dark:bg-slate-900"
+          className="pointer-events-none absolute z-10 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs shadow-md dark:border-slate-700 dark:bg-slate-800"
           style={{
             left: hover.x + (flip ? -12 : 12),
             top: hover.y + 12,

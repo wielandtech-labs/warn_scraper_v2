@@ -84,6 +84,11 @@
 .dark .leaflet-control-attribution a {
   color: #7dd3fc;
 }
+/* Cluster bubbles keep their light-mode fills; their count text has no color
+   of its own and would inherit the near-white dark body text — pin it dark. */
+.dark .marker-cluster div {
+  color: #0f172a;
+}
 
 /* Mobile DataTable: below Tailwind's `sm` breakpoint, collapse each row into a
    stacked label/value card so wide tables don't force horizontal scrolling. The

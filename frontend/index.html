@@ -13,19 +13,21 @@
          first paint is already dark — prevents a light flash. -->
     <script>
       (function () {
+        var t = null;
         try {
-          var t = localStorage.getItem("theme");
-          var dark =
-            t === "dark" ||
-            (t !== "light" &&
-              window.matchMedia("(prefers-color-scheme: dark)").matches);
-          if (dark) {
-            document.documentElement.classList.add("dark");
-            var m = document.querySelector('meta[name="theme-color"]');
-            if (m) m.setAttribute("content", "#0f172a");
-          }
+          t = localStorage.getItem("theme");
         } catch (e) {
-          /* localStorage unavailable: stay light */
+          /* localStorage unavailable: fall through to the system preference,
+             matching useTheme's readStoredPreference. */
+        }
+        var dark =
+          t === "dark" ||
+          (t !== "light" &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches);
+        if (dark) {
+          document.documentElement.classList.add("dark");
+          var m = document.querySelector('meta[name="theme-color"]');
+          if (m) m.setAttribute("content", "#0f172a");
         }
       })();
     </script>

@@ -247,6 +247,7 @@ export function Dashboard() {
                   formatter={(v: number) => fmtNum(v)}
                   contentStyle={chart.tooltip}
                   labelStyle={chart.tooltipLabel}
+                  cursor={{ fill: chart.cursor }}
                 />
                 <Bar dataKey="layoff_total" name="Workers affected" fill={chart.notices} />
               </BarChart>

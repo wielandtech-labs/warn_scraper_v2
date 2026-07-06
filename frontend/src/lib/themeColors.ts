@@ -12,6 +12,7 @@ interface ChartColors {
   axis: string;
   notices: string;
   layoffs: string;
+  cursor: string;
   tooltip: CSSProperties;
   tooltipLabel: CSSProperties;
 }
@@ -22,6 +23,7 @@ export const CHART_COLORS: Record<ResolvedTheme, ChartColors> = {
     axis: "#64748b", // slate-500
     notices: "#0369a1", // sky-700
     layoffs: "#dc2626", // red-600
+    cursor: "rgba(203, 213, 225, 0.4)", // BarChart hover band; default #ccc
     tooltip: {
       backgroundColor: "#ffffff",
       border: "1px solid #e2e8f0",
@@ -34,6 +36,7 @@ export const CHART_COLORS: Record<ResolvedTheme, ChartColors> = {
     axis: "#94a3b8", // slate-400
     notices: "#38bdf8", // sky-400 — same hue, brighter for dark backgrounds
     layoffs: "#f87171", // red-400
+    cursor: "rgba(148, 163, 184, 0.15)",
     tooltip: {
       backgroundColor: "#1e293b",
       border: "1px solid #334155",
