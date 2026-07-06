@@ -759,7 +759,15 @@ def _oh_fixture(name: str) -> bytes:
     ).read_bytes()
 
 
-def test_oh_year_sources_cover_all_eras():
+@pytest.fixture
+def _no_stm_cdx(monkeypatch):
+    """Stub the .stm-era CDX discovery so source-list tests stay offline."""
+    from warn_v2.scrapers.states import oh
+
+    monkeypatch.setattr(oh, "_stm_replay_urls", lambda: {})
+
+
+def test_oh_year_sources_cover_all_eras(_no_stm_cdx):
     from warn_v2.scrapers.states.oh import _oh_year_sources
 
     assert _oh_year_sources(1996) == [
@@ -768,7 +776,7 @@ def test_oh_year_sources_cover_all_eras():
     assert _oh_year_sources(2005) == [
         "https://web.archive.org/web/2009id_/http://jfs.ohio.gov/warn/Warn_2005.pdf"
     ]
-    # .stm era tries slug variants, all via Wayback
+    # .stm era tries slug variants, all via Wayback (no CDX pin here — stubbed)
     urls_2010 = _oh_year_sources(2010)
     assert len(urls_2010) == 4
     assert all("web.archive.org" in u for u in urls_2010)
@@ -777,16 +785,23 @@ def test_oh_year_sources_cover_all_eras():
     assert urls_2020 == [
         "https://web.archive.org/web/2023id_/https://jfs.ohio.gov/warn/archive.stm?year=2020"
     ]
-    # 2021: live portal first, Wayback archive.stm fallback
+    # 2021: live year page first, then old-portal capture, then archive.stm
     urls_2021 = _oh_year_sources(2021)
-    assert "jfs.ohio.gov/job-services-and-unemployment" in urls_2021[0]
-    assert urls_2021[0].endswith(
+    assert urls_2021[0] == (
+        "https://jfs.ohio.gov/job-workforce-services/job-programs-and-services/"
+        "submit-a-warn-notice/2021-public-notices-of-layoffs-and-closures"
+    )
+    assert "jfs.ohio.gov/job-services-and-unemployment" in urls_2021[1]
+    assert urls_2021[1].endswith(
         "2021-public-notices-of-layoffs-and-closures-sa/"
         "2021-public-notices-of-layoffs-and-closures"
     )
-    assert "archive.stm" in urls_2021[1]
-    # 2023/2024 parent slug has no -sa suffix
-    assert "-sa/" not in _oh_year_sources(2023)[0]
+    assert "archive.stm" in urls_2021[2]
+    # 2023/2024: live year page + old-portal capture (parent slug has no -sa)
+    urls_2023 = _oh_year_sources(2023)
+    assert urls_2023[0].endswith("/2023-public-notices-of-layoffs-and-closures")
+    assert "web.archive.org/web/20250601id_/" in urls_2023[1]
+    assert "-sa/" not in urls_2023[1]
     # 2025: no known source
     assert _oh_year_sources(2025) == []
 
@@ -913,7 +928,7 @@ def test_oh_fetch_year_rejects_shell_pages(_no_wayback_delays):
 
 
 @respx.mock
-def test_oh_fetch_year_retries_throttled_wayback(_no_wayback_delays):
+def test_oh_fetch_year_retries_throttled_wayback(_no_wayback_delays, _no_stm_cdx):
     """A throttled Wayback response (429) is retried once after a backoff."""
     from warn_v2.scrapers.states.oh import _fetch_oh_year, _oh_year_sources
 
@@ -927,3 +942,102 @@ def test_oh_fetch_year_retries_throttled_wayback(_no_wayback_delays):
 
     raw = _fetch_oh_year(2010)
     assert raw == b"%PDF-1.4 era pdf"
+
+
+@pytest.fixture
+def _fresh_stm_cdx_cache():
+    """Clear the lru_cache around tests that exercise the real CDX discovery."""
+    from warn_v2.scrapers.states.oh import _stm_replay_urls
+
+    _stm_replay_urls.cache_clear()
+    yield
+    _stm_replay_urls.cache_clear()
+
+
+@respx.mock
+def test_oh_stm_replay_urls_pins_latest_200_capture(_no_wayback_delays, _fresh_stm_cdx_cache):
+    """CDX discovery picks the latest 200 capture per year and skips junk URLs."""
+    from warn_v2.scrapers.states.oh import _CDX_API, _oh_year_sources, _stm_replay_urls
+
+    cdx = [
+        ["timestamp", "original"],
+        ["20150311163358", "http://jfs.ohio.gov:80/warn/WARN_2011.stm"],
+        ["20221108012742", "https://jfs.ohio.gov/warn/WARN_2011.stm"],
+        ["20180102022009", "http://jfs.ohio.gov:80/warn/WARN2014.stm"],
+        # Junk that must not match: trailing colon, per-notice .stm under /pdf/
+        ["20250825013911", "https://jfs.ohio.gov/warn/WARN2018.stm:"],
+        ["20230609235443", "https://jfs.ohio.gov/warn/pdf/2023-01-13-Energy-Harbor.stm"],
+    ]
+    respx.get(_CDX_API).mock(return_value=httpx.Response(200, json=cdx))
+
+    urls = _stm_replay_urls()
+    assert urls[2011] == (
+        "https://web.archive.org/web/20221108012742id_/"
+        "https://jfs.ohio.gov/warn/WARN_2011.stm"
+    )
+    assert urls[2014].endswith("WARN2014.stm")
+    assert 2018 not in urls
+    assert 2023 not in urls
+    # The pinned snapshot leads the candidate list; anchored variants follow.
+    sources = _oh_year_sources(2011)
+    assert sources[0] == urls[2011]
+    assert len(sources) == 5
+
+
+@respx.mock
+def test_oh_stm_replay_urls_empty_on_cdx_error(_no_wayback_delays, _fresh_stm_cdx_cache):
+    """CDX failure degrades to the anchored slug variants, not a crash."""
+    from warn_v2.scrapers.states.oh import _CDX_API, _oh_year_sources, _stm_replay_urls
+
+    respx.get(_CDX_API).mock(return_value=httpx.Response(503))
+
+    assert _stm_replay_urls() == {}
+    assert len(_oh_year_sources(2010)) == 4
+
+
+_OH_YEAR_CSV = (
+    b"s,h,s,h,s,s,s,s,s,s\n"
+    b",,,,,,,,,\n"
+    b"Company,Company,Date Received,URL,City/County,Potential Number Affected,"
+    b"Layoff Date(s),Phone Number,Union,Notice ID\n"
+    b"Acme Logistics,Acme Logistics,12/23/24,"
+    b"https://dam.assets.ohio.gov/image/upload/x.pdf,"
+    b"Delaware/Delaware,151,2/21/25,(614) 555-0101,N,000-24-094\n"
+    b"Compound Dates LLC,Compound Dates LLC,12/30/2024 & 12/24/2024,"
+    b"https://dam.assets.ohio.gov/image/upload/y.pdf,"
+    b"Columbus/Franklin,13,2/19/25,(614) 555-0102,N,000-24-095\n"
+)
+
+
+@respx.mock
+def test_oh_fetch_year_follows_year_page_csv_link(_no_wayback_delays):
+    """June-2026 year pages link a dam.assets CSV instead of embedding data."""
+    from warn_v2.scrapers.states.oh import _fetch_oh_year, _oh_year_sources
+
+    csv_url = "https://dam.assets.ohio.gov/raw/upload/v1/jfs.ohio.gov/2026/2024_warn_notice.csv"
+    page = f'<html><a href="{csv_url}">2024 WARN CSV</a></html>'.encode()
+    respx.get(_oh_year_sources(2024)[0]).mock(return_value=httpx.Response(200, content=page))
+    respx.get(csv_url).mock(return_value=httpx.Response(200, content=_OH_YEAR_CSV))
+
+    assert _fetch_oh_year(2024) == _OH_YEAR_CSV
+
+
+def test_parse_oh_year_csv():
+    """Year CSVs reuse the live CSV parser, re-sourced to the per-year page."""
+    from warn_v2.scrapers.states.oh import parse_oh_year
+
+    rows = parse_oh_year(_OH_YEAR_CSV, 2024)
+    assert len(rows) == 2
+    row = rows[0]
+    assert row.employer == "Acme Logistics"
+    assert row.notice_date == date(2024, 12, 23)
+    assert row.city == "Delaware"
+    assert row.county == "Delaware"
+    assert row.layoff_count == 151
+    # 2-digit layoff-date years ("2/21/25") are accepted.
+    assert row.effective_date == date(2025, 2, 21)
+    assert row.raw_notice_url.endswith("x.pdf")
+    assert row.extra["warn_id"] == "000-24-094"
+    assert row.source_url.endswith("/2024-public-notices-of-layoffs-and-closures")
+    # Compound "Date Received" cells fall back to the first date.
+    assert rows[1].notice_date == date(2024, 12, 30)

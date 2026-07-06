@@ -72,8 +72,11 @@ outstanding.
 - [ ] **`backfill-layoff-counts` Job** (PR #113) — dry-run first, then real;
   closes the CT 30% / HI 45% / WV 22% count gaps from stored PDFs. (A+gate)
 - [ ] **OH historical backfill run** (PR #55, era-dispatch 1996–2024) —
-  dry-run pilot on 1–3 early years per the runbook; 2025 is unaccounted for at
-  source (investigate or fold into the OH request). (A+gate)
+  first run done 2026-07-06 (+2,319; 22/31 years, w_homelab #595). The 7 gap
+  years were discovery failures, fixed 2026-07-06 (CDX-pinned `.stm`
+  snapshots; June-2026 site year CSVs) — **remaining: re-run 2007–2024**
+  (dedupes by `notice_id`); 2025 is unaccounted for at source (investigate or
+  fold into the OH request). (A+gate)
 - [ ] **`mark-superseded` for IA (479), PA (286), IL (14)** — `--dry-run`
   preview, then commit. (A+gate)
 

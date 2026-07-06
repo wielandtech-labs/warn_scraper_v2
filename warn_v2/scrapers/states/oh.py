@@ -20,6 +20,7 @@ before this header.
 from __future__ import annotations
 
 import csv
+import functools
 import io
 import re
 
@@ -98,6 +99,7 @@ class OHScraper:
         i_count = _find("affected", "number")
         i_ldate = _find("layoff date")
         i_union = _find("union")
+        i_wid = _find("notice id")
 
         def _cell(row: list[str], i: int | None) -> str:
             return row[i].strip() if i is not None and i < len(row) and row[i] else ""
@@ -106,6 +108,10 @@ class OHScraper:
         for row in records[header_idx + 1 :]:
             employer = as_str(_cell(row, i_company))
             notice_date = as_date(_cell(row, i_date))
+            if notice_date is None:
+                # Compound cells ("12/30/2024 & 12/24/2024") — take the first date.
+                m = _ANY_DATE_RE.search(_cell(row, i_date))
+                notice_date = as_date(m.group(0)) if m else None
             if not employer or notice_date is None:
                 continue
 
@@ -117,11 +123,15 @@ class OHScraper:
                 city = as_str(parts[0])
                 county = as_str(parts[1]) if len(parts) > 1 else None
 
-            m = _DATE_RE.search(_cell(row, i_ldate))
+            # Year CSVs use 2-digit layoff-date years ("2/21/25") — _ANY_DATE_RE
+            # accepts both widths.
+            m = _ANY_DATE_RE.search(_cell(row, i_ldate))
             url = _cell(row, i_url)
             extra: dict[str, str] = {}
             if _cell(row, i_union):
                 extra["union"] = _cell(row, i_union)
+            if _cell(row, i_wid):
+                extra["warn_id"] = _cell(row, i_wid)
 
             rows.append(
                 NoticeRow(
@@ -239,17 +249,22 @@ def _text(cell) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Historical backfill (1996-2024) — sources probed 2026-06-12, see
-# docs/historical-sources.md. Four era formats, none needing Playwright:
+# Historical backfill (1996-2024) — sources probed 2026-06-12, re-probed
+# 2026-07-06 after the JFS site restructure; see docs/historical-sources.md.
+# Four era formats, none needing Playwright:
 #
 #   1996-2006  per-year PDFs (jfs.ohio.gov/warn/WARN_{y}.pdf / Warn_{y}.pdf),
 #              gone from the live site -> Wayback replay
-#   2007-2019  per-year ".stm" files that actually serve Excel-exported PDFs,
-#              slug naming drifted -> Wayback replay, try variants
+#   2007-2019  per-year ".stm" files that actually serve Excel-exported PDFs
+#              -> Wayback replay pinned per year via the CDX index (the old
+#              nearest-to-2020 anchor resolved 2007-09/2011/2013 to dead 302
+#              captures); anchored slug variants remain as fallback
 #   2020-2022  archive.stm?year=Y HTML pages (same table layout the live
-#              scraper parses) -> Wayback replay; 2021+ also live portal pages
-#   2021-2024  live portal pages with the table embedded as JSON in
-#              <div id="js-placeholder-json-data"> (includes per-notice PDFs)
+#              scraper parses) -> Wayback replay
+#   2021-2024  per-year pages on the current (June-2026) site linking a
+#              dam.assets.ohio.gov CSV — same shape the live scraper parses;
+#              fallback: Wayback captures of the retired portal pages with
+#              the table embedded as JSON in <div id="js-placeholder-json-data">
 #
 # 2025 is unaccounted for anywhere (no live page, nothing in the CDX index).
 # ---------------------------------------------------------------------------
@@ -283,10 +298,67 @@ _CITY_PREFIXES = frozenset({
 
 
 def _portal_url(year: int) -> str:
-    # 2021/2022 parent slugs end "-sa"; 2023/2024 don't (verified live).
+    """Per-year page on the portal JFS retired in June 2026 (Wayback fallback)."""
+    # 2021/2022 parent slugs end "-sa"; 2023/2024 don't.
     stem = f"{year}-public-notices-of-layoffs-and-closures"
     sa = "-sa" if year <= 2022 else ""
     return f"{_PORTAL_BASE}/{stem}{sa}/{stem}"
+
+
+def _year_page_url(year: int) -> str:
+    """Per-year page on the current (June-2026) JFS site; links the year CSV."""
+    return f"{SOURCE_URL.rsplit('/', 1)[0]}/{year}-public-notices-of-layoffs-and-closures"
+
+
+_CDX_API = "https://web.archive.org/cdx/search/cdx"
+# Per-year .stm filenames: WARN_2011.stm, WARN2014.stm, WARN-2012.stm,
+# 2011WARNNotices.stm — anchored to the path tail so per-notice .stm files
+# under /warn/pdf/ and junk variants ("WARN2018.stm:") don't match.
+_STM_FILE_RE = re.compile(
+    r"/warn/(?:warn[_-]?(\d{4})|(\d{4})warnnotices)\.stm$", re.IGNORECASE
+)
+
+
+@functools.lru_cache(maxsize=1)
+def _stm_replay_urls() -> dict[int, str]:
+    """Wayback replay URL of the latest 200-status capture per .stm-era year.
+
+    Returns {} when the CDX query fails; callers fall back to the anchored
+    slug variants in _oh_year_sources.
+    """
+    import time
+
+    for attempt in (1, 2):
+        time.sleep(_WAYBACK_DELAY)
+        try:
+            r = httpx.get(
+                _CDX_API,
+                params={
+                    "url": "jfs.ohio.gov/warn/*",
+                    "output": "json",
+                    "fl": "timestamp,original",
+                    "filter": ["statuscode:200", r"urlkey:.*\.stm.*"],
+                },
+                headers=_FETCH_UA,
+                timeout=120,
+            )
+            r.raise_for_status()
+            captures = r.json()
+            break
+        except (httpx.HTTPError, ValueError):
+            if attempt == 1:
+                time.sleep(_WAYBACK_BACKOFF)
+                continue
+            return {}
+    best: dict[int, tuple[str, str]] = {}
+    for ts, original in captures[1:]:
+        m = _STM_FILE_RE.search(original)
+        if m is None:
+            continue
+        year = int(m.group(1) or m.group(2))
+        if year not in best or ts > best[year][0]:
+            best[year] = (ts, original)
+    return {y: _WAYBACK.format(ts=ts, url=orig) for y, (ts, orig) in best.items()}
 
 
 def _oh_year_sources(year: int) -> list[str]:
@@ -296,20 +368,28 @@ def _oh_year_sources(year: int) -> list[str]:
     if 2004 <= year <= 2006:
         return [_WAYBACK.format(ts="2009", url=f"http://jfs.ohio.gov/warn/Warn_{year}.pdf")]
     if 2007 <= year <= 2019:
+        urls = []
+        pinned = _stm_replay_urls().get(year)
+        if pinned:
+            urls.append(pinned)
         slugs = (
             f"WARN_{year}.stm",
             f"WARN{year}.stm",
             f"WARN-{year}.stm",
             f"{year}WARNNotices.stm",
         )
-        return [
+        urls += [
             _WAYBACK.format(ts="2020", url=f"http://jfs.ohio.gov/warn/{slug}")
             for slug in slugs
         ]
+        return urls
     if 2020 <= year <= 2024:
         urls = []
         if year >= 2021:
-            urls.append(_portal_url(year))
+            urls.append(_year_page_url(year))
+            # Old-portal capture (all four year pages captured 2025-06 with
+            # status 200 — verified 2026-07-06).
+            urls.append(_WAYBACK.format(ts="20250601", url=_portal_url(year)))
         if year <= 2022:
             urls.append(
                 _WAYBACK.format(
@@ -356,16 +436,36 @@ def _fetch_oh_year(year: int) -> bytes | None:
                 break
             if _looks_like_oh_data(r.content):
                 return r.content
+            # June-2026 year pages don't embed the data — they link a CSV on
+            # the DAM host; follow it.
+            m = _CSV_URL_RE.search(r.text)
+            if m:
+                try:
+                    csv_r = httpx.get(
+                        m.group(0), headers=_FETCH_UA, timeout=120, follow_redirects=True
+                    )
+                    csv_r.raise_for_status()
+                except httpx.HTTPError:
+                    break
+                if _looks_like_oh_data(csv_r.content):
+                    return csv_r.content
             break  # got a response, but it's a soft-404 shell — next candidate
     return None
 
 
 def parse_oh_year(raw: bytes, year: int) -> list[NoticeRow]:
-    """Dispatch on content shape: era PDF, embedded portal JSON, or HTML table."""
+    """Dispatch on content shape: era PDF, portal JSON, year CSV, or HTML table."""
     if raw[:4] == b"%PDF":
         return _parse_oh_pdf(raw, year)
     if b"js-placeholder-json-data" in raw:
         return _parse_oh_portal_json(raw, year)
+    if not raw.lstrip().startswith(b"<"):
+        # dam.assets year CSV (June-2026 site) — same shape the live scraper
+        # parses, but sourced from the per-year page.
+        rows = OHScraper().parse(raw)
+        for row in rows:
+            row.source_url = _year_page_url(year)
+        return rows
     # archive.stm pages match the live table layout, but carry extra
     # navigation tables — hand OHScraper.parse just the notices table.
     soup = BeautifulSoup(raw, "html.parser")
