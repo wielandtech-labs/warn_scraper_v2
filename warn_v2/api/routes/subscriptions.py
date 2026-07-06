@@ -9,7 +9,6 @@ from __future__ import annotations
 import re
 import secrets
 from datetime import UTC, datetime
-from html import escape
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse
@@ -18,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from warn_v2.api.deps import get_db
+from warn_v2.api.pages import page as _page
 from warn_v2.api.seo import site_base_url
 from warn_v2.db.models import Subscription
 from warn_v2.notifications.email import EmailNotConfigured, send_email
@@ -41,19 +41,6 @@ class SubscriptionCreate(BaseModel):
         if not _EMAIL_RE.match(v) or len(v) > 320:
             raise ValueError("invalid email")
         return v
-
-
-def _page(title: str, body: str) -> HTMLResponse:
-    base = site_base_url()
-    body_style = "font-family:system-ui,sans-serif;max-width:32rem;margin:4rem auto;padding:0 1rem"
-    return HTMLResponse(
-        f"<!doctype html><html><head><meta charset='utf-8'>"
-        f"<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        f"<title>{escape(title)} — WARN Tracker</title></head>"
-        f"<body style='{body_style}'>"
-        f"<h1 style='font-size:1.25rem'>{escape(title)}</h1><p>{escape(body)}</p>"
-        f"<p><a href='{base}/'>← Back to WARN Tracker</a></p></body></html>"
-    )
 
 
 @router.post("")

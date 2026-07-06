@@ -1134,6 +1134,8 @@ def create_user_cmd(email: str, role: str, password_stdin: bool) -> None:
       warn-v2 create-user --email a@b.com --role paid
       printf '%s' "$PW" | warn-v2 create-user --email a@b.com --role admin --password-stdin
     """
+    from datetime import UTC, datetime
+
     from sqlalchemy.exc import IntegrityError
 
     from warn_v2.auth import hash_password
@@ -1151,7 +1153,15 @@ def create_user_cmd(email: str, role: str, password_stdin: bool) -> None:
     email = email.strip().lower()
     try:
         with session_scope() as session:
-            session.add(User(email=email, password_hash=hash_password(password), role=role))
+            session.add(
+                User(
+                    email=email,
+                    password_hash=hash_password(password),
+                    role=role,
+                    # Admin-provisioned accounts skip the signup verification flow.
+                    email_verified_at=datetime.now(UTC),
+                )
+            )
     except IntegrityError:
         click.echo(f"user already exists: {email}", err=True)
         sys.exit(1)

@@ -144,6 +144,11 @@ class User(Base):
     )
     # Values: 'admin' | 'enterprise' | 'paid' | 'free'. Plain String (no PG
     # ENUM) so SQLite tests work and adding roles needs no migration.
+    # Null until the signup verification link is clicked; admin-provisioned
+    # accounts (CLI create-user) are verified at creation. Gates key creation.
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Set by the Stripe checkout webhook; the join key for subscription events.
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -164,6 +169,29 @@ class UserSession(Base):
     )
     expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, index=True
+    )
+
+    user: Mapped[User] = relationship("User")
+
+
+class AuthToken(Base):
+    """Single-use emailed token: account verification or password reset.
+
+    The email carries the raw token; we store only its sha256 (same design as
+    sessions and API keys). Consumed on first use regardless of outcome.
+    """
+
+    __tablename__ = "auth_tokens"
+
+    id: Mapped[int] = mapped_column(BigIntPK, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    purpose: Mapped[str] = mapped_column(String(16), nullable=False)  # 'verify' | 'reset'
+    token_sha256: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
     user: Mapped[User] = relationship("User")
