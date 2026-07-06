@@ -46,27 +46,43 @@ export const CHART_COLORS: Record<ResolvedTheme, ChartColors> = {
   },
 };
 
-interface ChoroplethColors {
-  /* Zero bucket + four quartile buckets. On dark backgrounds lighter =
-     more salient, so the ramp direction inverts: severity brightens. */
-  buckets: [string, string, string, string, string];
+interface UsMapColors {
+  /* Fill for states absent from a UsMap's fills record. */
+  noData: string;
   stateStroke: string;
   hoverStroke: string;
   connector: string;
 }
 
-export const CHOROPLETH: Record<ResolvedTheme, ChoroplethColors> = {
+/* Scaffolding colors shared by every UsMap-based map (strokes, DC callout
+   connector); the per-state fills are each map's own concern. */
+export const US_MAP: Record<ResolvedTheme, UsMapColors> = {
   light: {
-    buckets: ["#f1f5f9", "#bae6fd", "#7dd3fc", "#0ea5e9", "#0369a1"],
+    noData: "#f1f5f9",
     stateStroke: "#fff",
     hoverStroke: "#0f172a",
     connector: "#94a3b8",
   },
   dark: {
-    buckets: ["#1e293b", "#0c4a6e", "#0369a1", "#0ea5e9", "#7dd3fc"],
+    noData: "#1e293b",
     stateStroke: "#020617",
     hoverStroke: "#f8fafc",
     connector: "#64748b",
+  },
+};
+
+interface ChoroplethColors {
+  /* Zero bucket + four quartile buckets. On dark backgrounds lighter =
+     more salient, so the ramp direction inverts: severity brightens. */
+  buckets: [string, string, string, string, string];
+}
+
+export const CHOROPLETH: Record<ResolvedTheme, ChoroplethColors> = {
+  light: {
+    buckets: ["#f1f5f9", "#bae6fd", "#7dd3fc", "#0ea5e9", "#0369a1"],
+  },
+  dark: {
+    buckets: ["#1e293b", "#0c4a6e", "#0369a1", "#0ea5e9", "#7dd3fc"],
   },
 };
 

@@ -2,7 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 
 import { api } from "../api/client";
+import { UsMap } from "../components/UsMap";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { type ResolvedTheme, useTheme } from "../hooks/useTheme";
 import { STATE_NAMES, US_STATES, fmtDate, fmtNum } from "../lib/format";
 import { UNSUPPORTED } from "../lib/unavailable";
 
@@ -17,6 +19,24 @@ const BADGE: Record<Health, { label: string; className: string }> = {
   failing: { label: "Failing", className: "badge-red" },
   unsupported: { label: "No public source", className: "badge-slate" },
   never: { label: "Never run", className: "badge-slate" },
+};
+
+// Map fills matching the badge hues (green/red/slate at map-legible strength);
+// dark fills follow the dark choropleth ramp's mid-saturation approach, with
+// failing brightest so problem states stay the most salient.
+const HEALTH_FILLS: Record<ResolvedTheme, Record<Health, string>> = {
+  light: {
+    operational: "#86efac", // green-300
+    failing: "#f87171", // red-400
+    unsupported: "#e2e8f0", // slate-200
+    never: "#e2e8f0",
+  },
+  dark: {
+    operational: "#15803d", // green-700
+    failing: "#dc2626", // red-600
+    unsupported: "#1e293b", // slate-800
+    never: "#1e293b",
+  },
 };
 
 // Failing first (that's the point of the page), then operational, then the rest.
@@ -39,6 +59,8 @@ function relDays(iso: string | null | undefined): string {
 
 export function StatusPage() {
   useDocumentTitle("Scraper status — WARN Tracker");
+  const { resolved } = useTheme();
+  const healthFills = HEALTH_FILLS[resolved];
 
   const statusQuery = useQuery({
     queryKey: ["scraper-status"],
@@ -103,6 +125,49 @@ export function StatusPage() {
 
       {statusQuery.isLoading && (
         <div className="card text-center text-sm text-slate-500 dark:text-slate-400">Loading…</div>
+      )}
+
+      {/* Don't render the map until data arrives — with no data every state
+          would confidently show as never run. */}
+      {statusQuery.data && (
+        <UsMap
+          fills={Object.fromEntries(rows.map((r) => [r.code, healthFills[r.health]]))}
+          srLabel="Map of scraper health by state. The table below contains the same data as accessible links."
+          tooltip={(code) => {
+            const r = rows.find((row) => row.code === code);
+            if (!r) return null;
+            return (
+              <>
+                <div className="font-medium text-slate-900 dark:text-slate-100">{r.name}</div>
+                <div className="text-slate-600 dark:text-slate-400">{BADGE[r.health].label}</div>
+                {r.run?.last_success_at && (
+                  <div className="text-slate-600 dark:text-slate-400">
+                    Last success {relDays(r.run.last_success_at)}
+                  </div>
+                )}
+              </>
+            );
+          }}
+          legend={
+            <>
+              {(
+                [
+                  ["operational", "Operational"],
+                  ["failing", "Failing"],
+                  ["unsupported", "No public source / never run"],
+                ] as const
+              ).map(([health, label]) => (
+                <span key={health} className="flex items-center gap-1.5">
+                  <span
+                    className="inline-block h-3 w-3 rounded-sm"
+                    style={{ backgroundColor: healthFills[health] }}
+                  />
+                  {label}
+                </span>
+              ))}
+            </>
+          }
+        />
       )}
 
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
