@@ -1,11 +1,9 @@
-import { useMemo, useRef, useState } from "react";
-
-import { useNavigate } from "@tanstack/react-router";
+import { useMemo } from "react";
 
 import { useTheme } from "../hooks/useTheme";
 import { fmtCompact, fmtNum } from "../lib/format";
 import { CHOROPLETH } from "../lib/themeColors";
-import { DC_ANCHOR, US_MAP_VIEWBOX, US_STATE_PATHS } from "../lib/usStatePaths";
+import { UsMap } from "./UsMap";
 
 interface StateDatum {
   code: string;
@@ -22,16 +20,10 @@ function bucketOf(value: number, thresholds: number[]): number {
   return thresholds.length + 1;
 }
 
-/** Clickable US choropleth shaded by layoff totals. The SVG is aria-hidden
- *  and mouse-only by design: the card grid rendered below it on /states is a
- *  complete accessible equivalent (the same 51 jurisdictions as real links
- *  with the same numbers), so 51 SVG tab stops would add nothing. */
+/** US choropleth shaded by layoff totals. */
 export function UsChoroplethMap({ data }: { data: StateDatum[] }) {
-  const navigate = useNavigate();
   const { resolved } = useTheme();
   const ramp = CHOROPLETH[resolved];
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [hover, setHover] = useState<{ code: string; x: number; y: number } | null>(null);
 
   // Quartiles of the nonzero totals: the distribution is heavily skewed
   // toward a few large states, so fixed linear buckets would leave most of
@@ -47,32 +39,10 @@ export function UsChoroplethMap({ data }: { data: StateDatum[] }) {
     );
   }, [data]);
 
-  function go(code: string) {
-    navigate({ to: "/states/$state", params: { state: code } });
-  }
-
-  // Single svg-level handler deriving the state from the event target's
-  // data-code. Per-shape mouseEnter/Leave broke here: React 18 treats them as
-  // continuous-priority (batched, not flushed between events), so the svg
-  // mousemove handler's stale `hover` closure re-queued the OLD state code
-  // after enter(new) in the same batch — the tooltip stuck on the first state.
-  // The target is the browser's own hit test, so it can't go stale.
-  function handleMove(e: { clientX: number; clientY: number; target: EventTarget }) {
-    const code = (e.target as SVGElement).dataset?.code;
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!code || !rect) {
-      setHover(null);
-      return;
-    }
-    setHover({ code, x: e.clientX - rect.left, y: e.clientY - rect.top });
-  }
-
-  const hovered = hover ? data.find((d) => d.code === hover.code) : undefined;
-  const flip =
-    hover && containerRef.current
-      ? hover.x > containerRef.current.clientWidth * 0.7
-      : false;
-  const dc = data.find((d) => d.code === "DC");
+  const byCode = new Map(data.map((d) => [d.code, d]));
+  const fills = Object.fromEntries(
+    data.map((d) => [d.code, ramp.buckets[bucketOf(d.layoff_total, thresholds)]]),
+  );
 
   const legend = thresholds.length
     ? [
@@ -91,108 +61,40 @@ export function UsChoroplethMap({ data }: { data: StateDatum[] }) {
     : [{ color: ramp.buckets[0], label: "0" }];
 
   return (
-    <div ref={containerRef} className="card relative">
-      <p className="sr-only">
-        Map of layoffs by state. The state list below contains the same data as
-        accessible links.
-      </p>
-      <svg
-        viewBox={US_MAP_VIEWBOX}
-        className="h-auto w-full"
-        aria-hidden="true"
-        focusable="false"
-        onMouseMove={handleMove}
-        onMouseLeave={() => setHover(null)}
-      >
-        {data.map((s) => (
-          <path
-            key={s.code}
-            d={US_STATE_PATHS[s.code]}
-            fill={ramp.buckets[bucketOf(s.layoff_total, thresholds)]}
-            stroke={ramp.stateStroke}
-            strokeWidth={1}
-            strokeLinejoin="round"
-            className="cursor-pointer"
-            data-code={s.code}
-            onClick={() => go(s.code)}
-          />
-        ))}
-        {/* DC is too small to hit on a geographic map — callout square. */}
-        {dc && (
-          <g className="cursor-pointer" onClick={() => go("DC")}>
-            <line
-              x1={DC_ANCHOR.x}
-              y1={DC_ANCHOR.y}
-              x2={855}
-              y2={258}
-              stroke={ramp.connector}
-              strokeWidth={1}
-              data-code="DC"
-            />
-            <rect
-              x={855}
-              y={250}
-              width={20}
-              height={20}
-              rx={3}
-              fill={ramp.buckets[bucketOf(dc.layoff_total, thresholds)]}
-              stroke={ramp.connector}
-              data-code="DC"
-            />
-            <text
-              x={865}
-              y={264}
-              textAnchor="middle"
-              fontSize={9}
-              className="pointer-events-none select-none fill-slate-900 dark:fill-slate-100"
-            >
-              DC
-            </text>
-          </g>
-        )}
-        {/* Re-stroke the hovered state on top so neighbors don't overpaint it. */}
-        {hover && (
-          <path
-            d={US_STATE_PATHS[hover.code]}
-            fill="none"
-            stroke={ramp.hoverStroke}
-            strokeWidth={1.5}
-            strokeLinejoin="round"
-            className="pointer-events-none"
-          />
-        )}
-      </svg>
-
-      {hover && hovered && (
-        <div
-          className="pointer-events-none absolute z-10 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs shadow-md dark:border-slate-700 dark:bg-slate-800"
-          style={{
-            left: hover.x + (flip ? -12 : 12),
-            top: hover.y + 12,
-            transform: flip ? "translateX(-100%)" : undefined,
-          }}
-        >
-          <div className="font-medium text-slate-900 dark:text-slate-100">{hovered.name}</div>
-          <div className="text-slate-600 dark:text-slate-400">
-            {fmtNum(hovered.notice_count)}{" "}
-            {hovered.notice_count === 1 ? "notice" : "notices"}
-          </div>
-          <div className="text-slate-600 dark:text-slate-400">{fmtNum(hovered.layoff_total)} workers</div>
-        </div>
-      )}
-
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
-        <span className="font-medium text-slate-700 dark:text-slate-300">Workers affected</span>
-        {legend.map((item, i) => (
-          <span key={i} className="flex items-center gap-1.5">
-            <span
-              className="inline-block h-3 w-3 rounded-sm"
-              style={{ backgroundColor: item.color }}
-            />
-            {item.label}
+    <UsMap
+      fills={fills}
+      srLabel="Map of layoffs by state. The state list below contains the same data as accessible links."
+      tooltip={(code) => {
+        const d = byCode.get(code);
+        if (!d) return null;
+        return (
+          <>
+            <div className="font-medium text-slate-900 dark:text-slate-100">{d.name}</div>
+            <div className="text-slate-600 dark:text-slate-400">
+              {fmtNum(d.notice_count)} {d.notice_count === 1 ? "notice" : "notices"}
+            </div>
+            <div className="text-slate-600 dark:text-slate-400">
+              {fmtNum(d.layoff_total)} workers
+            </div>
+          </>
+        );
+      }}
+      legend={
+        <>
+          <span className="font-medium text-slate-700 dark:text-slate-300">
+            Workers affected
           </span>
-        ))}
-      </div>
-    </div>
+          {legend.map((item, i) => (
+            <span key={i} className="flex items-center gap-1.5">
+              <span
+                className="inline-block h-3 w-3 rounded-sm"
+                style={{ backgroundColor: item.color }}
+              />
+              {item.label}
+            </span>
+          ))}
+        </>
+      }
+    />
   );
 }
