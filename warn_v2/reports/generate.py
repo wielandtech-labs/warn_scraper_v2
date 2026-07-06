@@ -51,6 +51,11 @@ Hard rules:
   prior window and the year-over-year context.
 - If naics_coverage_pct is below 50, caveat that industry figures cover only a
   minority of notices.
+- Every layoff figure counts workers losing their jobs. Refer to them as job
+  losses; an increase is bad news and a decrease is a sign of relief. NEVER use
+  growth-positive language for a rise — no "added N positions", "grew by",
+  "gained", or similar. Say "job losses rose to 262 from 114", not
+  "grew by 148 layoffs".
 - Neutral, analytical tone — an economic bulletin, not news copy.
 """
 
@@ -71,6 +76,11 @@ Hard rules:
   Then note which states account for the biggest shifts.
 - If naics_coverage_pct is below 50, caveat that industry figures cover only a
   minority of notices.
+- Every layoff figure counts workers losing their jobs. Refer to them as job
+  losses; an increase is bad news and a decrease is a sign of relief. NEVER use
+  growth-positive language for a rise — no "added N positions", "grew by",
+  "gained", or similar. Say "job losses rose to 262 from 114", not
+  "grew by 148 layoffs".
 - Neutral, analytical tone — an economic bulletin, not news copy.
 """
 
@@ -92,6 +102,11 @@ Hard rules:
   given — do not recompute or reinterpret them.
 - Always note that figures cover only NAICS-enriched notices (see
   coverage_note) and are directional, not exhaustive.
+- Every layoff figure counts workers losing their jobs. Refer to them as job
+  losses; an increase is bad news and a decrease is a sign of relief. NEVER use
+  growth-positive language for a rise — no "added N positions", "grew by",
+  "gained", or similar. Say "job losses rose to 262 from 114", not
+  "grew by 148 layoffs".
 - Neutral, analytical tone — an economic bulletin, not news copy.
 """
 
