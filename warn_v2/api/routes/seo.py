@@ -23,7 +23,7 @@ from warn_v2.states import STATE_NAMES, is_valid_state, state_name
 router = APIRouter(tags=["seo"], include_in_schema=False)
 
 # Top-level SPA pages worth advertising to crawlers besides the state/content set.
-_APP_PAGES = ["/", "/notices", "/companies", "/map", "/stats", "/states", "/status"]
+_APP_PAGES = ["/", "/notices", "/companies", "/map", "/stats", "/states", "/reports", "/status"]
 
 _RSS_LIMIT = 50
 _HTTP_DATE = "%a, %d %b %Y %H:%M:%S GMT"
