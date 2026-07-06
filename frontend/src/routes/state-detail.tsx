@@ -25,11 +25,15 @@ import {
 } from "../components/TimeRangeToggle";
 import { UnavailableNotice } from "../components/UnavailableNotice";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useTheme } from "../hooks/useTheme";
 import { STATE_NAMES, fmtCompact, fmtDate, fmtNum, fmtPeriod, stateName } from "../lib/format";
 import { projectionTooltip, withProjectionSeries } from "../lib/projection";
+import { CHART_COLORS } from "../lib/themeColors";
 import { LAW_BLOCKED } from "../lib/unavailable";
 
 export function StateDetailPage() {
+  const { resolved } = useTheme();
+  const chart = CHART_COLORS[resolved];
   const { state } = useParams({ from: "/states/$state" });
   const code = state.toUpperCase();
   const valid = code in STATE_NAMES;
@@ -180,28 +184,36 @@ export function StateDetailPage() {
             >
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={timeData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="label" tick={{ fontSize: 12 }} minTickGap={24} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 12, fill: chart.axis }}
+                    minTickGap={24}
+                  />
                   {/* Axis ticks are colored to match their series, so the dual
                       axes are readable without cross-referencing the legend. */}
                   <YAxis
                     yAxisId="left"
-                    tick={{ fontSize: 12, fill: "#0369a1" }}
+                    tick={{ fontSize: 12, fill: chart.notices }}
                     tickFormatter={fmtCompact}
                   />
                   <YAxis
                     yAxisId="right"
                     orientation="right"
-                    tick={{ fontSize: 12, fill: "#dc2626" }}
+                    tick={{ fontSize: 12, fill: chart.layoffs }}
                     tickFormatter={fmtCompact}
                   />
-                  <Tooltip formatter={projectionTooltip} />
+                  <Tooltip
+                    formatter={projectionTooltip}
+                    contentStyle={chart.tooltip}
+                    labelStyle={chart.tooltipLabel}
+                  />
                   <Line
                     yAxisId="left"
                     type="monotone"
                     dataKey="notice_count"
                     name="Notices"
-                    stroke="#0369a1"
+                    stroke={chart.notices}
                     strokeWidth={2}
                     dot={false}
                   />
@@ -210,7 +222,7 @@ export function StateDetailPage() {
                     type="monotone"
                     dataKey="layoff_total"
                     name="Workers affected"
-                    stroke="#dc2626"
+                    stroke={chart.layoffs}
                     strokeWidth={2}
                     dot={false}
                   />
@@ -221,7 +233,7 @@ export function StateDetailPage() {
                     type="monotone"
                     dataKey="projected_notice_count"
                     name="Notices (projected)"
-                    stroke="#0369a1"
+                    stroke={chart.notices}
                     strokeWidth={2}
                     strokeDasharray="5 5"
                     dot={false}
@@ -232,7 +244,7 @@ export function StateDetailPage() {
                     type="monotone"
                     dataKey="projected_layoff_total"
                     name="Workers affected (projected)"
-                    stroke="#dc2626"
+                    stroke={chart.layoffs}
                     strokeWidth={2}
                     strokeDasharray="5 5"
                     dot={false}
