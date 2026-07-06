@@ -45,7 +45,15 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="WARN Scraper",
         version="2",
-        description="Read-only API for WARN Act layoff notices, companies, and scraper audit logs.",
+        description=(
+            "Read-only API for WARN Act layoff notices, companies, and scraper audit logs.\n\n"
+            "**Authentication:** anonymous requests work at low rate limits. For "
+            "programmatic access, create an account and send an API key as "
+            "`X-API-Key: warn_...` or `Authorization: Bearer warn_...` — free keys get a "
+            "daily quota; paid tiers add enriched company fields, bulk exports, and "
+            "higher limits. Check your quota at `/api/usage`; keyed responses carry "
+            "`X-RateLimit-*` headers."
+        ),
         lifespan=_lifespan,
     )
 

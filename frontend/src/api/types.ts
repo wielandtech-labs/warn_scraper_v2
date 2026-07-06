@@ -24,8 +24,9 @@ export interface CompanyOut {
   // Workers affected (rolled up over merged dupes, superseded excluded).
   // Computed only by the companies list endpoint; null elsewhere.
   layoff_total?: number | null;
-  // D&B enrichment fields — present only for paid/admin sessions; the API
-  // omits the keys entirely for anonymous/free viewers.
+  // D&B enrichment fields — present only for paid sessions and above; the API
+  // omits the keys entirely for anonymous/free viewers. Raw DUNS identifiers
+  // are enterprise/admin only.
   duns?: string | null;
   parent_duns?: string | null;
   parent_company_name?: string | null;
@@ -36,7 +37,35 @@ export interface CompanyOut {
 
 export interface AuthUser {
   email: string;
-  role: "admin" | "paid" | "free";
+  role: "admin" | "enterprise" | "paid" | "free";
+}
+
+export interface ApiKeyOut {
+  id: number;
+  prefix: string;
+  name: string | null;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+}
+
+/** POST /api/keys response — `key` is the raw value, shown exactly once. */
+export interface ApiKeyCreatedOut extends ApiKeyOut {
+  key: string;
+}
+
+export interface KeyUsageOut {
+  prefix: string;
+  name: string | null;
+  today: number;
+}
+
+export interface UsageOut {
+  tier: string;
+  per_minute_limit: number | null;
+  daily_limit: number | null;
+  today: number;
+  keys: KeyUsageOut[];
 }
 
 export interface NoticeOut {
