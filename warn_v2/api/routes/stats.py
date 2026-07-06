@@ -229,7 +229,9 @@ def _pace_projection(
     it; otherwise None. projected = round(actual * period_days / elapsed_days),
     floored at the actual count so it never dips below data already reported.
     Day buckets (substr_len=10) are never projected: a partial "today" barely
-    distorts the 30-day daily view.
+    distorts the 30-day daily view. Nothing is projected until 10% of the
+    period has elapsed: below that the pace multiplier (>10x) amplifies a
+    couple of notices into a y-axis-blowing spike at every period start.
     """
     if substr_len not in (4, 7) or not rows:
         return None
@@ -254,6 +256,8 @@ def _pace_projection(
         return None
     if elapsed >= period_days:
         return None  # last day of the period: nothing left to project
+    if elapsed * 10 < period_days:
+        return None  # <10% elapsed: too early to call a pace (see docstring)
     scale = period_days / elapsed
     _, notices, layoffs = rows[-1]
     return max(notices, round(notices * scale)), max(layoffs, round(layoffs * scale))
