@@ -10,11 +10,21 @@ from warn_v2.api.routes import reports as reports_mod
 
 
 @pytest.fixture
-def client(tmp_path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+def client(tmp_path, monkeypatch: pytest.MonkeyPatch, db) -> TestClient:
     from warn_v2.api import app
+    from warn_v2.api.deps import get_db
 
     monkeypatch.setattr(reports_mod, "_REPORTS_DIR", tmp_path)
-    return TestClient(app, raise_server_exceptions=True)
+
+    # Reports content comes from the filesystem, but the routes now sit behind
+    # the rate limiter, whose dependency chain opens a DB session — so the
+    # tests need the standard override even though no report data lives in it.
+    def _override():
+        yield db
+
+    app.dependency_overrides[get_db] = _override
+    yield TestClient(app, raise_server_exceptions=True)
+    app.dependency_overrides.clear()
 
 
 def test_get_report_ok(client, tmp_path):
