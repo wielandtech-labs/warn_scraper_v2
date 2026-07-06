@@ -67,4 +67,25 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version }}
       name: {{ .Values.smtp.secretName }}
       key: {{ .Values.smtp.passwordKey }}
 {{- end }}
+{{- if .Values.signup.enabled }}
+- name: SIGNUP_ENABLED
+  value: "1"
+{{- end }}
+{{- if .Values.stripe.enabled }}
+- name: STRIPE_SECRET_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.stripe.secretName }}
+      key: {{ .Values.stripe.secretKeyKey }}
+- name: STRIPE_WEBHOOK_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.stripe.secretName }}
+      key: {{ .Values.stripe.webhookSecretKey }}
+- name: STRIPE_PRICE_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.stripe.secretName }}
+      key: {{ .Values.stripe.priceIdKey }}
+{{- end }}
 {{- end -}}
