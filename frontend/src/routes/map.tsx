@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import L from "leaflet";
@@ -157,6 +157,43 @@ export function MapPage() {
   const total = totalQuery.data;
   const capped = points.length >= pinCap;
 
+  // Memoized on `points` only: every pan mirrors the viewport into the URL,
+  // which re-renders this component via useSearch — without the memo, React
+  // re-reconciles up to 10k <Marker> elements (and the fresh position arrays
+  // make react-leaflet call setLatLng on every one) on every pan, even when
+  // nothing refetched. React Query keeps `points` referentially stable
+  // between refetches (placeholderData included), so this bails out of the
+  // whole marker subtree unless the data actually changed.
+  const markers = useMemo(
+    () =>
+      points.map((n) => (
+        <Marker
+          key={n.notice_id}
+          position={[Number(n.lat), Number(n.lon)]}
+        >
+          <Popup>
+            <div className="text-sm">
+              <div className="font-semibold">{n.employer}</div>
+              <div className="text-slate-600">
+                {n.state} · {fmtDate(n.notice_date)}
+              </div>
+              <div className="mt-1">
+                {fmtNum(n.layoff_count)} affected
+              </div>
+              <Link
+                to="/notices/$noticeId"
+                params={{ noticeId: n.notice_id }}
+                className="mt-1 inline-block text-sky-700 hover:underline"
+              >
+                Details →
+              </Link>
+            </div>
+          </Popup>
+        </Marker>
+      )),
+    [points],
+  );
+
   return (
     <div>
       <h1 className="mb-3 text-2xl font-semibold">Map</h1>
@@ -179,33 +216,7 @@ export function MapPage() {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          <MarkerClusterGroup chunkedLoading>
-            {points.map((n) => (
-              <Marker
-                key={n.notice_id}
-                position={[Number(n.lat), Number(n.lon)]}
-              >
-                <Popup>
-                  <div className="text-sm">
-                    <div className="font-semibold">{n.employer}</div>
-                    <div className="text-slate-600">
-                      {n.state} · {fmtDate(n.notice_date)}
-                    </div>
-                    <div className="mt-1">
-                      {fmtNum(n.layoff_count)} affected
-                    </div>
-                    <Link
-                      to="/notices/$noticeId"
-                      params={{ noticeId: n.notice_id }}
-                      className="mt-1 inline-block text-sky-700 hover:underline"
-                    >
-                      Details →
-                    </Link>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
-          </MarkerClusterGroup>
+          <MarkerClusterGroup chunkedLoading>{markers}</MarkerClusterGroup>
         </MapContainer>
       </div>
 

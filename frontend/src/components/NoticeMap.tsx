@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import L from "leaflet";
@@ -50,6 +50,34 @@ export function NoticeMap({
 
   const points = query.data ?? [];
 
+  // Memoized on `points` (referentially stable between refetches) so parent
+  // re-renders don't re-reconcile thousands of <Marker> elements. Must be
+  // called before the early returns below (rules of hooks).
+  const markers = useMemo(
+    () =>
+      points.map((n) => (
+        <Marker key={n.notice_id} position={[Number(n.lat), Number(n.lon)]}>
+          <Popup>
+            <div className="text-sm">
+              <div className="font-semibold">{n.employer}</div>
+              <div className="text-slate-600">
+                {n.state} · {fmtDate(n.notice_date)}
+              </div>
+              <div className="mt-1">{fmtNum(n.layoff_count)} affected</div>
+              <Link
+                to="/notices/$noticeId"
+                params={{ noticeId: n.notice_id }}
+                className="mt-1 inline-block text-sky-700 hover:underline"
+              >
+                Details →
+              </Link>
+            </div>
+          </Popup>
+        </Marker>
+      )),
+    [points],
+  );
+
   if (query.isLoading) {
     return (
       <div className="flex items-center justify-center text-slate-500" style={{ height }}>
@@ -79,28 +107,7 @@ export function NoticeMap({
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          <MarkerClusterGroup chunkedLoading>
-            {points.map((n) => (
-              <Marker key={n.notice_id} position={[Number(n.lat), Number(n.lon)]}>
-                <Popup>
-                  <div className="text-sm">
-                    <div className="font-semibold">{n.employer}</div>
-                    <div className="text-slate-600">
-                      {n.state} · {fmtDate(n.notice_date)}
-                    </div>
-                    <div className="mt-1">{fmtNum(n.layoff_count)} affected</div>
-                    <Link
-                      to="/notices/$noticeId"
-                      params={{ noticeId: n.notice_id }}
-                      className="mt-1 inline-block text-sky-700 hover:underline"
-                    >
-                      Details →
-                    </Link>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
-          </MarkerClusterGroup>
+          <MarkerClusterGroup chunkedLoading>{markers}</MarkerClusterGroup>
         </MapContainer>
       </div>
       <div className="mt-2 text-xs text-slate-500">
