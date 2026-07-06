@@ -21,7 +21,10 @@ import { MethodologyPage } from "./routes/content/methodology";
 import { FaqPage } from "./routes/content/faq";
 import { CitedByPage } from "./routes/content/cited-by";
 import { ApiDocsPage } from "./routes/content/api-docs";
+import { TermsPage } from "./routes/content/terms";
 import { LoginPage } from "./routes/login";
+import { SignupPage } from "./routes/signup";
+import { AccountPage } from "./routes/account";
 
 const rootRoute = createRootRoute({
   component: () => (
@@ -249,10 +252,28 @@ const apiDocsRoute = createRoute({
   component: ApiDocsPage,
 });
 
+const termsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/terms",
+  component: TermsPage,
+});
+
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
   component: LoginPage,
+});
+
+const signupRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/signup",
+  component: SignupPage,
+});
+
+const accountRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/account",
+  component: AccountPage,
 });
 
 const routeTree = rootRoute.addChildren([
@@ -274,7 +295,10 @@ const routeTree = rootRoute.addChildren([
   faqRoute,
   citedByRoute,
   apiDocsRoute,
+  termsRoute,
   loginRoute,
+  signupRoute,
+  accountRoute,
 ]);
 
 // Rendered inside the root route's Layout for any URL that matches no route.

@@ -5,6 +5,8 @@
 // In dev, vite.config.ts proxies these paths to the local FastAPI server.
 
 import type {
+  ApiKeyCreatedOut,
+  ApiKeyOut,
   AuthUser,
   CompanyOut,
   CountyImpactStat,
@@ -21,6 +23,7 @@ import type {
   SearchResults,
   StateStat,
   StateStatusOut,
+  UsageOut,
 } from "./types";
 
 export class ApiError extends Error {
@@ -58,6 +61,18 @@ async function getText(path: string): Promise<string> {
     throw new ApiError(resp.status, text || resp.statusText);
   }
   return await resp.text();
+}
+
+async function del<T>(path: string): Promise<T> {
+  const resp = await fetch(path, {
+    method: "DELETE",
+    headers: { Accept: "application/json" },
+  });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new ApiError(resp.status, text || resp.statusText);
+  }
+  return (await resp.json()) as T;
 }
 
 // Same-origin fetch sends the session cookie by default; no credentials flag needed.
@@ -125,6 +140,18 @@ export const api = {
     post<AuthUser>("/api/auth/login", { email, password }),
   logout: () => post<{ status: string }>("/api/auth/logout"),
   me: () => get<AuthUser>("/api/auth/me"),
+  signup: (email: string, password: string) =>
+    post<{ status: string; message: string }>("/api/auth/signup", { email, password }),
+  forgotPassword: (email: string) =>
+    post<{ status: string; message: string }>("/api/auth/forgot", { email }),
+
+  // ---------- API keys / usage / billing (account page) ----------
+  listKeys: () => get<ApiKeyOut[]>("/api/keys"),
+  createKey: (name?: string) => post<ApiKeyCreatedOut>("/api/keys", { name: name || null }),
+  revokeKey: (id: number) => del<{ status: string }>(`/api/keys/${id}`),
+  usage: () => get<UsageOut>("/api/usage"),
+  billingCheckout: () => post<{ url: string }>("/api/billing/checkout"),
+  billingPortal: () => post<{ url: string }>("/api/billing/portal"),
 
   listNotices: (q: NoticesQuery = {}) =>
     get<Page<NoticeOut>>("/api/notices" + qs(q as Record<string, string | number | undefined>)),

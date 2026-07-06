@@ -43,7 +43,15 @@ function AccountArea() {
   }
   return (
     <div className="flex items-center gap-2 border-l border-slate-200 pl-3 dark:border-slate-800">
-      <span className="hidden text-sm text-slate-600 sm:inline dark:text-slate-400">{user.email}</span>
+      <Link
+        to="/account"
+        className="hidden text-sm text-slate-600 hover:underline sm:inline dark:text-slate-400"
+      >
+        {user.email}
+      </Link>
+      <Link to="/account" className="text-sm text-slate-600 sm:hidden dark:text-slate-400">
+        Account
+      </Link>
       {user.role !== "free" && (
         <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-900 dark:text-sky-300">
           {user.role}
@@ -173,6 +181,8 @@ export function Layout({ children }: { children: ReactNode }) {
             <a className="hover:underline" href="/feed.rss">RSS</a>
             <span aria-hidden>·</span>
             <Link className="hover:underline" to="/api-docs">Data &amp; API</Link>
+            <span aria-hidden>·</span>
+            <Link className="hover:underline" to="/terms">Terms</Link>
           </nav>
           <p>Data from US state WARN Act listings · scraped daily.</p>
         </div>
