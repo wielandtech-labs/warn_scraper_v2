@@ -8,7 +8,9 @@ import MarkerClusterGroup from "react-leaflet-cluster";
 import { api } from "../api/client";
 import { FilterBar, type FilterValues } from "../components/FilterBar";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useTheme } from "../hooks/useTheme";
 import { fmtDate, fmtNum } from "../lib/format";
+import { TILE_LAYERS } from "../lib/themeColors";
 import "../lib/leafletIcon"; // sets the default marker icon (Vite asset fix)
 
 const CENTER_US: [number, number] = [39.5, -98.35];
@@ -75,6 +77,8 @@ function ViewportWatcher({ onChange }: { onChange: (v: Viewport) => void }) {
 
 export function MapPage() {
   useDocumentTitle("Layoff map — WARN Tracker");
+  const { resolved } = useTheme();
+  const tiles = TILE_LAYERS[resolved];
   const navigate = useNavigate({ from: "/map" });
   const search = useSearch({ from: "/map" });
   const [bbox, setBbox] = useState<Bbox | null>(null);
@@ -209,13 +213,13 @@ export function MapPage() {
           center={search.lat != null && search.lon != null ? [search.lat, search.lon] : CENTER_US}
           zoom={search.zoom ?? 4}
           scrollWheelZoom
+          className="bg-slate-100 dark:bg-slate-900"
           style={{ height: "70vh", width: "100%", position: "relative" }}
         >
           <ViewportWatcher onChange={handleViewport} />
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
+          {/* key remounts the layer on theme change — attribution is not a
+              mutable prop in react-leaflet v4. */}
+          <TileLayer key={resolved} attribution={tiles.attribution} url={tiles.url} />
           <MarkerClusterGroup chunkedLoading>{markers}</MarkerClusterGroup>
         </MapContainer>
       </div>

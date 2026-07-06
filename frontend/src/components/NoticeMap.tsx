@@ -6,7 +6,9 @@ import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
 
 import { api, type MapPin } from "../api/client";
+import { useTheme } from "../hooks/useTheme";
 import { fmtDate, fmtNum } from "../lib/format";
+import { TILE_LAYERS } from "../lib/themeColors";
 import "../lib/leafletIcon"; // sets the default marker icon (Vite asset fix)
 
 const CENTER_US: [number, number] = [39.5, -98.35];
@@ -42,6 +44,8 @@ export function NoticeMap({
   before?: string;
   height?: string;
 }) {
+  const { resolved } = useTheme();
+  const tiles = TILE_LAYERS[resolved];
   const query = useQuery({
     queryKey: ["map-pins", "state", { state, after, before }],
     queryFn: () =>
@@ -100,13 +104,13 @@ export function NoticeMap({
           center={CENTER_US}
           zoom={4}
           scrollWheelZoom
+          className="bg-slate-100 dark:bg-slate-900"
           style={{ height, width: "100%", position: "relative" }}
         >
           <FitBounds points={points} />
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
+          {/* key remounts the layer on theme change — attribution is not a
+              mutable prop in react-leaflet v4. */}
+          <TileLayer key={resolved} attribution={tiles.attribution} url={tiles.url} />
           <MarkerClusterGroup chunkedLoading>{markers}</MarkerClusterGroup>
         </MapContainer>
       </div>
