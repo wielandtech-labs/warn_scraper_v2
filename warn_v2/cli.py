@@ -1221,6 +1221,34 @@ def set_role_cmd(email: str, role: str) -> None:
     click.echo(f"{email} role={role}")
 
 
+@main.command("export-bigquery")
+@click.option("--project", envvar="BQ_PROJECT", required=True,
+              help="GCP project id (or BQ_PROJECT env)")
+@click.option("--dataset", default="warn_notices", show_default=True)
+@click.option("--snapshot/--no-snapshot", default=True, show_default=True,
+              help="Also append today's point-in-time snapshot partition")
+@click.option("--dry-run", is_flag=True, help="Shape rows and report counts without loading")
+def export_bigquery_cmd(project: str, dataset: str, snapshot: bool, dry_run: bool) -> None:
+    """Publish enriched notices to the public BigQuery dataset (daily full refresh).
+
+    Exports only notices whose canonical company has enrichment. Credentials
+    via GOOGLE_APPLICATION_CREDENTIALS (ADC). Exits non-zero on load failure
+    so the k8s Job surfaces as Failed.
+    """
+    from warn_v2.db.session import session_scope
+    from warn_v2.scripts.bq_export import fetch_export_rows, load_to_bigquery
+
+    with session_scope() as session:
+        rows = fetch_export_rows(session)
+    superseded = sum(1 for r in rows if r["is_superseded"])
+    click.echo(f"shaped {len(rows)} notices ({superseded} superseded) for {project}.{dataset}")
+    if dry_run:
+        click.echo("dry-run: not loading")
+        return
+    load_to_bigquery(rows, project, dataset, snapshot=snapshot)
+    click.echo(f"loaded notices{' + snapshot' if snapshot else ''} to {project}.{dataset}")
+
+
 @main.command("issue-key")
 @click.option("--email", required=True)
 @click.option("--name", default=None, help="Label shown in key listings")
