@@ -6,7 +6,17 @@ export const UNSUPPORTED: Record<string, string> = {
   AR: "WARN notices are confidential under Arkansas law (A.C.A. § 11-10-314); none are published.",
   NH: "New Hampshire does not publish WARN notices online; available only by records request.",
   WY: "WARN notices are confidential under Wyoming law (Wyo. Stat. § 9-2-2607); none are published.",
-  OK: "Oklahoma moved to a Salesforce portal that needs a browser token — scraper pending.",
+};
+
+/**
+ * States whose source publishes WARN notices but no employee-affected counts,
+ * so layoff totals are structurally unavailable (not a scraping gap). Shown as
+ * a note on the state detail page instead of a misleading zero.
+ */
+export const NO_COUNTS: Record<string, string> = {
+  OK: "Oklahoma's WARN portal (Employ Oklahoma) publishes notice details but " +
+    "not the number of employees affected, so worker counts are unavailable " +
+    "for Oklahoma notices.",
 };
 
 /**
