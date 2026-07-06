@@ -2,7 +2,7 @@
 
 ## Repo overview
 
-`warn_scrapper_v2` — WARN Act layoff-notice scraper. 47 jurisdictions live.
+`warn_scrapper_v2` — WARN Act layoff-notice scraper. 48 jurisdictions live.
 K3s deployment via Flux + Helm chart in `charts/warn-v2/`.
 
 ## Helm chart version (`charts/warn-v2/Chart.yaml`)
