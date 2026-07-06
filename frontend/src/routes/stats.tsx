@@ -16,10 +16,12 @@ import {
 
 import { api } from "../api/client";
 import { FilterBar, type FilterValues } from "../components/FilterBar";
+import { ProjectionNote } from "../components/ProjectionNote";
 import { QueryError } from "../components/QueryError";
 import { SkeletonChart } from "../components/Skeleton";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { fmtCompact, fmtMonth, fmtNum } from "../lib/format";
+import { projectionTooltip, withProjectionSeries } from "../lib/projection";
 
 export function StatsPage() {
   useDocumentTitle("Layoff statistics & trends — WARN Tracker");
@@ -57,10 +59,12 @@ export function StatsPage() {
     navigate({ search: () => ({ ...next, employer: undefined }) });
   };
 
-  const monthData = (byMonth.data ?? []).map((r) => ({
-    ...r,
-    monthLabel: fmtMonth(r.month),
-  }));
+  const { data: monthData, hasProjection } = withProjectionSeries(
+    (byMonth.data ?? []).map((r) => ({
+      ...r,
+      monthLabel: fmtMonth(r.month),
+    })),
+  );
 
   return (
     <div className="space-y-6">
@@ -78,50 +82,81 @@ export function StatsPage() {
         ) : byMonth.isError ? (
           <QueryError message="Error loading the chart." onRetry={() => byMonth.refetch()} />
         ) : (
-          <div
-            role="img"
-            aria-label="Line chart of notice counts and workers affected by month"
-          >
-            <ResponsiveContainer width="100%" height={320}>
-              <LineChart data={monthData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="monthLabel" tick={{ fontSize: 12 }} />
-                {/* Axis ticks are colored to match their series, so the dual
-                    axes are readable without cross-referencing the legend. */}
-                <YAxis
-                  yAxisId="left"
-                  tick={{ fontSize: 12, fill: "#0369a1" }}
-                  tickFormatter={fmtCompact}
-                />
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  tick={{ fontSize: 12, fill: "#dc2626" }}
-                  tickFormatter={fmtCompact}
-                />
-                <Tooltip formatter={(v: number) => fmtNum(v)} />
-                <Legend />
-                <Line
-                  yAxisId="left"
-                  type="monotone"
-                  dataKey="notice_count"
-                  name="Notices"
-                  stroke="#0369a1"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="layoff_total"
-                  name="Workers affected"
-                  stroke="#dc2626"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <>
+            <div
+              role="img"
+              aria-label="Line chart of notice counts and workers affected by month"
+            >
+              <ResponsiveContainer width="100%" height={320}>
+                <LineChart data={monthData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="monthLabel" tick={{ fontSize: 12 }} />
+                  {/* Axis ticks are colored to match their series, so the dual
+                      axes are readable without cross-referencing the legend. */}
+                  <YAxis
+                    yAxisId="left"
+                    tick={{ fontSize: 12, fill: "#0369a1" }}
+                    tickFormatter={fmtCompact}
+                  />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    tick={{ fontSize: 12, fill: "#dc2626" }}
+                    tickFormatter={fmtCompact}
+                  />
+                  <Tooltip formatter={projectionTooltip} />
+                  <Legend />
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="notice_count"
+                    name="Notices"
+                    stroke="#0369a1"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="layoff_total"
+                    name="Workers affected"
+                    stroke="#dc2626"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                  {/* Dashed pace projection for the current, incomplete month;
+                      all-null (invisible) when no projection is active. */}
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="projected_notice_count"
+                    name="Notices (projected)"
+                    stroke="#0369a1"
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    dot={false}
+                    legendType="none"
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="projected_layoff_total"
+                    name="Workers affected (projected)"
+                    stroke="#dc2626"
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    dot={false}
+                    legendType="none"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            {hasProjection && (
+              <ProjectionNote
+                periodLabel={monthData[monthData.length - 1].monthLabel}
+              />
+            )}
+          </>
         )}
       </ChartCard>
 

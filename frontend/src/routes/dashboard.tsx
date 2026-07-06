@@ -23,8 +23,10 @@ import {
   toRangeQuery,
   type TimeRange,
 } from "../components/TimeRangeToggle";
+import { ProjectionNote } from "../components/ProjectionNote";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { fmtCompact, fmtDate, fmtNum, fmtPeriod } from "../lib/format";
+import { projectionTooltip, withProjectionSeries } from "../lib/projection";
 
 export function Dashboard() {
   useDocumentTitle("WARN Tracker — US layoff & closure notices");
@@ -60,10 +62,12 @@ export function Dashboard() {
     byState.data?.reduce((acc, s) => acc + s.layoff_total, 0) ?? null;
   const totalNotices = byState.data?.reduce((acc, s) => acc + s.notice_count, 0) ?? null;
 
-  const timeData = (overTime.data ?? []).map((r) => ({
-    ...r,
-    label: fmtPeriod(r.period, bucket),
-  }));
+  const { data: timeData, hasProjection } = withProjectionSeries(
+    (overTime.data ?? []).map((r) => ({
+      ...r,
+      label: fmtPeriod(r.period, bucket),
+    })),
+  );
   const industryData = (industries.data ?? [])
     .slice()
     .sort((a, b) => b.layoff_total - a.layoff_total);
@@ -122,50 +126,79 @@ export function Dashboard() {
             No notices in this period.
           </div>
         ) : (
-          <div
-            role="img"
-            aria-label="Line chart of notice counts and workers affected over time"
-          >
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={timeData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="label" tick={{ fontSize: 12 }} minTickGap={24} />
-                {/* Axis ticks are colored to match their series, so the dual
-                    axes are readable without cross-referencing the legend. */}
-                <YAxis
-                  yAxisId="left"
-                  tick={{ fontSize: 12, fill: "#0369a1" }}
-                  tickFormatter={fmtCompact}
-                />
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  tick={{ fontSize: 12, fill: "#dc2626" }}
-                  tickFormatter={fmtCompact}
-                />
-                <Tooltip formatter={(v: number) => fmtNum(v)} />
-                <Legend />
-                <Line
-                  yAxisId="left"
-                  type="monotone"
-                  dataKey="notice_count"
-                  name="Notices"
-                  stroke="#0369a1"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="layoff_total"
-                  name="Workers affected"
-                  stroke="#dc2626"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <>
+            <div
+              role="img"
+              aria-label="Line chart of notice counts and workers affected over time"
+            >
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={timeData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="label" tick={{ fontSize: 12 }} minTickGap={24} />
+                  {/* Axis ticks are colored to match their series, so the dual
+                      axes are readable without cross-referencing the legend. */}
+                  <YAxis
+                    yAxisId="left"
+                    tick={{ fontSize: 12, fill: "#0369a1" }}
+                    tickFormatter={fmtCompact}
+                  />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    tick={{ fontSize: 12, fill: "#dc2626" }}
+                    tickFormatter={fmtCompact}
+                  />
+                  <Tooltip formatter={projectionTooltip} />
+                  <Legend />
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="notice_count"
+                    name="Notices"
+                    stroke="#0369a1"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="layoff_total"
+                    name="Workers affected"
+                    stroke="#dc2626"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                  {/* Dashed pace projection for the current, incomplete period;
+                      all-null (invisible) when no projection is active. */}
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="projected_notice_count"
+                    name="Notices (projected)"
+                    stroke="#0369a1"
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    dot={false}
+                    legendType="none"
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="projected_layoff_total"
+                    name="Workers affected (projected)"
+                    stroke="#dc2626"
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    dot={false}
+                    legendType="none"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            {hasProjection && (
+              <ProjectionNote periodLabel={timeData[timeData.length - 1].label} />
+            )}
+          </>
         )}
       </div>
 

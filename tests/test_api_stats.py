@@ -206,6 +206,142 @@ def test_over_time_state_and_date_filters(api_client, db):
 
 
 # ---------------------------------------------------------------------------
+# Pace projection for the current, incomplete period
+# ---------------------------------------------------------------------------
+
+def _freeze_today(monkeypatch: pytest.MonkeyPatch, d: date) -> None:
+    from warn_v2.api.routes import stats as stats_routes
+
+    monkeypatch.setattr(stats_routes, "_today", lambda: d)
+
+
+def test_over_time_month_bucket_projects_current_month(api_client, db, monkeypatch):
+    _freeze_today(monkeypatch, date(2026, 7, 15))  # July: 31 days, scale 31/15
+    _notice(db, state="CA", employer="A", notice_date=date(2026, 6, 10), layoff_count=100)
+    _notice(db, state="CA", employer="B", notice_date=date(2026, 7, 5), layoff_count=60)
+    _notice(db, state="CA", employer="C", notice_date=date(2026, 7, 10), layoff_count=90)
+    db.commit()
+
+    body = api_client.get("/api/stats/over-time?bucket=month").json()
+    periods = {r["period"]: r for r in body}
+    cur = periods["2026-07"]
+    assert cur["notice_count"] == 2  # actuals unchanged
+    assert cur["layoff_total"] == 150
+    assert cur["projected_notice_count"] == 4  # round(2 * 31/15)
+    assert cur["projected_layoff_total"] == 310  # 150 * 31/15
+    assert periods["2026-06"]["projected_notice_count"] is None
+    assert periods["2026-06"]["projected_layoff_total"] is None
+
+
+def test_over_time_year_bucket_projects_current_year(api_client, db, monkeypatch):
+    _freeze_today(monkeypatch, date(2026, 3, 14))  # yday 73; 365/73 = 5.0
+    _notice(db, state="CA", employer="Old", notice_date=date(2025, 6, 1), layoff_count=10)
+    _notice(db, state="CA", employer="A", notice_date=date(2026, 1, 15), layoff_count=100)
+    _notice(db, state="CA", employer="B", notice_date=date(2026, 2, 20), layoff_count=100)
+    db.commit()
+
+    body = api_client.get("/api/stats/over-time?bucket=year").json()
+    periods = {r["period"]: r for r in body}
+    assert periods["2026"]["projected_notice_count"] == 10  # 2 * 5
+    assert periods["2026"]["projected_layoff_total"] == 1000  # 200 * 5
+    assert periods["2025"]["projected_notice_count"] is None
+
+
+def test_by_month_projects_current_month(api_client, db, monkeypatch):
+    _freeze_today(monkeypatch, date(2026, 7, 15))
+    _notice(db, state="CA", employer="A", notice_date=date(2026, 6, 10), layoff_count=100)
+    _notice(db, state="CA", employer="B", notice_date=date(2026, 7, 5), layoff_count=60)
+    _notice(db, state="CA", employer="C", notice_date=date(2026, 7, 10), layoff_count=90)
+    db.commit()
+
+    body = api_client.get("/api/stats/by-month").json()
+    months = {r["month"]: r for r in body}
+    assert months["2026-07"]["projected_notice_count"] == 4
+    assert months["2026-07"]["projected_layoff_total"] == 310
+    assert months["2026-06"]["projected_notice_count"] is None
+
+
+def test_day_bucket_never_projected(api_client, db, monkeypatch):
+    _freeze_today(monkeypatch, date(2026, 7, 15))
+    _notice(db, state="CA", employer="A", notice_date=date(2026, 7, 15), layoff_count=50)
+    db.commit()
+
+    body = api_client.get("/api/stats/over-time?bucket=day").json()
+    assert body[-1]["period"] == "2026-07-15"
+    assert body[-1]["projected_notice_count"] is None
+    assert body[-1]["projected_layoff_total"] is None
+
+
+def test_no_projection_when_current_period_absent(api_client, db, monkeypatch):
+    _freeze_today(monkeypatch, date(2026, 7, 15))
+    _notice(db, state="CA", employer="A", notice_date=date(2026, 5, 10), layoff_count=10)
+    _notice(db, state="CA", employer="B", notice_date=date(2026, 6, 10), layoff_count=20)
+    db.commit()
+
+    body = api_client.get("/api/stats/over-time?bucket=month").json()
+    assert {r["period"] for r in body} == {"2026-05", "2026-06"}  # no synthetic row
+    assert body[-1]["projected_notice_count"] is None
+
+
+def test_no_projection_on_last_day_of_period(api_client, db, monkeypatch):
+    _freeze_today(monkeypatch, date(2026, 7, 31))
+    _notice(db, state="CA", employer="A", notice_date=date(2026, 7, 5), layoff_count=50)
+    db.commit()
+
+    body = api_client.get("/api/stats/over-time?bucket=month").json()
+    assert body[-1]["period"] == "2026-07"
+    assert body[-1]["projected_notice_count"] is None
+
+
+def test_projection_floor_at_actual(api_client, db, monkeypatch):
+    _freeze_today(monkeypatch, date(2026, 7, 30))  # scale 31/30: rounds back to actual
+    _notice(db, state="CA", employer="A", notice_date=date(2026, 7, 5), layoff_count=1)
+    db.commit()
+
+    body = api_client.get("/api/stats/over-time?bucket=month").json()
+    assert body[-1]["projected_notice_count"] == 1  # never below the actual count
+    assert body[-1]["projected_layoff_total"] == 1
+
+
+def test_before_filter_suppresses_projection(api_client, db, monkeypatch):
+    _freeze_today(monkeypatch, date(2026, 7, 15))
+    _notice(db, state="CA", employer="A", notice_date=date(2026, 7, 5), layoff_count=60)
+    db.commit()
+
+    # before < today truncates the current period mid-way: no projection.
+    body = api_client.get("/api/stats/over-time?bucket=month&before=2026-07-10").json()
+    assert body[-1]["projected_notice_count"] is None
+    # before >= today doesn't truncate: projection present.
+    body = api_client.get("/api/stats/over-time?bucket=month&before=2026-08-01").json()
+    assert body[-1]["projected_notice_count"] is not None
+
+
+def test_after_inside_current_period_suppresses_projection(api_client, db, monkeypatch):
+    _freeze_today(monkeypatch, date(2026, 7, 15))
+    _notice(db, state="CA", employer="A", notice_date=date(2026, 7, 5), layoff_count=60)
+    _notice(db, state="CA", employer="B", notice_date=date(2026, 7, 10), layoff_count=90)
+    db.commit()
+
+    # after inside the month covers only part of the elapsed window: no projection.
+    body = api_client.get("/api/stats/over-time?bucket=month&after=2026-07-03").json()
+    assert body[-1]["projected_notice_count"] is None
+    # after == period start covers the full elapsed window: projection present.
+    body = api_client.get("/api/stats/over-time?bucket=month&after=2026-07-01").json()
+    assert body[-1]["projected_notice_count"] == 4  # round(2 * 31/15)
+
+
+def test_leap_year_projection(api_client, db, monkeypatch):
+    _freeze_today(monkeypatch, date(2028, 3, 1))  # leap year, yday 61; 366/61 = 6.0
+    _notice(db, state="CA", employer="A", notice_date=date(2028, 1, 10), layoff_count=61)
+    db.commit()
+
+    body = api_client.get("/api/stats/over-time?bucket=year").json()
+    assert body[-1]["period"] == "2028"
+    assert body[-1]["projected_notice_count"] == 6
+    assert body[-1]["projected_layoff_total"] == 366
+
+
+# ---------------------------------------------------------------------------
 # /stats/top-employers
 # ---------------------------------------------------------------------------
 
