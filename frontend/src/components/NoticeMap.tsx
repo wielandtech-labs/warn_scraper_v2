@@ -12,9 +12,9 @@ import { TILE_LAYERS } from "../lib/themeColors";
 import "../lib/leafletIcon"; // sets the default marker icon (Vite asset fix)
 
 const CENTER_US: [number, number] = [39.5, -98.35];
-// A single state's geocoded set is small, so we fetch it all and skip the
-// global map's viewport-scoped paging. This ceiling is a safety cap.
-const STATE_MAP_PIN_CAP = 5_000;
+// A single state's or sector's geocoded set is small, so we fetch it all and
+// skip the global map's viewport-scoped paging. This ceiling is a safety cap.
+const SCOPED_MAP_PIN_CAP = 5_000;
 
 // Fits the map to the loaded pins whenever they change (e.g. the time window
 // toggles). Lives inside MapContainer so it can use the react-leaflet map ctx.
@@ -30,16 +30,19 @@ function FitBounds({ points }: { points: MapPin[] }) {
   return null;
 }
 
-/** Pin/cluster map of geocoded notices for one state, scoped to a time window.
- *  Auto-fits to the returned pins. Reuses /api/map-pins + the shared Leaflet
- *  setup; intentionally simpler than the global /map (no viewport paging). */
+/** Pin/cluster map of geocoded notices for one state and/or NAICS sector,
+ *  scoped to a time window. Auto-fits to the returned pins. Reuses
+ *  /api/map-pins + the shared Leaflet setup; intentionally simpler than the
+ *  global /map (no viewport paging). */
 export function NoticeMap({
   state,
+  industry,
   after,
   before,
   height = "60vh",
 }: {
-  state: string;
+  state?: string;
+  industry?: string;
   after?: string;
   before?: string;
   height?: string;
@@ -47,9 +50,9 @@ export function NoticeMap({
   const { resolved } = useTheme();
   const tiles = TILE_LAYERS[resolved];
   const query = useQuery({
-    queryKey: ["map-pins", "state", { state, after, before }],
+    queryKey: ["map-pins", "scoped", { state, industry, after, before }],
     queryFn: () =>
-      api.listMapPins({ state, after, before, limit: STATE_MAP_PIN_CAP }),
+      api.listMapPins({ state, industry, after, before, limit: SCOPED_MAP_PIN_CAP }),
   });
 
   const points = query.data ?? [];
@@ -116,7 +119,7 @@ export function NoticeMap({
       </div>
       <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
         Showing {fmtNum(points.length)} geocoded notices.
-        {points.length >= STATE_MAP_PIN_CAP && " Some pins may be omitted."}
+        {points.length >= SCOPED_MAP_PIN_CAP && " Some pins may be omitted."}
       </div>
     </>
   );
