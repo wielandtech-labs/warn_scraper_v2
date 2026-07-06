@@ -561,9 +561,12 @@ def county_impact(
     omitted — a raw layoff sum that small says more about missing
     layoff_count data than about local impact.
     """
+    # Group and filter by the worksite's Location.state, not Notice.state:
+    # this ranking is geographic, and a notice filed in one state can list a
+    # worksite county in another — Notice.state would mislabel that county.
     stmt = (
         select(
-            Notice.state,
+            Location.state,
             Location.county,
             func.count(Notice.notice_id),
             func.coalesce(func.sum(Notice.layoff_count), 0),
@@ -571,14 +574,14 @@ def county_impact(
         .select_from(Notice)
         .join(Location, Notice.location_id == Location.id)
         .where(Location.county.is_not(None))
-        .group_by(Notice.state, Location.county)
+        .group_by(Location.state, Location.county)
     )
     stmt = _not_superseded(stmt)
     stmt = _apply_date_filters(stmt, after, before)
     stmt = _apply_closure_filter(stmt, closure_category)
     stmt = _apply_industry_filter(stmt, industry, subsector)
     if state:
-        stmt = stmt.where(Notice.state == state.upper())
+        stmt = stmt.where(Location.state == state.upper())
 
     # Merge raw county spellings ("Madison" / "Madison County") in Python:
     # the employment table is keyed by normalized county, not FIPS, and lives
