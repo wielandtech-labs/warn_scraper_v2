@@ -31,7 +31,7 @@ export function StatesIndexPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Layoffs by state</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           Browse WARN Act layoff and closure notices for each US state and DC.
         </p>
       </div>
@@ -40,8 +40,8 @@ export function StatesIndexPage() {
         <div aria-hidden className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 9 }, (_, i) => (
             <div key={i} className="card animate-pulse space-y-2">
-              <div className="h-4 w-1/2 rounded bg-slate-200" />
-              <div className="h-3 w-1/3 rounded bg-slate-200" />
+              <div className="h-4 w-1/2 rounded bg-slate-200 dark:bg-slate-700" />
+              <div className="h-3 w-1/3 rounded bg-slate-200 dark:bg-slate-700" />
             </div>
           ))}
         </div>
@@ -65,17 +65,17 @@ export function StatesIndexPage() {
             key={s.code}
             to="/states/$state"
             params={{ state: s.code }}
-            className="card flex items-baseline justify-between hover:border-sky-300 hover:bg-sky-50"
+            className="card flex items-baseline justify-between hover:border-sky-300 hover:bg-sky-50 dark:hover:border-sky-800 dark:hover:bg-sky-950"
           >
             <div>
-              <div className="font-medium text-slate-900">{s.name}</div>
-              <div className="text-xs text-slate-500">
+              <div className="font-medium text-slate-900 dark:text-slate-100">{s.name}</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">
                 {fmtNum(s.notice_count)} {s.notice_count === 1 ? "notice" : "notices"}
               </div>
             </div>
             <div className="text-right">
               <div className="text-sm font-semibold">{fmtNum(s.layoff_total)}</div>
-              <div className="text-xs text-slate-500">workers</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">workers</div>
             </div>
           </Link>
         ))}

@@ -2,7 +2,9 @@ import { useMemo, useRef, useState } from "react";
 
 import { useNavigate } from "@tanstack/react-router";
 
+import { useTheme } from "../hooks/useTheme";
 import { fmtCompact, fmtNum } from "../lib/format";
+import { CHOROPLETH } from "../lib/themeColors";
 import { DC_ANCHOR, US_MAP_VIEWBOX, US_STATE_PATHS } from "../lib/usStatePaths";
 
 interface StateDatum {
@@ -11,10 +13,6 @@ interface StateDatum {
   notice_count: number;
   layoff_total: number;
 }
-
-// slate-100 for zero, then sky-200/300/500/700 quartile buckets — sky-700 is
-// the notices color used across the dashboard charts.
-const BUCKET_COLORS = ["#f1f5f9", "#bae6fd", "#7dd3fc", "#0ea5e9", "#0369a1"];
 
 function bucketOf(value: number, thresholds: number[]): number {
   if (value <= 0) return 0;
@@ -30,6 +28,8 @@ function bucketOf(value: number, thresholds: number[]): number {
  *  with the same numbers), so 51 SVG tab stops would add nothing. */
 export function UsChoroplethMap({ data }: { data: StateDatum[] }) {
   const navigate = useNavigate();
+  const { resolved } = useTheme();
+  const ramp = CHOROPLETH[resolved];
   const containerRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<{ code: string; x: number; y: number } | null>(null);
 
@@ -76,19 +76,19 @@ export function UsChoroplethMap({ data }: { data: StateDatum[] }) {
 
   const legend = thresholds.length
     ? [
-        { color: BUCKET_COLORS[0], label: "0" },
-        { color: BUCKET_COLORS[1], label: `1–${fmtCompact(thresholds[0])}` },
+        { color: ramp.buckets[0], label: "0" },
+        { color: ramp.buckets[1], label: `1–${fmtCompact(thresholds[0])}` },
         {
-          color: BUCKET_COLORS[2],
+          color: ramp.buckets[2],
           label: `${fmtCompact(thresholds[0])}–${fmtCompact(thresholds[1])}`,
         },
         {
-          color: BUCKET_COLORS[3],
+          color: ramp.buckets[3],
           label: `${fmtCompact(thresholds[1])}–${fmtCompact(thresholds[2])}`,
         },
-        { color: BUCKET_COLORS[4], label: `> ${fmtCompact(thresholds[2])}` },
+        { color: ramp.buckets[4], label: `> ${fmtCompact(thresholds[2])}` },
       ]
-    : [{ color: BUCKET_COLORS[0], label: "0" }];
+    : [{ color: ramp.buckets[0], label: "0" }];
 
   return (
     <div ref={containerRef} className="card relative">
@@ -108,8 +108,8 @@ export function UsChoroplethMap({ data }: { data: StateDatum[] }) {
           <path
             key={s.code}
             d={US_STATE_PATHS[s.code]}
-            fill={BUCKET_COLORS[bucketOf(s.layoff_total, thresholds)]}
-            stroke="#fff"
+            fill={ramp.buckets[bucketOf(s.layoff_total, thresholds)]}
+            stroke={ramp.stateStroke}
             strokeWidth={1}
             strokeLinejoin="round"
             className="cursor-pointer"
@@ -125,7 +125,7 @@ export function UsChoroplethMap({ data }: { data: StateDatum[] }) {
               y1={DC_ANCHOR.y}
               x2={855}
               y2={258}
-              stroke="#94a3b8"
+              stroke={ramp.connector}
               strokeWidth={1}
               data-code="DC"
             />
@@ -135,8 +135,8 @@ export function UsChoroplethMap({ data }: { data: StateDatum[] }) {
               width={20}
               height={20}
               rx={3}
-              fill={BUCKET_COLORS[bucketOf(dc.layoff_total, thresholds)]}
-              stroke="#94a3b8"
+              fill={ramp.buckets[bucketOf(dc.layoff_total, thresholds)]}
+              stroke={ramp.connector}
               data-code="DC"
             />
             <text
@@ -144,7 +144,7 @@ export function UsChoroplethMap({ data }: { data: StateDatum[] }) {
               y={264}
               textAnchor="middle"
               fontSize={9}
-              className="pointer-events-none select-none"
+              className="pointer-events-none select-none fill-slate-900 dark:fill-slate-100"
             >
               DC
             </text>
@@ -155,7 +155,7 @@ export function UsChoroplethMap({ data }: { data: StateDatum[] }) {
           <path
             d={US_STATE_PATHS[hover.code]}
             fill="none"
-            stroke="#0f172a"
+            stroke={ramp.hoverStroke}
             strokeWidth={1.5}
             strokeLinejoin="round"
             className="pointer-events-none"
@@ -165,24 +165,24 @@ export function UsChoroplethMap({ data }: { data: StateDatum[] }) {
 
       {hover && hovered && (
         <div
-          className="pointer-events-none absolute z-10 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs shadow-md"
+          className="pointer-events-none absolute z-10 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs shadow-md dark:border-slate-700 dark:bg-slate-800"
           style={{
             left: hover.x + (flip ? -12 : 12),
             top: hover.y + 12,
             transform: flip ? "translateX(-100%)" : undefined,
           }}
         >
-          <div className="font-medium text-slate-900">{hovered.name}</div>
-          <div className="text-slate-600">
+          <div className="font-medium text-slate-900 dark:text-slate-100">{hovered.name}</div>
+          <div className="text-slate-600 dark:text-slate-400">
             {fmtNum(hovered.notice_count)}{" "}
             {hovered.notice_count === 1 ? "notice" : "notices"}
           </div>
-          <div className="text-slate-600">{fmtNum(hovered.layoff_total)} workers</div>
+          <div className="text-slate-600 dark:text-slate-400">{fmtNum(hovered.layoff_total)} workers</div>
         </div>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
-        <span className="font-medium text-slate-700">Workers affected</span>
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
+        <span className="font-medium text-slate-700 dark:text-slate-300">Workers affected</span>
         {legend.map((item, i) => (
           <span key={i} className="flex items-center gap-1.5">
             <span

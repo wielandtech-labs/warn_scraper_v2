@@ -99,11 +99,11 @@ export function FilterBar({
   return (
     <div className="card mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7">
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
           State
         </span>
         <select
-          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
           value={values.state || ""}
           onChange={(e) => update({ state: e.target.value || undefined })}
         >
@@ -119,11 +119,11 @@ export function FilterBar({
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
           Closure type
         </span>
         <select
-          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
           value={values.closure_category || ""}
           onChange={(e) => update({ closure_category: e.target.value || undefined })}
         >
@@ -138,11 +138,11 @@ export function FilterBar({
 
       {industries && (
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Industry
           </span>
           <select
-            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
             value={values.industry || ""}
             // Changing the sector clears any subsector selection.
             onChange={(e) =>
@@ -161,11 +161,11 @@ export function FilterBar({
 
       {industries && selectedSubsectors.length > 0 && (
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Subsector
           </span>
           <select
-            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
             value={values.subsector || ""}
             onChange={(e) => update({ subsector: e.target.value || undefined })}
           >
@@ -181,12 +181,12 @@ export function FilterBar({
 
       {showEmployer && (
         <label className="flex flex-col gap-1 lg:col-span-2">
-          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Employer search
           </span>
           <input
             type="search"
-            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
             placeholder="e.g. Acme"
             value={employerInput}
             onChange={(e) => setEmployerInput(e.target.value)}
@@ -198,24 +198,24 @@ export function FilterBar({
           across rows (it wraps as a pair when the row overflows). */}
       <div className="grid grid-cols-2 gap-3 sm:col-span-2 lg:col-span-2">
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
             After
           </span>
           <input
             type="date"
-            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
             value={values.after || ""}
             onChange={(e) => update({ after: e.target.value || undefined })}
           />
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Before
           </span>
           <input
             type="date"
-            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
             value={values.before || ""}
             onChange={(e) => update({ before: e.target.value || undefined })}
           />
@@ -224,7 +224,7 @@ export function FilterBar({
 
       {/* Quick date presets */}
       <div className="col-span-full flex items-center gap-1.5">
-        <span className="text-xs text-slate-400">Quick:</span>
+        <span className="text-xs text-slate-400 dark:text-slate-500">Quick:</span>
         {PRESETS.map(({ label, days }) => {
           const active =
             days === null
@@ -243,7 +243,7 @@ export function FilterBar({
               className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
                 active
                   ? "bg-sky-700 text-white"
-                  : "border border-slate-300 text-slate-600 hover:bg-slate-50"
+                  : "border border-slate-300 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800/50"
               }`}
             >
               {label}
@@ -254,7 +254,7 @@ export function FilterBar({
           <button
             type="button"
             onClick={clearAll}
-            className="ml-auto text-xs font-medium text-sky-700 hover:underline"
+            className="ml-auto text-xs font-medium text-sky-700 hover:underline dark:text-sky-400"
           >
             Clear all filters
           </button>

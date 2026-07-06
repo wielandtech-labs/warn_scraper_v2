@@ -12,23 +12,23 @@ export function UnavailableNotice({ state }: { state: string }) {
   const name = stateName(state);
 
   return (
-    <div className="card bg-amber-50">
+    <div className="card bg-amber-50 dark:bg-amber-950">
       <h2 className="text-lg font-semibold">Why is there no {name} data?</h2>
-      <p className="mt-2 text-sm text-slate-700">
+      <p className="mt-2 text-sm text-slate-700 dark:text-slate-300">
         Employers in {name} still file federal WARN notices with the {info.agency},
         but under{" "}
         <a
           href={info.statute.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="font-medium text-sky-700 hover:underline"
+          className="font-medium text-sky-700 hover:underline dark:text-sky-400"
         >
           {info.statute.cite}
         </a>{" "}
         those filings are kept confidential. {info.explanation} This is a
         state-law restriction, not a gap in this site&rsquo;s coverage.
       </p>
-      <p className="mt-3 text-sm text-slate-700">
+      <p className="mt-3 text-sm text-slate-700 dark:text-slate-300">
         If you live in {name} and think layoff notices should be public record,
         consider contacting your state representative and state senator about{" "}
         {info.statute.cite}:
@@ -40,7 +40,7 @@ export function UnavailableNotice({ state }: { state: string }) {
               href={link.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-medium text-sky-700 hover:underline"
+              className="font-medium text-sky-700 hover:underline dark:text-sky-400"
             >
               {link.label} →
             </a>

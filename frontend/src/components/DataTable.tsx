@@ -51,7 +51,7 @@ export function DataTable<T>({
 
   if (data.length === 0) {
     return (
-      <div className="card text-center text-sm text-slate-500">
+      <div className="card text-center text-sm text-slate-500 dark:text-slate-400">
         <p>{emptyMessage}</p>
         {emptyAction && <div className="mt-3">{emptyAction}</div>}
       </div>
@@ -82,11 +82,11 @@ export function DataTable<T>({
     <>
       {sortableCols.length > 0 && (
         <div className="mb-2 flex items-center gap-2 sm:hidden">
-          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Sort
           </span>
           <select
-            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
             value={activeId || sortableCols[0]?.id || ""}
             onChange={(e) => applySort(e.target.value, activeDir)}
           >
@@ -111,9 +111,9 @@ export function DataTable<T>({
           </button>
         </div>
       )}
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <table className="data-table w-full text-sm">
-        <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+        <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-950 dark:text-slate-400">
           {table.getHeaderGroups().map((hg) => (
             <tr key={hg.id}>
               {hg.headers.map((h) => {
@@ -146,7 +146,7 @@ export function DataTable<T>({
                       // A real <button> so keyboard users can reach and toggle the sort.
                       <button
                         type="button"
-                        className="w-full select-none px-3 py-2 text-left font-medium uppercase tracking-wide hover:bg-slate-100"
+                        className="w-full select-none px-3 py-2 text-left font-medium uppercase tracking-wide hover:bg-slate-100 dark:hover:bg-slate-800"
                         onClick={
                           isServer
                             ? () => {
@@ -172,9 +172,9 @@ export function DataTable<T>({
             </tr>
           ))}
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
           {table.getRowModel().rows.map((row) => (
-            <tr key={row.id} className="hover:bg-slate-50">
+            <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
               {row.getVisibleCells().map((cell) => (
                 <td
                   key={cell.id}

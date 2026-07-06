@@ -18,8 +18,8 @@ export function AlertSignup({ state }: { state?: string }) {
 
   if (mutation.isSuccess) {
     return (
-      <div className="card bg-sky-50">
-        <p className="text-sm text-slate-700">
+      <div className="card bg-sky-50 dark:bg-sky-950">
+        <p className="text-sm text-slate-700 dark:text-slate-300">
           Almost there — check <strong>{email}</strong> for a confirmation link to
           start receiving alerts.
         </p>
@@ -37,7 +37,7 @@ export function AlertSignup({ state }: { state?: string }) {
   return (
     <div className="card">
       <h2 className="text-lg font-semibold">Get {scope} layoff alerts</h2>
-      <p className="mt-1 text-sm text-slate-600">
+      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
         Email me when new WARN notices{state ? ` in ${scope}` : ""} are filed.
       </p>
       <form
@@ -53,7 +53,7 @@ export function AlertSignup({ state }: { state?: string }) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@example.com"
-          className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
+          className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400 dark:border-slate-700 dark:bg-slate-900 dark:focus:border-sky-500 dark:focus:ring-sky-500"
         />
         <button
           type="submit"
@@ -63,8 +63,10 @@ export function AlertSignup({ state }: { state?: string }) {
           {mutation.isPending ? "Subscribing…" : "Subscribe"}
         </button>
       </form>
-      {errorMessage && <p className="mt-2 text-sm text-red-600">{errorMessage}</p>}
-      <p className="mt-2 text-xs text-slate-400">
+      {errorMessage && (
+        <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errorMessage}</p>
+      )}
+      <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
         Double opt-in · unsubscribe anytime · we only use your email for these alerts.
       </p>
     </div>

@@ -11,7 +11,7 @@ export function Pagination({ total, limit, offset, onPageChange }: PaginationPro
   if (last <= 1) return null;
 
   return (
-    <div className="mt-3 flex flex-col gap-2 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mt-3 flex flex-col gap-2 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between dark:text-slate-400">
       <span>
         Page {current} of {last} · {total.toLocaleString()} results
       </span>

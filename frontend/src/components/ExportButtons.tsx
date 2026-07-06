@@ -29,23 +29,23 @@ export function ExportButtons({
   };
   return (
     <div className="flex items-center gap-2 text-sm">
-      <span className="text-slate-400">Export</span>
+      <span className="text-slate-400 dark:text-slate-500">Export</span>
       <a
-        className="rounded-md border border-slate-300 px-2 py-1 font-medium text-slate-700 hover:bg-slate-50"
+        className="rounded-md border border-slate-300 px-2 py-1 font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800/50"
         href={href("csv")}
         title={capped ? capNote : undefined}
       >
         CSV
       </a>
       <a
-        className="rounded-md border border-slate-300 px-2 py-1 font-medium text-slate-700 hover:bg-slate-50"
+        className="rounded-md border border-slate-300 px-2 py-1 font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800/50"
         href={href("json")}
         title={capped ? capNote : undefined}
       >
         JSON
       </a>
       {capped && (
-        <span className="hidden text-xs text-slate-400 md:inline">
+        <span className="hidden text-xs text-slate-400 md:inline dark:text-slate-500">
           first 1,000 rows
         </span>
       )}

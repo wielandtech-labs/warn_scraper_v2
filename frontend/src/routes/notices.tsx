@@ -89,7 +89,7 @@ export function NoticesPage() {
             // Carry the list's filters/sort/page into the detail URL so its
             // "← All notices" link can restore this exact view.
             search={(prev) => prev}
-            className="font-medium text-sky-700 hover:underline"
+            className="font-medium text-sky-700 hover:underline dark:text-sky-400"
           >
             {info.getValue() as string}
           </Link>
