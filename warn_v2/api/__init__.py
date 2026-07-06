@@ -12,6 +12,7 @@ from prometheus_client import REGISTRY, make_asgi_app
 from warn_v2.api import ratelimit
 from warn_v2.api.routes import (
     auth,
+    billing,
     companies,
     exports,
     keys,
@@ -71,6 +72,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/api")
     app.include_router(keys.router, prefix="/api")
     app.include_router(usage.router, prefix="/api")
+    app.include_router(billing.router, prefix="/api")  # webhook must never 429
     limited = [Depends(ratelimit.enforce_limits)]
     # Export routes register before notices/companies so /api/notices/export and
     # /api/companies/export aren't swallowed by the parametric /{id} routes.
