@@ -117,6 +117,13 @@ export function IndustryReportPage() {
 
       {vouched && (
         <div className="card">
+          <h2 className="mb-3 text-lg font-semibold">Where this sector is shedding jobs</h2>
+          <NoticeMap industry={sector} after={after} />
+        </div>
+      )}
+
+      {vouched && (
+        <div className="card">
           <h2 className="mb-3 text-lg font-semibold">Job losses over time</h2>
           {overTime.isLoading ? (
             <SkeletonChart height={300} />
@@ -215,13 +222,6 @@ export function IndustryReportPage() {
               )}
             </>
           )}
-        </div>
-      )}
-
-      {vouched && (
-        <div className="card">
-          <h2 className="mb-3 text-lg font-semibold">Where this sector is shedding jobs</h2>
-          <NoticeMap industry={sector} after={after} />
         </div>
       )}
 
