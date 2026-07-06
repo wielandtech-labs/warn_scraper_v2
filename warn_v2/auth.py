@@ -15,10 +15,16 @@ from argon2.exceptions import InvalidHashError, VerifyMismatchError
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from warn_v2.db.models import User, UserSession
+from warn_v2.db.models import AuthToken, User, UserSession
 
 SESSION_TTL = timedelta(days=30)
 COOKIE_NAME = "warn_session"
+MIN_PASSWORD_LEN = 12
+
+# Emailed single-use tokens (auth_tokens): verification links live long enough
+# to survive a busy inbox; reset links are deliberately short-lived.
+VERIFY_TTL = timedelta(days=7)
+RESET_TTL = timedelta(hours=1)
 
 _ph = PasswordHasher()
 # Verified against when the email is unknown so both failure modes take the
@@ -82,3 +88,43 @@ def resolve_session(db: Session, token: str) -> User | None:
 def end_session(db: Session, token: str) -> None:
     """Delete the session row for a raw token (logout). Caller commits."""
     db.execute(delete(UserSession).where(UserSession.token_sha256 == _sha256(token)))
+
+
+def issue_token(db: Session, user: User, purpose: str) -> str:
+    """Create a single-use emailed token ('verify' | 'reset'); returns the raw value.
+
+    Does not commit — the caller owns the transaction (and sends the email).
+    """
+    ttl = VERIFY_TTL if purpose == "verify" else RESET_TTL
+    raw = secrets.token_urlsafe(32)
+    db.add(
+        AuthToken(
+            user_id=user.id,
+            purpose=purpose,
+            token_sha256=_sha256(raw),
+            expires_at=datetime.now(UTC) + ttl,
+        )
+    )
+    return raw
+
+
+def consume_token(db: Session, raw: str, purpose: str) -> User | None:
+    """Redeem a token: returns its user, or None if unknown/expired/wrong purpose.
+
+    The row is deleted on any lookup hit (single-use even when expired).
+    Caller commits.
+    """
+    row = db.scalar(
+        select(AuthToken).where(
+            AuthToken.token_sha256 == _sha256(raw), AuthToken.purpose == purpose
+        )
+    )
+    if row is None:
+        return None
+    expires_at = row.expires_at
+    if expires_at.tzinfo is None:  # SQLite round-trips naive datetimes
+        expires_at = expires_at.replace(tzinfo=UTC)
+    db.delete(row)
+    if expires_at < datetime.now(UTC):
+        return None
+    return db.get(User, row.user_id)
