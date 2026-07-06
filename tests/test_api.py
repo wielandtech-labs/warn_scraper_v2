@@ -440,6 +440,12 @@ def test_scraper_status_aggregates(api_client, db):
     _at("TX", "parse_failed", 1, error="bad table")
     # NV: never succeeded.
     _at("NV", "fetch_failed", 2, error="403")
+    # CA notice coverage 2010-2026; a superseded row outside that range must
+    # not widen it. TX/NV have runs but no notices.
+    _notice(db, state="CA", notice_date=date(2010, 6, 1), employer="Old Co")
+    _notice(db, state="CA", notice_date=date(2026, 2, 1), employer="New Co")
+    superseded = _notice(db, state="CA", notice_date=date(1999, 1, 1), employer="Dupe Co")
+    superseded.is_superseded = True
     db.commit()
 
     body = api_client.get("/api/scraper-runs/status").json()
@@ -450,12 +456,15 @@ def test_scraper_status_aggregates(api_client, db):
     assert ca["last_status"] == "ok"
     assert ca["rows_new"] == 8 and ca["rows_scraped"] == 120
     assert ca["last_run_at"] == ca["last_success_at"]
+    assert ca["first_notice_date"] == "2010-06-01"  # superseded 1999 row excluded
+    assert ca["last_notice_date"] == "2026-02-01"
 
     tx = rows["TX"]
     assert tx["last_status"] == "parse_failed"
     assert tx["error"] == "bad table"
     assert tx["last_success_at"] is not None
     assert tx["last_success_at"] < tx["last_run_at"]  # success predates the failure
+    assert tx["first_notice_date"] is None and tx["last_notice_date"] is None
 
     nv = rows["NV"]
     assert nv["last_status"] == "fetch_failed"
