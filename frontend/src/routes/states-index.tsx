@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 
 import { api } from "../api/client";
 import { QueryError } from "../components/QueryError";
+import { UsChoroplethMap } from "../components/UsChoroplethMap";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { STATE_NAMES, US_STATES, fmtNum } from "../lib/format";
 
@@ -56,6 +57,8 @@ export function StatesIndexPage() {
       {/* Don't render the grid until data arrives — with no data every state
           would confidently show zeros. */}
       {byState.data && (
+      <>
+      <UsChoroplethMap data={rows} />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {rows.map((s) => (
           <Link
@@ -77,6 +80,7 @@ export function StatesIndexPage() {
           </Link>
         ))}
       </div>
+      </>
       )}
     </div>
   );
