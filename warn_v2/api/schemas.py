@@ -182,5 +182,5 @@ class MapPinOut(BaseModel):
     state: str
     notice_date: date | None
     layoff_count: int | None
-    lat: Decimal
-    lon: Decimal
+    lat: float
+    lon: float
