@@ -1259,6 +1259,11 @@ def send_alert_digest_cmd() -> None:
     help="One NAICS sector id, e.g. 31-33 (generates only that scorecard)",
 )
 @click.option(
+    "--national",
+    is_flag=True,
+    help="Only the US-wide roll-up (US.md)",
+)
+@click.option(
     "--reports-dir",
     default="/var/reports",
     show_default=True,
@@ -1270,6 +1275,7 @@ def send_alert_digest_cmd() -> None:
 def sentiment_report_cmd(
     state: str | None,
     industry: str | None,
+    national: bool,
     reports_dir: Path,
     skip_llm: bool,
     dry_run: bool,
@@ -1289,6 +1295,7 @@ def sentiment_report_cmd(
       warn-v2 sentiment-report                       # states + national + industries
       warn-v2 sentiment-report --state CA            # one state
       warn-v2 sentiment-report --industry 31-33      # one sector scorecard
+      warn-v2 sentiment-report --national            # US roll-up only
       warn-v2 sentiment-report --skip-llm --dry-run  # offline smoke test
     """
     from warn_v2.companies.naics import SECTOR_NAME
@@ -1305,6 +1312,9 @@ def sentiment_report_cmd(
 
     if state and industry:
         click.echo("--state and --industry are mutually exclusive", err=True)
+        sys.exit(1)
+    if national and (state or industry):
+        click.echo("--national is mutually exclusive with --state and --industry", err=True)
         sys.exit(1)
     if state and not is_valid_state(state):
         click.echo(f"unknown state: {state!r}", err=True)
@@ -1327,7 +1337,7 @@ def sentiment_report_cmd(
             stats[k] += group[k]
 
     with session_scope() as session:
-        if industry is None:
+        if industry is None and not national:
             merge(
                 generate_reports(
                     session,
@@ -1352,7 +1362,7 @@ def sentiment_report_cmd(
             stats["generated"] += 1
             stats["total"] += 1
             click.echo(f"{NATIONAL_CODE} narrative={status} chars={len(content)}")
-        if state is None:
+        if state is None and not national:
             merge(
                 generate_industry_reports(
                     session,
