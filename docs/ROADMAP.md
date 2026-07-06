@@ -36,17 +36,27 @@ weakest axis (~16% avg, ~100 companies/day cap). Largest coverage gap: NY
 
 ## Track 1 — Keep it green (recurring)
 
-- [ ] **Heal AZ + RI** — `/heal-scraper AZ RI`; classify transient block vs
+- ~~**Heal AZ + RI** — `/heal-scraper AZ RI`; classify transient block vs
   real regression before treating as broken (`fetch_failed` is often
-  transient). (A+gate: PR)
-- [ ] **Verify CO row-drift flag** — the audit's `broken` status predates the
+  transient). (A+gate: PR)~~ — DONE 2026-07-06, no code change: both were
+  transient; live `validate()` passes (AZ 25 rows, RI 122) and prod
+  `scraper_runs` show `ok` since 2026-07-02.
+- ~~**Verify CO row-drift flag** — the audit's `broken` status predates the
   full-sheet sweep (PR #110, +768 rows); confirm the next trusted audit clears
   it, else investigate `expected_row_range` vs the new two-sheet regular
-  scrape. (A)
-- [ ] **Recurring heal loop** — `/loop /heal-scraper` (self-paced) or a
-  scheduled headless run after the daily 07:17 scrape window. (A+gate per PR)
-- [ ] **Weekly `/refresh-audit`** — keeps STATE_AUDIT.md's generated table
-  honest; PR per run. (A+gate)
+  scrape. (A)~~ — DONE 2026-07-06, stale flag: the 2026-07-02 audit image
+  carried the revert-era `(100, 10_000)` range (PR #120) against a 43-row
+  two-sheet scrape; main is back to `(5, 10_000)` (PR #127) and prod scrapes
+  91 rows `ok` daily, so the next trusted audit clears it.
+- ~~**Recurring heal loop** — `/loop /heal-scraper` (self-paced) or a
+  scheduled headless run after the daily 07:17 scrape window. (A+gate per
+  PR)~~ — DONE 2026-07-06 via a Claude desktop-app scheduled task
+  (`daily-heal-scraper`, daily 08:30; the skill's Task Scheduler recipe
+  doesn't apply — no `claude` CLI on this host). Runs only while the app is
+  open; missed runs fire on next launch.
+- ~~**Weekly `/refresh-audit`** — keeps STATE_AUDIT.md's generated table
+  honest; PR per run. (A+gate)~~ — DONE 2026-07-06 via desktop-app scheduled
+  task (`weekly-refresh-audit`, Mondays 09:00), same caveats as above.
 - [ ] **Quarterly blocked-source re-verify** — AR / NH / OK / WY per
   [deferred-states.md](deferred-states.md), plus a
   [coverage-vs-aggregators.md](coverage-vs-aggregators.md) refresh (that
