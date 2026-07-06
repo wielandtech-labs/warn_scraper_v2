@@ -22,6 +22,7 @@ from __future__ import annotations
 from datetime import date
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -53,7 +54,7 @@ def list_map_pins(
     max_lon: float | None = Query(None, description="Viewport east bound (with the other 3)"),
     limit: int = Query(50_000, ge=1, le=50_000, description="Max pins to return (ceiling 50 000)"),
     db: Session = Depends(get_db),
-) -> list[MapPinOut]:
+) -> JSONResponse:
     """Return lightweight pin objects for every geocoded notice matching the filters.
 
     Always joins to locations and requires lat/lon IS NOT NULL, so every
@@ -104,4 +105,25 @@ def list_map_pins(
         )
 
     rows = db.execute(stmt.limit(limit)).all()
-    return [MapPinOut(**r._mapping) for r in rows]
+    # Hand-rolled dicts + a direct JSONResponse instead of response_model
+    # serialization: at 10k rows, building MapPinOut instances and then
+    # re-validating them against the response model dominates the request
+    # time on the CPU-limited API pod. The decorator keeps response_model
+    # for the OpenAPI schema; returning a Response bypasses the validation.
+    # lat/lon go out as floats at 5 dp (~1 m) — Decimal would serialize as
+    # a JSON string, which also contradicts the frontend's `lat: number`.
+    pins = [
+        {
+            "notice_id": r.notice_id,
+            "employer": r.employer,
+            "state": r.state,
+            "notice_date": r.notice_date.isoformat() if r.notice_date else None,
+            "layoff_count": r.layoff_count,
+            "lat": round(float(r.lat), 5),
+            "lon": round(float(r.lon), 5),
+        }
+        for r in rows
+    ]
+    # Scrapes land a few fixed times a day, so 5 minutes of staleness is
+    # invisible — but it makes back-button and revisit loads free.
+    return JSONResponse(pins, headers={"Cache-Control": "public, max-age=300"})
