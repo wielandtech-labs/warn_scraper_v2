@@ -165,24 +165,24 @@ export function UsChoroplethMap({ data }: { data: StateDatum[] }) {
 
       {hover && hovered && (
         <div
-          className="pointer-events-none absolute z-10 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs shadow-md"
+          className="pointer-events-none absolute z-10 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs shadow-md dark:border-slate-800 dark:bg-slate-900"
           style={{
             left: hover.x + (flip ? -12 : 12),
             top: hover.y + 12,
             transform: flip ? "translateX(-100%)" : undefined,
           }}
         >
-          <div className="font-medium text-slate-900">{hovered.name}</div>
-          <div className="text-slate-600">
+          <div className="font-medium text-slate-900 dark:text-slate-100">{hovered.name}</div>
+          <div className="text-slate-600 dark:text-slate-400">
             {fmtNum(hovered.notice_count)}{" "}
             {hovered.notice_count === 1 ? "notice" : "notices"}
           </div>
-          <div className="text-slate-600">{fmtNum(hovered.layoff_total)} workers</div>
+          <div className="text-slate-600 dark:text-slate-400">{fmtNum(hovered.layoff_total)} workers</div>
         </div>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
-        <span className="font-medium text-slate-700">Workers affected</span>
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
+        <span className="font-medium text-slate-700 dark:text-slate-300">Workers affected</span>
         {legend.map((item, i) => (
           <span key={i} className="flex items-center gap-1.5">
             <span

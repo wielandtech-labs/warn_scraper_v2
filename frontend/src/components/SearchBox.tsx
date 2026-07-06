@@ -48,7 +48,7 @@ export function SearchBox() {
         aria-expanded={showPanel}
         aria-controls="global-search-results"
         aria-autocomplete="list"
-        className="w-44 rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400 sm:w-56"
+        className="w-44 rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400 sm:w-56 dark:border-slate-700 dark:bg-slate-900 dark:focus:border-sky-500 dark:focus:ring-sky-500"
         onChange={(e) => {
           setValue(e.target.value);
           setOpen(true);
@@ -67,21 +67,21 @@ export function SearchBox() {
           id="global-search-results"
           role="listbox"
           aria-label="Search results"
-          className="absolute right-0 z-20 mt-1 max-h-96 w-80 overflow-auto rounded-md border border-slate-200 bg-white shadow-lg"
+          className="absolute right-0 z-20 mt-1 max-h-96 w-80 overflow-auto rounded-md border border-slate-200 bg-white shadow-lg dark:border-slate-800 dark:bg-slate-900"
           onMouseDown={() => {
             // Keep focus/panel alive through the click on an item.
             if (blurTimer.current) clearTimeout(blurTimer.current);
           }}
         >
           {results.isLoading && (
-            <div className="px-3 py-2 text-sm text-slate-500">Searching…</div>
+            <div className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">Searching…</div>
           )}
           {!results.isLoading && !hasResults && (
-            <div className="px-3 py-2 text-sm text-slate-500">No matches.</div>
+            <div className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">No matches.</div>
           )}
           {data && data.companies.length > 0 && (
             <div>
-              <div className="border-b border-slate-100 bg-slate-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-400">
+              <div className="border-b border-slate-100 bg-slate-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-400 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-500">
                 Companies
               </div>
               {data.companies.map((c) => (
@@ -90,7 +90,7 @@ export function SearchBox() {
                   type="button"
                   role="option"
                   aria-selected={false}
-                  className="block w-full truncate px-3 py-2 text-left text-sm hover:bg-sky-50"
+                  className="block w-full truncate px-3 py-2 text-left text-sm hover:bg-sky-50 dark:hover:bg-sky-950"
                   onClick={() => {
                     close();
                     navigate({
@@ -106,7 +106,7 @@ export function SearchBox() {
           )}
           {data && data.notices.length > 0 && (
             <div>
-              <div className="border-b border-slate-100 bg-slate-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-400">
+              <div className="border-b border-slate-100 bg-slate-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-400 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-500">
                 Notices
               </div>
               {data.notices.map((n) => (
@@ -115,7 +115,7 @@ export function SearchBox() {
                   type="button"
                   role="option"
                   aria-selected={false}
-                  className="block w-full px-3 py-2 text-left text-sm hover:bg-sky-50"
+                  className="block w-full px-3 py-2 text-left text-sm hover:bg-sky-50 dark:hover:bg-sky-950"
                   onClick={() => {
                     close();
                     navigate({
@@ -125,7 +125,7 @@ export function SearchBox() {
                   }}
                 >
                   <span className="truncate font-medium">{n.employer}</span>
-                  <span className="ml-2 text-xs text-slate-500">
+                  <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
                     {n.state} · {fmtDate(n.notice_date)}
                   </span>
                 </button>

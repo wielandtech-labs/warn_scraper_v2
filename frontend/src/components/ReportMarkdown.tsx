@@ -152,30 +152,30 @@ export function ReportMarkdown({
 }) {
   const blocks = parseBlocks(markdown);
   return (
-    <div className="space-y-3 text-sm text-slate-700">
+    <div className="space-y-3 text-sm text-slate-700 dark:text-slate-300">
       {blocks.map((b, i) => {
         switch (b.kind) {
           case "heading":
             if (b.level === 1) {
               if (skipH1) return null;
               return (
-                <h3 key={i} className="text-base font-semibold text-slate-900">
+                <h3 key={i} className="text-base font-semibold text-slate-900 dark:text-slate-100">
                   {inline(b.text)}
                 </h3>
               );
             }
             return (
-              <h4 key={i} className="pt-2 text-sm font-semibold text-slate-900">
+              <h4 key={i} className="pt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
                 {inline(b.text)}
               </h4>
             );
           case "hr":
-            return <hr key={i} className="border-slate-200" />;
+            return <hr key={i} className="border-slate-200 dark:border-slate-800" />;
           case "quote":
             return (
               <blockquote
                 key={i}
-                className="border-l-4 border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+                className="border-l-4 border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
               >
                 {inline(b.text)}
               </blockquote>
@@ -192,7 +192,7 @@ export function ReportMarkdown({
             return (
               <div key={i} className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                  <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-950 dark:text-slate-400">
                     <tr>
                       {b.header.map((cell, j) => (
                         <th
@@ -204,7 +204,7 @@ export function ReportMarkdown({
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {b.rows.map((row, j) => (
                       <tr key={j}>
                         {row.map((cell, k) => (
@@ -225,7 +225,7 @@ export function ReportMarkdown({
             );
           case "para":
             return b.meta ? (
-              <p key={i} className="text-xs italic text-slate-500">
+              <p key={i} className="text-xs italic text-slate-500 dark:text-slate-400">
                 {inline(b.text)}
               </p>
             ) : (

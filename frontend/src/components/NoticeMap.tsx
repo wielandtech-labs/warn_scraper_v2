@@ -60,14 +60,14 @@ export function NoticeMap({
           <Popup>
             <div className="text-sm">
               <div className="font-semibold">{n.employer}</div>
-              <div className="text-slate-600">
+              <div className="text-slate-600 dark:text-slate-400">
                 {n.state} · {fmtDate(n.notice_date)}
               </div>
               <div className="mt-1">{fmtNum(n.layoff_count)} affected</div>
               <Link
                 to="/notices/$noticeId"
                 params={{ noticeId: n.notice_id }}
-                className="mt-1 inline-block text-sky-700 hover:underline"
+                className="mt-1 inline-block text-sky-700 hover:underline dark:text-sky-400"
               >
                 Details →
               </Link>
@@ -80,14 +80,14 @@ export function NoticeMap({
 
   if (query.isLoading) {
     return (
-      <div className="flex items-center justify-center text-slate-500" style={{ height }}>
+      <div className="flex items-center justify-center text-slate-500 dark:text-slate-400" style={{ height }}>
         Loading map…
       </div>
     );
   }
   if (points.length === 0) {
     return (
-      <div className="flex h-24 items-center justify-center text-sm text-slate-500">
+      <div className="flex h-24 items-center justify-center text-sm text-slate-500 dark:text-slate-400">
         No geocoded notices to map for this period.
       </div>
     );
@@ -95,7 +95,7 @@ export function NoticeMap({
 
   return (
     <>
-      <div className="overflow-hidden rounded-lg border border-slate-200">
+      <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
         <MapContainer
           center={CENTER_US}
           zoom={4}
@@ -110,7 +110,7 @@ export function NoticeMap({
           <MarkerClusterGroup chunkedLoading>{markers}</MarkerClusterGroup>
         </MapContainer>
       </div>
-      <div className="mt-2 text-xs text-slate-500">
+      <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
         Showing {fmtNum(points.length)} geocoded notices.
         {points.length >= STATE_MAP_PIN_CAP && " Some pins may be omitted."}
       </div>
