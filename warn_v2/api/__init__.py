@@ -5,10 +5,11 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.gzip import GZipMiddleware
 from prometheus_client import REGISTRY, make_asgi_app
 
+from warn_v2.api import ratelimit
 from warn_v2.api.routes import (
     auth,
     companies,
@@ -22,6 +23,7 @@ from warn_v2.api.routes import (
     seo,
     stats,
     subscriptions,
+    usage,
 )
 from warn_v2.observability.collector import WarnCollector
 
@@ -63,18 +65,23 @@ def create_app() -> FastAPI:
     app.mount("/metrics", make_asgi_app())
 
     # --- domain routes (all under /api so they don't shadow SPA paths) ---
+    # auth/keys/usage/subscriptions stay outside the rate limiter: login and
+    # key management must never 429 (they have their own protections), and the
+    # usage endpoint is how a limited caller checks their quota.
     app.include_router(auth.router, prefix="/api")
     app.include_router(keys.router, prefix="/api")
+    app.include_router(usage.router, prefix="/api")
+    limited = [Depends(ratelimit.enforce_limits)]
     # Export routes register before notices/companies so /api/notices/export and
     # /api/companies/export aren't swallowed by the parametric /{id} routes.
-    app.include_router(exports.router, prefix="/api")
-    app.include_router(notices.router, prefix="/api")
-    app.include_router(companies.router, prefix="/api")
-    app.include_router(runs.router, prefix="/api")
-    app.include_router(stats.router, prefix="/api")
-    app.include_router(reports.router, prefix="/api")
-    app.include_router(map_pins.router, prefix="/api")
-    app.include_router(search.router, prefix="/api")
+    app.include_router(exports.router, prefix="/api", dependencies=limited)
+    app.include_router(notices.router, prefix="/api", dependencies=limited)
+    app.include_router(companies.router, prefix="/api", dependencies=limited)
+    app.include_router(runs.router, prefix="/api", dependencies=limited)
+    app.include_router(stats.router, prefix="/api", dependencies=limited)
+    app.include_router(reports.router, prefix="/api", dependencies=limited)
+    app.include_router(map_pins.router, prefix="/api", dependencies=limited)
+    app.include_router(search.router, prefix="/api", dependencies=limited)
     app.include_router(subscriptions.router, prefix="/api")
 
     # --- SEO + feeds (site root, not /api): sitemap.xml, robots.txt, RSS ---

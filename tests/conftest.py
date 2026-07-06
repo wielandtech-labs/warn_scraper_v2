@@ -15,6 +15,20 @@ import warn_v2.db.session as db_session
 from warn_v2.db.models import Base
 
 
+@pytest.fixture(autouse=True)
+def _rate_limiting_off(monkeypatch: pytest.MonkeyPatch):
+    """Disable API rate limiting for the whole suite.
+
+    The limiter's sliding window is module-level state keyed on client IP, and
+    every API test shares TestClient's single fake IP — a full-suite run would
+    trip 429s in unrelated tests. tests/test_api_ratelimit.py re-enables it
+    with a fresh limiter per test.
+    """
+    from warn_v2.api import ratelimit
+
+    monkeypatch.setattr(ratelimit, "ENABLED", False)
+
+
 @pytest.fixture
 def db_engine():
     # StaticPool + check_same_thread=False lets TestClient (which runs the ASGI
