@@ -328,7 +328,11 @@ def _cdx_snapshots(url_pattern: str, month_re: re.Pattern) -> dict[tuple[int, in
                     "matchType": "prefix",
                     "output": "json",
                     "fl": "timestamp,original",
-                    "filter": "statuscode:200",
+                    # The warn filter is load-bearing for the portal host: its
+                    # unfiltered community/ prefix exceeds the row limit (hits
+                    # exactly 5000, verified 2026-07-06) and would silently
+                    # truncate.
+                    "filter": ["statuscode:200", "original:.*warn.*"],
                     "collapse": "urlkey",
                     "limit": "5000",
                 },
