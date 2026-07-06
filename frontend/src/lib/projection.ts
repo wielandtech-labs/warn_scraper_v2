@@ -8,8 +8,6 @@
 // actual values) and the projected point. The two non-null dashed values are
 // adjacent, so no connectNulls is needed.
 
-import { fmtNum } from "./format";
-
 interface SeriesRow {
   notice_count: number;
   layoff_total: number;
@@ -53,27 +51,4 @@ export function withProjectionSeries<T extends SeriesRow>(
     } as ProjectedPoint<T>;
   });
   return { data, hasProjection: active };
-}
-
-/** Tooltip formatter shared by the time-series charts: plain numbers for the
- *  actual series, "N projected (M to date)" on the projected point. */
-export function projectionTooltip(
-  value: number,
-  _name: string,
-  item: { dataKey?: unknown; payload?: Record<string, unknown> },
-): string {
-  const p = item.payload ?? {};
-  if (
-    item.dataKey === "projected_notice_count" &&
-    typeof p.actual_notice_count === "number"
-  ) {
-    return `${fmtNum(value)} projected (${fmtNum(p.actual_notice_count)} to date)`;
-  }
-  if (
-    item.dataKey === "projected_layoff_total" &&
-    typeof p.actual_layoff_total === "number"
-  ) {
-    return `${fmtNum(value)} projected (${fmtNum(p.actual_layoff_total)} to date)`;
-  }
-  return fmtNum(value);
 }

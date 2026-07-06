@@ -14,6 +14,7 @@ import {
 import { ApiError, api } from "../api/client";
 import { NoticeMap } from "../components/NoticeMap";
 import { ProjectionNote } from "../components/ProjectionNote";
+import { ProjectionTooltip } from "../components/ProjectionTooltip";
 import { QueryError } from "../components/QueryError";
 import { ReportMarkdown } from "../components/ReportMarkdown";
 import { SkeletonBlock, SkeletonChart } from "../components/Skeleton";
@@ -25,7 +26,7 @@ import {
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useTheme } from "../hooks/useTheme";
 import { fmtCompact, fmtPeriod } from "../lib/format";
-import { projectionTooltip, withProjectionSeries } from "../lib/projection";
+import { withProjectionSeries } from "../lib/projection";
 import { CHART_COLORS } from "../lib/themeColors";
 import { GradeBadge } from "./reports";
 
@@ -164,7 +165,7 @@ export function IndustryReportPage() {
                       tickFormatter={fmtCompact}
                     />
                     <Tooltip
-                      formatter={projectionTooltip}
+                      content={<ProjectionTooltip />}
                       contentStyle={chart.tooltip}
                       labelStyle={chart.tooltipLabel}
                     />

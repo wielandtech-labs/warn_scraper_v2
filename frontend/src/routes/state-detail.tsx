@@ -15,6 +15,7 @@ import { api, ApiError } from "../api/client";
 import { AlertSignup } from "../components/AlertSignup";
 import { NoticeMap } from "../components/NoticeMap";
 import { ProjectionNote } from "../components/ProjectionNote";
+import { ProjectionTooltip } from "../components/ProjectionTooltip";
 import { QueryError } from "../components/QueryError";
 import { ReportMarkdown } from "../components/ReportMarkdown";
 import { SkeletonBlock, SkeletonChart, SkeletonRows } from "../components/Skeleton";
@@ -27,7 +28,7 @@ import { UnavailableNotice } from "../components/UnavailableNotice";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useTheme } from "../hooks/useTheme";
 import { STATE_NAMES, fmtCompact, fmtDate, fmtNum, fmtPeriod, stateName } from "../lib/format";
-import { projectionTooltip, withProjectionSeries } from "../lib/projection";
+import { withProjectionSeries } from "../lib/projection";
 import { CHART_COLORS } from "../lib/themeColors";
 import { LAW_BLOCKED } from "../lib/unavailable";
 
@@ -204,7 +205,7 @@ export function StateDetailPage() {
                     tickFormatter={fmtCompact}
                   />
                   <Tooltip
-                    formatter={projectionTooltip}
+                    content={<ProjectionTooltip />}
                     contentStyle={chart.tooltip}
                     labelStyle={chart.tooltipLabel}
                   />

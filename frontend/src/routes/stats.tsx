@@ -17,12 +17,13 @@ import {
 import { api } from "../api/client";
 import { FilterBar, type FilterValues } from "../components/FilterBar";
 import { ProjectionNote } from "../components/ProjectionNote";
+import { ProjectionTooltip } from "../components/ProjectionTooltip";
 import { QueryError } from "../components/QueryError";
 import { SkeletonChart } from "../components/Skeleton";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useTheme } from "../hooks/useTheme";
 import { fmtCompact, fmtMonth, fmtNum } from "../lib/format";
-import { projectionTooltip, withProjectionSeries } from "../lib/projection";
+import { withProjectionSeries } from "../lib/projection";
 import { CHART_COLORS } from "../lib/themeColors";
 
 export function StatsPage() {
@@ -112,7 +113,7 @@ export function StatsPage() {
                     tickFormatter={fmtCompact}
                   />
                   <Tooltip
-                    formatter={projectionTooltip}
+                    content={<ProjectionTooltip />}
                     contentStyle={chart.tooltip}
                     labelStyle={chart.tooltipLabel}
                   />
