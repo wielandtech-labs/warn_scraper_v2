@@ -50,6 +50,8 @@ def create_key(
     user: User = Depends(_require_session),
     db: Session = Depends(get_db),
 ) -> ApiKeyCreatedOut:
+    if user.email_verified_at is None:
+        raise HTTPException(status_code=403, detail="Verify your email before creating keys")
     active = db.scalar(
         select(func.count())
         .select_from(ApiKey)

@@ -1,6 +1,8 @@
 """Rate limiting (per-minute window + daily quota) and /api/usage."""
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -50,7 +52,12 @@ def api_client(db, clock):
 
 
 def _user(db, email: str, role: str = "free") -> User:
-    u = User(email=email, password_hash=auth.hash_password(PASSWORD), role=role)
+    u = User(
+        email=email,
+        password_hash=auth.hash_password(PASSWORD),
+        role=role,
+        email_verified_at=datetime.now(UTC),  # key creation requires verification
+    )
     db.add(u)
     db.flush()
     return u

@@ -1,6 +1,8 @@
 """API-key auth: /api/keys management + header resolution in get_current_user."""
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -25,8 +27,13 @@ def api_client(db):
     app.dependency_overrides.clear()
 
 
-def _user(db, email: str, role: str = "free") -> User:
-    u = User(email=email, password_hash=auth.hash_password(PASSWORD), role=role)
+def _user(db, email: str, role: str = "free", verified: bool = True) -> User:
+    u = User(
+        email=email,
+        password_hash=auth.hash_password(PASSWORD),
+        role=role,
+        email_verified_at=datetime.now(UTC) if verified else None,
+    )
     db.add(u)
     db.flush()
     return u
@@ -69,6 +76,16 @@ def test_create_key_returns_raw_once_and_lists_prefix_only(api_client, db):
     assert len(listing) == 1
     assert listing[0]["prefix"] == body["prefix"]
     assert "key" not in listing[0]  # raw key never shown again
+
+
+def test_unverified_user_cannot_create_keys(api_client, db):
+    _user(db, "new@example.com", verified=False)
+    _login(api_client, "new@example.com")
+    resp = api_client.post("/api/keys", json={})
+    assert resp.status_code == 403
+    assert "Verify" in resp.json()["detail"]
+    # Listing/revoking existing keys is still allowed — only minting is gated.
+    assert api_client.get("/api/keys").status_code == 200
 
 
 def test_active_key_cap(api_client, db):
