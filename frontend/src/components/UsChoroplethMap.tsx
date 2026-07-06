@@ -51,9 +51,19 @@ export function UsChoroplethMap({ data }: { data: StateDatum[] }) {
     navigate({ to: "/states/$state", params: { state: code } });
   }
 
-  function moveTo(code: string, e: { clientX: number; clientY: number }) {
+  // Single svg-level handler deriving the state from the event target's
+  // data-code. Per-shape mouseEnter/Leave broke here: React 18 treats them as
+  // continuous-priority (batched, not flushed between events), so the svg
+  // mousemove handler's stale `hover` closure re-queued the OLD state code
+  // after enter(new) in the same batch — the tooltip stuck on the first state.
+  // The target is the browser's own hit test, so it can't go stale.
+  function handleMove(e: { clientX: number; clientY: number; target: EventTarget }) {
+    const code = (e.target as SVGElement).dataset?.code;
     const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
+    if (!code || !rect) {
+      setHover(null);
+      return;
+    }
     setHover({ code, x: e.clientX - rect.left, y: e.clientY - rect.top });
   }
 
@@ -91,9 +101,7 @@ export function UsChoroplethMap({ data }: { data: StateDatum[] }) {
         className="h-auto w-full"
         aria-hidden="true"
         focusable="false"
-        onMouseMove={(e) => {
-          if (hover) moveTo(hover.code, e);
-        }}
+        onMouseMove={handleMove}
         onMouseLeave={() => setHover(null)}
       >
         {data.map((s) => (
@@ -105,19 +113,13 @@ export function UsChoroplethMap({ data }: { data: StateDatum[] }) {
             strokeWidth={1}
             strokeLinejoin="round"
             className="cursor-pointer"
+            data-code={s.code}
             onClick={() => go(s.code)}
-            onMouseEnter={(e) => moveTo(s.code, e)}
-            onMouseLeave={() => setHover(null)}
           />
         ))}
         {/* DC is too small to hit on a geographic map — callout square. */}
         {dc && (
-          <g
-            className="cursor-pointer"
-            onClick={() => go("DC")}
-            onMouseEnter={(e) => moveTo("DC", e)}
-            onMouseLeave={() => setHover(null)}
-          >
+          <g className="cursor-pointer" onClick={() => go("DC")}>
             <line
               x1={DC_ANCHOR.x}
               y1={DC_ANCHOR.y}
@@ -125,6 +127,7 @@ export function UsChoroplethMap({ data }: { data: StateDatum[] }) {
               y2={258}
               stroke="#94a3b8"
               strokeWidth={1}
+              data-code="DC"
             />
             <rect
               x={855}
@@ -134,6 +137,7 @@ export function UsChoroplethMap({ data }: { data: StateDatum[] }) {
               rx={3}
               fill={BUCKET_COLORS[bucketOf(dc.layoff_total, thresholds)]}
               stroke="#94a3b8"
+              data-code="DC"
             />
             <text
               x={865}
