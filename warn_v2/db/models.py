@@ -142,8 +142,8 @@ class User(Base):
     role: Mapped[str] = mapped_column(
         String(16), nullable=False, default="free", server_default="free"
     )
-    # Values: 'admin' | 'paid' | 'free'. Plain String (no PG ENUM) so SQLite
-    # tests work and adding roles needs no migration.
+    # Values: 'admin' | 'enterprise' | 'paid' | 'free'. Plain String (no PG
+    # ENUM) so SQLite tests work and adding roles needs no migration.
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

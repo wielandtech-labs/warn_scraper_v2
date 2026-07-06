@@ -96,7 +96,7 @@ def test_notices_export_excludes_superseded(api_client, db):
     assert employers == {"Active Co"}
 
 
-def test_notices_export_paid_includes_enriched_columns(api_client, db):
+def test_notices_export_paid_includes_enriched_columns_but_no_duns(api_client, db):
     c = Company(name="Acme Inc", duns="123456789", parent_company_name="Acme Holdings",
                 employee_count=500)
     db.add(c)
@@ -107,9 +107,24 @@ def test_notices_export_paid_includes_enriched_columns(api_client, db):
     _login(api_client, "p@example.com")
 
     body = api_client.get("/api/notices/export?format=json").json()
-    assert body[0]["company_duns"] == "123456789"
     assert body[0]["parent_company_name"] == "Acme Holdings"
     assert body[0]["employee_count"] == 500
+    assert "company_duns" not in body[0]  # DUNS is enterprise-only
+
+
+@pytest.mark.parametrize("role", ["enterprise", "admin"])
+def test_notices_export_enterprise_includes_duns(api_client, db, role):
+    c = Company(name="Acme Inc", duns="123456789", parent_company_name="Acme Holdings")
+    db.add(c)
+    db.flush()
+    _notice(db, employer="Acme Inc", company=c)
+    _user(db, "e@example.com", role=role)
+    db.commit()
+    _login(api_client, "e@example.com")
+
+    body = api_client.get("/api/notices/export?format=json").json()
+    assert body[0]["company_duns"] == "123456789"
+    assert body[0]["parent_company_name"] == "Acme Holdings"
 
 
 def test_notices_export_respects_free_cap(api_client, db, monkeypatch):
@@ -137,14 +152,23 @@ def test_companies_export_csv_with_layoff_total(api_client, db):
     assert rows[1][lt_idx] == "100"
 
 
-def test_companies_export_paid_includes_duns(api_client, db):
-    db.add(Company(name="Acme Inc", duns="123456789"))
+def test_companies_export_enterprise_includes_duns_paid_does_not(api_client, db):
+    db.add(Company(name="Acme Inc", duns="123456789", parent_duns="987654321",
+                   hq_address="1 Acme Way"))
+    _user(db, "p@example.com", role="paid")
     _user(db, "a@example.com", role="admin")
     db.commit()
-    _login(api_client, "a@example.com")
 
+    _login(api_client, "p@example.com")
+    body = api_client.get("/api/companies/export?format=json").json()
+    assert body[0]["hq_address"] == "1 Acme Way"
+    assert "duns" not in body[0]
+    assert "parent_duns" not in body[0]
+
+    _login(api_client, "a@example.com")
     body = api_client.get("/api/companies/export?format=json").json()
     assert body[0]["duns"] == "123456789"
+    assert body[0]["parent_duns"] == "987654321"
 
 
 def test_notices_export_invalid_format_rejected(api_client, db):
