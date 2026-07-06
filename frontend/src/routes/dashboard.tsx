@@ -24,10 +24,11 @@ import {
   type TimeRange,
 } from "../components/TimeRangeToggle";
 import { ProjectionNote } from "../components/ProjectionNote";
+import { ProjectionTooltip } from "../components/ProjectionTooltip";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useTheme } from "../hooks/useTheme";
 import { fmtCompact, fmtDate, fmtNum, fmtPeriod } from "../lib/format";
-import { projectionTooltip, withProjectionSeries } from "../lib/projection";
+import { withProjectionSeries } from "../lib/projection";
 import { CHART_COLORS } from "../lib/themeColors";
 
 export function Dashboard() {
@@ -157,7 +158,7 @@ export function Dashboard() {
                     tickFormatter={fmtCompact}
                   />
                   <Tooltip
-                    formatter={projectionTooltip}
+                    content={<ProjectionTooltip />}
                     contentStyle={chart.tooltip}
                     labelStyle={chart.tooltipLabel}
                   />
