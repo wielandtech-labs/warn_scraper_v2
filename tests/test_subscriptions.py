@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from warn_v2.db.models import Notice, Subscription
-from warn_v2.notifications.digest import run_digest
+from warn_v2.notifications.digest import render_digest, run_digest
 
 EPOCH = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -162,6 +162,23 @@ def test_digest_skips_unconfirmed_and_superseded(db, sent):
     assert sent[0]["to"] == "confirmed@example.com"
     assert "Active Co" in sent[0]["text"]
     assert "Old Co" not in sent[0]["text"]
+
+
+def test_digest_html_escapes_untrusted_fields(db):
+    # Scraped employer names and user-supplied filter text must not become
+    # live markup in the HTML alternative.
+    sub = _sub(db, email="me@example.com", employer_query="<b>Evil & Co</b>")
+    notice = _notice(
+        db, employer="<img src=x onerror=alert(1)> & Sons",
+        scraped_at=EPOCH + timedelta(days=1), notice_id="esc1",
+    )
+
+    _subject, text, html = render_digest(sub, [notice])
+    assert "<img" not in html
+    assert "&lt;img src=x onerror=alert(1)&gt; &amp; Sons" in html
+    assert "&lt;b&gt;Evil &amp; Co&lt;/b&gt;" in html
+    # The plain-text alternative is not HTML and stays raw.
+    assert "<img src=x onerror=alert(1)> & Sons" in text
 
 
 def test_digest_isolates_send_failures(db, monkeypatch):

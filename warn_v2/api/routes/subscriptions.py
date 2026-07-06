@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 import secrets
 from datetime import UTC, datetime
+from html import escape
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse
@@ -47,9 +48,9 @@ def _page(title: str, body: str) -> HTMLResponse:
     return HTMLResponse(
         f"<!doctype html><html><head><meta charset='utf-8'>"
         f"<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        f"<title>{title} — WARN Tracker</title></head>"
+        f"<title>{escape(title)} — WARN Tracker</title></head>"
         f"<body style='{body_style}'>"
-        f"<h1 style='font-size:1.25rem'>{title}</h1><p>{body}</p>"
+        f"<h1 style='font-size:1.25rem'>{escape(title)}</h1><p>{escape(body)}</p>"
         f"<p><a href='{base}/'>← Back to WARN Tracker</a></p></body></html>"
     )
 
