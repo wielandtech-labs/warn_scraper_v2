@@ -14,6 +14,7 @@ import {
 import { api, ApiError } from "../api/client";
 import { AlertSignup } from "../components/AlertSignup";
 import { NoticeMap } from "../components/NoticeMap";
+import { ProjectionNote } from "../components/ProjectionNote";
 import { QueryError } from "../components/QueryError";
 import { ReportMarkdown } from "../components/ReportMarkdown";
 import { SkeletonBlock, SkeletonChart, SkeletonRows } from "../components/Skeleton";
@@ -25,6 +26,7 @@ import {
 import { UnavailableNotice } from "../components/UnavailableNotice";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { STATE_NAMES, fmtCompact, fmtDate, fmtNum, fmtPeriod, stateName } from "../lib/format";
+import { projectionTooltip, withProjectionSeries } from "../lib/projection";
 import { LAW_BLOCKED } from "../lib/unavailable";
 
 export function StateDetailPage() {
@@ -104,10 +106,12 @@ export function StateDetailPage() {
   const row = byState.data?.find((s) => s.state === code);
   const noticeCount = row?.notice_count ?? 0;
   const layoffTotal = row?.layoff_total ?? 0;
-  const timeData = (overTime.data ?? []).map((r) => ({
-    ...r,
-    label: fmtPeriod(r.period, bucket),
-  }));
+  const { data: timeData, hasProjection } = withProjectionSeries(
+    (overTime.data ?? []).map((r) => ({
+      ...r,
+      label: fmtPeriod(r.period, bucket),
+    })),
+  );
 
   return (
     <div className="space-y-6">
@@ -169,49 +173,78 @@ export function StateDetailPage() {
             No notices recorded for {name} in this period.
           </div>
         ) : (
-          <div
-            role="img"
-            aria-label={`Line chart of notice counts and workers affected in ${name} over time`}
-          >
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={timeData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="label" tick={{ fontSize: 12 }} minTickGap={24} />
-                {/* Axis ticks are colored to match their series, so the dual
-                    axes are readable without cross-referencing the legend. */}
-                <YAxis
-                  yAxisId="left"
-                  tick={{ fontSize: 12, fill: "#0369a1" }}
-                  tickFormatter={fmtCompact}
-                />
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  tick={{ fontSize: 12, fill: "#dc2626" }}
-                  tickFormatter={fmtCompact}
-                />
-                <Tooltip formatter={(v: number) => fmtNum(v)} />
-                <Line
-                  yAxisId="left"
-                  type="monotone"
-                  dataKey="notice_count"
-                  name="Notices"
-                  stroke="#0369a1"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="layoff_total"
-                  name="Workers affected"
-                  stroke="#dc2626"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <>
+            <div
+              role="img"
+              aria-label={`Line chart of notice counts and workers affected in ${name} over time`}
+            >
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={timeData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="label" tick={{ fontSize: 12 }} minTickGap={24} />
+                  {/* Axis ticks are colored to match their series, so the dual
+                      axes are readable without cross-referencing the legend. */}
+                  <YAxis
+                    yAxisId="left"
+                    tick={{ fontSize: 12, fill: "#0369a1" }}
+                    tickFormatter={fmtCompact}
+                  />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    tick={{ fontSize: 12, fill: "#dc2626" }}
+                    tickFormatter={fmtCompact}
+                  />
+                  <Tooltip formatter={projectionTooltip} />
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="notice_count"
+                    name="Notices"
+                    stroke="#0369a1"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="layoff_total"
+                    name="Workers affected"
+                    stroke="#dc2626"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                  {/* Dashed pace projection for the current, incomplete period;
+                      all-null (invisible) when no projection is active. */}
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="projected_notice_count"
+                    name="Notices (projected)"
+                    stroke="#0369a1"
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    dot={false}
+                    legendType="none"
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="projected_layoff_total"
+                    name="Workers affected (projected)"
+                    stroke="#dc2626"
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    dot={false}
+                    legendType="none"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            {hasProjection && (
+              <ProjectionNote periodLabel={timeData[timeData.length - 1].label} />
+            )}
+          </>
         )}
       </div>
 

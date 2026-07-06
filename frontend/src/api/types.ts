@@ -116,12 +116,20 @@ export interface MonthStat {
   month: string; // "YYYY-MM"
   notice_count: number;
   layoff_total: number;
+  // Pace projection for the current, incomplete month; set only on the final
+  // row when it is the current month, null on complete periods.
+  projected_notice_count?: number | null;
+  projected_layoff_total?: number | null;
 }
 
 export interface PeriodStat {
   period: string; // "YYYY-MM-DD" for day buckets, "YYYY-MM" for month buckets
   notice_count: number;
   layoff_total: number;
+  // Pace projection for the current, incomplete month/year; set only on the
+  // final row when it is the current period, always null for day buckets.
+  projected_notice_count?: number | null;
+  projected_layoff_total?: number | null;
 }
 
 export interface EmployerStat {

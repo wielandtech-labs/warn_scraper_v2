@@ -5,7 +5,8 @@ pod (see api/__init__.py StaticFiles mount), so no CORS middleware is needed.
 """
 from __future__ import annotations
 
-from datetime import date
+import calendar
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Query
@@ -40,12 +41,21 @@ class MonthStat(BaseModel):
     month: str  # "YYYY-MM"
     notice_count: int
     layoff_total: int
+    # Pace projection for the current, incomplete month (count-to-date scaled by
+    # the fraction of the month elapsed). Set only on the final row when it is
+    # the current UTC month; null on complete periods.
+    projected_notice_count: int | None = None
+    projected_layoff_total: int | None = None
 
 
 class PeriodStat(BaseModel):
     period: str  # "YYYY-MM-DD" for day buckets, "YYYY-MM" for month buckets
     notice_count: int
     layoff_total: int
+    # Pace projection for the current, incomplete month/year. Set only on the
+    # final row when it is the current UTC period; always null for day buckets.
+    projected_notice_count: int | None = None
+    projected_layoff_total: int | None = None
 
 
 class EmployerStat(BaseModel):
@@ -109,6 +119,11 @@ def _coerce_int(value) -> int:
     if isinstance(value, Decimal):
         return int(value)
     return int(value)
+
+
+def _today() -> date:
+    """Current UTC date. Module-level so tests can monkeypatch it."""
+    return datetime.now(UTC).date()
 
 
 def _apply_industry_filter(stmt, industry, subsector, *, joined: bool = False):
@@ -200,6 +215,50 @@ def _aggregate_over_time(
     ]
 
 
+def _pace_projection(
+    rows: list[tuple[str, int, int]],
+    *,
+    substr_len: int,
+    after: date | None,
+    before: date | None,
+) -> tuple[int, int] | None:
+    """Pace-projected (notice_count, layoff_total) for the current period.
+
+    Returns a projection for the FINAL row iff it is the current UTC month
+    (substr_len=7) or year (substr_len=4) and the date filters don't truncate
+    it; otherwise None. projected = round(actual * period_days / elapsed_days),
+    floored at the actual count so it never dips below data already reported.
+    Day buckets (substr_len=10) are never projected: a partial "today" barely
+    distorts the 30-day daily view.
+    """
+    if substr_len not in (4, 7) or not rows:
+        return None
+    today = _today()
+    if rows[-1][0] != today.isoformat()[:substr_len]:
+        return None
+    # A `before` earlier than today truncates the current period mid-way, so a
+    # through-today pace would understate; skip. before >= today is harmless.
+    if before is not None and before < today:
+        return None
+    if substr_len == 7:
+        period_start = today.replace(day=1)
+        period_days = calendar.monthrange(today.year, today.month)[1]
+        elapsed = today.day
+    else:
+        period_start = date(today.year, 1, 1)
+        period_days = 366 if calendar.isleap(today.year) else 365
+        elapsed = today.timetuple().tm_yday
+    # An `after` inside the current period means the row only covers part of
+    # the elapsed window — the elapsed-fraction denominator would be wrong.
+    if after is not None and after > period_start:
+        return None
+    if elapsed >= period_days:
+        return None  # last day of the period: nothing left to project
+    scale = period_days / elapsed
+    _, notices, layoffs = rows[-1]
+    return max(notices, round(notices * scale)), max(layoffs, round(layoffs * scale))
+
+
 @router.get("/by-month", response_model=list[MonthStat])
 def by_month(
     state: str | None = Query(None, description="Restrict to one state"),
@@ -222,7 +281,11 @@ def by_month(
         after=after,
         before=before,
     )
-    return [MonthStat(month=p, notice_count=n, layoff_total=lt) for p, n, lt in rows]
+    out = [MonthStat(month=p, notice_count=n, layoff_total=lt) for p, n, lt in rows]
+    proj = _pace_projection(rows, substr_len=7, after=after, before=before)
+    if proj is not None:
+        out[-1].projected_notice_count, out[-1].projected_layoff_total = proj
+    return out
 
 
 @router.get("/over-time", response_model=list[PeriodStat])
@@ -254,7 +317,11 @@ def over_time(
         after=after,
         before=before,
     )
-    return [PeriodStat(period=p, notice_count=n, layoff_total=lt) for p, n, lt in rows]
+    out = [PeriodStat(period=p, notice_count=n, layoff_total=lt) for p, n, lt in rows]
+    proj = _pace_projection(rows, substr_len=substr_len, after=after, before=before)
+    if proj is not None:
+        out[-1].projected_notice_count, out[-1].projected_layoff_total = proj
+    return out
 
 
 @router.get("/top-employers", response_model=list[EmployerStat])
