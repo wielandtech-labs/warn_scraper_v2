@@ -2,20 +2,17 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  lazyRouteComponent,
   Link,
   Outlet,
 } from "@tanstack/react-router";
 
 import { Layout } from "./components/Layout";
-import { Dashboard } from "./routes/dashboard";
 import { NoticesPage } from "./routes/notices";
 import { NoticeDetail } from "./routes/notice-detail";
 import { CompaniesPage } from "./routes/companies";
 import { CompanyDetail } from "./routes/company-detail";
-import { MapPage } from "./routes/map";
-import { StatsPage } from "./routes/stats";
 import { StatesIndexPage } from "./routes/states-index";
-import { StateDetailPage } from "./routes/state-detail";
 import { ReportsPage } from "./routes/reports";
 import { IndustryReportPage } from "./routes/industry-report";
 import { StatusPage } from "./routes/status";
@@ -35,10 +32,14 @@ const rootRoute = createRootRoute({
   ),
 });
 
+// The four chart/map-heavy pages are code-split: recharts (dashboard, stats,
+// state-detail) and leaflet (map, state-detail) each land in their own lazily
+// fetched chunk instead of the entry bundle, so every first paint — and every
+// visit that never opens them — skips those bytes entirely.
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  component: Dashboard,
+  component: lazyRouteComponent(() => import("./routes/dashboard"), "Dashboard"),
 });
 
 // Shared by the list route and its detail route: detail URLs carry the list's
@@ -158,7 +159,7 @@ const mapRoute = createRoute({
     lon: numParam(search.lon),
     zoom: numParam(search.zoom),
   }),
-  component: MapPage,
+  component: lazyRouteComponent(() => import("./routes/map"), "MapPage"),
 });
 
 const statsRoute = createRoute({
@@ -181,7 +182,7 @@ const statsRoute = createRoute({
     after: (search.after as string) || undefined,
     before: (search.before as string) || undefined,
   }),
-  component: StatsPage,
+  component: lazyRouteComponent(() => import("./routes/stats"), "StatsPage"),
 });
 
 const statesIndexRoute = createRoute({
@@ -193,7 +194,7 @@ const statesIndexRoute = createRoute({
 const stateDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/states/$state",
-  component: StateDetailPage,
+  component: lazyRouteComponent(() => import("./routes/state-detail"), "StateDetailPage"),
 });
 
 const reportsRoute = createRoute({
