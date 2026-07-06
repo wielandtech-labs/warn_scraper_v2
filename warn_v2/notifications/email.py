@@ -38,16 +38,40 @@ def _config() -> dict[str, str | int]:
     }
 
 
-def send_email(to: str, subject: str, text_body: str, html_body: str | None = None) -> None:
-    """Send one email via SMTP implicit TLS. Raises EmailNotConfigured if unset."""
-    cfg = _config()
+def _build_message(
+    sender: str,
+    to: str,
+    subject: str,
+    text_body: str,
+    html_body: str | None = None,
+    unsubscribe_url: str | None = None,
+) -> EmailMessage:
     msg = EmailMessage()
-    msg["From"] = cfg["from"]
+    msg["From"] = sender
     msg["To"] = to
     msg["Subject"] = subject
+    if unsubscribe_url:
+        # RFC 8058 one-click unsubscribe: providers POST to this URL, and
+        # Gmail/Yahoo require it for bulk mail. The API accepts GET and POST.
+        msg["List-Unsubscribe"] = f"<{unsubscribe_url}>"
+        msg["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
     msg.set_content(text_body)
     if html_body:
         msg.add_alternative(html_body, subtype="html")
+    return msg
+
+
+def send_email(
+    to: str,
+    subject: str,
+    text_body: str,
+    html_body: str | None = None,
+    *,
+    unsubscribe_url: str | None = None,
+) -> None:
+    """Send one email via SMTP implicit TLS. Raises EmailNotConfigured if unset."""
+    cfg = _config()
+    msg = _build_message(str(cfg["from"]), to, subject, text_body, html_body, unsubscribe_url)
 
     with smtplib.SMTP_SSL(cfg["host"], cfg["port"]) as server:
         server.login(cfg["username"], cfg["password"])

@@ -21,6 +21,7 @@ from warn_v2.api.deps import get_db
 from warn_v2.api.seo import site_base_url
 from warn_v2.db.models import Subscription
 from warn_v2.notifications.email import EmailNotConfigured, send_email
+from warn_v2.notifications.templates import FONT, button, render_shell
 
 router = APIRouter(prefix="/subscriptions", tags=["subscriptions"])
 
@@ -72,16 +73,25 @@ def create_subscription(
 
     base = site_base_url()
     confirm_url = f"{base}/api/subscriptions/confirm?token={sub.confirm_token}"
+    html_body = render_shell(
+        preheader="Confirm your email to start receiving WARN layoff alerts.",
+        content=(
+            f'<tr><td style="padding:24px 24px 8px;{FONT};font-size:15px;line-height:22px;'
+            'color:#0f172a;">Confirm your email to start receiving WARN layoff '
+            "alerts:</td></tr>"
+            f'<tr><td align="center" style="padding:16px 24px 24px;">'
+            f"{button(confirm_url, 'Confirm subscription')}</td></tr>"
+        ),
+        footer="If you didn't request this, ignore this message.",
+        base=base,
+    )
     try:
         send_email(
             sub.email,
             "Confirm your WARN Tracker alerts",
             f"Confirm your email to start receiving WARN layoff alerts:\n\n{confirm_url}\n\n"
             "If you didn't request this, ignore this message.",
-            f'<p>Confirm your email to start receiving WARN layoff alerts:</p>'
-            f'<p><a href="{confirm_url}">Confirm subscription</a></p>'
-            f"<p style='color:#64748b;font-size:12px'>If you didn't request this, ignore "
-            "this message.</p>",
+            html_body,
         )
     except EmailNotConfigured as exc:
         db.rollback()
@@ -107,11 +117,24 @@ def confirm_subscription(token: str = Query(...), db: Session = Depends(get_db))
     )
 
 
-@router.get("/unsubscribe")
-def unsubscribe(token: str = Query(...), db: Session = Depends(get_db)) -> HTMLResponse:
+def _delete_by_token(db: Session, token: str) -> None:
     sub = db.scalar(select(Subscription).where(Subscription.unsubscribe_token == token))
     if sub is not None:
         db.delete(sub)
         db.commit()
+
+
+@router.get("/unsubscribe")
+def unsubscribe(token: str = Query(...), db: Session = Depends(get_db)) -> HTMLResponse:
+    _delete_by_token(db, token)
     # Always show success so the link doesn't leak which tokens are valid.
     return _page("Unsubscribed", "You won't receive any further WARN Tracker alerts.")
+
+
+@router.post("/unsubscribe")
+def unsubscribe_one_click(
+    token: str = Query(...), db: Session = Depends(get_db)
+) -> dict[str, str]:
+    """RFC 8058 one-click unsubscribe: mail providers POST to the header URL."""
+    _delete_by_token(db, token)
+    return {"status": "unsubscribed"}
