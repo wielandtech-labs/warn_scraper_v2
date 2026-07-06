@@ -1196,6 +1196,60 @@ def set_role_cmd(email: str, role: str) -> None:
     click.echo(f"{email} role={role}")
 
 
+@main.command("issue-key")
+@click.option("--email", required=True)
+@click.option("--name", default=None, help="Label shown in key listings")
+def issue_key_cmd(email: str, name: str | None) -> None:
+    """Mint an API key for a user and print the raw key (shown only once)."""
+    from sqlalchemy import select
+
+    from warn_v2 import api_keys
+    from warn_v2.db.models import User
+    from warn_v2.db.session import session_scope
+
+    with session_scope() as session:
+        user = session.scalar(select(User).where(User.email == email.strip().lower()))
+        if user is None:
+            click.echo(f"no such user: {email}", err=True)
+            sys.exit(1)
+        key, raw = api_keys.create_key(session, user, name)
+        click.echo(f"created key {key.prefix}… for {email}")
+        click.echo(raw)
+
+
+@main.command("revoke-key")
+@click.option("--email", required=True)
+@click.option("--prefix", required=True, help="Key prefix as shown in listings")
+def revoke_key_cmd(email: str, prefix: str) -> None:
+    """Revoke a user's API key(s) matching a displayed prefix."""
+    from sqlalchemy import select
+
+    from warn_v2 import api_keys
+    from warn_v2.db.models import ApiKey, User
+    from warn_v2.db.session import session_scope
+
+    with session_scope() as session:
+        user = session.scalar(select(User).where(User.email == email.strip().lower()))
+        if user is None:
+            click.echo(f"no such user: {email}", err=True)
+            sys.exit(1)
+        matches = list(
+            session.scalars(
+                select(ApiKey).where(
+                    ApiKey.user_id == user.id,
+                    ApiKey.prefix == prefix,
+                    ApiKey.revoked_at.is_(None),
+                )
+            )
+        )
+        if not matches:
+            click.echo(f"no active key with prefix {prefix} for {email}", err=True)
+            sys.exit(1)
+        for key in matches:
+            api_keys.revoke_key(session, key)
+    click.echo(f"revoked {len(matches)} key(s) for {email}")
+
+
 @main.command("list-users")
 def list_users_cmd() -> None:
     """List accounts (email, role, created_at)."""
