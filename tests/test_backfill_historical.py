@@ -834,6 +834,31 @@ def test_parse_oh_year_era_b_pdf():
     assert first.effective_date == date(2011, 2, 28)
 
 
+def test_parse_oh_pdf_line_excel_serial_layoff_date():
+    """A layoff-date cell rendered as a bare Excel serial must not be
+    concatenated into the count (WARN_2003's AD-EX line: '110 37971' became
+    layoff_count=11037971)."""
+    from warn_v2.scrapers.states.oh import _excel_serial_date, _parse_oh_pdf_line
+
+    row = _parse_oh_pdf_line(
+        "09/23/03",
+        "Affinity Displays & Expositions Inc. dba AD-EX Cincinnati 110 37971 "
+        "(513) 771-2339 None 724-03-024",
+        2003,
+    )
+    assert row is not None
+    assert row.layoff_count == 110
+    assert row.effective_date == date(2003, 12, 16)  # serial 37971
+    assert row.city == "Cincinnati"
+
+    # Only serials landing in the file's year window (Y..Y+1) decode; anything
+    # else is not treated as a date.
+    assert _excel_serial_date("37971", 2003) == date(2003, 12, 16)
+    assert _excel_serial_date("38200", 2003) == date(2004, 8, 1)  # spillover ok
+    assert _excel_serial_date("12345", 2003) is None  # 1933 — not a layoff date
+    assert _excel_serial_date("37971", 2010) is None  # wrong file year
+
+
 def test_oh_split_employer_city_prefixes():
     from warn_v2.scrapers.states.oh import _split_employer_city
 

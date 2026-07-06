@@ -69,16 +69,26 @@ from the live deployment, `DATABASE_URL` via secretKeyRef `warn-v2-db/url`,
 delete Jobs after — see [historical-sources.md](historical-sources.md)) is
 outstanding.
 
-- [ ] **`backfill-layoff-counts` Job** (PR #113) — dry-run first, then real;
-  closes the CT 30% / HI 45% / WV 22% count gaps from stored PDFs. (A+gate)
-- [ ] **OH historical backfill run** (PR #55, era-dispatch 1996–2024) —
-  first run done 2026-07-06 (+2,319; 22/31 years, w_homelab #595). The 7 gap
-  years were discovery failures, fixed 2026-07-06 (CDX-pinned `.stm`
-  snapshots; June-2026 site year CSVs) — **remaining: re-run 2007–2024**
-  (dedupes by `notice_id`); 2025 is unaccounted for at source (investigate or
-  fold into the OH request). (A+gate)
-- [ ] **`mark-superseded` for IA (479), PA (286), IL (14)** — `--dry-run`
-  preview, then commit. (A+gate)
+- ~~**`backfill-layoff-counts` Job** (PR #113) — dry-run first, then real;
+  closes the CT 30% / HI 45% / WV 22% count gaps from stored PDFs.
+  (A+gate)~~ — DONE 2026-07-06 (w_homelab #591/#595/#599):
+  `considered=465 filled=94 no_count=371 no_text=0 missing=0 errors=0`.
+  The 371 kept NULL are letters whose text carries no usable count — the
+  conservative extractor's expected residue, not a re-run target.
+- ~~**OH historical backfill run** (PR #55, era-dispatch 1996–2024) —
+  dry-run pilot on 1–3 early years per the runbook; 2025 is unaccounted for
+  at source (investigate or fold into the OH request). (A+gate)~~ — RUN
+  2026-07-06: 22/31 years ok, **+2,319 rows** (floor now 1996). One parse
+  artifact found and healed (AD-EX 2003 Excel-serial count; parser fix
+  PR #153). The 7 gap years (2007–09, 2011, 2013, 2023–24) were discovery
+  failures, fixed 2026-07-06 in PR #159 (CDX-pinned `.stm` snapshots;
+  June-2026 site year CSVs) — **remaining: re-run 2007–2024** (dedupes by
+  `notice_id`); 2025 stays with the OH request. (A+gate)
+- ~~**`mark-superseded` for IA (479), PA (286), IL (14)** — `--dry-run`
+  preview, then commit. (A+gate)~~ — DONE 2026-07-06: those audit numbers
+  count rows *already marked* in earlier passes; the sweep found only 3
+  residual rows (PA Brinks Home + PA NRG Homer City zip-variance, AZ
+  Theranos 2016 locationless), committed.
 
 ## Track 3 — Historical depth (Wave 2B/2C parsers)
 

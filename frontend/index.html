@@ -8,6 +8,29 @@
     <meta name="theme-color" content="#0369a1" />
     <meta name="description" content="WARN — US state layoff notices, searchable and mapped." />
     <title>WARN — Layoff notices</title>
+    <!-- Pre-paint theme resolution: must stay in sync with src/hooks/useTheme.tsx
+         (same localStorage key, same system-fallback rule). Synchronous so the
+         first paint is already dark — prevents a light flash. -->
+    <script>
+      (function () {
+        var t = null;
+        try {
+          t = localStorage.getItem("theme");
+        } catch (e) {
+          /* localStorage unavailable: fall through to the system preference,
+             matching useTheme's readStoredPreference. */
+        }
+        var dark =
+          t === "dark" ||
+          (t !== "light" &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches);
+        if (dark) {
+          document.documentElement.classList.add("dark");
+          var m = document.querySelector('meta[name="theme-color"]');
+          if (m) m.setAttribute("content", "#0f172a");
+        }
+      })();
+    </script>
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-TC0GBVX6HH"></script>
     <script>
@@ -17,7 +40,7 @@
       gtag('config', 'G-TC0GBVX6HH', { send_page_view: true });
     </script>
   </head>
-  <body class="bg-slate-50 text-slate-900 antialiased">
+  <body class="bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

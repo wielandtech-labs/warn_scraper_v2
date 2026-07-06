@@ -14,7 +14,6 @@ import { CompaniesPage } from "./routes/companies";
 import { CompanyDetail } from "./routes/company-detail";
 import { StatesIndexPage } from "./routes/states-index";
 import { ReportsPage } from "./routes/reports";
-import { IndustryReportPage } from "./routes/industry-report";
 import { StatusPage } from "./routes/status";
 import { AboutPage } from "./routes/content/about";
 import { WarnActPage } from "./routes/content/warn-act";
@@ -206,7 +205,9 @@ const reportsRoute = createRoute({
 const industryReportRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/reports/industry/$sector",
-  component: IndustryReportPage,
+  // Code-split like the other chart/map-heavy pages: this route pulls in
+  // recharts (trend chart) and leaflet (sector map).
+  component: lazyRouteComponent(() => import("./routes/industry-report"), "IndustryReportPage"),
 });
 
 const statusRoute = createRoute({
@@ -281,17 +282,17 @@ function NotFound() {
   return (
     <div className="card mx-auto max-w-md text-center">
       <h1 className="text-2xl font-semibold">Page not found</h1>
-      <p className="mt-2 text-sm text-slate-600">
+      <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
         The page you're looking for doesn't exist or may have moved.
       </p>
       <div className="mt-4 flex justify-center gap-4 text-sm font-medium">
-        <Link to="/" className="text-sky-700 hover:underline">
+        <Link to="/" className="text-sky-700 hover:underline dark:text-sky-400">
           Dashboard
         </Link>
-        <Link to="/notices" className="text-sky-700 hover:underline">
+        <Link to="/notices" className="text-sky-700 hover:underline dark:text-sky-400">
           Notices
         </Link>
-        <Link to="/states" className="text-sky-700 hover:underline">
+        <Link to="/states" className="text-sky-700 hover:underline dark:text-sky-400">
           Browse states
         </Link>
       </div>

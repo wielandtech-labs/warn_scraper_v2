@@ -33,7 +33,7 @@ export function LoginPage() {
     <div className="mx-auto max-w-sm">
       <div className="card">
         <h1 className="text-xl font-semibold">Sign in</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Accounts are issued by the site operator.
         </p>
         <form
@@ -44,32 +44,32 @@ export function LoginPage() {
           }}
         >
           <div>
-            <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            <label className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Email
             </label>
             <input
               type="email"
               required
               autoComplete="email"
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
           <div>
-            <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            <label className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Password
             </label>
             <input
               type="password"
               required
               autoComplete="current-password"
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
-          {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
+          {errorMsg && <p className="text-sm text-red-600 dark:text-red-400">{errorMsg}</p>}
           <button
             type="submit"
             disabled={login.isPending}
