@@ -283,6 +283,9 @@ Findings the DB can't tell us — confirmed against the live sources.
 
 ## Backlog (genuinely new code, not just a command)
 
+> Prioritized and expanded into agent-executable tracks in
+> [docs/ROADMAP.md](docs/ROADMAP.md).
+
 - ~~**DC geo**~~ — DONE (storage `_derive_location_city`; 0% → 100%).
 - ~~**MN geo**~~ — DONE (`scrapers/mn_city`; 4% → ~87%).
 - ~~**GA tail**~~ — DONE (durable commits + never-enriched-first ordering; clears

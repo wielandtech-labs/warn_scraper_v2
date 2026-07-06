@@ -171,7 +171,7 @@ kubectl run scrape-tx -n warn-v2 \
 |-------------|---------|
 | AK, AL, AZ, CA, CO, CT, DC, DE, FL, GA, HI, IA, ID, IL, IN, KS, KY, LA, MA, MD, ME, MI, MN, MO, MS, MT, NC, ND, NE, NJ, NM, NV, NY, OH, OR, PA, RI, SC, SD, TN, TX, UT, VA, VT, WA, WI, WV | AR, NH, WY (no public data) · OK (Salesforce/Aura auth) |
 
-See [`docs/deferred-states.md`](docs/deferred-states.md) for investigation notes on each deferred state.
+See [`docs/deferred-states.md`](docs/deferred-states.md) for investigation notes on each deferred state, and [`docs/ROADMAP.md`](docs/ROADMAP.md) for the agent-executable work tracks (healing, backfills, records requests, enrichment).
 
 ### Repairing a broken scraper
 
