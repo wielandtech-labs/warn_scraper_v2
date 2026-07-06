@@ -15,6 +15,7 @@ extract only the leading integer.
 from __future__ import annotations
 
 import re
+import time
 
 import httpx
 from bs4 import BeautifulSoup
@@ -35,6 +36,12 @@ _UA = {
 
 _LEADING_INT = re.compile(r"^\d+")
 
+# dlr.sd.gov intermittently returns 503 on this page while the site root stays
+# up (~40-50% of requests in a 2026-07-04 probe), so a single GET is flaky;
+# retry a few times.
+_FETCH_ATTEMPTS = 5
+_FETCH_BACKOFF = 3.0
+
 
 class SDScraper:
     state = "SD"
@@ -43,12 +50,17 @@ class SDScraper:
     required_fields = frozenset({"employer", "notice_date"})
 
     def fetch(self) -> bytes:
-        try:
-            r = httpx.get(SOURCE_URL, headers=_UA, timeout=30, follow_redirects=True)
-            r.raise_for_status()
-            return r.content
-        except httpx.HTTPError as e:
-            raise ScrapeFailed(f"GET {SOURCE_URL}: {e}") from e
+        last_exc: httpx.HTTPError | None = None
+        for attempt in range(1, _FETCH_ATTEMPTS + 1):
+            try:
+                r = httpx.get(SOURCE_URL, headers=_UA, timeout=30, follow_redirects=True)
+                r.raise_for_status()
+                return r.content
+            except httpx.HTTPError as e:
+                last_exc = e
+                if attempt < _FETCH_ATTEMPTS:
+                    time.sleep(_FETCH_BACKOFF)
+        raise ScrapeFailed(f"GET {SOURCE_URL}: {last_exc}") from last_exc
 
     def parse(self, raw: bytes) -> list[NoticeRow]:
         soup = BeautifulSoup(raw, "html.parser")
