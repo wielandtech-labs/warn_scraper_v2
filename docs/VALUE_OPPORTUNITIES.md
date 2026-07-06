@@ -123,6 +123,11 @@ embeddable/citable charts + downloads.
   stats page).
 - Revenue: indirect — citations and backlinks build the authority that makes
   A and B sellable. Journalists are the distribution channel, not the buyer.
+- **Shipped (first cut):** `/api/stats/county-impact` + "Hardest-hit counties"
+  on /stats and /states/{code}, backed by bundled CBP 2023 county-total
+  employment (`warn_v2/geo/county_employment.py`). Note: the Census *data API*
+  now requires an API key, so the fetch script uses the keyless CBP flat file
+  + gazetteer instead. Industry-adjusted index and embeds remain open.
 
 ## 3. The LinkedIn question, answered directly
 
