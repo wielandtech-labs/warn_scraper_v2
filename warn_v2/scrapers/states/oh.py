@@ -321,7 +321,11 @@ _STM_FILE_RE = re.compile(
 
 @functools.lru_cache(maxsize=1)
 def _stm_replay_urls() -> dict[int, str]:
-    """Wayback replay URL of the latest 200-status capture per .stm-era year.
+    """Wayback replay URL of the latest good capture per .stm-era year.
+
+    Era .stm files serve Excel-exported PDFs, so a good capture is
+    statuscode 200 AND mimetype application/pdf — late captures of the same
+    URLs are text/html soft pages served with 200 (seen 2025-02).
 
     Returns {} when the CDX query fails; callers fall back to the anchored
     slug variants in _oh_year_sources.
@@ -337,7 +341,11 @@ def _stm_replay_urls() -> dict[int, str]:
                     "url": "jfs.ohio.gov/warn/*",
                     "output": "json",
                     "fl": "timestamp,original",
-                    "filter": ["statuscode:200", r"urlkey:.*\.stm.*"],
+                    "filter": [
+                        "statuscode:200",
+                        "mimetype:application/pdf",
+                        r"urlkey:.*\.stm.*",
+                    ],
                 },
                 headers=_FETCH_UA,
                 timeout=120,
