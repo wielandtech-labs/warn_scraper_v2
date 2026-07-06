@@ -14,7 +14,6 @@ import { CompaniesPage } from "./routes/companies";
 import { CompanyDetail } from "./routes/company-detail";
 import { StatesIndexPage } from "./routes/states-index";
 import { ReportsPage } from "./routes/reports";
-import { IndustryReportPage } from "./routes/industry-report";
 import { StatusPage } from "./routes/status";
 import { AboutPage } from "./routes/content/about";
 import { WarnActPage } from "./routes/content/warn-act";
@@ -206,7 +205,9 @@ const reportsRoute = createRoute({
 const industryReportRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/reports/industry/$sector",
-  component: IndustryReportPage,
+  // Code-split like the other chart/map-heavy pages: this route pulls in
+  // recharts (trend chart) and leaflet (sector map).
+  component: lazyRouteComponent(() => import("./routes/industry-report"), "IndustryReportPage"),
 });
 
 const statusRoute = createRoute({
