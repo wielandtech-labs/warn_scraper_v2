@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -255,7 +256,21 @@ def serve(host: str, port: int, reload: bool) -> None:
     """
     import uvicorn
 
-    uvicorn.run("warn_v2.api:app", host=host, port=port, reload=reload)
+    # proxy_headers: behind Traefik every request arrives from the pod network,
+    # so request.client.host is the ingress hop unless uvicorn applies
+    # X-Forwarded-For — without it, per-IP rate limiting would collapse all
+    # anonymous traffic into one shared bucket. The "*" default trusts every
+    # hop, which lets a client spoof its own XFF to *split* rate-limit buckets
+    # (dodging, never collapsing); narrow via FORWARDED_ALLOW_IPS (e.g. the
+    # cluster pod CIDR) once verified in prod — a values change, not a deploy.
+    uvicorn.run(
+        "warn_v2.api:app",
+        host=host,
+        port=port,
+        reload=reload,
+        proxy_headers=True,
+        forwarded_allow_ips=os.getenv("FORWARDED_ALLOW_IPS", "*"),
+    )
 
 
 @main.command("mark-superseded")

@@ -197,6 +197,23 @@ class ApiKey(Base):
     user: Mapped[User] = relationship("User")
 
 
+class ApiUsageDaily(Base):
+    """Per-key daily request counter: quota enforcement + billing/abuse audit trail.
+
+    One row per key per UTC day, upserted on every keyed request (see
+    warn_v2.api.ratelimit). Rows survive key revocation (FK cascades only on
+    key deletion, which never happens in normal operation).
+    """
+
+    __tablename__ = "api_usage_daily"
+
+    key_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("api_keys.id", ondelete="CASCADE"), primary_key=True
+    )
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+
+
 class Subscription(Base):
     """Email alert subscription (double opt-in).
 
