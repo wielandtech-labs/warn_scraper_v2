@@ -101,6 +101,11 @@ _APP_PAGES_META: dict[str, tuple[str, str]] = {
         "Charts of US WARN notices over time and by state, industry, and "
         "employer.",
     ),
+    "/reports": (
+        "Economic sentiment & industry scorecards — WARN Tracker",
+        "Weekly layoff-trend scorecards for every NAICS industry sector plus "
+        "a national outlook, computed from WARN Act notices.",
+    ),
 }
 
 

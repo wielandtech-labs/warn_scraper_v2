@@ -29,7 +29,11 @@ export function IndustryReportPage() {
     report.isError && report.error instanceof ApiError && report.error.status === 404;
 
   const name = card?.sector_name ?? `NAICS ${sector}`;
-  useDocumentTitle(`${name} layoff scorecard — WARN Tracker`);
+  useDocumentTitle(
+    missing
+      ? "Scorecard not found — WARN Tracker"
+      : `${name} layoff scorecard — WARN Tracker`,
+  );
 
   if (missing) {
     return (
