@@ -48,18 +48,28 @@ class CompanyOut(BaseModel):
 
 
 class CompanyEnrichedOut(CompanyOut):
-    """CompanyOut + D&B enrichment fields. Served only to paid/admin sessions.
+    """CompanyOut + D&B enrichment fields, minus raw DUNS identifiers.
 
-    Anonymous and free-tier responses use CompanyOut, so these keys are absent
-    (not null) for them — the public shape never includes D&B-sourced fields.
+    Served to paid sessions and above. Anonymous and free-tier responses use
+    CompanyOut, so these keys are absent (not null) for them — the public shape
+    never includes D&B-sourced fields.
     """
 
-    duns: str | None
-    parent_duns: str | None
     parent_company_name: str | None
     global_ultimate_name: str | None
     hq_address: str | None
     employee_count: int | None
+
+
+class CompanyEnterpriseOut(CompanyEnrichedOut):
+    """CompanyEnrichedOut + raw DUNS identifiers.
+
+    Served only to enterprise/admin sessions — DUNS numbers are the top-tier
+    differentiator and never appear below this level.
+    """
+
+    duns: str | None
+    parent_duns: str | None
 
 
 class FamilyMemberOut(BaseModel):
@@ -103,6 +113,10 @@ class NoticeEnrichedOut(NoticeOut):
     # annotation, so a CompanyEnrichedOut inside plain NoticeOut would be
     # stripped back down to CompanyOut's fields.
     company: CompanyEnrichedOut | None
+
+
+class NoticeEnterpriseOut(NoticeEnrichedOut):
+    company: CompanyEnterpriseOut | None
 
 
 class ScraperRunOut(BaseModel):

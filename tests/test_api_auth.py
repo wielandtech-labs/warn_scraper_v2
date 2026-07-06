@@ -77,14 +77,16 @@ def _notice(db, company: Company) -> Notice:
     return n
 
 
-DNB_FIELDS = (
-    "duns",
-    "parent_duns",
+# Served to paid sessions and above.
+ENRICHED_FIELDS = (
     "parent_company_name",
     "global_ultimate_name",
     "hq_address",
     "employee_count",
 )
+# Raw DUNS identifiers: enterprise/admin only.
+DUNS_FIELDS = ("duns", "parent_duns")
+DNB_FIELDS = DUNS_FIELDS + ENRICHED_FIELDS
 
 
 # ---------------------------------------------------------------------------
@@ -183,8 +185,23 @@ def test_anonymous_and_free_get_no_dnb_fields(api_client, db):
         assert body["website"] == "https://acme.example"
 
 
-@pytest.mark.parametrize("role", ["paid", "admin"])
-def test_paid_and_admin_get_dnb_fields(api_client, db, role):
+def test_paid_gets_enriched_fields_but_no_duns(api_client, db):
+    c = _enriched_company(db)
+    n = _notice(db, c)
+    _user(db, "paid@example.com", role="paid")
+    _login(api_client, "paid@example.com")
+
+    for body in _company_bodies(api_client, c.id, n.notice_id):
+        assert body["parent_company_name"] == "Acme Holdings"
+        assert body["global_ultimate_name"] == "Acme Global"
+        assert body["hq_address"] == "1 Acme Way, Coyote, AZ"
+        assert body["employee_count"] == 500
+        for field in DUNS_FIELDS:
+            assert field not in body  # key absent, not null
+
+
+@pytest.mark.parametrize("role", ["enterprise", "admin"])
+def test_enterprise_and_admin_get_all_dnb_fields(api_client, db, role):
     c = _enriched_company(db)
     n = _notice(db, c)
     _user(db, f"{role}@example.com", role=role)
@@ -202,8 +219,8 @@ def test_paid_and_admin_get_dnb_fields(api_client, db, role):
 def test_logout_drops_back_to_public_shape(api_client, db):
     c = _enriched_company(db)
     _notice(db, c)
-    _user(db, "p@example.com", role="paid")
-    _login(api_client, "p@example.com")
+    _user(db, "e@example.com", role="enterprise")
+    _login(api_client, "e@example.com")
     assert "duns" in api_client.get(f"/api/companies/{c.id}").json()
 
     api_client.post("/api/auth/logout")
@@ -222,16 +239,17 @@ def _assert_no_dnb_anywhere(payload) -> None:
             _assert_no_dnb_anywhere(v)
 
 
-def test_paid_session_gets_no_dnb_on_non_reshaped_endpoints(api_client, db):
+@pytest.mark.parametrize("role", ["paid", "enterprise"])
+def test_paid_session_gets_no_dnb_on_non_reshaped_endpoints(api_client, db, role):
     """Policy pin: only the 5 reshaped endpoints may serve D&B fields.
 
     family/stats/map-pins keep static response models and must stay
-    public-shaped even for paid sessions — this test fails if a future change
-    widens the surface without deliberately updating the policy.
+    public-shaped even for paid/enterprise sessions — this test fails if a
+    future change widens the surface without deliberately updating the policy.
     """
     c = _enriched_company(db)
     _notice(db, c)
-    _user(db, "p@example.com", role="paid")
+    _user(db, "p@example.com", role=role)
     _login(api_client, "p@example.com")
 
     for path in (

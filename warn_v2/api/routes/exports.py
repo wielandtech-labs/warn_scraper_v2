@@ -3,8 +3,10 @@
 Bulk CSV/JSON download reusing the same filters as the list endpoints
 (warn_v2.api.filters). Access is role-gated via the session cookie:
 
-- anonymous / free  -> capped at FREE_EXPORT_CAP rows, public columns only
-- paid / admin      -> up to PAID_EXPORT_CAP rows, plus D&B-enriched columns
+- anonymous / free    -> capped at FREE_EXPORT_CAP rows, public columns only
+- paid                -> up to PAID_EXPORT_CAP rows, plus D&B-enriched columns
+                         (minus raw DUNS identifiers)
+- enterprise / admin  -> paid columns plus raw DUNS identifiers
 
 Rows are materialised up to the cap (the full dataset is well within memory)
 then the CSV is streamed row-by-row so the response body isn't built as one
@@ -38,26 +40,28 @@ _NOTICE_PUBLIC_COLS = [
     "city", "county", "zip", "lat", "lon", "source_url", "raw_notice_url",
 ]
 _NOTICE_ENRICHED_COLS = [
-    "company_duns", "parent_company_name", "global_ultimate_name", "employee_count",
+    "parent_company_name", "global_ultimate_name", "employee_count",
 ]
+_NOTICE_ENTERPRISE_COLS = ["company_duns"]
 
 _COMPANY_PUBLIC_COLS = [
     "id", "name", "sic_code", "sic_desc", "naics_code", "naics_desc", "website",
     "enriched_at", "enrichment_confidence", "enrichment_source", "layoff_total",
 ]
 _COMPANY_ENRICHED_COLS = [
-    "duns", "parent_company_name", "parent_duns", "global_ultimate_name",
-    "hq_address", "employee_count",
+    "parent_company_name", "global_ultimate_name", "hq_address", "employee_count",
 ]
+_COMPANY_ENTERPRISE_COLS = ["duns", "parent_duns"]
 
 
 class ExportAccess:
-    """Row cap + enriched-column visibility derived from the viewer's role."""
+    """Row cap + enriched/enterprise-column visibility from the viewer's role."""
 
     def __init__(self, user: User | None = Depends(get_current_user)) -> None:
-        paid = user is not None and user.role in ("paid", "admin")
-        self.enriched = paid
-        self.cap = PAID_EXPORT_CAP if paid else FREE_EXPORT_CAP
+        role = user.role if user is not None else None
+        self.enterprise = role in ("enterprise", "admin")
+        self.enriched = self.enterprise or role == "paid"
+        self.cap = PAID_EXPORT_CAP if self.enriched else FREE_EXPORT_CAP
 
 
 def _coerce(v: object) -> object:
@@ -124,6 +128,8 @@ def export_notices(
     columns = list(_NOTICE_PUBLIC_COLS)
     if access.enriched:
         columns += _NOTICE_ENRICHED_COLS
+    if access.enterprise:
+        columns += _NOTICE_ENTERPRISE_COLS
 
     records = []
     for n in db.scalars(stmt.limit(access.cap)).unique():
@@ -142,11 +148,12 @@ def export_notices(
         }
         if access.enriched:
             rec.update({
-                "company_duns": c.duns if c else None,
                 "parent_company_name": c.parent_company_name if c else None,
                 "global_ultimate_name": c.global_ultimate_name if c else None,
                 "employee_count": c.employee_count if c else None,
             })
+        if access.enterprise:
+            rec["company_duns"] = c.duns if c else None
         records.append(rec)
     return _respond(format, columns, records, "warn-notices")
 
@@ -205,6 +212,8 @@ def export_companies(
     columns = list(_COMPANY_PUBLIC_COLS)
     if access.enriched:
         columns += _COMPANY_ENRICHED_COLS
+    if access.enterprise:
+        columns += _COMPANY_ENTERPRISE_COLS
 
     records = []
     for company, total in db.execute(stmt.limit(access.cap)).all():
@@ -219,12 +228,12 @@ def export_companies(
         }
         if access.enriched:
             rec.update({
-                "duns": company.duns,
                 "parent_company_name": company.parent_company_name,
-                "parent_duns": company.parent_duns,
                 "global_ultimate_name": company.global_ultimate_name,
                 "hq_address": company.hq_address,
                 "employee_count": company.employee_count,
             })
+        if access.enterprise:
+            rec.update({"duns": company.duns, "parent_duns": company.parent_duns})
         records.append(rec)
     return _respond(format, columns, records, "warn-companies")
