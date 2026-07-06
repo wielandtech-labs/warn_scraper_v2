@@ -9,8 +9,10 @@ from sqlalchemy.orm import Session
 from warn_v2 import auth
 from warn_v2.api.schemas import (
     CompanyEnrichedOut,
+    CompanyEnterpriseOut,
     CompanyOut,
     NoticeEnrichedOut,
+    NoticeEnterpriseOut,
     NoticeOut,
     Page,
 )
@@ -46,14 +48,24 @@ def require_admin(user: User | None = Depends(get_current_user)) -> User:
 class ViewerSchemas:
     """Company/notice output schemas for the requesting user's role.
 
-    paid/admin sessions get the *EnrichedOut subclasses (D&B fields included);
+    enterprise/admin sessions get the *EnterpriseOut subclasses (D&B fields
+    including raw DUNS); paid sessions get *EnrichedOut (D&B fields minus DUNS);
     anonymous and free users get the base schemas — today's exact public shape.
     """
 
     def __init__(self, user: User | None = Depends(get_current_user)) -> None:
-        self.enriched = user is not None and user.role in ("paid", "admin")
-        self.company: type[CompanyOut] = CompanyEnrichedOut if self.enriched else CompanyOut
-        self.notice: type[NoticeOut] = NoticeEnrichedOut if self.enriched else NoticeOut
+        role = user.role if user is not None else None
+        self.enterprise = role in ("enterprise", "admin")
+        self.enriched = self.enterprise or role == "paid"
+        if self.enterprise:
+            self.company: type[CompanyOut] = CompanyEnterpriseOut
+            self.notice: type[NoticeOut] = NoticeEnterpriseOut
+        elif self.enriched:
+            self.company = CompanyEnrichedOut
+            self.notice = NoticeEnrichedOut
+        else:
+            self.company = CompanyOut
+            self.notice = NoticeOut
 
     # Routes using these must set response_model=None: a static response_model
     # (and Pydantic's annotation-based nested serialization) would strip the

@@ -1099,7 +1099,7 @@ def reset_enrichment_cmd(sources: str, include_null_source: bool, dry_run: bool)
     click.echo(f"reset {total} companies — re-queued for the enrichment cascade")
 
 
-_ROLES = click.Choice(["admin", "paid", "free"])
+_ROLES = click.Choice(["admin", "enterprise", "paid", "free"])
 _MIN_PASSWORD_LEN = 12
 
 
@@ -1181,7 +1181,7 @@ def set_password_cmd(email: str, password_stdin: bool) -> None:
 @click.option("--email", required=True)
 @click.option("--role", type=_ROLES, required=True)
 def set_role_cmd(email: str, role: str) -> None:
-    """Change an existing user's role (admin | paid | free)."""
+    """Change an existing user's role (admin | enterprise | paid | free)."""
     from sqlalchemy import select
 
     from warn_v2.db.models import User
