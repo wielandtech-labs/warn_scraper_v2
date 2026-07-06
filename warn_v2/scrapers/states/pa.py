@@ -34,6 +34,7 @@ effective_date is parsed from the EFFECTIVE DATE: label; ranges like
 """
 from __future__ import annotations
 
+import functools
 import json
 import re
 from datetime import date, datetime
@@ -255,3 +256,249 @@ class PAScraper:
 
 
 register(PAScraper())
+
+
+# ---------------------------------------------------------------------------
+# Historical backfill (2001-2022): archived per-month pages via Wayback
+# ---------------------------------------------------------------------------
+# Two retired hosts carry the same content template (a border="2" table whose
+# <td> cells each hold one notice: <strong>Employer</strong>, address lines,
+# COUNTY: / # AFFECTED: labels, a standalone bold closure line like
+# "PLANT CLOSING", then EFFECTIVE DATE:):
+#
+#   portal.state.pa.us  /portal/server.pt/community/{yr}/10542/
+#                       {month}_{year}_warn_notices/{id}     2001-2015
+#   www.dli.pa.gov      /Individuals/Workforce-Development/warn/notices/
+#                       Pages/{Month}-{Year}.aspx            2011-2024
+#
+# Discovery is CDX-driven (both hosts are dead/redirected live); overlapping
+# years prefer the SharePoint capture. Month pages carry no per-notice filing
+# date, so notice_date is the page month (first-of-month) — the same
+# best-available-proxy tradeoff the live scraper makes with repo:modifyDate.
+# Hard-capped at 2022: the live AEM era (2023+) stamps notice_date from its
+# publish date, so re-parsing those months here would mint duplicate
+# notice_ids for rows the regular scraper already stores.
+
+_HIST_YEAR_END = 2022
+_CDX_API = "https://web.archive.org/cdx/search/cdx"
+_WAYBACK_REPLAY = "https://web.archive.org/web/{ts}id_/{url}"
+_WAYBACK_DELAY = 3.0
+_WAYBACK_BACKOFF = 30.0
+
+_MONTH_NUM = {
+    m: i + 1
+    for i, m in enumerate(
+        (
+            "january", "february", "march", "april", "may", "june",
+            "july", "august", "september", "october", "november", "december",
+        )
+    )
+}
+_MONTH_ALT = "|".join(_MONTH_NUM)
+_PORTAL_MONTH_RE = re.compile(rf"/({_MONTH_ALT})_(\d{{4}})_warn_notices/", re.I)
+_SP_MONTH_RE = re.compile(rf"/pages/({_MONTH_ALT})-(\d{{4}})\.aspx", re.I)
+# Standalone closure line between the labels — "PLANT CLOSING", "CLOSING",
+# "MASS LAYOFF", "PLANT CLOSURE AND MASS LAYOFF", ... Only consulted between
+# labels (never for the employer line), so a keyword match is safe.
+_CLOSURE_LINE_RE = re.compile(
+    r"^(?=.{0,45}$)[^:]*\b(?:closing|closure|layoff)s?\b[^:]*$", re.I
+)
+# "City, PA" with no ZIP (early portal pages often omit it).
+_CITY_NO_ZIP_RE = re.compile(r"^(.+),\s*PA\.?\s*$", re.I)
+
+# Inline labels; the late SharePoint era (~2021+) labels the closure type
+# ("CLOSING OR LAYOFF: Closure") instead of a standalone bold line.
+_HIST_LABELS = (
+    "COUNTY:", "# AFFECTED:", "EFFECTIVE DATE:",
+    "CLOSING OR LAYOFF:", "CLOSURE OR LAYOFF:",
+)
+
+
+def _cdx_snapshots(url_pattern: str, month_re: re.Pattern) -> dict[tuple[int, int], str]:
+    """(year, month) -> replay URL of the latest 200 capture matching month_re."""
+    import time
+
+    for attempt in (1, 2):
+        time.sleep(_WAYBACK_DELAY)
+        try:
+            r = httpx.get(
+                _CDX_API,
+                params={
+                    "url": url_pattern,
+                    "matchType": "prefix",
+                    "output": "json",
+                    "fl": "timestamp,original",
+                    # The warn filter is load-bearing for the portal host: its
+                    # unfiltered community/ prefix exceeds the row limit (hits
+                    # exactly 5000, verified 2026-07-06) and would silently
+                    # truncate.
+                    "filter": ["statuscode:200", "original:.*warn.*"],
+                    "collapse": "urlkey",
+                    "limit": "5000",
+                },
+                headers=_UA,
+                timeout=120,
+            )
+            r.raise_for_status()
+            captures = r.json()
+            break
+        except (httpx.HTTPError, ValueError) as e:
+            if attempt == 1:
+                time.sleep(_WAYBACK_BACKOFF)
+                continue
+            raise ScrapeFailed(f"PA: CDX query {url_pattern}: {e}") from e
+    best: dict[tuple[int, int], tuple[str, str]] = {}
+    if not isinstance(captures, list):
+        return {}
+    for cap in captures[1:]:  # row 0 is the field-name header
+        if not (isinstance(cap, list) and len(cap) == 2):
+            continue
+        ts, original = str(cap[0]), str(cap[1])
+        m = month_re.search(original)
+        if m is None:
+            continue
+        key = (int(m.group(2)), _MONTH_NUM[m.group(1).lower()])
+        if key not in best or ts > best[key][0]:
+            best[key] = (ts, original)
+    return {
+        key: _WAYBACK_REPLAY.format(ts=ts, url=original)
+        for key, (ts, original) in best.items()
+    }
+
+
+@functools.lru_cache(maxsize=1)
+def _month_snapshots() -> dict[tuple[int, int], str]:
+    """Merged (year, month) -> replay URL; SharePoint captures win overlaps."""
+    snaps = _cdx_snapshots(
+        "portal.state.pa.us/portal/server.pt/community/", _PORTAL_MONTH_RE
+    )
+    snaps.update(
+        _cdx_snapshots(
+            "dli.pa.gov/Individuals/Workforce-Development/warn/notices/Pages/",
+            _SP_MONTH_RE,
+        )
+    )
+    return snaps
+
+
+def _fetch_pa_year(year: int) -> list[bytes] | None:
+    """Fetch every archived month page for *year*; None when none exist."""
+    import time
+
+    if year > _HIST_YEAR_END:
+        return None
+    snaps = _month_snapshots()
+    chunks: list[bytes] = []
+    for month in range(1, 13):
+        url = snaps.get((year, month))
+        if url is None:
+            continue
+        for attempt in (1, 2):
+            time.sleep(_WAYBACK_DELAY)
+            try:
+                r = httpx.get(url, headers=_UA, timeout=120, follow_redirects=True)
+                r.raise_for_status()
+            except httpx.HTTPError:
+                if attempt == 1:
+                    time.sleep(_WAYBACK_BACKOFF)
+                    continue
+                break  # month lost to throttling — the re-run picks it up
+            chunks.append(
+                json.dumps({"month": month, "html": r.text}).encode("utf-8")
+            )
+            break
+    return chunks or None
+
+
+def _hist_city(addr_lines: list[str]) -> str | None:
+    """City from 'City, PA ZIP' or the early pages' ZIP-less 'City, PA'."""
+    city = _extract_city(addr_lines)
+    if city:
+        return city
+    for line in reversed(addr_lines):
+        m = _CITY_NO_ZIP_RE.match(line.strip())
+        if m:
+            return m.group(1).split(",")[-1].strip() or None
+    return None
+
+
+def _parse_month_cell(lines: list[str], year: int, month: int) -> list[NoticeRow]:
+    """Parse one table cell's text lines into NoticeRows (usually one)."""
+    notice_date = date(year, month, 1)
+    rows: list[NoticeRow] = []
+    addr_lines: list[str] = []
+    labels: dict[str, str] = {}
+    employer: str | None = None
+    pending: str | None = None  # label whose value is on the next line
+
+    def _flush() -> None:
+        if not employer or not labels:
+            return
+        address = as_str(", ".join(addr_lines)) if addr_lines else None
+        rows.append(
+            NoticeRow(
+                state="PA",
+                employer=employer,
+                notice_date=notice_date,
+                effective_date=_parse_effective_date(labels.get("EFFECTIVE DATE", "")),
+                layoff_count=_parse_affected(labels.get("# AFFECTED")),
+                city=_hist_city(addr_lines),
+                county=as_str(labels.get("COUNTY")) or None,
+                zip=zip_from(None, address),
+                address=address,
+                closure_type=as_str(labels.get("CLOSURE")) or None,
+                source_url=_SOURCE_URL,
+            )
+        )
+
+    for line in lines:
+        upper = line.upper()
+        if any(upper.startswith(p) for p in _HIST_LABELS):
+            key, _, val = line.partition(":")
+            key = key.strip().upper()
+            if key in ("CLOSING OR LAYOFF", "CLOSURE OR LAYOFF"):
+                key = "CLOSURE"
+            if val.strip():
+                labels[key] = val.strip()
+                pending = None
+            else:
+                pending = key
+        elif pending is not None:
+            labels[pending] = line
+            pending = None
+        elif labels and _CLOSURE_LINE_RE.match(line):
+            labels["CLOSURE"] = line
+        elif labels:
+            # Non-label content after a completed block -> next notice.
+            _flush()
+            employer, addr_lines, labels = line, [], {}
+        elif employer is None:
+            employer = line
+        else:
+            addr_lines.append(line)
+
+    _flush()
+    return rows
+
+
+def parse_pa_month(raw: bytes, year: int) -> list[NoticeRow]:
+    """Parse one archived month page (JSON envelope from _fetch_pa_year)."""
+    try:
+        env = json.loads(raw)
+        month = int(env["month"])
+        soup = BeautifulSoup(env["html"], "html.parser")
+    except (ValueError, KeyError, TypeError) as e:
+        raise ParseFailed(f"PA archive: bad month envelope: {e}") from e
+
+    rows: list[NoticeRow] = []
+    for td in soup.find_all("td"):
+        if "# AFFECTED" not in td.get_text().upper():
+            continue
+        if td.find("td") is not None:  # outer cell wrapping nested layout tables
+            continue
+        lines = [
+            _INVISIBLE_RE.sub("", ln).replace("\xa0", " ").strip()
+            for ln in td.get_text(separator="\n").split("\n")
+        ]
+        rows.extend(_parse_month_cell([ln for ln in lines if ln], year, month))
+    return rows

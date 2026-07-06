@@ -1066,3 +1066,80 @@ def test_parse_oh_year_csv():
     assert row.source_url.endswith("/2024-public-notices-of-layoffs-and-closures")
     # Compound "Date Received" cells fall back to the first date.
     assert rows[1].notice_date == date(2024, 12, 30)
+
+
+# ---------------------------------------------------------------------------
+# Wave 2B — PA (archived month pages, portal + SharePoint eras)
+# ---------------------------------------------------------------------------
+
+def _pa_month_envelope(fixture: str, month: int) -> bytes:
+    from pathlib import Path
+
+    html = (
+        Path(__file__).resolve().parents[1]
+        / "warn_v2" / "scrapers" / "fixtures" / "pa" / fixture
+    ).read_text(encoding="utf-8", errors="replace")
+    return json.dumps({"month": month, "html": html}).encode()
+
+
+def test_parse_pa_month_portal_era():
+    """2001-2015 portal.state.pa.us pages: bold employer, standalone closure line."""
+    from warn_v2.scrapers.states.pa import parse_pa_month
+
+    rows = parse_pa_month(_pa_month_envelope("archive_portal_2001_04.html", 4), 2001)
+    assert len(rows) == 23
+    first = rows[0]
+    assert first.employer == "C-COR.net"
+    assert first.notice_date == date(2001, 4, 1)  # month page -> first-of-month
+    assert first.city == "Tipton"
+    assert first.county == "Blair"
+    assert first.zip == "16684"
+    assert first.layoff_count == 418
+    assert first.effective_date == date(2001, 5, 29)  # "05/29/01" 2-digit year
+    assert first.closure_type == "PLANT CLOSING"
+    # ZIP-less "Dunmore, PA" address still yields the city.
+    assert rows[1].city == "Dunmore"
+    assert rows[1].zip is None
+    # No label/closure text ever leaks into employer names.
+    assert not any(
+        w in r.employer.upper()
+        for r in rows
+        for w in ("CLOSING", "CLOSURE", "LAYOFF", "AFFECTED", "COUNTY")
+    )
+
+
+def test_parse_pa_month_portal_multiword_closure_line():
+    """'PLANT CLOSURE AND MASS LAYOFF' is a closure line, not a new employer."""
+    from warn_v2.scrapers.states.pa import parse_pa_month
+
+    rows = parse_pa_month(_pa_month_envelope("archive_portal_2010_12.html", 12), 2010)
+    assert len(rows) == 8
+    ch = next(r for r in rows if "Hochman" in r.employer)
+    assert ch.closure_type == "PLANT CLOSURE AND MASS LAYOFF"
+    assert ch.layoff_count == 116
+    assert ch.effective_date == date(2011, 2, 2)
+    # Out-of-state HQ address ("New York, NY") must not produce a PA city.
+    assert ch.city is None
+
+
+def test_parse_pa_month_sharepoint_late_era():
+    """~2021+ SharePoint pages label the type inline: 'CLOSING OR LAYOFF: X'."""
+    from warn_v2.scrapers.states.pa import parse_pa_month
+
+    rows = parse_pa_month(_pa_month_envelope("archive_sp_2022_08.html", 8), 2022)
+    assert len(rows) == 5
+    first = rows[0]
+    assert first.employer == "Conduit Global Inc."
+    assert first.city == "Bethlehem"
+    assert first.layoff_count == 175
+    assert first.closure_type == "Closure"
+    # Wave ranges take the first date: "1st Wave - 8/3/2022, 2nd Wave - ..."
+    assert first.effective_date == date(2022, 8, 3)
+
+
+def test_pa_fetch_year_hard_caps_at_live_era():
+    """2023+ months are the AEM live scraper's territory — never backfilled."""
+    from warn_v2.scrapers.states.pa import _fetch_pa_year
+
+    assert _fetch_pa_year(2023) is None
+    assert _fetch_pa_year(2024) is None

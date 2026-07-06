@@ -527,7 +527,7 @@ def backfill_layoff_counts_cmd(
 @click.option(
     "--state", required=True,
     help="State to backfill: AZ, CA, DC, DE, FL, HI, IL, KS, KY, MD, ME, MN, "
-         "MS, NM, OH, TX, VT, WI (CO is already cumulative)",
+         "MS, NM, OH, PA, TX, VT, WI (CO is already cumulative)",
 )
 @click.option("--year-start", type=int, default=None,
               help="First year to fetch (default: per-state earliest; "
