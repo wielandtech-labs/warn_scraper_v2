@@ -66,6 +66,7 @@ from warn_v2.scrapers.states.ms import _discover_pdf_urls as _discover_ms_pdf_ur
 from warn_v2.scrapers.states.nm import _discover_archive_pdf_urls as _discover_nm_pdf_urls
 from warn_v2.scrapers.states.nv import _fetch_nv_year, parse_nv_archive
 from warn_v2.scrapers.states.oh import _fetch_oh_year, parse_oh_year
+from warn_v2.scrapers.states.pa import _fetch_pa_year, parse_pa_month
 from warn_v2.scrapers.states.tx import _fetch_tx_year
 from warn_v2.scrapers.states.wi import _fetch_wi_archive_year, parse_wi_archive_html
 
@@ -170,6 +171,16 @@ _BACKFILL: dict[str, BackfillSpec] = {
         year_start=1996,
         fetch_year=lambda s, y: _fetch_oh_year(y),
         parse_year=lambda b, y: parse_oh_year(b, y),
+    ),
+    # PA: archived per-month pages via Wayback CDX (portal.state.pa.us
+    # 2001-2015, SharePoint dli.pa.gov 2011-2022; same content template).
+    # _fetch_pa_year hard-caps at 2022 — the AEM live era (2023+) stamps
+    # notice_date from its publish date, so re-parsing those months would
+    # mint duplicates of rows the regular scraper already stores.
+    "PA": BackfillSpec(
+        year_start=2001,
+        fetch_year=lambda s, y: _fetch_pa_year(y),
+        parse_year=lambda b, y: parse_pa_month(b, y),
     ),
 }
 
