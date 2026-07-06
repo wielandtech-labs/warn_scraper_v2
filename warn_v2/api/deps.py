@@ -6,7 +6,7 @@ from collections.abc import Generator
 from fastapi import Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
-from warn_v2 import auth
+from warn_v2 import api_keys, auth
 from warn_v2.api.schemas import (
     CompanyEnrichedOut,
     CompanyEnterpriseOut,
@@ -29,12 +29,43 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
-def get_current_user(request: Request, db: Session = Depends(get_db)) -> User | None:
-    """Resolve the session cookie to a User, or None for anonymous/expired."""
+def get_cookie_user(request: Request, db: Session = Depends(get_db)) -> User | None:
+    """Resolve ONLY the session cookie — API keys deliberately don't count.
+
+    Key-management (and later billing) routes depend on this so a leaked API
+    key can never mint, list, or revoke keys.
+    """
     token = request.cookies.get(auth.COOKIE_NAME)
     if not token:
         return None
     return auth.resolve_session(db, token)
+
+
+def _bearer_key(request: Request) -> str | None:
+    header = request.headers.get("authorization")
+    if header and header.lower().startswith("bearer "):
+        return header[7:].strip()
+    return None
+
+
+def get_current_user(request: Request, db: Session = Depends(get_db)) -> User | None:
+    """Resolve the session cookie or an API key to a User; None for anonymous.
+
+    Keys are accepted as ``X-API-Key: warn_...`` or ``Authorization: Bearer
+    warn_...``. The resolved ApiKey row is stashed on request.state.api_key for
+    metering/rate limiting.
+    """
+    user = get_cookie_user(request, db)
+    if user is not None:
+        return user
+    raw = request.headers.get("x-api-key") or _bearer_key(request)
+    if raw and raw.startswith(api_keys.KEY_PREFIX):
+        resolved = api_keys.resolve_key(db, raw)
+        if resolved is not None:
+            user, key = resolved
+            request.state.api_key = key
+            return user
+    return None
 
 
 def require_admin(user: User | None = Depends(get_current_user)) -> User:

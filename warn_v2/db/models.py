@@ -169,6 +169,34 @@ class UserSession(Base):
     user: Mapped[User] = relationship("User")
 
 
+class ApiKey(Base):
+    """Programmatic-access credential; the caller holds the raw key, we store only its hash.
+
+    Keys don't expire; revocation is a soft timestamp (revoked_at) so the row —
+    and any usage history hanging off it — survives for audit. The key's tier is
+    always the owning user's current role, never a snapshot.
+    """
+
+    __tablename__ = "api_keys"
+
+    id: Mapped[int] = mapped_column(BigIntPK, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    key_sha256: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    # First characters of the raw key ("warn_a1b2c3d4") — the only part ever
+    # shown again after creation, so users can tell their keys apart.
+    prefix: Mapped[str] = mapped_column(String(16), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    user: Mapped[User] = relationship("User")
+
+
 class Subscription(Base):
     """Email alert subscription (double opt-in).
 

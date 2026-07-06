@@ -13,6 +13,7 @@ from warn_v2.api.routes import (
     auth,
     companies,
     exports,
+    keys,
     map_pins,
     notices,
     reports,
@@ -63,6 +64,7 @@ def create_app() -> FastAPI:
 
     # --- domain routes (all under /api so they don't shadow SPA paths) ---
     app.include_router(auth.router, prefix="/api")
+    app.include_router(keys.router, prefix="/api")
     # Export routes register before notices/companies so /api/notices/export and
     # /api/companies/export aren't swallowed by the parametric /{id} routes.
     app.include_router(exports.router, prefix="/api")
