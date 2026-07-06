@@ -15,6 +15,7 @@ import {
 } from "recharts";
 
 import { api } from "../api/client";
+import { CountyImpact } from "../components/CountyImpact";
 import { FilterBar, type FilterValues } from "../components/FilterBar";
 import { ProjectionNote } from "../components/ProjectionNote";
 import { ProjectionTooltip } from "../components/ProjectionTooltip";
@@ -216,6 +217,18 @@ export function StatsPage() {
           </div>
         )}
       </ChartCard>
+
+      <CountyImpact
+        title="Hardest-hit counties"
+        query={{
+          state: search.state,
+          closure_category: search.closure_category,
+          industry: search.industry,
+          subsector: search.subsector,
+          after: search.after,
+          before: search.before,
+        }}
+      />
 
       <ChartCard title="Top 20 employers">
         {top.isLoading ? (

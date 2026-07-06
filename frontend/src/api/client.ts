@@ -7,6 +7,7 @@
 import type {
   AuthUser,
   CompanyOut,
+  CountyImpactStat,
   EmployerStat,
   FamilyMemberOut,
   IndustryScorecard,
@@ -216,6 +217,18 @@ export const api = {
       before?: string;
     } = {},
   ) => get<EmployerStat[]>("/api/stats/top-employers" + qs(q)),
+  statsCountyImpact: (
+    q: {
+      limit?: number;
+      min_layoffs?: number;
+      state?: string;
+      closure_category?: string;
+      industry?: string;
+      subsector?: string;
+      after?: string;
+      before?: string;
+    } = {},
+  ) => get<CountyImpactStat[]>("/api/stats/county-impact" + qs(q)),
   statsByParentGroup: (
     q: { limit?: number; state?: string; after?: string; before?: string } = {},
   ) => get<ParentGroupStat[]>("/api/stats/by-parent-group" + qs(q)),

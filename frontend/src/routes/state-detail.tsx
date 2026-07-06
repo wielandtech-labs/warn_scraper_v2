@@ -13,6 +13,7 @@ import {
 
 import { api, ApiError } from "../api/client";
 import { AlertSignup } from "../components/AlertSignup";
+import { CountyImpact } from "../components/CountyImpact";
 import { NoticeMap } from "../components/NoticeMap";
 import { ProjectionNote } from "../components/ProjectionNote";
 import { ProjectionTooltip } from "../components/ProjectionTooltip";
@@ -289,6 +290,11 @@ export function StateDetailPage() {
         <h2 className="mb-3 text-lg font-semibold">Layoffs across {name}</h2>
         <NoticeMap state={code} after={after} />
       </div>
+
+      <CountyImpact
+        title={`Hardest-hit counties in ${name}`}
+        query={{ state: code, after, limit: 10 }}
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section>

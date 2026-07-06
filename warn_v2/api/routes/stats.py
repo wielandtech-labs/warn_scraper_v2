@@ -22,7 +22,8 @@ from warn_v2.companies.naics import (
     subsector_for_code,
     subsector_name,
 )
-from warn_v2.db.models import Company, Notice
+from warn_v2.db.models import Company, Location, Notice
+from warn_v2.geo import county_employment
 
 router = APIRouter(prefix="/stats", tags=["stats"])
 
@@ -78,6 +79,16 @@ class IndustryStat(BaseModel):
     notice_count: int  # = sum of its subsectors
     layoff_total: int  # = sum of its subsectors
     subsectors: list[SubsectorStat]
+
+
+class CountyImpactStat(BaseModel):
+    state: str
+    county: str  # display name, legal-type suffix stripped ("Sedgwick")
+    notice_count: int
+    layoff_total: int
+    employment_base: int  # CBP county-total employment
+    impact_pct: float  # layoff_total / employment_base * 100
+    cbp_year: int | None  # CBP vintage of employment_base
 
 
 class ParentGroupStat(BaseModel):
@@ -523,4 +534,93 @@ def by_parent_group(
             )
         )
     out.sort(key=lambda s: s.layoff_total, reverse=True)
+    return out[:limit]
+
+
+@router.get("/county-impact", response_model=list[CountyImpactStat])
+def county_impact(
+    limit: int = Query(25, ge=1, le=100),
+    min_layoffs: int = Query(
+        10, ge=0, description="Hide counties with fewer reported layoffs than this"
+    ),
+    state: str | None = Query(None),
+    closure_category: str | None = Query(
+        None, description="Normalized closure type: Closure | Layoff"
+    ),
+    industry: str | None = Query(None, description="NAICS sector id (e.g. 31-33)"),
+    subsector: str | None = Query(None, description="3-digit NAICS subsector (e.g. 311)"),
+    after: date | None = Query(None),
+    before: date | None = Query(None),
+    db: Session = Depends(get_db),
+) -> list[CountyImpactStat]:
+    """Counties ranked by layoffs as a share of their employment base.
+
+    The base is Census County Business Patterns county-total employment
+    (bundled reference data, see warn_v2/geo/county_employment.py). Counties
+    with no CBP match, or under ``min_layoffs`` reported layoffs, are
+    omitted — a raw layoff sum that small says more about missing
+    layoff_count data than about local impact.
+    """
+    # Group and filter by the worksite's Location.state, not Notice.state:
+    # this ranking is geographic, and a notice filed in one state can list a
+    # worksite county in another — Notice.state would mislabel that county.
+    stmt = (
+        select(
+            Location.state,
+            Location.county,
+            func.count(Notice.notice_id),
+            func.coalesce(func.sum(Notice.layoff_count), 0),
+        )
+        .select_from(Notice)
+        .join(Location, Notice.location_id == Location.id)
+        .where(Location.county.is_not(None))
+        .group_by(Location.state, Location.county)
+    )
+    stmt = _not_superseded(stmt)
+    stmt = _apply_date_filters(stmt, after, before)
+    stmt = _apply_closure_filter(stmt, closure_category)
+    stmt = _apply_industry_filter(stmt, industry, subsector)
+    if state:
+        stmt = stmt.where(Location.state == state.upper())
+
+    # Merge raw county spellings ("Madison" / "Madison County") in Python:
+    # the employment table is keyed by normalized county, not FIPS, and lives
+    # outside the DB, so grouping can't happen fully in SQL.
+    merged: dict[str, dict] = {}
+    for st, county_raw, notices, layoffs in db.execute(stmt).all():
+        key = county_employment.normalize_key(st, county_raw)
+        if key is None:
+            continue
+        group = merged.setdefault(
+            key,
+            {
+                "state": st,
+                "county": county_employment.display_name(county_raw),
+                "notice_count": 0,
+                "layoff_total": 0,
+            },
+        )
+        group["notice_count"] += _coerce_int(notices)
+        group["layoff_total"] += _coerce_int(layoffs)
+
+    year = county_employment.data_year()
+    out: list[CountyImpactStat] = []
+    for key, group in merged.items():
+        if group["layoff_total"] < min_layoffs:
+            continue
+        emp = county_employment.lookup_key(key)
+        if not emp:
+            continue
+        out.append(
+            CountyImpactStat(
+                state=group["state"],
+                county=group["county"],
+                notice_count=group["notice_count"],
+                layoff_total=group["layoff_total"],
+                employment_base=emp,
+                impact_pct=round(group["layoff_total"] / emp * 100, 3),
+                cbp_year=year,
+            )
+        )
+    out.sort(key=lambda s: (-s.impact_pct, s.state, s.county))
     return out[:limit]
