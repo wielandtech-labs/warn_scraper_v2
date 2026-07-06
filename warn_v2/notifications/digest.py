@@ -66,6 +66,7 @@ def _notices_url(sub: Subscription, base: str) -> str:
 
 def _notice_row(x: Notice, base: str) -> str:
     """One table row per notice: employer link, badge, state · date · affected."""
+    url = escape(f"{base}/notices/{x.notice_id}")
     badge = category_badge(x.closure_category)
     meta = " &#183; ".join(
         part
@@ -78,7 +79,7 @@ def _notice_row(x: Notice, base: str) -> str:
     )
     return (
         f'<tr><td style="padding:12px 24px;border-bottom:1px solid #e2e8f0;{FONT};">'
-        f'<a href="{base}/notices/{x.notice_id}" style="font-size:15px;font-weight:bold;'
+        f'<a href="{url}" style="font-size:15px;font-weight:bold;'
         f'color:#0369a1;text-decoration:none;">{escape(x.employer)}</a>'
         f"{'&nbsp;' + badge if badge else ''}<br>"
         f'<span style="font-size:13px;line-height:20px;color:#64748b;">{meta}</span></td></tr>'
