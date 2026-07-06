@@ -8,6 +8,10 @@ import { UNSUPPORTED } from "../lib/unavailable";
 
 type Health = "operational" | "failing" | "unsupported" | "never";
 
+// Mirrors SCRAPER_SUCCESS_STATUSES in warn_v2/db/models.py: not_modified means
+// the source was reachable but unchanged since the last scrape — a success.
+const SUCCESS_STATUSES = new Set(["ok", "not_modified"]);
+
 const BADGE: Record<Health, { label: string; className: string }> = {
   operational: { label: "Operational", className: "badge-green" },
   failing: { label: "Failing", className: "badge-red" },
@@ -48,7 +52,7 @@ export function StatusPage() {
     let health: Health;
     if (code in UNSUPPORTED) health = "unsupported";
     else if (!run) health = "never";
-    else if (run.last_status === "ok") health = "operational";
+    else if (SUCCESS_STATUSES.has(run.last_status)) health = "operational";
     else health = "failing";
     return { code, name: STATE_NAMES[code], run, health };
   }).sort(
