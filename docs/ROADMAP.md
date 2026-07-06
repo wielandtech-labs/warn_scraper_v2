@@ -105,7 +105,11 @@ Ordered by recoverable rows:
   FOIA as backstop — see the NY row in
   [historical-sources.md](historical-sources.md). Decision pending.
 - [ ] **PA 2001–2022** — Wayback snapshots of the old dli.pa.gov pages;
-  strict dedup (286 superseded rows already); `--year-end 2022`. (A+gate)
+  strict dedup (286 superseded rows already); `--year-end 2022`. (A+gate) —
+  *parser done 2026-07-06*: CDX-discovered month pages across both retired
+  hosts, 262/264 months archived (2021-10 and 2022-04 never captured);
+  `_fetch_pa_year` hard-caps at 2022 so `--year-end` is belt-and-braces.
+  Remaining: the gated one-off backfill Job, then re-audit.
 - [ ] **IL PDF era 1999–2019** — `parse_il_pdf` for the monthly archive PDFs
   (xlsx era 2020+ already ingested). (A+gate)
 - [ ] **NC 2014+** — archive-hub discovery (irregular slugs) +

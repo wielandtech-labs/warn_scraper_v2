@@ -1,0 +1,2302 @@
+<html>
+
+<head><link type="text/css" href="http://www.portal.state.pa.us/imageserver/plumtree/common/public/css/mainstyle19-en.css" rel="StyleSheet" lang="en"></link><title>2001</title><script type="text/javascript">
+if (!document.getElementById('PTIncluder-js')) {
+document.write('<script id="PTIncluder-js" type="text/javascript" src="http://www.portal.state.pa.us/imageserver/plumtree/common/private/js/jsincluder/LATEST/PTIncluder.js"></scr'+'ipt>');
+}
+</script>
+<script type="text/javascript">
+PTIncluder.imageServerURL = 'http://www.portal.state.pa.us/imageserver/';
+PTIncluder.basePath = 'plumtree/common/private/js/';
+PTIncluder.lang = 'en';
+PTIncluder.country = 'US';
+PTIncluder.debug = false;
+PTIncluder.loadComponent('jsportlet');
+</script><script type="text/javascript">// Define PTPortalContext for CSAPI
+
+PTPortalContext = new Object();
+PTPortalContext.GET_SESSION_PREFS_URL = 'http://www.portal.state.pa.us/portal/server.pt?space=SessionPrefs&control=SessionPrefs&action=getprefs';
+PTPortalContext.SET_SESSION_PREFS_URL = 'http://www.portal.state.pa.us/portal/server.pt?space=SessionPrefs&control=SessionPrefs&action=setprefs';
+
+PTPortalContext.USER_LOCALE = 'en-us';
+PTPortalContext.USER_LOGIN_NAME = 'Guest';
+
+PTPortalContext.PAGE_TYPE = PTPortalPage.TYPE_COMMUNITY_PAGE;
+
+function OpenPortletPrefsWindow(strURL) { window.open(strURL,'PortletPrefsWindow','width=700,height=500,resizable=1,status=0,toolbar=0,menubar=0,scrollbars=1,location=0');   }
+
+var MSG_REMOVE_PAGE_CONF = "Are you sure you want to delete this page?";
+function DeletePage(url) {
+   if (confirm(MSG_REMOVE_PAGE_CONF)) {
+      window.location = url;
+   }
+}
+
+var MSG_REMOVE_PORTLET_CONF = "Are you sure you want to remove this portlet?";
+function RemovePortlet(url, id) {
+   if (confirm(MSG_REMOVE_PORTLET_CONF)) {
+      if (typeof handleRemovePortletResponse != 'function') {
+            window.location = url;
+      } else {
+            url = url + '&page=MyPortalPartialPortlets';
+            var request = new PTHTTPGETRequest(url, handleRemovePortletResponse);
+            request.invoke();
+            swapPortlet(id);      }
+   }
+}
+PTPortalContext.commId = 10542; 
+PTPortalContext.pageId = 553847; 
+PTPortalContext.pageName = 'April+2001+WARN+Notices'; 
+</script><script type="text/javascript">var g_PTImgSvrImgsURL = "http://www.portal.state.pa.us/imageserver/plumtree/portal/private/img/";
+var g_SharedImgSvrImgsURL = "http://www.portal.state.pa.us/imageserver/plumtree/portal/public/img/";var g_HelpSvrBaseURL = "http://www.portal.state.pa.us/imageserver/plumtree/";
+</script><script type="text/javascript">
+if (!document.getElementById('PTIncluder-js')) {
+document.write('<script id="PTIncluder-js" type="text/javascript" src="http://www.portal.state.pa.us/imageserver/plumtree/common/private/js/jsincluder/LATEST/PTIncluder.js"></scr'+'ipt>');
+}
+</script>
+<script type="text/javascript">
+PTIncluder.imageServerURL = 'http://www.portal.state.pa.us/imageserver/';
+PTIncluder.basePath = 'plumtree/common/private/js/';
+PTIncluder.lang = 'en';
+PTIncluder.country = 'US';
+PTIncluder.debug = false;
+PTIncluder.loadComponent('jsrobohelp');
+</script><script type="text/javascript">
+function OpenerAS_GetApplicationBaseURL()
+{
+	return "http://www.portal.state.pa.us/portal/server.pt?";
+}
+function OpenerAS_GetCurrentUserID()
+{
+	return "2";
+}
+function OpenerAS_GetParentSpaceName()
+{
+	return "Opener";
+}
+function OpenerAS_GetParentSpaceID()
+{
+	return "219";
+}
+</script><script type="text/javascript">function getJSUtilVersionObject() { return 'window';}</script><script type="text/javascript" src="http://www.portal.state.pa.us/imageserver/plumtree/portal/private/js/ptcommonopener.js"></script><script type="text/javascript">/** The object that holds the safe variables. Store the vars as properties on the object, like a hashtable. **/
+var gSafeJSVarContainer = new Object();
+/** Define a new safe variable, pass the in the name and the value.Returns true if successful, method call will fail if the value is invalid. **/
+function addSafeVar(strName, oValue) {
+	gSafeJSVarContainer[strName] = oValue;
+	return true;
+}
+/** Retrieve a safe var. Returns false if the variable is undefined  or if the value is actually false, but safe vars shouldn't be usedto store simple boolean values anyway. **/
+function getSafeVar(strName) {
+	var temp = gSafeJSVarContainer[strName];
+	if (temp) { return temp; }
+	else { return false;}
+}
+/** Retrieve a safe var, if the variable is undefined an alert will showwith the name of the variable. Use this method to retrieve criticalvariables. **/
+function getSafeVarWarn(strName) {
+	var temp = gSafeJSVarContainer[strName];
+	if (temp) { return temp; }
+	else { alert('Safe Variable: '+strName+' is not defined!'); }
+}
+</script><script type="text/javascript">var windowOnloadFunction = (window.onload) ? window.onload : new Function;
+document.PCC.RegisterForWindowEvent("onload", windowOnloadFunction);
+var windowOnBlurFunction = (window.onblur) ? window.onblur : new Function;
+document.PCC.RegisterForWindowEvent("onblur", windowOnBlurFunction);
+var windowOnFocusFunction = (window.onfocus) ? window.onfocus : new Function;
+document.PCC.RegisterForWindowEvent("onfocus", windowOnFocusFunction);
+</script><script type="text/javascript">function getJSXMLVersionObject() { return 'window';}</script><script type="text/javascript" >
+pt_164218 = new PTPortlet('164218', '{7D5C2374-9ACE-4E45-8C5D-C2565349FFE3}', 'WARN Redirect Header', 'pt-portlet-content-164218', 'http://pubcontent.state.pa.us:7087', 'http://pubcontent.state.pa.us:7087/PCD', 'http://www.portal.state.pa.us/portal/server.pt/gateway/PTARGS_0_2_164218_10542_553847_43/', 'http://www.portal.state.pa.us/portal/server.pt/gateway/PTARGS_0_2_164218_10542_553847_43/', 'false', 'http://www.portal.state.pa.us/portal/server.pt/gateway/PTARGS_6_2_164218_10542_553847_43/');</script>
+
+	
+	<!-- Not an error.  Portal comments out the first meta tag but includes the second one -->
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+	<META http-equiv="refresh" content="0;URL=http://www.dli.pa.gov/Individuals/Workforce-Development/warn">
+
+	<!-- BEGIN: Add Additional Metadata Tags -->
+	
+	<!-- END: Add Additional Metadata Tags -->
+
+	<!-- Global Styles and JavaScript -->
+	<link rel="stylesheet" type="text/css" href="http://www.portal.state.pa.us/portal/server.pt/gateway/PTARGS_0_2_164218_10542_553847_43/http%3B/pubcontent.state.pa.us/publishedcontent/publish/global/stylesheets/globalstyle.css"/>
+	<script type="text/javascript" src="http://www.portal.state.pa.us/portal/server.pt/gateway/PTARGS_0_2_164218_10542_553847_43/http%3B/pubcontent.state.pa.us/publishedcontent/publish/global/javascript/globalscripts.js"></script>
+	<script type="text/javascript" src="http://www.portal.state.pa.us/portal/server.pt/gateway/PTARGS_0_2_164218_10542_553847_43/http%3B/pubcontent.state.pa.us/publishedcontent/publish/global/javascript/publisherscripts.js"></script>
+
+	<!-- BEGIN: Add Additional CSS Tags -->
+	
+	<!-- END: Add Additional CSS Tags -->
+
+	<!-- BEGIN: Add Additional JavaScript Tags -->
+	
+	<!-- END: Add Additional JavaScript Tags -->
+
+
+
+<script type="text/javascript" >
+pt_83293 = new PTPortlet('83293', '{D12081D7-F239-48AA-BFA8-772A3D9F0C01}', 'LANDI Footer', 'pt-portlet-content-83293', 'http://pubcontent.state.pa.us:7087', 'http://pubcontent.state.pa.us:7087/PCD', 'http://www.portal.state.pa.us/portal/server.pt/gateway/PTARGS_0_2_83293_10542_553847_43/', 'http://www.portal.state.pa.us/portal/server.pt/gateway/PTARGS_0_2_83293_10542_553847_43/', 'false', 'http://www.portal.state.pa.us/portal/server.pt/gateway/PTARGS_6_2_83293_10542_553847_43/');</script>
+<script type="text/javascript" >
+pt_81263 = new PTPortlet('81263', '{F46F229B-CBEA-4426-8B07-B640B0AD0AB9}', 'LANDI Left Base Vertical Nav', 'pt-portlet-content-81263', 'http://pubcontent.state.pa.us:7087', 'http://pubcontent.state.pa.us:7087/PCD', 'http://www.portal.state.pa.us/portal/server.pt/gateway/PTARGS_0_2_81263_10542_553847_43/', 'http://www.portal.state.pa.us/portal/server.pt/gateway/PTARGS_0_2_81263_10542_553847_43/', 'false', 'http://www.portal.state.pa.us/portal/server.pt/gateway/PTARGS_6_2_81263_10542_553847_43/');</script>
+<script type="text/javascript" >
+pt_78980 = new PTPortlet('78980', '{7E2E3879-1B76-4CD1-B585-B41A51DACB8C}', 'LANDI - Workforce Development Left Nav', 'pt-portlet-content-78980', 'http://pubcontent.state.pa.us:7087', 'http://pubcontent.state.pa.us:7087/PCD', 'http://www.portal.state.pa.us/portal/server.pt/gateway/PTARGS_0_2_78980_10542_553847_43/', 'http://www.portal.state.pa.us/portal/server.pt/gateway/PTARGS_0_2_78980_10542_553847_43/', 'false', 'http://www.portal.state.pa.us/portal/server.pt/gateway/PTARGS_6_2_78980_10542_553847_43/');</script>
+<script type="text/javascript" >
+pt_997 = new PTPortlet('997', '{EF09112F-EF28-42FE-AEB7-6E297342D42D}', 'Bread Crumb - Content Canvas', 'pt-portlet-content-997', 'http://pubcontent.state.pa.us:7087', 'http://pubcontent.state.pa.us:7087/PCD', 'http://www.portal.state.pa.us/portal/server.pt/gateway/PTARGS_0_2_997_10542_553847_43/', 'http://www.portal.state.pa.us/portal/server.pt/gateway/PTARGS_0_2_997_10542_553847_43/', 'false', 'http://www.portal.state.pa.us/portal/server.pt/gateway/PTARGS_6_2_997_10542_553847_43/');</script>
+<script type="text/javascript" >
+pt_74410 = new PTPortlet('74410', '{020CE83D-622E-4A29-A188-84185C48AE8A}', 'April 2001 WARN Notices Content Portlet', 'pt-portlet-content-74410', 'http://pubcontent.state.pa.us:7087', 'http://pubcontent.state.pa.us:7087/PCD', 'http://www.portal.state.pa.us/portal/server.pt/gateway/PTARGS_0_2_74410_10542_553847_43/', 'http://www.portal.state.pa.us/portal/server.pt/gateway/PTARGS_0_2_74410_10542_553847_43/', 'false', 'http://www.portal.state.pa.us/portal/server.pt/gateway/PTARGS_6_2_74410_10542_553847_43/');</script>
+<script type="text/javascript">
+if (!document.getElementById('PTIncluder-js')) {
+document.write('<script id="PTIncluder-js" type="text/javascript" src="http://www.portal.state.pa.us/imageserver/plumtree/common/private/js/jsincluder/LATEST/PTIncluder.js"></scr'+'ipt>');
+}
+</script>
+<script type="text/javascript">
+PTIncluder.imageServerURL = 'http://www.portal.state.pa.us/imageserver/';
+PTIncluder.basePath = 'plumtree/common/private/js/';
+PTIncluder.lang = 'en';
+PTIncluder.country = 'US';
+PTIncluder.debug = false;
+PTIncluder.loadComponent('jsportalmenus');
+</script><script type="text/javaScript">	function buildURLFromTemplate(strID)
+	{
+		var arArgs = strID.split(',');
+	if(!arArgs){
+	  alert('Invalid menu ID');
+	  return null; }
+	if(arArgs[0] == 'C'){
+	 var strCommURL = PTCommonOpener.getOpenerURLOpenObjID(512, arArgs[1], '&PageID='+arArgs[2]+'', 2)
+	 if ( arArgs.length > 3) { strCommURL += '&ProfileID='+arArgs[3]; }
+	  return strCommURL;
+	} else if (arArgs[0] == 'M') {
+	 return PTCommonOpener.getOpenerURLOpenObjID(518, 2, '&PageID='+arArgs[1]+'', 2)
+	} else if (arArgs[0] == 'SM') {
+	  return 'http://www.portal.state.pa.us/portal/server.pt?open=space&name=SiteMap&psname=CommunityPage&psid=220&cached=true&in_hi_userid=2&control=SetSiteMap&CommunityID='+arArgs[1]+'&Mode='+arArgs[2]+(eval(arArgs[3]) ? '&Preview=' : '');
+	} else if (arArgs[0] == 'S') {
+	  return null;
+	} else if (arArgs[0] == 'E') {
+	    var params = '';
+	    if ( arArgs.length > 1 ) {
+	      for ( var i = 2; i < arArgs.length; i++ ) {
+	        params += '&' + arArgs[i];
+	      } }
+	  return 'http://www.portal.state.pa.us/portal/server.pt?open=space&name='+arArgs[1]+'&psname=CommunityPage&psid=220&cached=true&in_hi_userid=2' + params;
+	} else if (arArgs[0] == 'D') {
+	 return PTCommonOpener.getOpenerURLOpenObjID(17, arArgs[2], '&DirMode='+arArgs[1]+'', 2)
+	} else if (arArgs[0] == 'G1') {
+	    var params = '';
+	    if ( arArgs.length > 1 ) {
+	      for ( var i = 2; i < arArgs.length; i++ ) {
+	        params += '&' + arArgs[i];
+	      } }
+	  return 'http://www.portal.state.pa.us/portal/server.pt?open=space&name='+arArgs[1]+'&psname=CommunityPage&psid=220&cached=true&in_hi_userid=2' + params;
+	} else if (arArgs[0] == 'IF') {
+	  return arArgs[1];
+	} else {
+	    alert('URL Type is not defined');
+	    return null; }
+	}
+	function templateURLRedirect(templateURL) {
+	  if (templateURL == null) { return null; }
+	  var arArgs = templateURL.split(',');
+	 if (arArgs[0] == 'UP') {
+	PTCommonOpener.openInSameWindow(PTCommonOpener.getOpenerURLOpenObjID(1, arArgs[1], '', 2));
+	} else if (arArgs[0] == 'DO') {
+	PTCommonOpener.openInSameWindow(PTCommonOpener.getOpenerURLOpenObjID(18, arArgs[1], '', 2));
+	} else if (arArgs[0] == 'F') {
+	  window.location = arArgs[1];
+	 } else {
+	   window.location = buildURLFromTemplate(templateURL);
+	 }
+	 
+	}
+</script>
+</head>
+
+
+
+<body marginwidth="0" marginheight="0" leftmargin="0" topmargin="0" class="ptPageUser-guest ptCommunity-10542" id="pt-page-553847"><div class="portalContent" id="pt-portal-content-553847">
+
+<!-- HEADER SECTION OF THE PUBLISHER EDITOR STARTS HERE -->
+      <script type="text/javascript" src="http://www.portal.state.pa.us/imageserver/RemoteGadgets/integryst/dyn_load_js.js"></script>
+<span xmlns:pt='http://www.plumtree.com/xmlschemas/ptui/'>
+	
+		
+		
+	
+</span>
+<!-- END OF HEADER SECTION OF THE PUBLISHER EDITOR -->
+<span xmlns:pt='http://www.plumtree.com/xmlschemas/ptui/'>
+
+
+
+
+
+
+
+
+
+	
+		
+			
+		
+			
+		
+			
+		
+			
+		
+			
+		
+			
+		
+			
+		
+			
+		
+			
+		
+			
+		
+			
+		
+	
+
+
+	
+		
+				
+		
+				
+		
+				
+		
+				
+		
+				
+		
+				
+		
+				
+		
+				
+		
+				
+		
+				
+		
+	
+
+<style>#bannerCell {background-image:url()}</style>
+<div id="header">
+<div style="height:px;">
+<table cellpadding="0" cellspacing="0" style="width:100%; background-color:#033668">
+<tr class="headerRow">
+<td id="bannerCell" style="height:px; width:100%; background-repeat: no-repeat; vertical-align:top;">
+<table width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td valign="top" align="left"></td>
+<td>
+<a href="#skipNavAnchor"><img src="http://www.portal.state.pa.us/imageserver/plumtree/portal/public/img/sp.gif" border="0" width="1" height="1" alt="Skip Navigation"></a>
+<a href=""><img src="http://www.portal.state.pa.us/imageserver/plumtree/portal/public/img/sp.gif" border="0" width="100px" height="px" alt=""></a>
+</td>
+<td valign="top" align="right" style="height:px; white-space:nowrap;">
+	<table cellspacing="0"  cellpadding="0" border="0">
+	
+	
+	
+	
+	</table>
+</td></tr>
+<tr>
+	<td align="left" rowspan="2" colspan="2">
+	<a href="http://www.pa.gov/"><img src="http://www.portal.state.pa.us/imageserver/plumtree/portal/public/img/sp.gif" border="0" style='width:150px; height:42px'; alt="http://www.pa.gov/"/></a>
+	</td>
+	<td align="right" style="height:22px;" style="white-space:nowrap;">
+				<table cellpadding="0" cellspacing="0" border="0" width="100%">
+		<tr>
+			<td align="right">
+				<table cellpadding="0" cellspacing="0" border="0">
+				<tr>
+					<td style="padding: 0px 10px 0px 10px;">
+                  				<ul id="stateagencies" alt="">
+                  					<li alt="PA State Agencies"><NOSCRIPT><a href="http://www.pa.gov/portal/server.pt?open=512&objID=3069&mode=2" alt="more agencies..." title="more agencies..."></NOSCRIPT>PA STATE AGENCIES&nbsp;<img src="http://www.portal.state.pa.us/imageserver/plumtree/custom/pennsylvania/header/downArrow.gif" border="0" alt="PA State Agencies - Down Arrow"/><NOSCRIPT></a></NOSCRIPT><br/>
+                  					<ul alt="PA State Agencies Listing">
+                  						
+                  							<li><a href="http://www.education.pa.gov" alt="Education">Education</a></li>
+                  						
+                  							<li><a href="http://www.pema.pa.gov" alt="Emergency Management">Emergency Management</a></li>
+                  						
+                  							<li><a href="http://www.depweb.state.pa.us" alt="Environmental Protection">Environmental Protection</a></li>
+                  						
+                  							<li><a href="http://www.pgc.state.pa.us/" alt="Game Commission">Game Commission</a></li>
+                  						
+                  							<li><a href="http://www.dli.pa.gov" alt="Labor & Industry">Labor &amp; Industry</a></li>
+                  						
+                  							<li><a href="http://www.palottery.state.pa.us/" alt="Lottery">Lottery</a></li>
+                  						
+                  							<li><a href="http://www.dhs.state.pa.us/" alt="Human Services">Human Services</a></li>
+                  						
+                  							<li><a href="http://www.revenue.pa.gov" alt="Revenue">Revenue</a></li>
+                  						
+                  							<li><a href="http://www.dos.pa.gov" alt="State">State</a></li>
+                  						
+                  							<li><a href="http://www.dot.state.pa.us/" alt="Transportation">Transportation</a></li>
+                  						
+                  							<li><a href="http://www.pa.gov/Pages/Agency-Directory.aspx" alt="more agencies...">more agencies...</a></li>
+                  						
+						</ul>
+						</li>
+					</ul>
+					</td>
+					<td style="padding: 0px 10px 0px 10px; horizontal-align:right;">
+                  				<ul id="onlineserv" alt="Online Services - Use next list item">
+                     				<li alt="Online Services"><NOSCRIPT><a href="http://www.pa.gov/portal/server.pt?open=512&objID=3507&mode=2" alt="more services..." title="more services..."></NOSCRIPT>ONLINE SERVICES&nbsp;<img src="http://www.portal.state.pa.us/imageserver/plumtree/custom/pennsylvania/header/downArrow.gif" border="0" alt="Online Services - Down Arrow"/><NOSCRIPT></a></NOSCRIPT><br/>
+						<ul alt="Online Services Listing">
+                     					
+                     						<li><a href="https://www.compass.state.pa.us/compass.web/CMHOM.aspx" alt="COMPASS: Access to Health & Human Services">COMPASS: Access to Health &amp; Human Services</a></li>
+                     					
+                     						<li><a href="http://www.dmv.state.pa.us/" alt="Driver & Vehicle Services">Driver &amp; Vehicle Services</a></li>
+                     					
+                     						<li><a href="http://www.jobgateway.pa.gov" alt="Find a Job">Find a Job</a></li>
+                     					
+                     						<li><a href="http://fishandboat.com/license.htm" alt="Fishing Licenses">Fishing Licenses</a></li>
+                     					
+                     						<li><a href="http://www.homelandsecurity.pa.gov/ReportSuspiciousActivity/Pages/default.aspx" alt="Homeland Security Tip Submission">Homeland Security Tip Submission</a></li>
+                     					
+                     						<li><a href="https://www.pa.wildlifelicense.com/start.php" alt="Hunting Licenses">Hunting Licenses</a></li>
+                     					
+                     						<li><a href="https://www.doreservices.state.pa.us/individual/" alt="Personal Income Taxes">Personal Income Taxes</a></li>
+                     					
+                     						<li><a href="http://www.paturnpike.com/ezpass%2Dcom/" alt="Turnpike E-ZPass">Turnpike E-ZPass</a></li>
+                     					
+                     						<li><a href="http://www.uc.pa.gov" alt="Unemployment Compensation">Unemployment Compensation</a></li>
+                     					
+                     						<li><a href="http://www.pa.gov/Services/Pages/default.aspx" alt="more services...">more services...</a></li>
+                     					
+						</ul>
+						</li>
+					</ul>
+					</td>
+					
+						
+					
+					<td style="padding-left: 10px;">
+						<table cellpadding="0" cellspacing="0" border="0">
+						<tr>
+							<form name="BasicSearch" method="post" action="http://www.portal.state.pa.us/portal/server.pt" id="fedSearch">
+								<input type="hidden" name="in_hi_space" value="SearchResult" /> 
+								<input type="hidden" name="in_hi_control" value="bannerstart" />
+								<td><label for="in_tx_query"><input type="text" value=" --search PA--" onclick="this.value=''" onkeydown="return handleKeyDownptbanner(event);" size="15" maxlength="50" class="formTextBoxText" name="in_tx_query" id="in_tx_query" title="please enter search criteria" style="FONT-WEIGHT:normal;FONT-SIZE:xx-small;LINE-HEIGHT:normal;FONT-STYLE:normal;HEIGHT:18px;FONT-VARIANT:normal"></input></label></td>
+								<td nowrap valign="middle"><a href="#" title="Go" onclick="submitSearchptbanner(); return false;"><img src="http://www.portal.state.pa.us/imageserver/plumtree/portal/custom/enterprise/btnGo.gif" border="0" alt="Go" title="Go"></a></td>
+							</form>
+						</tr>
+						</table>
+					</td>
+					<td>
+	<span xmlns:pt="http://www.plumtree.com/xmlschemas/ptui/">
+	
+		
+		
+	
+	</span>
+
+</td>
+				</tr>
+				</table>
+			</td>
+		</tr>
+		</table>	
+	</td>
+</tr>
+<tr>
+	<td valign="bottom" align="right" height="20" style="padding-right: 5px; white-space:nowrap;">
+		<table cellpadding="0" cellspacing="0" border="0">
+		<tr>
+			<td class="headLinks" style="white-space:nowrap;">
+				
+				
+				
+				
+			</td>
+		</tr>
+		</table>
+	</td>
+</tr>
+</table>	
+</td>
+</tr>
+</table>
+</div>
+</div>
+<script language="javascript">
+	<!-- Load Dropdown navigation -->
+	<!-- 
+	if (window.attachEvent) window.attachEvent("onload", sfHover);
+	if (window.attachEvent) window.attachEvent("onload", servHover);
+
+	
+	//-->
+</script>
+</span><table cellpadding="0" cellspacing="0" width="100%" border="0" class="layoutTwoColumnNarrowWide" id="outerTable"><tr><td align="left" valign="top" colspan="1"><table cellpadding="0" cellspacing="0" width="100%" border="0"><tr><td align="left" valign="top" colspan="1"><table cellpadding="0" cellspacing="0" width="100%" border="0" summary="Portlet layout table."><tr><td align="center" valign="top" colspan="1" class="columnOne" id="columnOne"><!--Begin Portlet Column 0--><table cellpadding="0" cellspacing="0" width="100%" class="portletBase" id="pt-portlet-81263"><tr><td colspan="2" class="portletBody"><div class="customappText" id="pt-portlet-content-81263"><style type="text/css">
+	.columnOneDLI3 {
+		background-color: #beccd7;
+	}
+	
+	#navigationDLI3 {
+		font-family: verdana;
+		font-size: 10px;
+		color: #000000;
+	}
+
+	#navigationDLI3 ul {
+		list-style: none;
+		padding: 0px;
+		margin: 0px;
+	}
+	
+	#navigationDLI3 li {
+		border-bottom: 1px solid #FFFFFF;
+		font: Verdana;
+		font-size: 12;
+		color: #012b58;
+		width: 100%;
+		height: 100%;
+		list-style: none;
+		list-style-image: none;
+	}
+
+	#navigationDLI3 a {
+		text-decoration: none;
+		font-weight: bold;
+		width: 100%;
+		height: 100%;
+		display: block;
+		/*color: #012b58;*/
+	}
+		
+	#navigationDLI3 a:hover {
+		background: #a6bcd3;
+	}
+		
+	#navigationDLI3 a.L1 {
+		color: #012b58;
+	}
+
+	#navigationDLI3 a.L1:hover {
+		color: #012b58;
+	}
+		
+	#navigationDLI3 li.L1 {
+		background: #beccd7;	
+		list-style: none;
+		list-style-image: none;
+	}
+
+	#navigationDLI3 li.L2, li.L3, li.L4, li.L5, li.L6, li.L7 {
+		background: #beccd7;
+		list-style: none;
+		list-style-image: none;
+	}
+	
+	#navigationDLI3 li.L2 a, li.L3 a, li.L4 a, li.L5 a, li.L6 a, li.L7 a {
+		color: #012b58;
+	}
+
+	#navigationDLI3 li.admin {
+		background: #beccd7;
+	}
+		
+	#navigationDLI3 li.currentitem {
+		background: #beccd7;
+	}
+
+	#navigationDLI3 li:hover, li:hover.L1 {
+		background: ;
+	}
+
+	#navigationDLI3 span.image {
+		margin-left: 2px;
+		display: inline-block;
+		cursor: hand;
+		width: 90%;
+		color: #FFFFFF;
+	}
+
+	#navigationDLI3 li:hover, li:hover.L2, li:hover.L3, li:hover.L4, li:hover.L5, li:hover.L6, li:hover.L7 {
+		background: #beccd7;
+	}
+
+	#navigationDLI3 span.current_item {
+		color: #beccd7;
+	}
+
+	#navigationDLI3 div {
+		padding: 10px 14px 10px 14px;
+	}
+		
+	#navigationDLI3 div.L1 {
+		padding: 10px 14px 10px 14px;
+		font: Verdana;
+		font-size: 12px;
+	}
+		
+	#navigationDLI3 div.L2 {
+		margin-left: 12px;
+	}
+		
+	#navigationDLI3 div.L3 {
+		margin-left: 22px;
+	}
+		
+	#navigationDLI3 div.L4 {
+		margin-left: 32px;
+	}
+		
+	#navigationDLI3 div.L5 {
+		margin-left: 42px;
+	}
+
+	#navigationDLI3 div.L6 {
+		margin-left: 52px;
+	}
+
+	#navigationDLI3 div.L7 {
+		margin-left: 62px;
+	}
+
+	#navigationDLI3 a.admin {
+		color: #012b58;
+	}
+		
+	#navigationDLI3 a.page {
+		font-weight: normal;
+	}
+		
+	#loginlinkDLI3 a {
+		color: #012b58;
+	}
+		
+</style>
+
+<div id="navigationDLI3">
+<ul>
+<!-- Top Level Navigation Items -->
+	<li class="L1">
+		<a href="http://www.portal.state.pa.us/portal/server.pt?open=512&objID=5278&mode=2" title="L&amp;I Home" class="L1">
+			<div class="L1">
+				L&amp;I Home
+			</div>
+		</a>
+	</li>
+<!-- End Top Level -->
+</ul>
+</div></div></td>
+</tr>
+</table>
+<table cellpadding="0" cellspacing="0" width="100%" class="portletBase" id="pt-portlet-78980"><tr><td colspan="2" class="portletBody"><div class="customappText" id="pt-portlet-content-78980"><span xmlns:pt="http://www.plumtree.com/xmlschemas/ptui/">
+	
+	
+	
+	
+	
+	<style type="text/css">
+
+		.columnOne{
+			background-color: #beccd7;
+		}
+
+		#navigation78980 {
+			font-family: verdana;
+			font-size: 10px;
+			color: #000000;
+		}
+
+		#navigation78980 ul {
+			list-style: none;
+			padding: 0px;
+			margin: 0px;
+		}
+
+		#navigation78980 li {
+			border-bottom: 1px solid #FFFFFF;
+			font: Verdana;
+			font-size: 12;
+			color: #ffffff;
+			width: 100%;
+			height: 100%;
+			list-style: none;
+			list-style-image: none;
+		}
+
+		#navigation78980 a {
+			text-decoration: none;
+			font-weight: bold;
+			width: 100%;
+			height: 100%;
+			display: block;
+			/*color: #012b58;*/
+		}
+		
+		#navigation78980 a:hover {
+			background: #a6bcd3;
+
+		}
+		
+		#navigation78980 a.L1 {
+			color: #012b58;
+		}
+
+		#navigation78980 a.L1:hover {
+			color: #012b58;
+		}
+
+		#navigation78980 li.L1 {
+			background: #beccd7;	
+			list-style: none;
+			list-style-image: none;
+		}
+		
+		#navigation78980 li.L2, li.L3, li.L4, li.L5, li.L6, li.L7{
+			background: #beccd7;
+			list-style: none;
+			list-style-image: none;
+		}	
+
+		#navigation78980 li.L2 a, li.L3 a, li.L4 a, li.L5 a, li.L6 a, li.L7 a{
+			color: #012b58;
+		}
+
+		#navigation78980 li.admin {
+			background: #beccd7;
+		}
+		
+		#navigation78980 li.currentitem {
+			background: #a6bcd3;
+		}
+
+		#navigation78980 li:hover.L1 {
+			background: #012b58;	
+			color: #012b58;
+		}
+
+
+		#navigation78980 span.image {
+			margin-left: 2px;
+			display: inline-block;
+			cursor: hand;
+			width: 90%;
+			color: #012b58;
+		}
+
+		#navigation78980 li:hover, li:hover.L2, li:hover.L3, li:hover.L4, li:hover.L5, li:hover.L6, li:hover.L7 {
+			background: #a6bcd3;
+		}
+
+		#navigation78980 span.current_item {
+			color: #012b58;
+		}
+
+		
+		#navigation78980 div {
+			padding: 10px 14px 10px 14px;
+		}
+		
+		#navigation78980 div.L1 {
+			padding: 10px 14px 10px 14px;
+			font: Verdana;
+			font-size: 12px;
+		}
+		
+		#navigation78980 div.L2 {
+			margin-left: 12px;
+		}
+		
+		#navigation78980 div.L3 {
+			margin-left: 22px;
+		}
+		
+		#navigation78980 div.L4 {
+			margin-left: 32px;
+		}
+		
+		#navigation78980 div.L5 {
+			margin-left: 42px;
+		}
+
+		#navigation78980 div.L6 {
+			margin-left: 52px;
+		}
+
+		#navigation78980 div.L7 {
+			margin-left: 62px;
+		}
+
+		
+		/* BEGIN -- Rollover Color (Level 1/2/3/4) SP(9/18/09)*/
+
+		#navigation78980 li.currentitem a.L1 span.current_item:hover {
+			color: #012b58;			
+		}
+
+		#navigation78980 li.L1 a:hover {
+			color: #012b58;			
+		}
+
+		#navigation78980 li.L2 a:hover {
+			color: #012b58;			
+		}
+
+		#navigation78980 li.L3 a:hover {
+			color: #012b58;			
+		}
+
+		#navigation78980 li.L4 a:hover {
+			color: #012b58;			
+		}
+		
+		/* END -- Rollover Color (Level 1/2/3/4) SP(9/18/09)*/
+
+		
+		#navigation78980 a.admin {
+			color: #012b58;
+		}
+		
+		#navigation78980 a.page {
+			font-weight: normal;
+		}
+		
+		#loginlink78980 a {
+			color: #012b58;
+		}
+		
+	</style>
+	
+	<span xmlns:pt="http://www.plumtree.com/xmlschemas/ptui/">
+	
+		
+		
+	
+	</span>
+
+
+	<div id="navigation78980">
+		<ul>
+			
+				
+					
+					
+						
+							
+							
+									
+									<!--Excecption thrown when doing paramExists comparison = System.NullReferenceException: Object reference not set to an instance of an object.
+   at com.plumtree.taglib.standard.MyWhenTag.DisplayTag().-->
+									
+										<!-- just a community -->
+										<li class="L1">
+											<a title="Workforce Development" class="L1" href="http://www.portal.state.pa.us/portal/server.pt/community/workforce_development/10539" alt="Workforce Development">
+												<div class="L1">
+													Workforce Development
+												</div>
+											</a>
+										</li>
+									
+								
+							
+						
+					
+				
+			
+				
+					
+					
+				
+			
+				
+					
+					
+						
+							
+							
+									
+									
+										
+											
+											
+												<!-- just a community -->
+												<li class="L2">
+													<a title="Employment Tax Credits" class="L2" href="http://www.portal.state.pa.us/portal/server.pt/community/employment_tax_credits/10569" alt="Employment Tax Credits">
+														<div class="L2">
+															Employment Tax Credits
+														</div>
+													</a>
+												</li>
+											
+										
+									
+									
+								
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+							
+									
+									
+										
+											
+											
+												<!-- just a community -->
+												<li class="L2">
+													<a title="Career Services" class="L2" href="http://www.portal.state.pa.us/portal/server.pt/community/career_services/10567" alt="Career Services">
+														<div class="L2">
+															Career Services
+														</div>
+													</a>
+												</li>
+											
+										
+									
+									
+								
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+							
+									
+									
+										
+											
+											
+												<!-- just a community -->
+												<li class="L2">
+													<a title="Layoff Notification" class="L2" href="http://www.portal.state.pa.us/portal/server.pt/community/layoff_notification/10540" alt="Layoff Notification">
+														<div class="L2">
+															Layoff Notification
+														</div>
+													</a>
+												</li>
+											
+										
+									
+									
+								
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+							
+									
+									
+										
+											
+											
+												<!-- just a community -->
+												<li class="L3">
+													<a title="WARN Notices" class="L3" href="http://www.portal.state.pa.us/portal/server.pt/community/warn_notices/10541" alt="WARN Notices">
+														<div class="L3">
+															WARN Notices
+														</div>
+													</a>
+												</li>
+											
+										
+									
+									
+								
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+							
+									
+									
+										
+											
+											
+												<!-- just a community -->
+												<li class="L4">
+													<a title="2015" class="L4" href="http://www.portal.state.pa.us/portal/server.pt/community/2015/21972" alt="2015">
+														<div class="L4">
+															2015
+														</div>
+													</a>
+												</li>
+											
+										
+									
+									
+								
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+							
+									
+									
+										
+											
+											
+												<!-- just a community -->
+												<li class="L4">
+													<a title="2014" class="L4" href="http://www.portal.state.pa.us/portal/server.pt/community/2014/21611" alt="2014">
+														<div class="L4">
+															2014
+														</div>
+													</a>
+												</li>
+											
+										
+									
+									
+								
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+							
+									
+									
+										
+											
+											
+												<!-- just a community -->
+												<li class="L4">
+													<a title="2013" class="L4" href="http://www.portal.state.pa.us/portal/server.pt/community/2013/21293" alt="2013">
+														<div class="L4">
+															2013
+														</div>
+													</a>
+												</li>
+											
+										
+									
+									
+								
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+							
+									
+									
+										
+											
+											
+												<!-- just a community -->
+												<li class="L4">
+													<a title="2012" class="L4" href="http://www.portal.state.pa.us/portal/server.pt/community/2012/20635" alt="2012">
+														<div class="L4">
+															2012
+														</div>
+													</a>
+												</li>
+											
+										
+									
+									
+								
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+							
+									
+									
+										
+											
+											
+												<!-- just a community -->
+												<li class="L4">
+													<a title="2011" class="L4" href="http://www.portal.state.pa.us/portal/server.pt/community/2011/19908" alt="2011">
+														<div class="L4">
+															2011
+														</div>
+													</a>
+												</li>
+											
+										
+									
+									
+								
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+							
+									
+									
+										
+											
+											
+												<!-- just a community -->
+												<li class="L4">
+													<a title="2010" class="L4" href="http://www.portal.state.pa.us/portal/server.pt/community/2010/18784" alt="2010">
+														<div class="L4">
+															2010
+														</div>
+													</a>
+												</li>
+											
+										
+									
+									
+								
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+							
+									
+									
+										
+											
+											
+												<!-- just a community -->
+												<li class="L4">
+													<a title="2009" class="L4" href="http://www.portal.state.pa.us/portal/server.pt/community/2009/12352" alt="2009">
+														<div class="L4">
+															2009
+														</div>
+													</a>
+												</li>
+											
+										
+									
+									
+								
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+							
+									
+									
+										
+											
+											
+												<!-- just a community -->
+												<li class="L4">
+													<a title="2008" class="L4" href="http://www.portal.state.pa.us/portal/server.pt/community/2008/10561" alt="2008">
+														<div class="L4">
+															2008
+														</div>
+													</a>
+												</li>
+											
+										
+									
+									
+								
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+							
+									
+									
+										
+											
+											
+												<!-- just a community -->
+												<li class="L4">
+													<a title="2007" class="L4" href="http://www.portal.state.pa.us/portal/server.pt/community/2007/10559" alt="2007">
+														<div class="L4">
+															2007
+														</div>
+													</a>
+												</li>
+											
+										
+									
+									
+								
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+							
+									
+									
+										
+											
+											
+												<!-- just a community -->
+												<li class="L4">
+													<a title="2006" class="L4" href="http://www.portal.state.pa.us/portal/server.pt/community/2006/10555" alt="2006">
+														<div class="L4">
+															2006
+														</div>
+													</a>
+												</li>
+											
+										
+									
+									
+								
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+							
+									
+									
+										
+											
+											
+												<!-- just a community -->
+												<li class="L4">
+													<a title="2005" class="L4" href="http://www.portal.state.pa.us/portal/server.pt/community/2005/10552" alt="2005">
+														<div class="L4">
+															2005
+														</div>
+													</a>
+												</li>
+											
+										
+									
+									
+								
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+							
+									
+									
+										
+											
+											
+												<!-- just a community -->
+												<li class="L4">
+													<a title="2004" class="L4" href="http://www.portal.state.pa.us/portal/server.pt/community/2004/10550" alt="2004">
+														<div class="L4">
+															2004
+														</div>
+													</a>
+												</li>
+											
+										
+									
+									
+								
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+							
+									
+									
+										
+											
+											
+												<!-- just a community -->
+												<li class="L4">
+													<a title="2003" class="L4" href="http://www.portal.state.pa.us/portal/server.pt/community/2003/10548" alt="2003">
+														<div class="L4">
+															2003
+														</div>
+													</a>
+												</li>
+											
+										
+									
+									
+								
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+							
+									
+									
+										
+											
+											
+												<!-- just a community -->
+												<li class="L4">
+													<a title="2002" class="L4" href="http://www.portal.state.pa.us/portal/server.pt/community/2002/10546" alt="2002">
+														<div class="L4">
+															2002
+														</div>
+													</a>
+												</li>
+											
+										
+									
+									
+								
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+								
+									
+										 
+											
+											
+												<!-- current community, because the objid matches but no PageID -->
+												<li class="currentitem">
+													<a title="2001" class="L4" href="http://www.portal.state.pa.us/portal/server.pt/community/2001/10542" alt="2001">
+														<div class="L4">
+														<span class="current_item">2001</span>
+														</div>
+													</a>
+												</li>
+											
+											
+										
+									
+									
+								
+							
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+								
+									
+										 
+											
+											
+											
+												<!-- it's a page -->
+												
+													
+													
+													
+														<li class="L5">
+															<a title="March 2001 WARN Notices" class="page" href="http://www.portal.state.pa.us/portal/server.pt/community/2001/10542/march_2001_warn_notices/553842" alt="March 2001 WARN Notices">	
+																<div class="L5">
+																	<span class="image">March 2001 WARN Notices</span>
+																</div>
+															</a>
+														</li>
+													
+												
+											
+										
+									
+									
+								
+							
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+								
+									
+										 
+											
+											
+											
+												<!-- it's a page -->
+												
+													
+													
+													
+														<li class="L5">
+															<a title="February 2001 WARN Notices" class="page" href="http://www.portal.state.pa.us/portal/server.pt/community/2001/10542/february_2001_warn_notices/553844" alt="February 2001 WARN Notices">	
+																<div class="L5">
+																	<span class="image">February 2001 WARN Notices</span>
+																</div>
+															</a>
+														</li>
+													
+												
+											
+										
+									
+									
+								
+							
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+								
+									
+										 
+											
+											
+											
+												<!-- it's a page -->
+												
+													
+													
+													
+														<li class="L5">
+															<a title="January 2001 WARN Notices" class="page" href="http://www.portal.state.pa.us/portal/server.pt/community/2001/10542/january_2001_warn_notices/553845" alt="January 2001 WARN Notices">	
+																<div class="L5">
+																	<span class="image">January 2001 WARN Notices</span>
+																</div>
+															</a>
+														</li>
+													
+												
+											
+										
+									
+									
+								
+							
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+								
+									
+										 
+											
+												<!-- it's the current page -->
+												
+													
+													
+													
+														<li class="currentitem">
+															<a title="April 2001 WARN Notices" class="page" href="http://www.portal.state.pa.us/portal/server.pt/community/2001/10542/april_2001_warn_notices/553847" alt="April 2001 WARN Notices">	
+																<div class="L5">
+																	<span class="current_item ">April 2001 WARN Notices</span>
+																</div>
+															</a>
+														</li>
+													
+												
+											
+											
+											
+										
+									
+									
+								
+							
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+								
+									
+										 
+											
+											
+											
+												<!-- it's a page -->
+												
+													
+													
+													
+														<li class="L5">
+															<a title="May 2001 WARN Notices" class="page" href="http://www.portal.state.pa.us/portal/server.pt/community/2001/10542/may_2001_warn_notices/553849" alt="May 2001 WARN Notices">	
+																<div class="L5">
+																	<span class="image">May 2001 WARN Notices</span>
+																</div>
+															</a>
+														</li>
+													
+												
+											
+										
+									
+									
+								
+							
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+								
+									
+										 
+											
+											
+											
+												<!-- it's a page -->
+												
+													
+													
+													
+														<li class="L5">
+															<a title="June 2001 WARN Notices" class="page" href="http://www.portal.state.pa.us/portal/server.pt/community/2001/10542/june_2001_warn_notices/553850" alt="June 2001 WARN Notices">	
+																<div class="L5">
+																	<span class="image">June 2001 WARN Notices</span>
+																</div>
+															</a>
+														</li>
+													
+												
+											
+										
+									
+									
+								
+							
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+								
+									
+										 
+											
+											
+											
+												<!-- it's a page -->
+												
+													
+													
+													
+														<li class="L5">
+															<a title="July 2001 WARN Notices" class="page" href="http://www.portal.state.pa.us/portal/server.pt/community/2001/10542/july_2001_warn_notices/553852" alt="July 2001 WARN Notices">	
+																<div class="L5">
+																	<span class="image">July 2001 WARN Notices</span>
+																</div>
+															</a>
+														</li>
+													
+												
+											
+										
+									
+									
+								
+							
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+								
+									
+										 
+											
+											
+											
+												<!-- it's a page -->
+												
+													
+													
+													
+														<li class="L5">
+															<a title="August 2001 WARN Notices" class="page" href="http://www.portal.state.pa.us/portal/server.pt/community/2001/10542/august_2001_warn_notices/553853" alt="August 2001 WARN Notices">	
+																<div class="L5">
+																	<span class="image">August 2001 WARN Notices</span>
+																</div>
+															</a>
+														</li>
+													
+												
+											
+										
+									
+									
+								
+							
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+								
+									
+										 
+											
+											
+											
+												<!-- it's a page -->
+												
+													
+													
+													
+														<li class="L5">
+															<a title="September 2001 WARN Notices" class="page" href="http://www.portal.state.pa.us/portal/server.pt/community/2001/10542/september_2001_warn_notices/553855" alt="September 2001 WARN Notices">	
+																<div class="L5">
+																	<span class="image">September 2001 WARN Notices</span>
+																</div>
+															</a>
+														</li>
+													
+												
+											
+										
+									
+									
+								
+							
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+								
+									
+										 
+											
+											
+											
+												<!-- it's a page -->
+												
+													
+													
+													
+														<li class="L5">
+															<a title="October 2001 WARN Notices" class="page" href="http://www.portal.state.pa.us/portal/server.pt/community/2001/10542/october_2001_warn_notices/553857" alt="October 2001 WARN Notices">	
+																<div class="L5">
+																	<span class="image">October 2001 WARN Notices</span>
+																</div>
+															</a>
+														</li>
+													
+												
+											
+										
+									
+									
+								
+							
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+								
+									
+										 
+											
+											
+											
+												<!-- it's a page -->
+												
+													
+													
+													
+														<li class="L5">
+															<a title="November 2001 WARN Notices" class="page" href="http://www.portal.state.pa.us/portal/server.pt/community/2001/10542/november_2001_warn_notices/553859" alt="November 2001 WARN Notices">	
+																<div class="L5">
+																	<span class="image">November 2001 WARN Notices</span>
+																</div>
+															</a>
+														</li>
+													
+												
+											
+										
+									
+									
+								
+							
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+								
+									
+										 
+											
+											
+											
+												<!-- it's a page -->
+												
+													
+													
+													
+														<li class="L5">
+															<a title="December 2001 WARN Notices" class="page" href="http://www.portal.state.pa.us/portal/server.pt/community/2001/10542/december_2001_warn_notices/571299" alt="December 2001 WARN Notices">	
+																<div class="L5">
+																	<span class="image">December 2001 WARN Notices</span>
+																</div>
+															</a>
+														</li>
+													
+												
+											
+										
+									
+									
+								
+							
+							
+						
+					
+				
+			
+				
+					
+					
+						
+							
+							
+									
+									
+										
+											
+											
+												<!-- just a community -->
+												<li class="L2">
+													<a title="Finding Skilled Workers" class="L2" href="http://www.portal.state.pa.us/portal/server.pt/community/finding_skilled_workers/10571" alt="Finding Skilled Workers">
+														<div class="L2">
+															Finding Skilled Workers
+														</div>
+													</a>
+												</li>
+											
+										
+									
+									
+								
+							
+						
+					
+				
+			
+				
+					
+					
+				
+			
+			
+				<li style="padding-top: 5px; padding-bottom: 5px; background-color: #beccd7;" id="spacer">&nbsp;</li>
+				
+					
+						
+						
+							<li class="L1 admin" id="loginlink78980"><a href="http://www.portal.state.pa.us/portal/server.pt?open=space&name=Login&control=Login&login=&in_hi_userid=2&cached=true"><div class="L1">Log In</div></a></li>
+						
+					
+					
+				
+			
+		</ul>
+	</div>
+	<div id="skipNavDiv"><a id="skipNavAnchor" name="skipNavAnchor"></a></div>
+</span></div></td>
+</tr>
+</table>
+<table cellpadding="0" cellspacing="0" width="100%" border="0" summary="Portlet column formatter table."><tr><td colspan="1" id="portletColumnFormatter_0"><img src="http://www.portal.state.pa.us/imageserver/plumtree/portal/public/img/sp.gif" alt="" border="0" align="absmiddle" height="1" width="1" class="ptNarrowColumnWidth" id="portletColumnSpacer_0"/></td>
+</tr>
+</table>
+<!--End Portlet Column 0--></td>
+<td colspan="1" id="horizontalPaddingCell0"><img src="http://www.portal.state.pa.us/imageserver/plumtree/portal/public/img/sp.gif" alt="" border="0" align="absmiddle" height="1" width="1" class="ptPortletPaddingHorizontal"/></td>
+<td align="center" valign="top" width="100%" colspan="1" class="PATableTwoWideColumnBorder" id="PATableTwoWideColumnBorder"><!--Begin Portlet Column 1--><div class="customappText" id="pt-portlet-content-997"><span xmlns:pt='http://www.plumtree.com/xmlschemas/ptui/'>	
+	
+	
+
+		
+			
+		<div class="PA_breadcrumbText">
+				
+				
+				
+					
+					
+					<a title="Workforce Development" href="http://www.portal.state.pa.us/portal/server.pt/community/workforce_development/10539" alt="Workforce Development">Workforce Development</a>&nbsp;&gt;&nbsp;
+					
+				
+				
+				
+					
+					
+					<a title="Layoff Notification" href="http://www.portal.state.pa.us/portal/server.pt/community/layoff_notification/10540" alt="Layoff Notification">Layoff Notification</a>&nbsp;&gt;&nbsp;
+					
+				
+				
+				
+					
+					
+					<a title="WARN Notices" href="http://www.portal.state.pa.us/portal/server.pt/community/warn_notices/10541" alt="WARN Notices">WARN Notices</a>
+					
+				
+				
+				
+					
+					
+					
+						
+							
+							
+								&nbsp;&gt;&nbsp;<a href="http://www.portal.state.pa.us/portal/server.pt/community/2001/10542" title="2001" alt="2001">2001</a> &gt; April 2001 WARN Notices
+							
+						
+					
+				
+			
+			
+		
+	</div>
+</span></div><table cellpadding="0" cellspacing="0" width="100%" border="0" summary="Portlet padding."><tr><td colspan="1" id="portletVerticalPaddingRow1"><img src="http://www.portal.state.pa.us/imageserver/plumtree/portal/public/img/sp.gif" alt="" border="0" align="absmiddle" height="1" width="1" style="ptPortletPaddingVertical"/></td>
+</tr>
+</table>
+<table cellpadding="0" cellspacing="0" width="100%" class="portletBase" id="pt-portlet-74410"><tr><td colspan="2" class="portletBody"><div class="customappText" id="pt-portlet-content-74410"><span xmlns:pt='http://www.plumtree.com/xmlschemas/ptui/'> 
+<!-- store the current community object properties -->
+	
+
+<!-- store the data object, set the object ID to the current community ID, and set the class ID to 512 (default for a community). -->
+	 
+
+<div>
+<!-- evaluate the access level of the data object and store those values -->
+	
+	
+
+
+	
+
+<!-- if the key evaluates true, then display the Function1 Editor -->
+	
+		
+	
+</div>
+</span>
+
+<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+<div id="dlicss">
+<h1>April 2001 
+</h1>
+<div align="center">
+	<table align="center" border="2" cellSpacing="15" width="100%">
+		<tbody>
+			<tr><td vAlign="top" width="50%">
+					<div><strong>C-COR.net 
+							<br/></strong>7 Park Avenue 
+						<br/>Tipton, PA 16684 
+						<br/>
+						<br/><strong>COUNTY:</strong> Blair 
+						<br/><strong># AFFECTED:</strong> 418 
+						<br/><strong>PLANT CLOSING</strong> 
+						<br/><strong>EFFECTIVE DATE:</strong> 05/29/01 
+					</div></td><td vAlign="top" width="50%">
+					<div><strong>Exide Technologies 
+							<br/></strong>1000 Dunham Drive 
+						<br/>Dunmore, PA 
+						<br/>
+						<br/><strong>COUNTY:</strong> Lackawanna 
+						<br/><strong># AFFECTED:</strong> 306 
+						<br/><strong>PLANT CLOSING</strong> 
+						<br/><strong>EFFECTIVE DATE:</strong> 05/29/01 
+					</div></td>
+			</tr>
+			<tr><td colSpan="2">&nbsp;</td>
+			</tr>
+			<tr><td vAlign="top">
+					<div><strong>American Lumber Co. 
+							<br/></strong>Sixth Avenue 
+						<br/>Union City, PA 
+						<br/>
+						<br/><strong>COUNTY:</strong> Erie 
+						<br/><strong># AFFECTED:</strong> 43 
+						<br/><strong>PLANT CLOSING</strong> 
+						<br/><strong>EFFECTIVE DATE:</strong> 04/27/01 
+					</div></td><td vAlign="top">
+					<div><strong>Tyco Electronics 
+							<br/></strong>759 E. Hamilton Street 
+						<br/>Carlisle, PA 17103 
+						<br/>
+						<br/><strong>COUNTY:</strong> Cumberland 
+						<br/><strong># AFFECTED:</strong> 71 
+						<br/><strong>MASS LAYOFF</strong> 
+						<br/><strong>EFFECTIVE DATE:</strong> 
+					</div></td>
+			</tr>
+			<tr><td colSpan="2">&nbsp;</td>
+			</tr>
+			<tr><td vAlign="top">
+					<div><strong>Tyco Electronics 
+							<br/></strong>US Route 11 East 
+						<br/>Carlisle, PA 17101 
+						<br/>
+						<br/><strong>COUNTY:</strong> Cumberland 
+						<br/><strong># AFFECTED:</strong> 156 
+						<br/><strong>PLANT CLOSING</strong> 
+						<br/><strong>EFFECTIVE DATE:</strong> 
+					</div></td><td vAlign="top">
+					<div><strong>Tyco Electronics</strong> 
+						<br/>50 W. Clearview Drive 
+						<br/>Shrewsburg, PA 17361 
+						<br/>
+						<br/><strong>COUNTY:</strong> York 
+						<br/><strong># AFFECTED:</strong> 220 
+						<br/><strong>PLANT CLOSING</strong> 
+						<br/><strong>EFFECTIVE DATE:</strong> 
+					</div></td>
+			</tr>
+			<tr><td colSpan="2">
+					<div>&nbsp; 
+					</div></td>
+			</tr>
+			<tr><td vAlign="top">
+					<div><strong>FCI USA, Inc. 
+							<br/></strong>504 Fame Avenue 
+						<br/>Hanover, PA 17331 
+						<br/>
+						<br/><strong>COUNTY:</strong> York 
+						<br/><strong># AFFECTED:</strong> 231 
+						<br/><strong>PLANT CLOSING</strong> 
+						<br/><strong>EFFECTIVE DATE:</strong> 05/30/01 
+					</div></td><td vAlign="top">
+					<div><strong>BBA Nonwovens 
+							<br/></strong>Route 15 & Hafer Road 
+						<br/>Lewisburg, PA 17837 
+						<br/>
+						<br/><strong>COUNTY:</strong> Union 
+						<br/><strong># AFFECTED:</strong> 120 
+						<br/><strong>MASS LAYOFF</strong> 
+						<br/><strong>EFFECTIVE DATE:</strong> 06/01/01 
+					</div></td>
+			</tr>
+			<tr><td colSpan="2">&nbsp;</td>
+			</tr>
+			<tr><td vAlign="top">
+					<div><strong>GE Financial Assurance 
+							<br/></strong>500 Virginia Drive 
+						<br/>Ft. Washington, PA 
+						<br/>
+						<br/><strong>COUNTY:</strong> Montgomery 
+						<br/><strong># AFFECTED:</strong> 134 
+						<br/><strong>MASS LAYOFF</strong> 
+						<br/><strong>EFFECTIVE DATE:</strong> 05/31/01 
+					</div></td><td vAlign="top">
+					<div><strong>GE Financial Assurance 
+							<br/></strong>500 Virginia Drive 
+						<br/>Ft. Washington, PA 
+						<br/>
+						<br/><strong>COUNTY:</strong> Montgomery 
+						<br/><strong># AFFECTED:</strong> 173 
+						<br/><strong>MASS LAYOFF</strong> 
+						<br/><strong>EFFECTIVE DATE:</strong> 06/07/01 
+					</div></td>
+			</tr>
+			<tr><td colSpan="2">&nbsp;</td>
+			</tr>
+			<tr><td vAlign="top">
+					<div><strong>United Manufacturing</strong> 
+						<br/>5 Hillcrest Drive 
+						<br/>Old Forge, PA 18517 
+						<br/>
+						<br/><strong>COUNTY:</strong> Lackawanna 
+						<br/><strong># AFFECTED:</strong> 
+						<br/><strong>MASS LAYOFF</strong> 
+						<br/><strong>EFFECTIVE DATE:</strong> 06/03/01 
+					</div></td><td vAlign="top"><strong>Southern Home Services 
+						<br/></strong>3200 S. Broad Street 
+					<br/>Philadelphia, PA 19145 
+					<br/>
+					<br/><strong>COUNTY:</strong> Philadelphia 
+					<br/><strong># AFFECTED:</strong> 
+					<br/><strong>PLANT CLOSING</strong> 
+					<br/><strong>EFFECTIVE DATE:</strong> 06/29/01</td>
+			</tr>
+			<tr><td colSpan="2">&nbsp;</td>
+			</tr>
+			<tr><td vAlign="top">
+					<div><strong>McGinley Mills</strong> 
+						<br/>100 Kuebler Road 
+						<br/>Forks, PA 
+						<br/>
+						<br/><strong>COUNTY:</strong> Northampton 
+						<br/><strong># AFFECTED:</strong> 54 
+						<br/><strong>MASS LAYOFF</strong> 
+						<br/><strong>EFFECTIVE DATE:</strong> 06/30/01 
+					</div></td><td vAlign="top">
+					<div><strong>Corning Frequency Contr. 
+							<br/></strong>100 K Street 
+						<br/>Carlisle, PA 
+						<br/>
+						<br/><strong>COUNTY:</strong> Cumberland 
+						<br/><strong># AFFECTED:</strong> 103 
+						<br/><strong>PLANT CLOSING</strong> 
+						<br/><strong>EFFECTIVE DATE:</strong> 06/02/01 
+					</div></td>
+			</tr>
+			<tr><td colSpan="2">&nbsp;</td>
+			</tr>
+			<tr><td vAlign="top">
+					<div><strong>Bradley Lawless</strong> 
+						<br/>1200 Wyoming Avenue 
+						<br/>Scranton, PA 
+						<br/>
+						<br/><strong>COUNTY:</strong> Lackawanna 
+						<br/><strong># AFFECTED:</strong> 13 
+						<br/><strong>PLANT CLOSING</strong> 
+						<br/><strong>EFFECTIVE DATE:</strong> 03/31/01 
+					</div></td><td vAlign="top">
+					<div><strong>Wright's LLC</strong> 
+						<br/>Allentown, PA 
+						<br/>
+						<br/><strong>COUNTY:</strong> Lehigh 
+						<br/><strong># AFFECTED:</strong> 115 
+						<br/><strong>PLANT CLOSING</strong> 
+						<br/><strong>EFFECTIVE DATE:</strong> 06/29/01 
+					</div></td>
+			</tr>
+			<tr><td colSpan="2">&nbsp;</td>
+			</tr>
+			<tr><td vAlign="top">
+					<div><strong>Butterick Company</strong> 
+						<br/>2900 Beale Avenue 
+						<br/>Altoona, PA 16603 
+						<br/>
+						<br/><strong>COUNTY:</strong> Blair 
+						<br/><strong># AFFECTED:</strong> 202 
+						<br/><strong>PLANT CLOSING</strong> 
+						<br/><strong>EFFECTIVE DATE:</strong> 08/01/01 
+					</div></td><td vAlign="top">
+					<div><strong>Corning - Benton Park</strong> 
+						<br/>Box 228 Franklin Valley 
+						<br/>Fleetville, PA 18420 
+						<br/>
+						<br/><strong>COUNTY:</strong> Lackawanna 
+						<br/><strong># AFFECTED:</strong> 251 
+						<br/><strong>PLANT CLOSING</strong> 
+						<br/><strong>EFFECTIVE DATE:</strong> 03/19/01 
+					</div></td>
+			</tr>
+			<tr><td colSpan="2">&nbsp;</td>
+			</tr>
+			<tr><td vAlign="top">
+					<div><strong>Vertek Corporation</strong> 
+						<br/>1525 Valley Center Park 
+						<br/>Bethlehem, PA 18017 
+						<br/>
+						<br/><strong>COUNTY:</strong> Northampton 
+						<br/><strong># AFFECTED:</strong> 40 
+						<br/><strong>MASS LAYOFF</strong> 
+						<br/><strong>EFFECTIVE DATE:</strong> 04/30/01 
+					</div></td><td vAlign="top">
+					<div><strong>Allegheny Plaza Shop</strong> 
+						<br/>500 Hyde Park Road 
+						<br/>Leechburg, PA 15656 
+						<br/>
+						<br/><strong>COUNTY:</strong> Armstrong 
+						<br/><strong># AFFECTED:</strong> 57 
+						<br/><strong>PLANT CLOSING</strong> 
+						<br/><strong>EFFECTIVE DATE:</strong> 06/23/01 
+					</div></td>
+			</tr>
+			<tr><td colSpan="2">&nbsp;</td>
+			</tr>
+			<tr><td vAlign="top">
+					<div><strong>Maverick Tube Corp.</strong> 
+						<br/>4400 West Fourth 
+						<br/>Beaver Falls, PA 
+						<br/>
+						<br/><strong>COUNTY:</strong> Beaver 
+						<br/><strong># AFFECTED:</strong> 114 
+						<br/><strong>PLANT CLOSING</strong> 
+						<br/><strong>EFFECTIVE DATE:</strong> 06/26/01 
+					</div></td><td vAlign="top">
+					<div><strong>Brown & Williamson Tob</strong> 
+						<br/>501 Valley Brook Road 
+						<br/>McMurray, PA 15317 
+						<br/>
+						<br/><strong>COUNTY:</strong> Washington 
+						<br/><strong># AFFECTED:</strong> 
+						<br/><strong>PLANT CLOSING</strong> 
+						<br/><strong>EFFECTIVE DATE:</strong> 06/27/01 
+					</div></td>
+			</tr>
+			<tr><td colSpan="2">&nbsp;</td>
+			</tr>
+			<tr><td vAlign="top">
+					<div><strong>Brown & Williamson Tob</strong> 
+						<br/>204 Calder Square 
+						<br/>State College, PA 16801 
+						<br/>
+						<br/><strong>COUNTY:</strong> Centre 
+						<br/><strong># AFFECTED:</strong> 
+						<br/><strong>PLANT CLOSING</strong> 
+						<br/><strong>EFFECTIVE DATE:</strong> 06/27/01 
+					</div></td><td vAlign="top"></td>
+			</tr>
+		</tbody>
+	</table>
+</div>
+</div></div></td>
+</tr>
+</table>
+<table cellpadding="0" cellspacing="0" width="100%" border="0" summary="Portlet column formatter table."><tr><td colspan="1" id="portletColumnFormatter_1"><img src="http://www.portal.state.pa.us/imageserver/plumtree/portal/public/img/sp.gif" alt="" border="0" align="absmiddle" height="1" width="1" class="ptNarrowColumnWidth" id="portletColumnSpacer_1"/></td>
+</tr>
+</table>
+<!--End Portlet Column 1--></td>
+</tr>
+</table>
+<script type="text/javascript">try { PTPMMenu.defaultCssFile = "http://www.portal.state.pa.us/imageserver/plumtree/common/private/js/jsportalmenus/LATEST/styles/css/PTPMMenu.css"; } catch (err) { ; } 
+function createPrefsDropDownMenu(linksArray, strDivID)
+{ 
+	var menu;
+   try {  menu = new PTPMMenuContainer(); } catch (err) { return; }  
+	// Add each entry to the PTPMMenuContainer
+	for ( j = 0; j < linksArray.length; j++ )
+ 	{
+		var strImgSrc = linksArray[j][0];
+		var strImgWidth = linksArray[j][1];
+		var strTitle = linksArray[j][2];
+		var strURL   = linksArray[j][3];
+		var strSuppressPopup   = linksArray[j][4];
+		menu.menuItems[j] = new PTPMSimpleMenuItem();
+		// Set title
+		menu.menuItems[j].text = strTitle;
+		// Set Image
+		menu.menuItems[j].image	= new PTPMImage();
+		menu.menuItems[j].image.imgSrc = strImgSrc;
+		menu.menuItems[j].image.imgWidth = strImgWidth;
+		// Set action
+		menu.menuItems[j].action = new PTPMJavaScriptAction();
+       if ( strSuppressPopup ==  '0' ) {
+		  menu.menuItems[j].action.js = 'OpenPortletPrefsWindow( "'+strURL+'")';
+       } else {
+		  menu.menuItems[j].action.js = 'window.location = "'+strURL+'"'; } 
+	}
+	var buttonText	="<img src='http://www.portal.state.pa.us/imageserver/plumtree/portal/public/img/action_portlet_menu.gif' align='absmiddle' height='13' width='10' border='0' alt='Expand Menu' >" 
+	PTPMSelectMenu.init(menu, strDivID, buttonText);
+}	
+</script><script type="text/javascript"></script></td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+<span xmlns:pt='http://www.plumtree.com/xmlschemas/ptui/'>
+
+
+
+<style type="text/css">
+	.whiteBGfootText		{color: #17406E; font: x-small arial,helvetica,"sans-serif"; text-decoration: none;}
+	.customfootText		{color: #FFFFFF; font: x-small arial,helvetica,"sans-serif"; text-decoration: none;}
+	.customfootText A		{color: #FFFFFF; font: x-small arial,helvetica,"sans-serif"; text-decoration: none;}
+	.customfootText A:hover	{text-decoration: underline;}
+
+	a.agencylink_83293 {
+		font: x-small arial,helvetica,"sans-serif";
+		text-decoration: none;
+		color: #ffffff;
+	}
+
+	a.agencylink_83293:hover {
+		font: x-small arial,helvetica,"sans-serif";
+		text-decoration: underline;
+		color: #ffffff;
+	}	
+</style>
+
+<table cellspacing="0" cellpadding="5" width="100%" border="0">
+	<tr>
+		<td class="footHeaderBG customFootText" style="color: #ffffff;" valign="middle" align="center">
+			
+				<a href="http://www.portal.state.pa.us/portal/server.pt?open=514&objID=552727&mode=2" class="agencylink_83293" alt="Contact Us" title="Contact Us">Contact Us</a>
+			
+			
+				|&nbsp;<a href="http://www.pa.gov/" class="agencylink_83293" alt="Commonwealth Portal" title="Commonwealth Portal">Commonwealth Portal</a>
+			
+			
+				|&nbsp;<a href="mailto:ra-li-oit-webteam@pa.gov" class="agencylink_83293" alt="Contact the Web Team" title="Contact the Web Team">Contact the Web Team</a>
+			
+			
+			
+			
+			
+				|
+			
+			<a href="http://www.pa.gov/Pages/Privacy-Policy.aspx" class="agencylink_83293" alt="Privacy Policy" title="Privacy Policy">Privacy Policy</a>
+			|&nbsp;<a href="http://www.pa.gov/Pages/Security-Policy.aspx" class="agencylink_83293" alt="Disclaimer" title="Disclaimer">Disclaimer</a>	
+		</td>
+	</tr>
+	<tr>
+    		<td class="whiteBGfootText" valign="middle" align="center">Copyright &copy; <span id="ftDateSpan"></span>&nbsp;Commonwealth of Pennsylvania</td>
+    	</tr>
+</table>
+</span>
+<div class="EnterpriseFooterCurrentTime" style="display: none;">DATE/TIME:Mar 3, 2016 8:37:14 PM</div>
+<script>
+	function getYear_83293()
+	{
+		var d = new Date();
+		var year = d.getYear();
+		var correctYear  = year % 100;
+		correctYear += (correctYear < 38) ? 2000 : 1900;
+		return correctYear;
+	}
+	
+	var ftDateSpan = document.getElementById("ftDateSpan");
+
+	ftDateSpan.innerHTML = getYear_83293();
+	
+</script><script type="text/javascript">InitializeEvents();</script></div><div class="externalContent" id="pt-external-content-553847"></div>
+</body>
+</html><!--Hostname: ENCTCISP274--><!--Total Request Time: 547
+Control Time: 31
+Page Construction Time: 485
+Page Display Time: 15
+--><!--Portal Version: 10.3.0.337003, Changelist: 337003, Build Date: 10/08/2008 at 02:57 PM-->
