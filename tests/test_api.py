@@ -795,3 +795,24 @@ def test_map_pins_closure_category_filter(api_client, db):
     # Closure filter: only the matching pin.
     assert [p["employer"] for p in
             api_client.get("/api/map-pins?closure_category=Closure").json()] == ["Closing Co"]
+
+
+def test_map_pins_float_coords_and_cache_header(api_client, db):
+    _geocoded_notice(db, None, "LA Co", lat=34.05212, lon=-118.24399)
+    db.commit()
+
+    resp = api_client.get("/api/map-pins")
+    # Scrapes land a few fixed times a day; 5 minutes of staleness is invisible.
+    assert resp.headers["cache-control"] == "public, max-age=300"
+    pin = resp.json()[0]
+    # lat/lon are real JSON numbers at 5 dp — not Decimal-as-string — matching
+    # the frontend's `lat: number` type.
+    assert pin["lat"] == 34.05212
+    assert pin["lon"] == -118.24399
+    assert pin["notice_date"] == "2026-01-01"
+
+
+def test_gzip_enabled_for_large_responses(api_client):
+    # Any body ≥1 KiB qualifies; openapi.json is always large enough.
+    resp = api_client.get("/openapi.json", headers={"Accept-Encoding": "gzip"})
+    assert resp.headers["content-encoding"] == "gzip"

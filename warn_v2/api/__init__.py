@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.gzip import GZipMiddleware
 from prometheus_client import REGISTRY, make_asgi_app
 
 from warn_v2.api.routes import (
@@ -44,6 +45,14 @@ def create_app() -> FastAPI:
         lifespan=_lifespan,
     )
 
+    # Compresses everything ≥1 KiB, including the SPA bundle served by the
+    # StaticFiles mount below (~1 MB JS → ~300 KB) and large JSON like
+    # /api/map-pins (~1 MB → ~150 KB). Level 6, not the default 9 — the pod
+    # is CPU-limited and 9 buys ~1% extra ratio for noticeably more CPU.
+    # Prometheus's /metrics app gzips its own responses when asked; Starlette
+    # skips anything that already carries Content-Encoding.
+    app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
+
     # --- health probe (readiness + liveness) ---
     @app.get("/healthz", tags=["health"], include_in_schema=False)
     def healthz() -> dict:
@@ -65,9 +74,6 @@ def create_app() -> FastAPI:
     app.include_router(map_pins.router, prefix="/api")
     app.include_router(search.router, prefix="/api")
     app.include_router(subscriptions.router, prefix="/api")
-
-    # --- SEO + feeds (site root, not /api): sitemap.xml, robots.txt, RSS ---
-    app.include_router(seo.router)
 
     # --- SEO + feeds (site root, not /api): sitemap.xml, robots.txt, RSS ---
     app.include_router(seo.router)
@@ -113,7 +119,11 @@ def create_app() -> FastAPI:
 
             def _render_index(self, scope: Any) -> Response:
                 meta = page_meta_for_path(scope.get("path", "/"))
-                return HTMLResponse(render_index(self._index_html, meta))
+                resp = HTMLResponse(render_index(self._index_html, meta))
+                # Deploys must be picked up on the next navigation; no-cache
+                # still allows conditional revalidation, just not blind reuse.
+                resp.headers["Cache-Control"] = "no-cache"
+                return resp
 
             async def get_response(self, path: str, scope: Any) -> Response:
                 from starlette.exceptions import HTTPException as _StarletteHTTPException
@@ -129,6 +139,10 @@ def create_app() -> FastAPI:
                 # with the homepage metadata so "/" gets canonical/OG tags too.
                 if req_path == "/":
                     return self._render_index(scope)
+                # Vite content-hashes every filename under /assets/, so those
+                # responses can never go stale — cache them for a year.
+                if req_path.startswith("/assets/"):
+                    resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
                 return resp
 
         app.mount("/", SPAStaticFiles(directory=static_dir, html=True), name="ui")
