@@ -126,9 +126,12 @@ Ordered by recoverable rows:
   companies/day means months to converge. First measure per-company cost by
   tier (D&B / EDGAR / Claude), then propose a batch-mode or cap-raise PR with
   the cost math in the description. (A+gate)
-- [ ] **GA full-state-name worksites** — `_choose_city_zip` handles the
+- ~~**GA full-state-name worksites** — `_choose_city_zip` handles the
   2-letter state form; letters spelling out "Georgia" still fall back to the
-  entry page (see STATE_AUDIT source notes). (A+gate)
+  entry page (see STATE_AUDIT source notes). (A+gate)~~ — already done by
+  PR #87 (spelled-out state names, 2026-06-26); the STATE_AUDIT note predated
+  it. Verified 2026-07-06 with a GA-shaped letter ("Dalton, Georgia 30720"
+  picked over the Atlanta recipient block).
 - ~~**Audit reads `geocode_source`** — the column
   (`census`/`zip`/`city`/`county`) exists; wiring `warn_v2/scripts/audit.py`
   to it makes geo-accuracy reporting exact instead of inferred (STATE_AUDIT
