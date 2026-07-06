@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 
 import { api } from "../api/client";
+import type { StateStatusOut } from "../api/types";
 import { UsMap } from "../components/UsMap";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { type ResolvedTheme, useTheme } from "../hooks/useTheme";
@@ -46,6 +47,14 @@ const SEVERITY: Record<Health, number> = {
   unsupported: 2,
   never: 2,
 };
+
+/** Compact "2008–2026" span of a state's notice data, null when it has none. */
+function coverage(run: StateStatusOut | undefined): string | null {
+  if (!run?.first_notice_date || !run.last_notice_date) return null;
+  const from = run.first_notice_date.slice(0, 4);
+  const to = run.last_notice_date.slice(0, 4);
+  return from === to ? from : `${from}–${to}`;
+}
 
 /** Short "x days ago" suffix for a last-success timestamp. */
 function relDays(iso: string | null | undefined): string {
@@ -145,6 +154,11 @@ export function StatusPage() {
                     Last success {relDays(r.run.last_success_at)}
                   </div>
                 )}
+                {coverage(r.run) && (
+                  <div className="text-slate-600 dark:text-slate-400">
+                    Notices {coverage(r.run)}
+                  </div>
+                )}
               </>
             );
           }}
@@ -176,6 +190,7 @@ export function StatusPage() {
             <tr>
               <th className="px-3 py-2 font-medium">State</th>
               <th className="px-3 py-2 font-medium">Status</th>
+              <th className="px-3 py-2 font-medium">Notice coverage</th>
               <th className="px-3 py-2 font-medium">Last successful scrape</th>
               <th className="px-3 py-2 font-medium">Last run</th>
               <th className="px-3 py-2 font-medium">New / scraped</th>
@@ -203,6 +218,17 @@ export function StatusPage() {
                     >
                       {badge.label}
                     </span>
+                  </td>
+                  <td className="px-3 py-2 align-top" data-label="Notice coverage">
+                    {coverage(r.run) ? (
+                      <span
+                        title={`${fmtDate(r.run?.first_notice_date)} – ${fmtDate(r.run?.last_notice_date)}`}
+                      >
+                        {coverage(r.run)}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 dark:text-slate-500">—</span>
+                    )}
                   </td>
                   <td className="px-3 py-2 align-top" data-label="Last successful scrape">
                     {r.run?.last_success_at ? (

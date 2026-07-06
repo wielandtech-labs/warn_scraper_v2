@@ -78,6 +78,8 @@ export interface StateStatusOut {
   rows_new: number | null;
   error: string | null;
   last_success_at: string | null;
+  first_notice_date: string | null;
+  last_notice_date: string | null;
 }
 
 export interface Page<T> {

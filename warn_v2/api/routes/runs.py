@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from warn_v2.api.deps import PaginationParams, get_db
 from warn_v2.api.schemas import Page, ScraperRunOut, StateStatusOut
-from warn_v2.db.models import SCRAPER_SUCCESS_STATUSES, ScraperRun
+from warn_v2.db.models import SCRAPER_SUCCESS_STATUSES, Notice, ScraperRun
 
 router = APIRouter(prefix="/scraper-runs", tags=["scraper-runs"])
 
@@ -70,6 +70,15 @@ def scraper_status(db: Session = Depends(get_db)) -> list[StateStatusOut]:
     )
     last_success = dict(success_rows.all())
 
+    # Notice-date coverage per state (non-superseded, matching the public
+    # stats), so the status page can show how far back each state reaches.
+    range_rows = db.execute(
+        select(Notice.state, func.min(Notice.notice_date), func.max(Notice.notice_date))
+        .where(Notice.is_superseded.is_(False))
+        .group_by(Notice.state)
+    )
+    notice_ranges = {state: (lo, hi) for state, lo, hi in range_rows}
+
     out = [
         StateStatusOut(
             state=r.state,
@@ -80,6 +89,8 @@ def scraper_status(db: Session = Depends(get_db)) -> list[StateStatusOut]:
             rows_new=r.rows_new,
             error=r.error,
             last_success_at=last_success.get(r.state),
+            first_notice_date=notice_ranges.get(r.state, (None, None))[0],
+            last_notice_date=notice_ranges.get(r.state, (None, None))[1],
         )
         for r in latest_runs
     ]

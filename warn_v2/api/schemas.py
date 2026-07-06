@@ -133,6 +133,10 @@ class StateStatusOut(BaseModel):
     rows_new: int | None
     error: str | None
     last_success_at: datetime | None
+    # Notice-date coverage: how far back this state's data reaches. Null when
+    # the state has runs but no (non-superseded) notices yet.
+    first_notice_date: date | None
+    last_notice_date: date | None
 
 
 class Page[T](BaseModel):
