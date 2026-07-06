@@ -169,7 +169,9 @@ export function Dashboard() {
                     dot={false}
                   />
                   {/* Dashed pace projection for the current, incomplete period;
-                      all-null (invisible) when no projection is active. */}
+                      all-null (invisible) when no projection is active.
+                      animationBegin waits out the solid lines' default 1500ms
+                      draw so the projection appears after them, not before. */}
                   <Line
                     yAxisId="left"
                     type="monotone"
@@ -178,6 +180,7 @@ export function Dashboard() {
                     stroke="#0369a1"
                     strokeWidth={2}
                     strokeDasharray="5 5"
+                    animationBegin={1500}
                     dot={false}
                     legendType="none"
                   />
@@ -189,6 +192,7 @@ export function Dashboard() {
                     stroke="#dc2626"
                     strokeWidth={2}
                     strokeDasharray="5 5"
+                    animationBegin={1500}
                     dot={false}
                     legendType="none"
                   />
