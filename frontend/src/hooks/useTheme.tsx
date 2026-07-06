@@ -14,7 +14,7 @@ export type ResolvedTheme = "light" | "dark";
 const STORAGE_KEY = "theme";
 const DARK_MQ = "(prefers-color-scheme: dark)";
 const THEME_COLOR: Record<ResolvedTheme, string> = {
-  light: "#0369a1",
+  light: "#DA2F25",
   dark: "#0f172a",
 };
 
