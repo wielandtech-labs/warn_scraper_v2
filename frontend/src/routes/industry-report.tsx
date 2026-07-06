@@ -38,10 +38,10 @@ export function IndustryReportPage() {
   if (missing) {
     return (
       <div className="card text-center">
-        <p className="text-slate-700">No scorecard for “{sector}”.</p>
+        <p className="text-slate-700 dark:text-slate-300">No scorecard for “{sector}”.</p>
         <Link
           to="/reports"
-          className="mt-2 inline-block text-sm font-medium text-sky-700 hover:underline"
+          className="mt-2 inline-block text-sm font-medium text-sky-700 hover:underline dark:text-sky-400"
         >
           ← All industry scorecards
         </Link>
@@ -52,14 +52,14 @@ export function IndustryReportPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link to="/reports" className="text-sm font-medium text-sky-700 hover:underline">
+        <Link to="/reports" className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400">
           ← All industry scorecards
         </Link>
         <div className="mt-1 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold">{name}</h1>
           {card && <GradeBadge grade={card.grade} />}
         </div>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           NAICS {sector} · weekly national layoff scorecard
         </p>
       </div>
@@ -81,12 +81,12 @@ export function IndustryReportPage() {
         ) : null}
       </div>
 
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-slate-500 dark:text-slate-400">
         Drill into the underlying notices on the{" "}
         <Link
           to="/notices"
           search={{ industry: sector }}
-          className="font-medium text-sky-700 hover:underline"
+          className="font-medium text-sky-700 hover:underline dark:text-sky-400"
         >
           notices list
         </Link>{" "}

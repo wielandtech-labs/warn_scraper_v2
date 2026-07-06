@@ -8,7 +8,7 @@ export function QueryError({
 }) {
   return (
     <div className="card text-center">
-      <p className="text-sm text-red-600">{message}</p>
+      <p className="text-sm text-red-600 dark:text-red-400">{message}</p>
       <button type="button" className="btn-secondary mt-3" onClick={onRetry}>
         Retry
       </button>

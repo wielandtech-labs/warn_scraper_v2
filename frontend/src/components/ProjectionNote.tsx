@@ -8,7 +8,7 @@ export function ProjectionNote({ periodLabel }: { periodLabel: string }) {
     day: "numeric",
   });
   return (
-    <p className="mt-2 text-xs text-slate-500">
+    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
       Dashed segment: {periodLabel} is projected from data reported through{" "}
       {today}.
     </p>

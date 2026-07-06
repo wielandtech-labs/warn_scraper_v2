@@ -44,7 +44,7 @@ export function TimeRangeToggle({
   onChange: (next: TimeRange) => void;
 }) {
   return (
-    <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 shadow-sm">
+    <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
       {(Object.keys(LABELS) as TimeRange[]).map((r) => (
         <button
           key={r}
@@ -55,7 +55,7 @@ export function TimeRangeToggle({
             "rounded px-3 py-1 text-sm font-medium transition-colors " +
             (value === r
               ? "bg-sky-700 text-white"
-              : "text-slate-700 hover:bg-slate-100")
+              : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800")
           }
         >
           {LABELS[r]}

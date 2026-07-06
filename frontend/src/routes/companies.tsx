@@ -45,7 +45,7 @@ export function CompaniesPage() {
         <h1 className="text-2xl font-semibold">
           {view === "families" ? "Corporate families" : "Companies"}
         </h1>
-        <div className="flex gap-1 rounded-md border border-slate-300 p-0.5">
+        <div className="flex gap-1 rounded-md border border-slate-300 p-0.5 dark:border-slate-700">
           <ViewTab active={view === "companies"} onClick={() => setView("companies")} label="Companies" />
           <ViewTab
             active={view === "families"}
@@ -142,7 +142,7 @@ function CompaniesView() {
             // Carry the list's filters/sort/page into the detail URL so its
             // "← All companies" link can restore this exact view.
             search={(prev) => prev}
-            className="font-medium text-sky-700 hover:underline"
+            className="font-medium text-sky-700 hover:underline dark:text-sky-400"
           >
             {info.getValue() as string}
           </Link>
@@ -167,7 +167,7 @@ function CompaniesView() {
           return (
             <>
               <span className="font-mono">{c.sic_code}</span>
-              {c.sic_desc && <span className="ml-2 text-slate-500">{c.sic_desc}</span>}
+              {c.sic_desc && <span className="ml-2 text-slate-500 dark:text-slate-400">{c.sic_desc}</span>}
             </>
           );
         },
@@ -180,7 +180,7 @@ function CompaniesView() {
           const url = info.getValue() as string | null;
           if (!url) return "—";
           return (
-            <a className="text-sky-700 hover:underline" href={url} target="_blank" rel="noreferrer">
+            <a className="text-sky-700 hover:underline dark:text-sky-400" href={url} target="_blank" rel="noreferrer">
               {url.replace(/^https?:\/\//, "")}
             </a>
           );
@@ -212,7 +212,7 @@ function CompaniesView() {
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-end gap-3">
         <select
-          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
           value={search.industry || ""}
           onChange={(e) => setIndustry(e.target.value || undefined)}
         >
@@ -225,7 +225,7 @@ function CompaniesView() {
         </select>
         {selectedSubsectors.length > 0 && (
           <select
-            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            className="rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
             value={search.subsector || ""}
             onChange={(e) => setSubsector(e.target.value || undefined)}
           >
@@ -313,7 +313,7 @@ function FamiliesView() {
             to="/companies/$companyId"
             params={{ companyId: String(info.row.original.representative_company_id) }}
             search={(prev) => prev}
-            className="font-medium text-sky-700 hover:underline"
+            className="font-medium text-sky-700 hover:underline dark:text-sky-400"
           >
             {info.getValue() as string}
           </Link>
@@ -348,7 +348,7 @@ function FamiliesView() {
 
   return (
     <div>
-      <p className="mb-3 text-sm text-slate-500">
+      <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
         Companies grouped into corporate families, ranked by total layoffs across all
         their subsidiaries. Each family is labeled by its largest member, and the
         list grows as enrichment links subsidiaries to a shared parent.
@@ -387,7 +387,7 @@ function ViewTab({
       className={
         active
           ? "rounded px-3 py-1 text-sm font-medium bg-sky-600 text-white"
-          : "rounded px-3 py-1 text-sm font-medium text-slate-600 hover:bg-slate-100"
+          : "rounded px-3 py-1 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
       }
     >
       {label}
@@ -410,7 +410,7 @@ function FilterChip({
       className={
         active
           ? "rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white"
-          : "rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+          : "rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
       }
     >
       {label}

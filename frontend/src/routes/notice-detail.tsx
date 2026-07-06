@@ -37,7 +37,7 @@ export function NoticeDetail() {
   }
   if (query.isError || !query.data) {
     return (
-      <div className="card text-sm text-red-600">
+      <div className="card text-sm text-red-600 dark:text-red-400">
         Notice not found.{" "}
         <Link to="/notices" search={(prev) => prev} className="font-medium underline">
           ← Back to all notices
@@ -53,13 +53,13 @@ export function NoticeDetail() {
       <div>
         {/* The detail URL carries the list's search params (see router.tsx);
             re-applying them restores the exact filters/sort/page. */}
-        <Link to="/notices" search={(prev) => prev} className="text-sm text-sky-700 hover:underline">
+        <Link to="/notices" search={(prev) => prev} className="text-sm text-sky-700 hover:underline dark:text-sky-400">
           ← All notices
         </Link>
       </div>
       <div className="card">
         <h1 className="text-2xl font-semibold">{n.employer}</h1>
-        <div className="mt-1 text-sm text-slate-500">
+        <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           {n.state} · {fmtDate(n.notice_date)}
         </div>
 
@@ -74,7 +74,7 @@ export function NoticeDetail() {
               label="Source"
               value={
                 <a
-                  className="text-sky-700 hover:underline"
+                  className="text-sky-700 hover:underline dark:text-sky-400"
                   href={n.source_url}
                   target="_blank"
                   rel="noreferrer"
@@ -89,7 +89,7 @@ export function NoticeDetail() {
               label="Original notice"
               value={
                 <a
-                  className="text-sky-700 hover:underline"
+                  className="text-sky-700 hover:underline dark:text-sky-400"
                   href={n.raw_notice_url}
                   target="_blank"
                   rel="noreferrer"
@@ -106,7 +106,7 @@ export function NoticeDetail() {
         <div className="card">
           <h2 className="mb-2 text-lg font-semibold">Notice Document</h2>
           <a
-            className="text-sky-700 hover:underline text-sm"
+            className="text-sky-700 hover:underline text-sm dark:text-sky-400"
             href={`/api/notices/${encodeURIComponent(n.notice_id)}/pdf`}
             target="_blank"
             rel="noreferrer"
@@ -114,7 +114,7 @@ export function NoticeDetail() {
             Open PDF →
           </a>
           <iframe
-            className="mt-3 w-full rounded border"
+            className="mt-3 w-full rounded border dark:border-slate-800"
             style={{ height: "60vh" }}
             src={`/api/notices/${encodeURIComponent(n.notice_id)}/pdf`}
             title="Notice PDF"
@@ -132,7 +132,7 @@ export function NoticeDetail() {
                 <Link
                   to="/companies/$companyId"
                   params={{ companyId: String(n.company.id) }}
-                  className="text-sky-700 hover:underline"
+                  className="text-sky-700 hover:underline dark:text-sky-400"
                 >
                   {n.company.name}
                 </Link>
@@ -143,7 +143,7 @@ export function NoticeDetail() {
               value={
                 n.company.website ? (
                   <a
-                    className="text-sky-700 hover:underline"
+                    className="text-sky-700 hover:underline dark:text-sky-400"
                     href={n.company.website}
                     target="_blank"
                     rel="noreferrer"
@@ -207,10 +207,10 @@ function DescriptionItem({
 }) {
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
         {label}
       </dt>
-      <dd className="mt-0.5 text-slate-900">{value}</dd>
+      <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{value}</dd>
     </div>
   );
 }

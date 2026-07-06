@@ -20,11 +20,15 @@ import { ProjectionNote } from "../components/ProjectionNote";
 import { QueryError } from "../components/QueryError";
 import { SkeletonChart } from "../components/Skeleton";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useTheme } from "../hooks/useTheme";
 import { fmtCompact, fmtMonth, fmtNum } from "../lib/format";
 import { projectionTooltip, withProjectionSeries } from "../lib/projection";
+import { CHART_COLORS } from "../lib/themeColors";
 
 export function StatsPage() {
   useDocumentTitle("Layoff statistics & trends — WARN Tracker");
+  const { resolved } = useTheme();
+  const chart = CHART_COLORS[resolved];
   const navigate = useNavigate({ from: "/stats" });
   const search = useSearch({ from: "/stats" });
 
@@ -89,29 +93,36 @@ export function StatsPage() {
             >
               <ResponsiveContainer width="100%" height={320}>
                 <LineChart data={monthData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="monthLabel" tick={{ fontSize: 12 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                  <XAxis
+                    dataKey="monthLabel"
+                    tick={{ fontSize: 12, fill: chart.axis }}
+                  />
                   {/* Axis ticks are colored to match their series, so the dual
                       axes are readable without cross-referencing the legend. */}
                   <YAxis
                     yAxisId="left"
-                    tick={{ fontSize: 12, fill: "#0369a1" }}
+                    tick={{ fontSize: 12, fill: chart.notices }}
                     tickFormatter={fmtCompact}
                   />
                   <YAxis
                     yAxisId="right"
                     orientation="right"
-                    tick={{ fontSize: 12, fill: "#dc2626" }}
+                    tick={{ fontSize: 12, fill: chart.layoffs }}
                     tickFormatter={fmtCompact}
                   />
-                  <Tooltip formatter={projectionTooltip} />
+                  <Tooltip
+                    formatter={projectionTooltip}
+                    contentStyle={chart.tooltip}
+                    labelStyle={chart.tooltipLabel}
+                  />
                   <Legend />
                   <Line
                     yAxisId="left"
                     type="monotone"
                     dataKey="notice_count"
                     name="Notices"
-                    stroke="#0369a1"
+                    stroke={chart.notices}
                     strokeWidth={2}
                     dot={false}
                   />
@@ -120,7 +131,7 @@ export function StatsPage() {
                     type="monotone"
                     dataKey="layoff_total"
                     name="Workers affected"
-                    stroke="#dc2626"
+                    stroke={chart.layoffs}
                     strokeWidth={2}
                     dot={false}
                   />
@@ -133,7 +144,7 @@ export function StatsPage() {
                     type="monotone"
                     dataKey="projected_notice_count"
                     name="Notices (projected)"
-                    stroke="#0369a1"
+                    stroke={chart.notices}
                     strokeWidth={2}
                     strokeDasharray="5 5"
                     animationBegin={1500}
@@ -145,7 +156,7 @@ export function StatsPage() {
                     type="monotone"
                     dataKey="projected_layoff_total"
                     name="Workers affected (projected)"
-                    stroke="#dc2626"
+                    stroke={chart.layoffs}
                     strokeWidth={2}
                     strokeDasharray="5 5"
                     animationBegin={1500}
@@ -180,11 +191,25 @@ export function StatsPage() {
                 data={(byState.data ?? []).slice().sort((a, b) => b.layoff_total - a.layoff_total)}
                 margin={{ left: 10 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis type="number" tick={{ fontSize: 12 }} tickFormatter={fmtCompact} />
-                <YAxis dataKey="state" type="category" tick={{ fontSize: 12 }} width={40} />
-                <Tooltip formatter={(v: number) => fmtNum(v)} />
-                <Bar dataKey="layoff_total" name="Workers affected" fill="#0369a1" />
+                <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                <XAxis
+                  type="number"
+                  tick={{ fontSize: 12, fill: chart.axis }}
+                  tickFormatter={fmtCompact}
+                />
+                <YAxis
+                  dataKey="state"
+                  type="category"
+                  tick={{ fontSize: 12, fill: chart.axis }}
+                  width={40}
+                />
+                <Tooltip
+                  formatter={(v: number) => fmtNum(v)}
+                  contentStyle={chart.tooltip}
+                  labelStyle={chart.tooltipLabel}
+                  cursor={{ fill: chart.cursor }}
+                />
+                <Bar dataKey="layoff_total" name="Workers affected" fill={chart.notices} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -204,16 +229,25 @@ export function StatsPage() {
                 data={top.data ?? []}
                 margin={{ left: 20 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis type="number" tick={{ fontSize: 12 }} tickFormatter={fmtCompact} />
+                <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                <XAxis
+                  type="number"
+                  tick={{ fontSize: 12, fill: chart.axis }}
+                  tickFormatter={fmtCompact}
+                />
                 <YAxis
                   dataKey="employer"
                   type="category"
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 11, fill: chart.axis }}
                   width={200}
                 />
-                <Tooltip formatter={(v: number) => fmtNum(v)} />
-                <Bar dataKey="layoff_total" name="Workers affected" fill="#dc2626" />
+                <Tooltip
+                  formatter={(v: number) => fmtNum(v)}
+                  contentStyle={chart.tooltip}
+                  labelStyle={chart.tooltipLabel}
+                  cursor={{ fill: chart.cursor }}
+                />
+                <Bar dataKey="layoff_total" name="Workers affected" fill={chart.layoffs} />
               </BarChart>
             </ResponsiveContainer>
           </div>
