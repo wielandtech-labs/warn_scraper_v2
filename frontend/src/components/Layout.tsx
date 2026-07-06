@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 import { api } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
 import { SearchBox } from "./SearchBox";
+import { ThemeToggle } from "./ThemeToggle";
 
 const NAV = [
   { to: "/", label: "Dashboard" },
@@ -33,18 +34,18 @@ function AccountArea() {
     return (
       <Link
         to="/login"
-        className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
-        activeProps={{ className: "bg-sky-50 text-sky-700" }}
+        className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+        activeProps={{ className: "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300" }}
       >
         Sign in
       </Link>
     );
   }
   return (
-    <div className="flex items-center gap-2 border-l border-slate-200 pl-3">
-      <span className="hidden text-sm text-slate-600 sm:inline">{user.email}</span>
+    <div className="flex items-center gap-2 border-l border-slate-200 pl-3 dark:border-slate-800">
+      <span className="hidden text-sm text-slate-600 sm:inline dark:text-slate-400">{user.email}</span>
       {user.role !== "free" && (
-        <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">
+        <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-900 dark:text-sky-300">
           {user.role}
         </span>
       )}
@@ -52,7 +53,7 @@ function AccountArea() {
         type="button"
         onClick={() => logout.mutate()}
         disabled={logout.isPending}
-        className="rounded-md px-2 py-1.5 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+        className="rounded-md px-2 py-1.5 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-300"
       >
         Sign out
       </button>
@@ -64,14 +65,14 @@ export function Layout({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="border-b border-slate-200 bg-white">
+      <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
           <Link
             to="/"
-            className="whitespace-nowrap text-lg font-semibold tracking-tight text-slate-900"
+            className="whitespace-nowrap text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100"
           >
-            WARN <span className="text-sky-600">·</span>{" "}
-            <span className="font-normal text-slate-500">Layoff notices</span>
+            WARN <span className="text-sky-600 dark:text-sky-400">·</span>{" "}
+            <span className="font-normal text-slate-500 dark:text-slate-400">Layoff notices</span>
           </Link>
           {/* Desktop nav + account (md and up). */}
           <div className="hidden items-center gap-3 md:flex">
@@ -80,8 +81,8 @@ export function Layout({ children }: { children: ReactNode }) {
                 <Link
                   key={item.to}
                   to={item.to}
-                  className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
-                  activeProps={{ className: "bg-sky-50 text-sky-700" }}
+                  className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                  activeProps={{ className: "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300" }}
                   activeOptions={{ exact: item.to === "/" }}
                 >
                   {item.label}
@@ -89,12 +90,13 @@ export function Layout({ children }: { children: ReactNode }) {
               ))}
             </nav>
             <SearchBox />
+            <ThemeToggle />
             <AccountArea />
           </div>
           {/* Mobile hamburger (below md). */}
           <button
             type="button"
-            className="rounded-md p-2 text-slate-700 hover:bg-slate-100 md:hidden"
+            className="rounded-md p-2 text-slate-700 hover:bg-slate-100 md:hidden dark:text-slate-300 dark:hover:bg-slate-800"
             aria-label="Menu"
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((v) => !v)}
@@ -125,7 +127,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
         {/* Mobile dropdown panel. */}
         {mobileOpen && (
-          <div className="border-t border-slate-200 px-4 py-3 md:hidden">
+          <div className="border-t border-slate-200 px-4 py-3 md:hidden dark:border-slate-800">
             <div className="mb-3">
               <SearchBox />
             </div>
@@ -134,8 +136,8 @@ export function Layout({ children }: { children: ReactNode }) {
                 <Link
                   key={item.to}
                   to={item.to}
-                  className="block rounded-md px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-                  activeProps={{ className: "bg-sky-50 text-sky-700" }}
+                  className="block rounded-md px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                  activeProps={{ className: "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300" }}
                   activeOptions={{ exact: item.to === "/" }}
                   onClick={() => setMobileOpen(false)}
                 >
@@ -143,15 +145,16 @@ export function Layout({ children }: { children: ReactNode }) {
                 </Link>
               ))}
             </nav>
-            <div className="mt-3 border-t border-slate-200 pt-3">
+            <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3 dark:border-slate-800">
               <AccountArea />
+              <ThemeToggle />
             </div>
           </div>
         )}
       </header>
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
-      <footer className="border-t border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl space-y-2 px-4 py-4 text-xs text-slate-500">
+      <footer className="border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <div className="mx-auto max-w-7xl space-y-2 px-4 py-4 text-xs text-slate-500 dark:text-slate-400">
           <nav className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <Link className="hover:underline" to="/about">About</Link>
             <span aria-hidden>·</span>
