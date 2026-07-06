@@ -141,6 +141,17 @@ export interface EmployerStat {
   layoff_total: number;
 }
 
+// One county ranked by layoffs as a share of its employment base (Census CBP).
+export interface CountyImpactStat {
+  state: string;
+  county: string; // display name, legal-type suffix stripped ("Sedgwick")
+  notice_count: number;
+  layoff_total: number;
+  employment_base: number;
+  impact_pct: number; // layoff_total / employment_base * 100
+  cbp_year: number | null;
+}
+
 // A member of a corporate family (siblings sharing a parent). Anonymous by
 // design — identified only by the member WARN company, never the D&B parent name.
 export interface FamilyMemberOut {
