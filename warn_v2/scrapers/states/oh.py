@@ -358,9 +358,14 @@ def _stm_replay_urls() -> dict[int, str]:
                 time.sleep(_WAYBACK_BACKOFF)
                 continue
             return {}
+    if not isinstance(captures, list):
+        return {}
     best: dict[int, tuple[str, str]] = {}
-    for ts, original in captures[1:]:
-        m = _STM_FILE_RE.search(original)
+    for cap in captures[1:]:
+        if not (isinstance(cap, list) and len(cap) == 2):
+            continue
+        ts, original = cap
+        m = _STM_FILE_RE.search(str(original))
         if m is None:
             continue
         year = int(m.group(1) or m.group(2))
