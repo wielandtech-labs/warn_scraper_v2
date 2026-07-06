@@ -15,7 +15,8 @@ noted):
     (the WARN-Act fallback rather than a real source date)
   * PDF coverage — for direct-PDF states, share with a stored pdf_path
   * geocoding — locations with NULL coords; coords outside the state bbox;
-    notices carrying a street address (``backfill-geo --rerun-address`` targets)
+    notices carrying a street address (``backfill-geo --rerun-address`` targets);
+    per-tier accuracy breakdown from ``Location.geocode_source``
   * scraper health — latest ScraperRun status + rows_scraped vs expected_row_range
   * sanity flags — future notice_date, effective_date < notice_date,
     layoff_count <= 0 or absurdly large
@@ -483,13 +484,31 @@ def _next_action(a: StateAudit) -> str:
     return "; ".join(uniq) if uniq else "-"
 
 
+# Accuracy order for the geo-source breakdown: census = rooftop, then
+# progressively coarser centroids; 'unknown' = pre-migration rows.
+_GEO_SOURCES = ("census", "zip", "city", "county", "unknown")
+
+
+def _geo_src_cell(a: StateAudit) -> str:
+    """Render geo_by_source as e.g. ``census 82% / zip 12% / ? 6%`` of geocoded."""
+    if not a.geocoded:
+        return "-"
+    parts = []
+    for src in _GEO_SOURCES:
+        n = a.geo_by_source.get(src, 0)
+        if n:
+            label = "?" if src == "unknown" else src
+            parts.append(f"{label} {_pct(n, a.geocoded)}")
+    return " / ".join(parts) if parts else "-"
+
+
 def render_markdown(audits: list[StateAudit]) -> str:
     """Emit the STATE_AUDIT.md table body."""
     head = (
         "| State | Active | Superseded | Years | Eff% | Count% | PDF% | Geo% | "
-        "Enrich% | Scraper | Status | Next action |\n"
+        "Geo src | Enrich% | Scraper | Status | Next action |\n"
         "|-------|-------:|-----------:|-------|-----:|-------:|-----:|-----:|"
-        "--------:|---------|--------|-------------|"
+        "---------|--------:|---------|--------|-------------|"
     )
     rows = [head]
     for a in audits:
@@ -506,7 +525,7 @@ def render_markdown(audits: list[StateAudit]) -> str:
         scr = a.last_status or "-"
         rows.append(
             f"| {a.state} | {a.active} | {a.superseded} | {years} | {eff} | "
-            f"{cnt} | {pdf} | {geo} | {enr} | {scr} | {_status_label(a)} | "
-            f"{_next_action(a)} |"
+            f"{cnt} | {pdf} | {geo} | {_geo_src_cell(a)} | {enr} | {scr} | "
+            f"{_status_label(a)} | {_next_action(a)} |"
         )
     return "\n".join(rows)

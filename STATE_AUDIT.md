@@ -307,7 +307,7 @@ Findings the DB can't tell us — confirmed against the live sources.
 
 ## Optional enhancement
 
-`Location` now has a `geocode_source` column (`census`/`zip`/`city`/`county`), so
-the audit could read the stored tier directly instead of inferring geo accuracy
-from address availability + coord presence. Wiring the audit to use it would make
-geo-accuracy reporting exact and re-runnable.
+~~Wire the audit to `Location.geocode_source`~~ — done 2026-07-06: the audit
+reads the stored tier (`census`/`zip`/`city`/`county`, `?` = pre-migration
+rows) and the markdown table carries a `Geo src` breakdown column. The table
+above gains the column on the next `/refresh-audit` regeneration.

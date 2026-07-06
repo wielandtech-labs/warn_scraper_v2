@@ -129,10 +129,12 @@ Ordered by recoverable rows:
 - [ ] **GA full-state-name worksites** — `_choose_city_zip` handles the
   2-letter state form; letters spelling out "Georgia" still fall back to the
   entry page (see STATE_AUDIT source notes). (A+gate)
-- [ ] **Audit reads `geocode_source`** — the column
+- ~~**Audit reads `geocode_source`** — the column
   (`census`/`zip`/`city`/`county`) exists; wiring `warn_v2/scripts/audit.py`
   to it makes geo-accuracy reporting exact instead of inferred (STATE_AUDIT
-  "Optional enhancement"). (A+gate)
+  "Optional enhancement"). (A+gate)~~ — DONE 2026-07-06: markdown audit table
+  gains a `Geo src` per-tier breakdown column (JSON already carried
+  `geo_by_source`).
 
 ## Track 6 — Frontier (investigate, then decide)
 
