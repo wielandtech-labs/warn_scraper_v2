@@ -64,15 +64,15 @@ def test_never_succeeded_state_is_absent(
 ) -> None:
     now = datetime.now(UTC)
     with db_session_factory() as s:
-        # OK (the state) only ever fails — a blocked source. Must not appear,
+        # AR only ever fails — a blocked source. Must not appear,
         # so `time() - <gauge>` can't fire a false staleness alert for it.
-        _add(s, "OK", "fetch_failed", now - timedelta(hours=3))
-        _add(s, "OK", "fetch_failed", now)
+        _add(s, "AR", "fetch_failed", now - timedelta(hours=3))
+        _add(s, "AR", "fetch_failed", now)
         _add(s, "TX", "ok", now)
         s.commit()
 
     samples = _samples(_GAUGE)
-    assert "OK" not in samples
+    assert "AR" not in samples
     assert "TX" in samples
 
 

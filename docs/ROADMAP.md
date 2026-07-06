@@ -24,10 +24,10 @@ at a PR, a prepared Job manifest, or a report, never an unattended apply/send.
 
 ## Status snapshot (2026-07-02)
 
-47/51 jurisdictions live (46 states + DC), ~37k active notices. 45 scrapers
+48/51 jurisdictions live (47 states + DC), ~37k active notices. 45 scrapers
 `ok`; AZ `fetch_failed`, RI `parse_failed`; CO carries a possibly-stale
-row-drift flag. 4 blocked (AR/WY confidential by statute, NH unpublished, OK
-auth-walled). effective_date ~100% everywhere; layoff_count weak only where
+row-drift flag. 3 blocked (AR/WY confidential by statute, NH unpublished);
+OK re-enabled 2026-07-06 via the Employ Oklahoma guest Aura endpoint. effective_date ~100% everywhere; layoff_count weak only where
 counts live inside stored PDFs (CT/HI/WV/PA). Geocoding root causes fixed;
 residual low-geo states are un-geocodable historical tails. Enrichment is the
 weakest axis (~16% avg, ~100 companies/day cap). Largest coverage gap: NY

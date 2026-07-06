@@ -254,13 +254,13 @@ def test_no_data_flag_for_registered_state_without_notices(db) -> None:
 
 
 def test_blocked_flag_when_blocked_state_has_rows(db) -> None:
-    # Blocked states (AR/NH/OK/WY) aren't registered, so they only appear in the
+    # Blocked states (AR/NH/WY) aren't registered, so they only appear in the
     # audit if legacy notices exist. When they do appear, the blocked flag must
     # fire.
-    _notice(db, nid="ok1", state="OK", notice_date=date(2026, 1, 1))
+    _notice(db, nid="ar1", state="AR", notice_date=date(2026, 1, 1))
     db.commit()
-    ok = _one(audit_states(db, today=REF), "OK")
-    assert "blocked" in ok.flags
+    ar = _one(audit_states(db, today=REF), "AR")
+    assert "blocked" in ar.flags
 
 
 # ---------------------------------------------------------------------------

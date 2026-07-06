@@ -65,7 +65,7 @@ _ENRICH_OK = 0.50       # company-enriched fraction below this -> low_enrichment
 _COUNT_MAX = 50_000     # layoff_count above this is implausible
 
 # Jurisdictions known to be blocked at scraper-build time (re-checked this pass).
-BLOCKED = frozenset({"AR", "NH", "OK", "WY"})
+BLOCKED = frozenset({"AR", "NH", "WY"})
 
 @dataclass
 class StateAudit:
