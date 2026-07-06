@@ -1,0 +1,47 @@
+{{- if .Values.bqExport.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "warn-v2.fullname" . }}-bq-export
+  labels:
+    {{- include "warn-v2.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.bqExport.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            {{- include "warn-v2.labels" . | nindent 12 }}
+            app.kubernetes.io/component: bq-export
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: bq-export
+              image: {{ include "warn-v2.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              args:
+                - export-bigquery
+                - --project
+                - {{ .Values.bqExport.project | quote }}
+                - --dataset
+                - {{ .Values.bqExport.dataset | quote }}
+              env:
+                {{- include "warn-v2.envSecrets" . | nindent 16 }}
+                - name: GOOGLE_APPLICATION_CREDENTIALS
+                  value: /var/secrets/gcp/{{ .Values.bqExport.secretKey }}
+              volumeMounts:
+                - name: gcp-credentials
+                  mountPath: /var/secrets/gcp
+                  readOnly: true
+              resources:
+                {{- toYaml .Values.bqExport.resources | nindent 16 }}
+          volumes:
+            - name: gcp-credentials
+              secret:
+                secretName: {{ .Values.bqExport.secretName }}
+{{- end }}

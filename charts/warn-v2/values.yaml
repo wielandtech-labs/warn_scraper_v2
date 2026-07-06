@@ -222,6 +222,22 @@ sentimentReport:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 500m, memory: 512Mi }
 
+# Daily BigQuery export of enriched notices for the Analytics Hub listing
+# (warn-v2 export-bigquery). Needs the warn-v2-gcp SealedSecret (SA key with
+# bigquery.jobUser on the project + dataEditor on the dataset). See
+# docs/bigquery_setup.md for the one-time GCP checklist.
+bqExport:
+  enabled: false          # flip on in HelmRelease after the GCP setup
+  project: ""             # GCP project id (required when enabled)
+  dataset: warn_notices
+  schedule: "17 10 * * *" # after scrape 07:17, enrich 08:15, geo 08:47,
+                          # cross-check 09:17 — the day's data is settled
+  secretName: warn-v2-gcp
+  secretKey: credentials.json
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+
 # Self-serve accounts (POST /api/auth/signup + password reset). The endpoints
 # ship dark and 503 until this is on. Requires smtp.enabled (verification and
 # reset emails).
