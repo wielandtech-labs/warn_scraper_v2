@@ -140,6 +140,10 @@ def test_geo_by_source_breakdown(db) -> None:
     assert ca.geo_by_source == {"zip": 1, "city": 1, "unknown": 1}
     d = ca.to_dict()
     assert d["geo_by_source"] == {"zip": 1, "city": 1, "unknown": 1}
+    # The markdown table renders the breakdown as shares of geocoded rows,
+    # in accuracy order, with 'unknown' shortened to '?'.
+    md = render_markdown([ca])
+    assert "| zip 33% / city 33% / ? 33% |" in md
 
 
 # ---------------------------------------------------------------------------
