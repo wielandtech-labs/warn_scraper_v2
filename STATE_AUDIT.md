@@ -263,9 +263,9 @@ Findings the DB can't tell us — confirmed against the live sources.
   the `.docx` is the WARN letter in full text (worksite address, dates, counts), the
   `.xlsx` is usually a job-title roster. `Company Address` on the entry page is often
   the corporate HQ, not the GA worksite → Census no-match / out-of-state coords, so the
-  attachment's worksite is preferred when present. (Worksite city/zip extraction needs
-  the 2-letter state form; letters that spell out "Georgia" still rely on the page's
-  Zip Code/County — a `_choose_city_zip` full-state-name follow-up would close that.)
+  attachment's worksite is preferred when present. (Worksite extraction handles both the
+  2-letter form and spelled-out state names — "Dalton, Georgia 30720" — since
+  PR #87; verified 2026-07-06.)
 - **KY / MT** — county-only sources; geocoded via Tier-4 county centroid.
 - **`inspect parser date handling`** appears widely — driven by the estimated-date
   heuristic (effective_date = notice_date + 60d). That's the expected WARN-Act
