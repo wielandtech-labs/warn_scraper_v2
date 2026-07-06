@@ -16,6 +16,8 @@ import { MapPage } from "./routes/map";
 import { StatsPage } from "./routes/stats";
 import { StatesIndexPage } from "./routes/states-index";
 import { StateDetailPage } from "./routes/state-detail";
+import { ReportsPage } from "./routes/reports";
+import { IndustryReportPage } from "./routes/industry-report";
 import { StatusPage } from "./routes/status";
 import { AboutPage } from "./routes/content/about";
 import { WarnActPage } from "./routes/content/warn-act";
@@ -194,6 +196,18 @@ const stateDetailRoute = createRoute({
   component: StateDetailPage,
 });
 
+const reportsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/reports",
+  component: ReportsPage,
+});
+
+const industryReportRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/reports/industry/$sector",
+  component: IndustryReportPage,
+});
+
 const statusRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/status",
@@ -249,6 +263,8 @@ const routeTree = rootRoute.addChildren([
   statsRoute,
   statesIndexRoute,
   stateDetailRoute,
+  reportsRoute,
+  industryReportRoute,
   statusRoute,
   aboutRoute,
   warnActRoute,

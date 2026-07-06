@@ -9,6 +9,7 @@ import type {
   CompanyOut,
   EmployerStat,
   FamilyMemberOut,
+  IndustryScorecard,
   IndustryStat,
   MonthStat,
   NoticeOut,
@@ -228,9 +229,16 @@ export const api = {
   ) => get<IndustryStat[]>("/api/stats/industries" + qs(q)),
 
   // ---------- Sentiment reports ----------
-  /** One state's latest sentiment report as raw markdown (404 if none). */
+  /** One state's latest sentiment report as raw markdown (404 if none).
+   *  "US" returns the national roll-up. */
   getReport: (state: string) =>
     getText(`/api/reports/${encodeURIComponent(state)}`),
+  /** Scorecard summary for every NAICS sector; [] until the weekly job runs. */
+  listIndustryScorecards: () =>
+    get<IndustryScorecard[]>("/api/reports/industries"),
+  /** One sector's scorecard as raw markdown (404 if none). */
+  getIndustryReport: (sector: string) =>
+    getText(`/api/reports/industries/${encodeURIComponent(sector)}`),
 
   // ---------- Search ----------
   search: (q: string, limit = 8) =>

@@ -163,3 +163,16 @@ export interface IndustryStat {
   layoff_total: number;
   subsectors: SubsectorStat[];
 }
+
+// /reports/industries — per-NAICS-sector scorecard summary, worst score first.
+export interface IndustryScorecard {
+  sector: string; // NAICS sector id, e.g. "31-33"
+  sector_name: string;
+  score: number | null; // 0-100, higher = healthier; null below the data threshold
+  grade: string; // "A".."F" or "N/A"
+  cur_layoffs: number;
+  prior_layoffs: number;
+  cur_notices: number;
+  delta_pct: number | null;
+  generated_at: string;
+}

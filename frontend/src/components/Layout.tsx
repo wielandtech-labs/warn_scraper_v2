@@ -13,6 +13,7 @@ const NAV = [
   { to: "/states", label: "States" },
   { to: "/map", label: "Map" },
   { to: "/stats", label: "Stats" },
+  { to: "/reports", label: "Reports" },
 ];
 
 function AccountArea() {
