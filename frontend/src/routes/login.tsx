@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 
 import { api, ApiError } from "../api/client";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
@@ -22,6 +22,10 @@ export function LoginPage() {
     },
   });
 
+  const forgot = useMutation({
+    mutationFn: () => api.forgotPassword(email),
+  });
+
   const errorMsg =
     login.error instanceof ApiError && login.error.status === 401
       ? "Invalid email or password."
@@ -34,7 +38,11 @@ export function LoginPage() {
       <div className="card">
         <h1 className="text-xl font-semibold">Sign in</h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Accounts are issued by the site operator.
+          No account yet?{" "}
+          <Link to="/signup" className="text-sky-700 underline dark:text-sky-400">
+            Create one
+          </Link>{" "}
+          for free API access.
         </p>
         <form
           className="mt-4 space-y-3"
@@ -78,6 +86,28 @@ export function LoginPage() {
             {login.isPending ? "Signing in…" : "Sign in"}
           </button>
         </form>
+        <div className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+          {forgot.isSuccess ? (
+            <p>{forgot.data.message}</p>
+          ) : (
+            <button
+              type="button"
+              className="text-sky-700 underline dark:text-sky-400 disabled:opacity-50"
+              disabled={forgot.isPending || !email}
+              title={email ? undefined : "Enter your email above first"}
+              onClick={() => forgot.mutate()}
+            >
+              Forgot password?
+            </button>
+          )}
+          {forgot.isError && (
+            <p className="mt-1 text-red-600 dark:text-red-400">
+              {forgot.error instanceof ApiError && forgot.error.status === 503
+                ? "Password reset isn't available yet."
+                : "Could not send the reset email. Try again later."}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );
