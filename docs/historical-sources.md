@@ -13,6 +13,23 @@ sources only).
 
 ## Progress (update as backfills run)
 
+- **2026-07-06 — OH first backfill run in prod** (w_homelab #595, one-off Job
+  per the runbook): **+2,319 rows, 22/31 years OK** (1996–2024 attempted;
+  2025/2026 are expected misses — no source / live-scraper year). The 7 real
+  gaps were discovery failures, fixed same day:
+  - **2007–09, 2011, 2013 (.stm era)**: the nearest-to-2020 Wayback anchor
+    resolved these years to dead 302 captures. Discovery now pins the latest
+    200-status capture per year via the CDX index (anchored slug variants
+    kept as fallback).
+  - **2023/2024 (portal era)**: the June-2026 JFS restructure 404'd the old
+    portal deep links. The per-year pages moved under the live scraper's
+    `job-workforce-services` section and now link a `dam.assets.ohio.gov`
+    CSV (live-CSV shape; parser reused, plus Notice ID column, 2-digit
+    layoff-date years, and compound "Date Received" cells). Old-portal
+    Wayback captures (2025-06, status 200) kept as fallback.
+
+  **Re-run 2007–2024 pending** (already-ingested years dedupe by
+  `notice_id`; upserts are fill-only).
 - **2026-07-02 — CO backfilled in prod** (found in the aggregator cross-check,
   PR #103; fixed in PR #110): the scraper had been frozen on CDLE's 2021 sheet,
   reporting "ok" daily with 43 rows since Dec 2021. The nightly scrape on the
@@ -94,9 +111,9 @@ sources only).
     params → no cheap win; per-year PDF route or FOIA (Wave 2C decision).
   - **IL**: archive page also holds monthly **PDFs back to 1999** (not 2002
     as previously noted) — PDF era still deferred.
-- Remaining Wave 2: OH 1996+ (code in PR #55), PA 2001+ (Wayback-era parse,
-  strict dedup), MN multi-era parser, NC PDFs 2014+, NJ cumulative xlsx,
-  MA FY xlsx; WA pagination fix.
+- Remaining Wave 2: OH gap-year re-run (2007–2024), PA 2001+ (Wayback-era
+  parse, strict dedup), MN multi-era parser, NC PDFs 2014+, NJ cumulative
+  xlsx, MA FY xlsx; WA pagination fix.
 - **FOIA drafts in [foia/](foia/) are written but unsent** — tracker in
   foia/README.md; ingest responses with `warn-v2 ingest-file`.
 
@@ -123,7 +140,7 @@ delete Jobs after.
 | HI | ~~2026~~ **2019 ✅** | `labor.hawaii.gov/wdc/{year}-warn-notices/`; hub `real-time-warn-updates` lists 2019–2026 | **2019** | **done 2026-06-12** (+401); pre-2019 → UIPA request |
 | KY | ~~2025~~ **2017 ✅** (the earlier "2021 ✅" claim was wrong) | per-year CSVs exist only for **2025+**; the 2021–2024 folders hold `.xls`/`.xlsx` instead, and any recent `.xlsx` workbook carries **one sheet per year back to 2017** (verified 2026-07-02; see Progress) | **2017** | **done 2026-07-02** (+343, workbook route); pre-2017 → request |
 | MO | 2019 | `jobs.mo.gov/warn/{year}` — the regular scraper **already crawls 2019–present every run**; DB is complete | 2019 | **no backfill needed**; pre-2019 → request (drafted) |
-| OH | 2026 | Four eras (probed 2026-06-12), all via httpx — **no Playwright**: **1996–2006** per-year PDFs (`WARN_{y}.pdf` / `Warn_{y}.pdf`, Wayback replay); **2007–2019** `.stm` files that actually serve Excel-exported PDFs (Wayback, slug variants tried); **2020–2022** `archive.stm?year=Y` HTML (live-table layout, Wayback); **2021–2024** live portal pages with the table embedded as JSON in `div#js-placeholder-json-data` (incl. per-notice PDF URLs). **2025 unaccounted for** (no live page, nothing in CDX) | **1996** | year loop + era-dispatch parser (implemented, Wave 2B); 2025 → investigate/FOIA |
+| OH | ~~2026~~ **1996 ✅** (gap years 2007–09, 2011, 2013, 2023–24 pending re-run) | Four eras (probed 2026-06-12, re-probed 2026-07-06), all via httpx — **no Playwright**: **1996–2006** per-year PDFs (`WARN_{y}.pdf` / `Warn_{y}.pdf`, Wayback replay); **2007–2019** `.stm` files that actually serve Excel-exported PDFs (Wayback replay pinned per year via CDX — the nearest-to-2020 anchor hit dead 302 captures; slug variants as fallback); **2020–2022** `archive.stm?year=Y` HTML (live-table layout, Wayback); **2021–2024** per-year pages on the June-2026 site linking a `dam.assets.ohio.gov` CSV (live-CSV shape; old JSON portal retired — Wayback captures kept as fallback). **2025 unaccounted for** (no live page, nothing in CDX) | **1996** | first run **done 2026-07-06** (+2,319, 22/31 years, w_homelab #595); gap-year discovery fixed same day → **re-run 2007–2024**; 2025 → investigate/FOIA |
 | PA | 2024 | Live AEM page holds accordion sections **2023–2026 only** (probed 2026-06-12). Pre-2023 → Wayback snapshots of the older dli.pa.gov WARN pages | **2001** | Wave 2B: Wayback-era parse; strict dedup (286 superseded rows already; `--year-end 2022` on the real run) |
 | IL | ~~2025~~ **2020 ✅** | `illinoisworknet.com/LayoffRecovery/` archive — monthly XLSX 2020+, monthly **PDFs 1999–2019** | **1999** (PDF era) | xlsx era **done 2026-06-12** (+861 on rerun); PDF era: `parse_il_pdf` (deferred) |
 | NY | 2025 | `dol.ny.gov/warn-dashboard` Tableau CSV is **current-year only and ignores year-filter params** (verified 2026-06-12). **Probed 2026-07-06, three eras**: (1) old ASP portal `labor.ny.gov/app/warn/details.asp?id=N` — **4,294 unique ids archived in Wayback (ids 3–9536, ~2001–2020), each a full record**: street address, county/WIB/region, business type, **Number Affected**, layoff + closing dates, reason. Enumerate straight from CDX (`details.asp*`, status 200); per-year `default.asp?warnYr=Y` listing snapshots are too sparse to drive discovery. (2) Year-summary PDFs `{Y}-nys-warn-notices.pdf` 2016–2020 — index-style (posted/notice dates, employer, region; **no counts/addresses**; 2020 = 160 pp, clean text layer); live URLs 403, Wayback replay works. (3) dol.ny.gov 2021+: per-notice PDFs/HTML + `/2023-warn-notices`, `/2024-warn-notices` hubs (JS/paginated). | **2001** (Wayback details) | **Wayback CDX detail-page harvest recovers the bulk (~4.3k rows incl. counts + addresses) with no FOIA wait**; year PDFs + modern pages fill listing-only rows; keep the FOIA draft as the completeness backstop (un-archived notices, rescissions). Route decision (H) pending. |

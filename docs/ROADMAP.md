@@ -80,9 +80,10 @@ outstanding.
   at source (investigate or fold into the OH request). (A+gate)~~ — RUN
   2026-07-06: 22/31 years ok, **+2,319 rows** (floor now 1996). One parse
   artifact found and healed (AD-EX 2003 Excel-serial count; parser fix
-  PR #153). Remaining gap: 2007–09/2011/2013 (Wayback ts-anchor picks a dead
-  302; good 200 captures exist at 2014–15) and 2023–24 (portal slugs 404
-  since the June probe) — recovery in progress as its own session.
+  PR #153). The 7 gap years (2007–09, 2011, 2013, 2023–24) were discovery
+  failures, fixed 2026-07-06 in PR #159 (CDX-pinned `.stm` snapshots;
+  June-2026 site year CSVs) — **remaining: re-run 2007–2024** (dedupes by
+  `notice_id`); 2025 stays with the OH request. (A+gate)
 - ~~**`mark-superseded` for IA (479), PA (286), IL (14)** — `--dry-run`
   preview, then commit. (A+gate)~~ — DONE 2026-07-06: those audit numbers
   count rows *already marked* in earlier passes; the sweep found only 3
