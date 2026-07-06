@@ -81,8 +81,8 @@ export function StateDetailPage() {
   if (!valid) {
     return (
       <div className="card text-center">
-        <p className="text-slate-700">Unknown state code “{state}”.</p>
-        <Link to="/states" className="mt-2 inline-block text-sm font-medium text-sky-700 hover:underline">
+        <p className="text-slate-700 dark:text-slate-300">Unknown state code “{state}”.</p>
+        <Link to="/states" className="mt-2 inline-block text-sm font-medium text-sky-700 hover:underline dark:text-sky-400">
           ← Browse all states
         </Link>
       </div>
@@ -93,7 +93,7 @@ export function StateDetailPage() {
     return (
       <div className="space-y-6">
         <div>
-          <Link to="/states" className="text-sm font-medium text-sky-700 hover:underline">
+          <Link to="/states" className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400">
             ← All states
           </Link>
           <h1 className="mt-1 text-2xl font-semibold">{name} layoffs &amp; WARN notices</h1>
@@ -117,7 +117,7 @@ export function StateDetailPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Link to="/states" className="text-sm font-medium text-sky-700 hover:underline">
+          <Link to="/states" className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400">
             ← All states
           </Link>
           <h1 className="mt-1 text-2xl font-semibold">{name} layoffs &amp; WARN notices</h1>
@@ -127,13 +127,13 @@ export function StateDetailPage() {
           <Link
             to="/map"
             search={{ state: code }}
-            className="font-medium text-sky-700 hover:underline"
+            className="font-medium text-sky-700 hover:underline dark:text-sky-400"
           >
             View on map →
           </Link>
           <a
             href={`/states/${code}/feed.rss`}
-            className="font-medium text-sky-700 hover:underline"
+            className="font-medium text-sky-700 hover:underline dark:text-sky-400"
           >
             RSS
           </a>
@@ -142,15 +142,15 @@ export function StateDetailPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="card">
-          <div className="text-xs uppercase tracking-wide text-slate-500">Total notices</div>
+          <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Total notices</div>
           <div className="mt-1 text-3xl font-semibold">{fmtNum(noticeCount)}</div>
         </div>
         <div className="card">
-          <div className="text-xs uppercase tracking-wide text-slate-500">Workers affected</div>
+          <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Workers affected</div>
           <div className="mt-1 text-3xl font-semibold">{fmtNum(layoffTotal)}</div>
         </div>
         <div className="card">
-          <div className="text-xs uppercase tracking-wide text-slate-500">Most recent notice</div>
+          <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Most recent notice</div>
           <div className="mt-1 text-3xl font-semibold">
             {fmtDate(recent.data?.items[0]?.notice_date)}
           </div>
@@ -169,7 +169,7 @@ export function StateDetailPage() {
             onRetry={() => overTime.refetch()}
           />
         ) : timeData.length === 0 ? (
-          <div className="flex h-24 items-center justify-center text-sm text-slate-500">
+          <div className="flex h-24 items-center justify-center text-sm text-slate-500 dark:text-slate-400">
             No notices recorded for {name} in this period.
           </div>
         ) : (
@@ -276,10 +276,10 @@ export function StateDetailPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section>
           <h2 className="mb-2 text-lg font-semibold">Top employers</h2>
-          <div className="card divide-y divide-slate-100 p-0">
+          <div className="card divide-y divide-slate-100 p-0 dark:divide-slate-800">
             {topEmployers.isLoading && <SkeletonRows rows={5} />}
             {topEmployers.data?.length === 0 && (
-              <div className="p-4 text-sm text-slate-500">No data yet.</div>
+              <div className="p-4 text-sm text-slate-500 dark:text-slate-400">No data yet.</div>
             )}
             {topEmployers.data?.map((e) => (
               <div key={e.employer} className="flex items-baseline justify-between px-4 py-3">
@@ -288,7 +288,7 @@ export function StateDetailPage() {
                     <Link
                       to="/companies/$companyId"
                       params={{ companyId: String(e.company_id) }}
-                      className="font-medium text-slate-900 hover:underline"
+                      className="font-medium text-slate-900 hover:underline dark:text-slate-100"
                     >
                       {e.employer}
                     </Link>
@@ -308,28 +308,28 @@ export function StateDetailPage() {
             <Link
               to="/notices"
               search={{ state: code }}
-              className="text-sm font-medium text-sky-700 hover:underline"
+              className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400"
             >
               View all →
             </Link>
           </div>
-          <div className="card divide-y divide-slate-100 p-0">
+          <div className="card divide-y divide-slate-100 p-0 dark:divide-slate-800">
             {recent.isLoading && <SkeletonRows rows={5} />}
             {recent.data?.items.length === 0 && (
-              <div className="p-4 text-sm text-slate-500">No notices yet.</div>
+              <div className="p-4 text-sm text-slate-500 dark:text-slate-400">No notices yet.</div>
             )}
             {recent.data?.items.map((n) => (
               <Link
                 key={n.notice_id}
                 to="/notices/$noticeId"
                 params={{ noticeId: n.notice_id }}
-                className="block px-4 py-3 hover:bg-slate-50"
+                className="block px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50"
               >
                 <div className="flex items-baseline justify-between gap-4">
                   <div className="min-w-0 truncate font-medium">{n.employer}</div>
-                  <div className="shrink-0 text-xs text-slate-500">{fmtDate(n.notice_date)}</div>
+                  <div className="shrink-0 text-xs text-slate-500 dark:text-slate-400">{fmtDate(n.notice_date)}</div>
                 </div>
-                <div className="text-xs text-slate-500">
+                <div className="text-xs text-slate-500 dark:text-slate-400">
                   {n.layoff_count != null && <span>{fmtNum(n.layoff_count)} affected · </span>}
                   {n.location?.city || n.location?.county || "Location unspecified"}
                 </div>

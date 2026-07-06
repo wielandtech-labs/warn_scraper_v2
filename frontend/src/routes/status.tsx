@@ -67,7 +67,7 @@ export function StatusPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Scraper status</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           Health of each state scraper and when it last successfully updated.
           Scrapers run daily; a state is “operational” when its most recent run
           succeeded.
@@ -76,34 +76,34 @@ export function StatusPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="card">
-          <div className="text-xs uppercase tracking-wide text-slate-500">Operational</div>
-          <div className="mt-1 text-3xl font-semibold text-green-700">
+          <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Operational</div>
+          <div className="mt-1 text-3xl font-semibold text-green-700 dark:text-green-400">
             {fmtNum(counts.operational)}
           </div>
         </div>
         <div className="card">
-          <div className="text-xs uppercase tracking-wide text-slate-500">Failing</div>
-          <div className="mt-1 text-3xl font-semibold text-red-700">
+          <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Failing</div>
+          <div className="mt-1 text-3xl font-semibold text-red-700 dark:text-red-400">
             {fmtNum(counts.failing)}
           </div>
         </div>
         <div className="card">
-          <div className="text-xs uppercase tracking-wide text-slate-500">
+          <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
             No public source / never run
           </div>
-          <div className="mt-1 text-3xl font-semibold text-slate-700">
+          <div className="mt-1 text-3xl font-semibold text-slate-700 dark:text-slate-300">
             {fmtNum(counts.other)}
           </div>
         </div>
       </div>
 
       {statusQuery.isLoading && (
-        <div className="card text-center text-sm text-slate-500">Loading…</div>
+        <div className="card text-center text-sm text-slate-500 dark:text-slate-400">Loading…</div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <table className="data-table w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-950 dark:text-slate-400">
             <tr>
               <th className="px-3 py-2 font-medium">State</th>
               <th className="px-3 py-2 font-medium">Status</th>
@@ -112,17 +112,17 @@ export function StatusPage() {
               <th className="px-3 py-2 font-medium">New / scraped</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {rows.map((r) => {
               const badge = BADGE[r.health];
               const reason = UNSUPPORTED[r.code];
               return (
-                <tr key={r.code} className="hover:bg-slate-50">
+                <tr key={r.code} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                   <td className="px-3 py-2 align-top" data-label="State">
                     <Link
                       to="/states/$state"
                       params={{ state: r.code }}
-                      className="font-medium text-slate-900 hover:underline"
+                      className="font-medium text-slate-900 hover:underline dark:text-slate-100"
                     >
                       {r.name}
                     </Link>
@@ -139,19 +139,19 @@ export function StatusPage() {
                     {r.run?.last_success_at ? (
                       <span>
                         {fmtDate(r.run.last_success_at)}{" "}
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
                           ({relDays(r.run.last_success_at)})
                         </span>
                       </span>
                     ) : (
-                      <span className="text-slate-400">—</span>
+                      <span className="text-slate-400 dark:text-slate-500">—</span>
                     )}
                   </td>
                   <td className="px-3 py-2 align-top" data-label="Last run">
                     {r.run ? (
                       fmtDate(r.run.last_run_at)
                     ) : (
-                      <span className="text-slate-400">—</span>
+                      <span className="text-slate-400 dark:text-slate-500">—</span>
                     )}
                   </td>
                   <td className="px-3 py-2 align-top" data-label="New / scraped">
@@ -160,7 +160,7 @@ export function StatusPage() {
                         {fmtNum(r.run.rows_new)} / {fmtNum(r.run.rows_scraped)}
                       </span>
                     ) : (
-                      <span className="text-slate-400">—</span>
+                      <span className="text-slate-400 dark:text-slate-500">—</span>
                     )}
                   </td>
                 </tr>
@@ -170,7 +170,7 @@ export function StatusPage() {
         </table>
       </div>
 
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-slate-500 dark:text-slate-400">
         “No public source” marks jurisdictions with no scrapable WARN listing
         (state law or no online source) — hover the badge for details. Counts
         cover all {US_STATES.length} US jurisdictions (50 states + DC).

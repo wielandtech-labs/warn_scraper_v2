@@ -81,7 +81,7 @@ export function Dashboard() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="card">
-          <div className="text-xs uppercase tracking-wide text-slate-500">
+          <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Total notices
           </div>
           <div className="mt-1 text-3xl font-semibold">
@@ -89,7 +89,7 @@ export function Dashboard() {
           </div>
         </div>
         <div className="card">
-          <div className="text-xs uppercase tracking-wide text-slate-500">
+          <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Workers affected
           </div>
           <div className="mt-1 text-3xl font-semibold">
@@ -97,7 +97,7 @@ export function Dashboard() {
           </div>
         </div>
         <div className="card">
-          <div className="text-xs uppercase tracking-wide text-slate-500">
+          <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
             States covered
           </div>
           <div className="mt-1 text-3xl font-semibold">
@@ -122,7 +122,7 @@ export function Dashboard() {
             onRetry={() => overTime.refetch()}
           />
         ) : timeData.length === 0 ? (
-          <div className="flex h-24 items-center justify-center text-sm text-slate-500">
+          <div className="flex h-24 items-center justify-center text-sm text-slate-500 dark:text-slate-400">
             No notices in this period.
           </div>
         ) : (
@@ -212,7 +212,7 @@ export function Dashboard() {
             onRetry={() => industries.refetch()}
           />
         ) : industryData.length === 0 ? (
-          <div className="flex h-24 items-center justify-center text-sm text-slate-500">
+          <div className="flex h-24 items-center justify-center text-sm text-slate-500 dark:text-slate-400">
             No industry data for this period.
           </div>
         ) : (
@@ -233,11 +233,11 @@ export function Dashboard() {
       <section>
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Recent notices</h2>
-          <Link to="/notices" className="text-sm font-medium text-sky-700 hover:underline">
+          <Link to="/notices" className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400">
             View all →
           </Link>
         </div>
-        <div className="card divide-y divide-slate-100 p-0">
+        <div className="card divide-y divide-slate-100 p-0 dark:divide-slate-800">
           {recent.isLoading && <SkeletonRows rows={5} />}
           {recent.isError && (
             <div className="p-4">
@@ -252,15 +252,15 @@ export function Dashboard() {
               key={n.notice_id}
               to="/notices/$noticeId"
               params={{ noticeId: n.notice_id }}
-              className="block px-4 py-3 hover:bg-slate-50"
+              className="block px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50"
             >
               <div className="flex items-baseline justify-between gap-4">
                 <div className="min-w-0 truncate font-medium">{n.employer}</div>
-                <div className="shrink-0 text-xs text-slate-500">
+                <div className="shrink-0 text-xs text-slate-500 dark:text-slate-400">
                   {fmtDate(n.notice_date)} · {n.state}
                 </div>
               </div>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-slate-500 dark:text-slate-400">
                 {n.layoff_count != null && <span>{fmtNum(n.layoff_count)} affected · </span>}
                 {n.location?.city || n.location?.county || "Location unspecified"}
               </div>
@@ -271,7 +271,7 @@ export function Dashboard() {
 
       <section>
         <h2 className="mb-2 text-lg font-semibold">Top employers (by layoff count)</h2>
-        <div className="card divide-y divide-slate-100 p-0">
+        <div className="card divide-y divide-slate-100 p-0 dark:divide-slate-800">
           {topEmployers.isLoading && <SkeletonRows rows={5} />}
           {topEmployers.data?.map((e) => (
             <div key={e.employer} className="flex items-baseline justify-between px-4 py-3">
@@ -280,14 +280,14 @@ export function Dashboard() {
                   <Link
                     to="/companies/$companyId"
                     params={{ companyId: String(e.company_id) }}
-                    className="font-medium text-slate-900 hover:underline"
+                    className="font-medium text-slate-900 hover:underline dark:text-slate-100"
                   >
                     {e.employer}
                   </Link>
                 ) : (
                   <span className="font-medium">{e.employer}</span>
                 )}
-                <span className="ml-2 text-xs text-slate-500">
+                <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
                   {e.notice_count} {e.notice_count === 1 ? "notice" : "notices"}
                 </span>
               </div>

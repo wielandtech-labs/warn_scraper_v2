@@ -174,7 +174,7 @@ export function MapPage() {
           <Popup>
             <div className="text-sm">
               <div className="font-semibold">{n.employer}</div>
-              <div className="text-slate-600">
+              <div className="text-slate-600 dark:text-slate-400">
                 {n.state} · {fmtDate(n.notice_date)}
               </div>
               <div className="mt-1">
@@ -183,7 +183,7 @@ export function MapPage() {
               <Link
                 to="/notices/$noticeId"
                 params={{ noticeId: n.notice_id }}
-                className="mt-1 inline-block text-sky-700 hover:underline"
+                className="mt-1 inline-block text-sky-700 hover:underline dark:text-sky-400"
               >
                 Details →
               </Link>
@@ -204,7 +204,7 @@ export function MapPage() {
         industries={industriesQuery.data}
       />
 
-      <div className="overflow-hidden rounded-lg border border-slate-200">
+      <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
         <MapContainer
           center={search.lat != null && search.lon != null ? [search.lat, search.lon] : CENTER_US}
           zoom={search.zoom ?? 4}
@@ -220,7 +220,7 @@ export function MapPage() {
         </MapContainer>
       </div>
 
-      <div className="mt-2 text-xs text-slate-500">
+      <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
         Showing {fmtNum(points.length)}
         {total != null && ` of ${fmtNum(total)}`} geocoded notices in view.
         {capped && " Zoom in to load all pins in a region."}
