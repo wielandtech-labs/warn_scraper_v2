@@ -166,6 +166,50 @@ def test_industry_run_writes_single_scorecard_no_json(db, fake_client, tmp_path)
     assert "Layoff activity increased." in content
 
 
+def test_national_run_writes_only_us_md(db, fake_client, tmp_path):
+    _seed_state(db, "CA")
+    result = CliRunner().invoke(
+        cli.main, ["sentiment-report", "--national", "--reports-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 0, result.output
+    assert fake_client.calls == 1
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["US.md"]
+    content = (tmp_path / "US.md").read_text(encoding="utf-8")
+    assert "Layoff activity increased." in content
+    assert "narrative_ok=1" in result.output
+
+
+def test_national_narrative_failure_exits_1(db, fake_client, tmp_path):
+    fake_client.fail = True
+    _seed_state(db, "CA")
+    result = CliRunner().invoke(
+        cli.main, ["sentiment-report", "--national", "--reports-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 1
+    # The degraded report is still written before the exit code flips.
+    assert "Narrative unavailable this week" in (tmp_path / "US.md").read_text(encoding="utf-8")
+    assert "narrative_failed=1" in result.output
+
+
+def test_national_and_state_mutually_exclusive(db, fake_client, tmp_path):
+    result = CliRunner().invoke(
+        cli.main,
+        ["sentiment-report", "--national", "--state", "CA", "--reports-dir", str(tmp_path)],
+    )
+    assert result.exit_code == 1
+    assert "mutually exclusive" in result.output
+
+
+def test_national_and_industry_mutually_exclusive(db, fake_client, tmp_path):
+    result = CliRunner().invoke(
+        cli.main,
+        ["sentiment-report", "--national", "--industry", "31-33",
+         "--reports-dir", str(tmp_path)],
+    )
+    assert result.exit_code == 1
+    assert "mutually exclusive" in result.output
+
+
 def test_unknown_industry_rejected(db, fake_client, tmp_path):
     result = CliRunner().invoke(
         cli.main, ["sentiment-report", "--industry", "ZZ", "--reports-dir", str(tmp_path)]
