@@ -22,6 +22,7 @@ from __future__ import annotations
 import csv
 import io
 import re
+from datetime import date, timedelta
 
 import httpx
 from bs4 import BeautifulSoup
@@ -267,7 +268,12 @@ _LEAD_DATE_RE = re.compile(r"^\d{1,2}/\d{1,2}/\d{2,4}$")
 _WID_RE = re.compile(r"(\d{1,3}-\d{1,2}-\d{3,4})\s*$")
 _PHONE_RE = re.compile(r"\(\d{3}\)\s*\d{3}\s*-?\s*\d{4}")
 _COUNT_LDATE_RE = re.compile(r"\s(\d(?:[\d ,]*\d)?)\s+(\d{1,2}\s*/\s*\S.*)$")
+# A layoff-date cell that lost its Excel date formatting renders as a bare
+# 5-digit serial ("... AD-EX Cincinnati 110 37971 (513) ..." in WARN_2003);
+# without this branch _COUNT_ONLY_RE swallows both numbers into one count.
+_COUNT_SERIAL_RE = re.compile(r"\s(\d[\d,]*)\s+(\d{5})\s*$")
 _COUNT_ONLY_RE = re.compile(r"\s(\d(?:[\d ,]*\d)?)\s*$")
+_EXCEL_EPOCH = date(1899, 12, 30)
 # Era PDFs use 2-digit years ("2/28/01"); the live-table regex requires 4.
 _ANY_DATE_RE = re.compile(r"\d{1,2}/\d{1,2}/\d{2,4}")
 # Greedy employer, single-word city before "(County)" — multi-word cities are
@@ -479,6 +485,16 @@ def _split_employer_city(blob: str) -> tuple[str, str | None, str | None]:
     return employer, as_str(city), None
 
 
+def _excel_serial_date(token: str, year: int) -> date | None:
+    """Decode a bare Excel date serial iff it lands near the file's year.
+
+    Layoff dates in a year-Y file run Y..Y+1 (spillover like "01/10/04" in
+    WARN_2003); anything decoding outside that window is not a serial.
+    """
+    d = _EXCEL_EPOCH + timedelta(days=int(token))
+    return d if year <= d.year <= year + 1 else None
+
+
 def _parse_oh_pdf_line(date_str: str, line: str, year: int) -> NoticeRow | None:
     notice_date = as_date(date_str)
     if notice_date is None:
@@ -508,10 +524,17 @@ def _parse_oh_pdf_line(date_str: str, line: str, year: int) -> NoticeRow | None:
         effective_date = as_date(dm.group(0)) if dm else None
         line = line[: m.start()].rstrip()
     else:
-        m = _COUNT_ONLY_RE.search(line)
-        if m:
-            layoff_count = as_int(m.group(1).replace(" ", "").replace(",", ""))
+        m = _COUNT_SERIAL_RE.search(line)
+        serial_date = _excel_serial_date(m.group(2), year) if m else None
+        if m and serial_date:
+            layoff_count = as_int(m.group(1).replace(",", ""))
+            effective_date = serial_date
             line = line[: m.start()].rstrip()
+        else:
+            m = _COUNT_ONLY_RE.search(line)
+            if m:
+                layoff_count = as_int(m.group(1).replace(" ", "").replace(",", ""))
+                line = line[: m.start()].rstrip()
 
     employer, city, county = _split_employer_city(line)
     employer = as_str(employer)
