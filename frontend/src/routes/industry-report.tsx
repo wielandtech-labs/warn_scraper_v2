@@ -1,15 +1,37 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import { ApiError, api } from "../api/client";
+import { NoticeMap } from "../components/NoticeMap";
+import { ProjectionNote } from "../components/ProjectionNote";
 import { QueryError } from "../components/QueryError";
 import { ReportMarkdown } from "../components/ReportMarkdown";
-import { SkeletonBlock } from "../components/Skeleton";
+import { SkeletonBlock, SkeletonChart } from "../components/Skeleton";
+import {
+  TimeRangeToggle,
+  toRangeQuery,
+  type TimeRange,
+} from "../components/TimeRangeToggle";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { fmtCompact, fmtPeriod } from "../lib/format";
+import { projectionTooltip, withProjectionSeries } from "../lib/projection";
 import { GradeBadge } from "./reports";
 
 export function IndustryReportPage() {
   const { sector } = useParams({ from: "/reports/industry/$sector" });
+
+  const [range, setRange] = useState<TimeRange>("1y");
+  const { after, bucket } = toRangeQuery(range);
 
   // Usually already cached from the /reports grid; gives us the display name
   // and grade for the header without parsing the markdown.
@@ -27,6 +49,21 @@ export function IndustryReportPage() {
   });
   const missing =
     report.isError && report.error instanceof ApiError && report.error.status === 404;
+
+  // An unknown sector id would pass through the stats API unfiltered (it
+  // ignores unrecognized industries), so keep the chart idle until the
+  // report query has vouched for the sector.
+  const overTime = useQuery({
+    queryKey: ["stats", "over-time", { industry: sector, after, bucket }],
+    queryFn: () => api.statsOverTime({ industry: sector, after, bucket }),
+    enabled: !missing,
+  });
+  const { data: timeData, hasProjection } = withProjectionSeries(
+    (overTime.data ?? []).map((r) => ({
+      ...r,
+      label: fmtPeriod(r.period, bucket),
+    })),
+  );
 
   const name = card?.sector_name ?? `NAICS ${sector}`;
   useDocumentTitle(
@@ -59,8 +96,107 @@ export function IndustryReportPage() {
           <h1 className="text-2xl font-semibold">{name}</h1>
           {card && <GradeBadge grade={card.grade} />}
         </div>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          NAICS {sector} · weekly national layoff scorecard
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            NAICS {sector} · weekly national layoff scorecard
+          </p>
+          <TimeRangeToggle value={range} onChange={setRange} />
+        </div>
+      </div>
+
+      <div className="card">
+        <h2 className="mb-3 text-lg font-semibold">Job losses over time</h2>
+        {overTime.isLoading ? (
+          <SkeletonChart height={300} />
+        ) : overTime.isError ? (
+          <QueryError
+            message="Error loading the chart."
+            onRetry={() => overTime.refetch()}
+          />
+        ) : timeData.length === 0 ? (
+          <div className="flex h-24 items-center justify-center text-sm text-slate-500 dark:text-slate-400">
+            No notices recorded for {name} in this period.
+          </div>
+        ) : (
+          <>
+            <div
+              role="img"
+              aria-label={`Line chart of notice counts and workers affected in ${name} over time`}
+            >
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={timeData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="label" tick={{ fontSize: 12 }} minTickGap={24} />
+                  {/* Axis ticks are colored to match their series, so the dual
+                      axes are readable without cross-referencing the legend. */}
+                  <YAxis
+                    yAxisId="left"
+                    tick={{ fontSize: 12, fill: "#0369a1" }}
+                    tickFormatter={fmtCompact}
+                  />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    tick={{ fontSize: 12, fill: "#dc2626" }}
+                    tickFormatter={fmtCompact}
+                  />
+                  <Tooltip formatter={projectionTooltip} />
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="notice_count"
+                    name="Notices"
+                    stroke="#0369a1"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="layoff_total"
+                    name="Workers affected"
+                    stroke="#dc2626"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                  {/* Dashed pace projection for the current, incomplete period;
+                      all-null (invisible) when no projection is active. */}
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="projected_notice_count"
+                    name="Notices (projected)"
+                    stroke="#0369a1"
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    dot={false}
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="projected_layoff_total"
+                    name="Workers affected (projected)"
+                    stroke="#dc2626"
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            {hasProjection && (
+              <ProjectionNote periodLabel={timeData[timeData.length - 1].label} />
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="card">
+        <h2 className="mb-3 text-lg font-semibold">Where this sector is shedding jobs</h2>
+        <NoticeMap industry={sector} after={after} />
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          Chart and map cover only notices matched to a NAICS code — a partial,
+          unevenly-distributed subset; treat both as directional.
         </p>
       </div>
 
