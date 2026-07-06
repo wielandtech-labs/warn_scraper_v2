@@ -52,10 +52,11 @@ Hard rules:
 - If naics_coverage_pct is below 50, caveat that industry figures cover only a
   minority of notices.
 - Every layoff figure counts workers losing their jobs. Refer to them as job
-  losses; an increase is bad news and a decrease is a sign of relief. NEVER use
-  growth-positive language for a rise — no "added N positions", "grew by",
-  "gained", or similar. Say "job losses rose to 262 from 114", not
-  "grew by 148 layoffs".
+  losses; an increase is bad news and a decrease is a sign of relief.
+- The words "add", "added", "grow", "grew", "gain", and "gained" are BANNED
+  from your output in any form, even about job losses. For a rise write
+  "rose", "climbed", "increased", or "worsened" ("job losses rose to 262 from
+  114"); for a fall write "eased", "declined", "fell", or "improved".
 - Neutral, analytical tone — an economic bulletin, not news copy.
 """
 
@@ -77,10 +78,11 @@ Hard rules:
 - If naics_coverage_pct is below 50, caveat that industry figures cover only a
   minority of notices.
 - Every layoff figure counts workers losing their jobs. Refer to them as job
-  losses; an increase is bad news and a decrease is a sign of relief. NEVER use
-  growth-positive language for a rise — no "added N positions", "grew by",
-  "gained", or similar. Say "job losses rose to 262 from 114", not
-  "grew by 148 layoffs".
+  losses; an increase is bad news and a decrease is a sign of relief.
+- The words "add", "added", "grow", "grew", "gain", and "gained" are BANNED
+  from your output in any form, even about job losses. For a rise write
+  "rose", "climbed", "increased", or "worsened" ("job losses rose to 262 from
+  114"); for a fall write "eased", "declined", "fell", or "improved".
 - Neutral, analytical tone — an economic bulletin, not news copy.
 """
 
@@ -103,10 +105,11 @@ Hard rules:
 - Always note that figures cover only NAICS-enriched notices (see
   coverage_note) and are directional, not exhaustive.
 - Every layoff figure counts workers losing their jobs. Refer to them as job
-  losses; an increase is bad news and a decrease is a sign of relief. NEVER use
-  growth-positive language for a rise — no "added N positions", "grew by",
-  "gained", or similar. Say "job losses rose to 262 from 114", not
-  "grew by 148 layoffs".
+  losses; an increase is bad news and a decrease is a sign of relief.
+- The words "add", "added", "grow", "grew", "gain", and "gained" are BANNED
+  from your output in any form, even about job losses. For a rise write
+  "rose", "climbed", "increased", or "worsened" ("job losses rose to 262 from
+  114"); for a fall write "eased", "declined", "fell", or "improved".
 - Neutral, analytical tone — an economic bulletin, not news copy.
 """
 
