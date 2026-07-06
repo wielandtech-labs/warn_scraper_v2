@@ -18,7 +18,7 @@ def sent(monkeypatch):
     """Capture outbound emails instead of sending. Returns the captured list."""
     box: list[dict] = []
 
-    def _fake(to, subject, text_body, html_body=None):
+    def _fake(to, subject, text_body, html_body=None, **kwargs):
         box.append({"to": to, "subject": subject, "text": text_body, "html": html_body})
 
     monkeypatch.setattr("warn_v2.api.routes.subscriptions.send_email", _fake)
@@ -190,7 +190,7 @@ def test_digest_isolates_send_failures(db, monkeypatch):
 
     calls: list[str] = []
 
-    def _flaky(to, subject, text_body, html_body=None):
+    def _flaky(to, subject, text_body, html_body=None, **kwargs):
         calls.append(to)
         if to == "bad@example.com":
             raise RuntimeError("smtp boom")
@@ -204,6 +204,139 @@ def test_digest_isolates_send_failures(db, monkeypatch):
     # (SQLite returns naive datetimes, so compare tz-stripped.)
     bad = db.scalar(select(Subscription).where(Subscription.email == "bad@example.com"))
     assert bad.last_notified_at.replace(tzinfo=None) == EPOCH.replace(tzinfo=None)
+
+
+# --- rich HTML rendering ----------------------------------------------------
+
+def test_digest_cta_deep_links_filters(db):
+    sub = _sub(db, email="me@example.com", state="CA", industry="31-33",
+               employer_query="acme co")
+    notice = _notice(db, state="CA", scraped_at=EPOCH + timedelta(days=1))
+
+    _subject, _text, html = render_digest(sub, [notice])
+    assert "/notices?" in html
+    assert "state=CA" in html
+    assert "industry=31-33" in html
+    assert "employer=acme+co" in html
+
+    plain = _sub(db, email="all@example.com", suffix="all")
+    _subject, _text, html = render_digest(plain, [notice])
+    # No filters → bare list link (the URL lands in an escaped href).
+    assert "/notices?" not in html
+
+
+def test_digest_summary_and_rows(db):
+    sub = _sub(db, email="me@example.com")
+    counted = _notice(db, employer="Acme Inc", state="CA",
+                      scraped_at=EPOCH + timedelta(days=1), notice_id="rich1",
+                      notice_date=datetime(2026, 6, 3, tzinfo=UTC).date(),
+                      layoff_count=250, closure_category="Closure")
+    # No date, count, or category — those fragments must be omitted entirely.
+    bare = _notice(db, employer="Mystery Co", state="CA",
+                   scraped_at=EPOCH + timedelta(days=1), notice_id="rich2")
+
+    _subject, _text, html = render_digest(sub, [counted, bare])
+    assert "2 new layoff notices" in html
+    assert "250 workers affected" in html
+    assert "California" in html  # full state name, not the code
+    assert "Jun 3, 2026" in html
+    assert "CLOSURE" in html  # category badge
+    assert f"/notices/{counted.notice_id}" in html
+    assert f"/notices/{bare.notice_id}" in html
+    assert "None" not in html  # missing fields are omitted, not rendered
+
+
+def test_digest_truncation_note_only_at_cap(db):
+    from warn_v2.notifications.digest import _MAX_PER_DIGEST
+
+    sub = _sub(db, email="me@example.com")
+    notices = [
+        _notice(db, employer=f"Co {i}", scraped_at=EPOCH + timedelta(days=1),
+                notice_id=f"cap{i}")
+        for i in range(_MAX_PER_DIGEST)
+    ]
+
+    _subject, _text, html = render_digest(sub, notices)
+    assert "there may be more" in html
+    _subject, _text, html = render_digest(sub, notices[:-1])
+    assert "there may be more" not in html
+
+
+def test_fmt_date_windows_safe():
+    from datetime import date
+
+    from warn_v2.notifications.templates import fmt_date
+
+    assert fmt_date(date(2026, 6, 3)) == "Jun 3, 2026"  # no leading zero
+    assert fmt_date(None) == ""
+
+
+def test_send_email_sets_list_unsubscribe_headers():
+    from warn_v2.notifications.email import _build_message
+
+    msg = _build_message("from@x.com", "to@x.com", "s", "t", "<p>h</p>",
+                         "https://x.com/unsub?token=abc")
+    assert msg["List-Unsubscribe"] == "<https://x.com/unsub?token=abc>"
+    assert msg["List-Unsubscribe-Post"] == "List-Unsubscribe=One-Click"
+
+    plain = _build_message("from@x.com", "to@x.com", "s", "t")
+    assert "List-Unsubscribe" not in plain
+    assert "List-Unsubscribe-Post" not in plain
+
+
+def test_one_click_unsubscribe_post(api_client, db, sent):
+    api_client.post("/api/subscriptions", json={"email": "me@example.com"})
+    db.commit()
+    sub = db.scalar(select(Subscription))
+
+    resp = api_client.post(f"/api/subscriptions/unsubscribe?token={sub.unsubscribe_token}")
+    assert resp.status_code == 200
+    assert db.scalar(select(Subscription)) is None
+    # Bad tokens still 200 so validity doesn't leak.
+    assert api_client.post("/api/subscriptions/unsubscribe?token=nope").status_code == 200
+
+
+def test_confirmation_email_uses_shell(api_client, db, sent):
+    api_client.post("/api/subscriptions", json={"email": "me@example.com"})
+    db.commit()
+    sub = db.scalar(select(Subscription))
+
+    html = sent[0]["html"]
+    assert "Layoff notices" in html  # brand wordmark header
+    confirm_url = f"/api/subscriptions/confirm?token={sub.confirm_token}"
+    assert f'href="https://warn.wielandtech.com{confirm_url}"' in html
+
+
+def test_write_preview_html(db):
+    """Env-gated: WRITE_EMAIL_PREVIEW=<dir> pytest -k preview → digest_preview.html."""
+    import os
+
+    out_dir = os.environ.get("WRITE_EMAIL_PREVIEW")
+    if not out_dir:
+        pytest.skip("set WRITE_EMAIL_PREVIEW=<dir> to write the preview file")
+
+    from pathlib import Path
+
+    sub = _sub(db, email="preview@example.com", state="CA")
+    samples = [
+        _notice(db, employer="Acme Manufacturing LLC", state="CA",
+                scraped_at=EPOCH, notice_id="pv1",
+                notice_date=datetime(2026, 6, 30, tzinfo=UTC).date(),
+                layoff_count=1250, closure_category="Closure"),
+        _notice(db, employer="Globex & Sons", state="CA", scraped_at=EPOCH,
+                notice_id="pv2", notice_date=datetime(2026, 6, 28, tzinfo=UTC).date(),
+                layoff_count=87, closure_category="Layoff"),
+        _notice(db, employer="Initech (Regional HQ)", state="CA", scraped_at=EPOCH,
+                notice_id="pv3", layoff_count=460),
+        _notice(db, employer="Undated Widgets Inc", state="CA", scraped_at=EPOCH,
+                notice_id="pv4", closure_category="Layoff"),
+        _notice(db, employer="Tiny Startup <html> Test & Co", state="CA",
+                scraped_at=EPOCH, notice_id="pv5",
+                notice_date=datetime(2026, 6, 25, tzinfo=UTC).date()),
+    ]
+    _subject, _text, html = render_digest(sub, samples)
+    out = Path(out_dir) / "digest_preview.html"
+    out.write_text(html, encoding="utf-8")
 
 
 def test_email_not_configured_surfaces_503(api_client, db, monkeypatch):
