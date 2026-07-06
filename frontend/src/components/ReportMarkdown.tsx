@@ -18,6 +18,7 @@ type Block =
   | { kind: "para"; text: string; meta: boolean }
   | { kind: "table"; header: string[]; align: ("left" | "right")[]; rows: string[][] }
   | { kind: "list"; items: string[] }
+  | { kind: "quote"; text: string }
   | { kind: "hr" };
 
 /** Split a table row on unescaped pipes; `\|` inside a cell is a literal pipe. */
@@ -93,12 +94,23 @@ function parseBlocks(md: string): Block[] {
       blocks.push({ kind: "list", items });
       continue;
     }
+    // Blockquote — the industry scorecards' coverage caveat.
+    if (line.trimStart().startsWith(">")) {
+      const quote: string[] = [];
+      while (i < lines.length && lines[i].trimStart().startsWith(">")) {
+        quote.push(lines[i].trimStart().replace(/^>\s?/, ""));
+        i++;
+      }
+      blocks.push({ kind: "quote", text: quote.join(" ").trim() });
+      continue;
+    }
     // Paragraph: join consecutive non-blank lines that aren't another block.
     const para: string[] = [];
     while (
       i < lines.length &&
       lines[i].trim() &&
       !lines[i].trimStart().startsWith("|") &&
+      !lines[i].trimStart().startsWith(">") &&
       !/^#{1,6}\s/.test(lines[i]) &&
       !/^-{3,}\s*$/.test(lines[i]) &&
       !/^[-*]\s+/.test(lines[i])
@@ -159,6 +171,15 @@ export function ReportMarkdown({
             );
           case "hr":
             return <hr key={i} className="border-slate-200" />;
+          case "quote":
+            return (
+              <blockquote
+                key={i}
+                className="border-l-4 border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+              >
+                {inline(b.text)}
+              </blockquote>
+            );
           case "list":
             return (
               <ul key={i} className="list-disc space-y-1 pl-5">
