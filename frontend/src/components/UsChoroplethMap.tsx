@@ -107,6 +107,7 @@ export function UsChoroplethMap({ data }: { data: StateDatum[] }) {
             className="cursor-pointer"
             onClick={() => go(s.code)}
             onMouseEnter={(e) => moveTo(s.code, e)}
+            onMouseLeave={() => setHover(null)}
           />
         ))}
         {/* DC is too small to hit on a geographic map — callout square. */}
@@ -115,18 +116,19 @@ export function UsChoroplethMap({ data }: { data: StateDatum[] }) {
             className="cursor-pointer"
             onClick={() => go("DC")}
             onMouseEnter={(e) => moveTo("DC", e)}
+            onMouseLeave={() => setHover(null)}
           >
             <line
               x1={DC_ANCHOR.x}
               y1={DC_ANCHOR.y}
-              x2={845}
-              y2={280}
+              x2={855}
+              y2={258}
               stroke="#94a3b8"
               strokeWidth={1}
             />
             <rect
-              x={835}
-              y={280}
+              x={855}
+              y={250}
               width={20}
               height={20}
               rx={3}
@@ -134,8 +136,8 @@ export function UsChoroplethMap({ data }: { data: StateDatum[] }) {
               stroke="#94a3b8"
             />
             <text
-              x={845}
-              y={294}
+              x={865}
+              y={264}
               textAnchor="middle"
               fontSize={9}
               className="pointer-events-none select-none"
