@@ -48,10 +48,15 @@ weakest axis (~16% avg, ~100 companies/day cap). Largest coverage gap: NY
   carried the revert-era `(100, 10_000)` range (PR #120) against a 43-row
   two-sheet scrape; main is back to `(5, 10_000)` (PR #127) and prod scrapes
   91 rows `ok` daily, so the next trusted audit clears it.
-- [ ] **Recurring heal loop** — `/loop /heal-scraper` (self-paced) or a
-  scheduled headless run after the daily 07:17 scrape window. (A+gate per PR)
-- [ ] **Weekly `/refresh-audit`** — keeps STATE_AUDIT.md's generated table
-  honest; PR per run. (A+gate)
+- ~~**Recurring heal loop** — `/loop /heal-scraper` (self-paced) or a
+  scheduled headless run after the daily 07:17 scrape window. (A+gate per
+  PR)~~ — DONE 2026-07-06 via a Claude desktop-app scheduled task
+  (`daily-heal-scraper`, daily 08:30; the skill's Task Scheduler recipe
+  doesn't apply — no `claude` CLI on this host). Runs only while the app is
+  open; missed runs fire on next launch.
+- ~~**Weekly `/refresh-audit`** — keeps STATE_AUDIT.md's generated table
+  honest; PR per run. (A+gate)~~ — DONE 2026-07-06 via desktop-app scheduled
+  task (`weekly-refresh-audit`, Mondays 09:00), same caveats as above.
 - [ ] **Quarterly blocked-source re-verify** — AR / NH / OK / WY per
   [deferred-states.md](deferred-states.md), plus a
   [coverage-vs-aggregators.md](coverage-vs-aggregators.md) refresh (that
