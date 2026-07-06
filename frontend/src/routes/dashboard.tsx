@@ -37,9 +37,11 @@ export function Dashboard() {
   const [range, setRange] = useState<TimeRange>("all");
   const { after, bucket } = toRangeQuery(range);
 
+  // Deliberately not filtered by the time-range toggle: this is a live feed of
+  // the newest notices, so a bounded window would never visibly change it.
   const recent = useQuery({
-    queryKey: ["notices", { limit: 10, after }],
-    queryFn: () => api.listNotices({ limit: 10, after }),
+    queryKey: ["notices", { limit: 10 }],
+    queryFn: () => api.listNotices({ limit: 10 }),
   });
 
   const byState = useQuery({
@@ -113,6 +115,47 @@ export function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Above the charts because, unlike them, it doesn't follow the
+          time-range toggle — it's always the newest notices. */}
+      <section>
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Recent notices</h2>
+          <Link to="/notices" className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400">
+            View all →
+          </Link>
+        </div>
+        <div className="card divide-y divide-slate-100 p-0 dark:divide-slate-800">
+          {recent.isLoading && <SkeletonRows rows={5} />}
+          {recent.isError && (
+            <div className="p-4">
+              <QueryError
+                message="Error loading recent notices."
+                onRetry={() => recent.refetch()}
+              />
+            </div>
+          )}
+          {recent.data?.items.map((n) => (
+            <Link
+              key={n.notice_id}
+              to="/notices/$noticeId"
+              params={{ noticeId: n.notice_id }}
+              className="block px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+            >
+              <div className="flex items-baseline justify-between gap-4">
+                <div className="min-w-0 truncate font-medium">{n.employer}</div>
+                <div className="shrink-0 text-xs text-slate-500 dark:text-slate-400">
+                  {fmtDate(n.notice_date)} · {n.state}
+                </div>
+              </div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                {n.layoff_count != null && <span>{fmtNum(n.layoff_count)} affected · </span>}
+                {n.location?.city || n.location?.county || "Location unspecified"}
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
 
       <AlertSignup />
 
@@ -259,45 +302,6 @@ export function Dashboard() {
           </div>
         )}
       </div>
-
-      <section>
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Recent notices</h2>
-          <Link to="/notices" className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400">
-            View all →
-          </Link>
-        </div>
-        <div className="card divide-y divide-slate-100 p-0 dark:divide-slate-800">
-          {recent.isLoading && <SkeletonRows rows={5} />}
-          {recent.isError && (
-            <div className="p-4">
-              <QueryError
-                message="Error loading recent notices."
-                onRetry={() => recent.refetch()}
-              />
-            </div>
-          )}
-          {recent.data?.items.map((n) => (
-            <Link
-              key={n.notice_id}
-              to="/notices/$noticeId"
-              params={{ noticeId: n.notice_id }}
-              className="block px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50"
-            >
-              <div className="flex items-baseline justify-between gap-4">
-                <div className="min-w-0 truncate font-medium">{n.employer}</div>
-                <div className="shrink-0 text-xs text-slate-500 dark:text-slate-400">
-                  {fmtDate(n.notice_date)} · {n.state}
-                </div>
-              </div>
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                {n.layoff_count != null && <span>{fmtNum(n.layoff_count)} affected · </span>}
-                {n.location?.city || n.location?.county || "Location unspecified"}
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
 
       <section>
         <h2 className="mb-2 text-lg font-semibold">Top employers (by layoff count)</h2>
