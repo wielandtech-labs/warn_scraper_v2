@@ -86,7 +86,11 @@ Ordered by recoverable rows:
 
 - [ ] **NY** (~6,900 rows since 2006 — the largest gap). **Route decision
   first (H)**: per-year PDF listings parse vs FOIA; the Tableau CSV is
-  current-year-only. Then implement. (H, then A+gate)
+  current-year-only. Then implement. (H, then A+gate) — *spike done
+  2026-07-06*: Wayback holds 4,294 full-field `details.asp` records
+  (2001–2020, incl. counts + addresses); recommendation = parser route with
+  FOIA as backstop — see the NY row in
+  [historical-sources.md](historical-sources.md). Decision pending.
 - [ ] **PA 2001–2022** — Wayback snapshots of the old dli.pa.gov pages;
   strict dedup (286 superseded rows already); `--year-end 2022`. (A+gate)
 - [ ] **IL PDF era 1999–2019** — `parse_il_pdf` for the monthly archive PDFs
