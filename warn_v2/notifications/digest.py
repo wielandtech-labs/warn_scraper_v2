@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from html import escape
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -65,13 +66,15 @@ def render_digest(sub: Subscription, notices: list[Notice]) -> tuple[str, str, s
         when = x.notice_date.isoformat() if x.notice_date else ""
         url = f"{base}/notices/{x.notice_id}"
         text_lines.append(f"- {x.employer}{loc}{affected} {when}\n  {url}")
+        # employer (and scope below) are scraped/user-supplied — escape anything
+        # dynamic that lands in the HTML alternative; the text alternative stays raw.
         html_items.append(
-            f'<li><a href="{url}">{x.employer}</a>{loc}{affected} '
+            f'<li><a href="{url}">{escape(x.employer)}</a>{escape(loc)}{escape(affected)} '
             f'<span style="color:#64748b">{when}</span></li>'
         )
     text_lines += ["", f"Unsubscribe: {unsub}"]
     html_body = (
-        f"<p>{n} new WARN notice{'s' if n != 1 else ''} ({scope}):</p>"
+        f"<p>{n} new WARN notice{'s' if n != 1 else ''} ({escape(scope)}):</p>"
         f"<ul>{''.join(html_items)}</ul>"
         f'<p style="color:#64748b;font-size:12px">'
         f'<a href="{unsub}">Unsubscribe</a></p>'
