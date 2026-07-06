@@ -76,12 +76,6 @@ export function NoticesPage() {
       {
         header: "Date",
         accessorKey: "notice_date",
-        cell: (info) => fmtDate(info.getValue() as string | null),
-      },
-      { header: "State", accessorKey: "state" },
-      {
-        header: "Employer",
-        accessorKey: "employer",
         cell: (info) => (
           <Link
             to="/notices/$noticeId"
@@ -91,9 +85,27 @@ export function NoticesPage() {
             search={(prev) => prev}
             className="font-medium text-sky-700 hover:underline dark:text-sky-400"
           >
-            {info.getValue() as string}
+            {fmtDate(info.getValue() as string | null)}
           </Link>
         ),
+      },
+      { header: "State", accessorKey: "state" },
+      {
+        header: "Employer",
+        accessorKey: "employer",
+        cell: (info) => {
+          const company = info.row.original.company;
+          if (!company) return <span className="font-medium">{info.getValue() as string}</span>;
+          return (
+            <Link
+              to="/companies/$companyId"
+              params={{ companyId: String(company.id) }}
+              className="font-medium text-sky-700 hover:underline dark:text-sky-400"
+            >
+              {info.getValue() as string}
+            </Link>
+          );
+        },
       },
       {
         id: "location",
