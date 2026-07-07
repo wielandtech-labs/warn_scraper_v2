@@ -147,7 +147,7 @@ Ordered by recoverable rows:
   then reassess depth (10+ pages, depth unknown). (A+gate)
 - ~~**CA 2009–2013 probe** — EDD archive search for the interior hole
   (archive currently = 11 PDFs + 1 XLSX, FY2014–2025); fall back to the CA
-  records request. (A: spike + report)~~ — DONE 2026-07-07, PR #TBD:
+  records request. (A: spike + report)~~ — DONE 2026-07-07, PR #214:
   **route found, no CPRA needed.** Live EDD = FY2014+ only, but Wayback holds
   EDD's calendar-year reports 2006–2014 (`eddwarncn*.pdf`). Landed the parser
   in the same PR (see the follow-up below), so this became spike **+ build**.
