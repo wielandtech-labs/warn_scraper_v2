@@ -29,7 +29,7 @@ def fetch() -> dict[str, str]:
     """Download and parse SIC descriptions from SEC EDGAR."""
     log.info("Fetching SIC descriptions from %s", _SOURCE_URL)
     resp = httpx.get(_SOURCE_URL, timeout=30, follow_redirects=True,
-                     headers={"User-Agent": "warn-v2/0.1 (research; raphael@wielandtech.com)"})
+                     headers={"User-Agent": "warn-v2/0.1 (research; contact@wielandtech.com)"})
     resp.raise_for_status()
 
     soup = BeautifulSoup(resp.content, "lxml")
