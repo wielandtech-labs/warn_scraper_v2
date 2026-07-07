@@ -425,7 +425,7 @@ def test_enrich_batch_provider_hit_skips_edgar_and_claude(db, monkeypatch) -> No
     stats = enrich_batch(db, _StubClient(), provider=_FakeProvider(), inter_delay_s=0)
     assert stats == {"total": 1, "enriched": 1, "skipped": 0,
                      "provider": 1, "provider_miss": 0, "provider_rejected": 0,
-                     "edgar": 0, "claude": 0}
+                     "provider_dba": 0, "edgar": 0, "claude": 0}
     assert edgar_calls == []
     assert claude_calls == []
 
@@ -472,7 +472,7 @@ def test_enrich_batch_edgar_hit_skips_claude(db, monkeypatch) -> None:
     stats = enrich_batch(db, _StubClient(), inter_delay_s=0)
     assert stats == {"total": 1, "enriched": 1, "skipped": 0,
                      "provider": 0, "provider_miss": 0, "provider_rejected": 0,
-                     "edgar": 1, "claude": 0}
+                     "provider_dba": 0, "edgar": 1, "claude": 0}
     assert claude_calls == []
 
     db.refresh(c)
@@ -497,7 +497,7 @@ def test_enrich_batch_falls_through_to_claude(db, monkeypatch) -> None:
     stats = enrich_batch(db, _StubClient(), inter_delay_s=0)
     assert stats == {"total": 1, "enriched": 1, "skipped": 0,
                      "provider": 0, "provider_miss": 0, "provider_rejected": 0,
-                     "edgar": 0, "claude": 1}
+                     "provider_dba": 0, "edgar": 0, "claude": 1}
 
     db.refresh(c)
     assert c.enrichment_source == "claude"
@@ -699,6 +699,155 @@ def test_backup_tiers_select_only_provider_attempted(db, monkeypatch) -> None:
 
     db.refresh(tried)
     assert tried.enrichment_source == "claude"
+
+
+def test_provider_miss_retries_with_dba_trade_name(db) -> None:
+    """When the legal-entity query misses and the filing carries a dba trade
+    name, the trade name gets one retry lookup and a faithful hit persists."""
+    from warn_v2.enrichment.provider import ProviderResult
+
+    class _DbaProvider:
+        def __init__(self):
+            self.calls: list[str] = []
+
+        def lookup(self, company_name: str, state):
+            self.calls.append(company_name)
+            if company_name == "Cardinal Health":
+                return ProviderResult(
+                    entity_name="Cardinal Health, Inc.", duns="333333333",
+                    confidence=0.95,
+                )
+            return None
+
+        def close(self) -> None:
+            pass
+
+    c = _company(db, name="Managed Services-IDS (dba Cardinal Health)")
+    db.commit()
+
+    provider = _DbaProvider()
+    stats = enrich_batch(
+        db, _StubClient(), provider=provider, inter_delay_s=0, tiers={"provider"}
+    )
+    assert provider.calls == ["Managed Services-IDS", "Cardinal Health"]
+    assert stats["provider_dba"] == 1
+    assert stats["provider_miss"] == 0
+    assert stats["enriched"] == 1
+
+    db.refresh(c)
+    assert c.duns == "333333333"
+    assert c.enrichment_source == "provider"
+    assert c.provider_attempted_at is not None
+
+
+def test_provider_miss_without_dba_makes_single_call(db) -> None:
+    provider = _MissProviderCounting()
+    _company(db, name="Mystery Corp")
+    db.commit()
+
+    stats = enrich_batch(
+        db, _StubClient(), provider=provider, inter_delay_s=0, tiers={"provider"}
+    )
+    assert provider.calls == ["Mystery Corp"]
+    assert stats["provider_miss"] == 1
+    assert stats["provider_dba"] == 0
+
+
+def test_dba_retry_match_rejected_when_inconsistent(db) -> None:
+    """A dba retry hit must stay faithful to the TRADE name, or it's a miss."""
+    from warn_v2.enrichment.provider import ProviderResult
+
+    class _WrongDbaProvider:
+        def lookup(self, company_name: str, state):
+            if company_name == "Arc":
+                return ProviderResult(
+                    entity_name="Booz Allen Hamilton", duns="444444444",
+                    confidence=0.95,
+                )
+            return None
+
+        def close(self) -> None:
+            pass
+
+    c = _company(db, name="Good Sports Plus Ltd. dba Arc")
+    db.commit()
+
+    stats = enrich_batch(
+        db, _StubClient(), provider=_WrongDbaProvider(), inter_delay_s=0,
+        tiers={"provider"},
+    )
+    assert stats["provider_dba"] == 0
+    assert stats["provider_miss"] == 1
+
+    db.refresh(c)
+    assert c.duns is None
+    assert c.provider_attempted_at is not None
+
+
+def test_dba_retry_unavailable_keeps_stamp_and_pauses(db) -> None:
+    """The primary attempt was real, so an infrastructure failure on the dba
+    retry keeps the stamp but pauses the provider for the rest of the run."""
+    from warn_v2.enrichment.provider import ProviderUnavailable
+
+    class _TrippingDbaProvider:
+        def __init__(self):
+            self.calls: list[str] = []
+
+        def lookup(self, company_name: str, state):
+            self.calls.append(company_name)
+            if company_name == "Cardinal Health":
+                raise ProviderUnavailable("session tripped")
+            return None
+
+        def close(self) -> None:
+            pass
+
+    c1 = _company(db, name="Managed Services-IDS (dba Cardinal Health)")
+    c2 = _company(db, name="Second Corp")
+    db.commit()
+
+    provider = _TrippingDbaProvider()
+    stats = enrich_batch(
+        db, _StubClient(), provider=provider, inter_delay_s=0, tiers={"provider"}
+    )
+    # The retry tripped: c1's genuine primary attempt still counts as a miss,
+    # and c2 is never tried (provider paused).
+    assert provider.calls == ["Managed Services-IDS", "Cardinal Health"]
+    assert stats["provider_miss"] == 1
+
+    db.refresh(c1)
+    db.refresh(c2)
+    assert c1.provider_attempted_at is not None  # primary shot was real
+    assert c2.provider_attempted_at is None  # untouched, stays queued
+
+
+def test_unsearchable_query_skips_backup_tiers(db, monkeypatch) -> None:
+    """Junk/truncated names must not burn EDGAR or Claude calls either."""
+    edgar_calls: list[str] = []
+    monkeypatch.setattr(
+        "warn_v2.enrichment.lookup.edgar_lookup",
+        lambda name, state=None: edgar_calls.append(name) or None,
+    )
+    claude_calls: list[str] = []
+    monkeypatch.setattr(
+        "warn_v2.enrichment.worker.run_enrichment",
+        lambda ctx, client, **kw: claude_calls.append(ctx.company_name)
+        or EnrichmentResult(proposed=False),
+    )
+
+    from datetime import UTC, datetime
+    junk = _company(db, name="#1349")
+    junk.provider_attempted_at = datetime.now(UTC)
+    db.commit()
+
+    stats = enrich_batch(db, _StubClient(), inter_delay_s=0, tiers={"edgar", "claude"})
+    assert edgar_calls == []
+    assert claude_calls == []
+    assert stats["skipped"] == 1
+    assert stats["enriched"] == 0
+
+    db.refresh(junk)
+    assert junk.enriched_at is None
 
 
 def test_provider_only_dry_run_does_not_stamp(db) -> None:

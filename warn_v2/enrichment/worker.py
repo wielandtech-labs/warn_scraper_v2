@@ -18,6 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from warn_v2.companies.normalize import (
+    dba_name,
     is_unsearchable,
     match_is_consistent,
     search_name,
@@ -253,9 +254,11 @@ def enrich_batch(
 
     Tiers (subset of {"provider", "edgar", "claude"}):
       1. ``provider.lookup()`` if a provider is configured — DUNS linkage,
-         the main value. A provider MISS stamps ``provider_attempted_at`` and
-         leaves the company unenriched (still queued, skipped on future
-         provider-only runs) instead of falling through.
+         the main value. When the legal-entity query misses and the filing
+         carries a dba/aka trade name, that gets one retry lookup. A provider
+         MISS stamps ``provider_attempted_at`` and leaves the company
+         unenriched (still queued, skipped on future provider-only runs)
+         instead of falling through.
       2. EDGAR free lookup (SIC + approximate NAICS)
       3. Claude Haiku fallback (website + remaining gaps)
 
@@ -310,7 +313,8 @@ def enrich_batch(
     if not companies:
         log.info("enrich_batch: no pending companies found")
         return {"total": 0, "enriched": 0, "skipped": 0, "provider": 0,
-                "provider_miss": 0, "provider_rejected": 0, "edgar": 0, "claude": 0}
+                "provider_miss": 0, "provider_rejected": 0, "provider_dba": 0,
+                "edgar": 0, "claude": 0}
 
     log.info(
         "enrich_batch: found %d company/companies to enrich (%d impact + %d recency)",
@@ -321,6 +325,7 @@ def enrich_batch(
     stats_provider = 0
     stats_provider_miss = 0
     stats_provider_rejected = 0
+    stats_provider_dba = 0
     stats_edgar = 0
     stats_claude = 0
     # Once the provider signals it can't search (session trip, cap, cooldown),
@@ -336,13 +341,14 @@ def enrich_batch(
         query = search_name(company.name)
         if query != company.name:
             log.info("company_id=%d: search query %r (from %r)", company.id, query, company.name)
+        unsearchable = is_unsearchable(query)
 
         # ------------------------------------------------------------------ #
         # Tier 1: external provider plugin
         # ------------------------------------------------------------------ #
         if "provider" in tiers and provider is not None and provider_ok:
             attempted = True
-            if is_unsearchable(query):
+            if unsearchable:
                 # Aggressive cleaning collapsed the name to a lone generic token
                 # ("Alliance"); a lookup would only match by luck — treat as a miss.
                 log.info(
@@ -412,6 +418,58 @@ def enrich_batch(
                     stats_provider += 1
                     continue
 
+                # The legal-entity query missed (or resolved inconsistently) —
+                # give the dba/aka trade name one shot before recording the miss.
+                # The attempt stamp above stays either way: the company got its
+                # real provider shot on the primary query.
+                alt = dba_name(company.name) if provider_ok else None
+                if alt:
+                    log.info(
+                        "company_id=%d name=%r: dba retry with query %r",
+                        company.id, company.name, alt,
+                    )
+                    try:
+                        pr2 = provider.lookup(alt, state)
+                    except ProviderUnavailable as e:
+                        log.warning(
+                            "company_id=%d name=%r: provider unavailable on dba "
+                            "retry (%s); pausing provider tier for this run",
+                            company.id, company.name, e,
+                        )
+                        provider_ok = False
+                        pr2 = None
+                    except Exception:
+                        log.exception(
+                            "provider.lookup failed on dba retry for company_id=%d "
+                            "name=%r; pausing provider tier for this run",
+                            company.id, company.name,
+                        )
+                        provider_ok = False
+                        pr2 = None
+
+                    # Faithfulness is judged against the TRADE name — the legal
+                    # entity's tokens won't (and shouldn't) match its dba.
+                    if pr2 is not None and not match_is_consistent(alt, pr2.entity_name):
+                        log.warning(
+                            "company_id=%d name=%r: rejected dba retry match entity=%r "
+                            "conf=%.2f (shares no distinctive token with %r)",
+                            company.id, company.name, pr2.entity_name, pr2.confidence, alt,
+                        )
+                        pr2 = None
+
+                    if pr2 is not None:
+                        log.info(
+                            "company_id=%d name=%r: dba retry hit duns=%r sic=%r "
+                            "naics=%r conf=%.2f",
+                            company.id, company.name, pr2.duns, pr2.sic_code,
+                            pr2.naics_code, pr2.confidence,
+                        )
+                        if not dry_run:
+                            _persist_provider_result(session, company, pr2)
+                        enriched += 1
+                        stats_provider_dba += 1
+                        continue
+
                 if rejected:
                     stats_provider_rejected += 1
                 else:
@@ -424,6 +482,16 @@ def enrich_batch(
                 # backup-tier run rather than degrading to thin data. (Also the
                 # path for an unavailable provider — the company stays queued.)
                 continue
+
+        if unsearchable:
+            # EDGAR's similarity match and Claude's web search would only ever
+            # match a junk/truncated query by luck — don't burn the calls.
+            log.info(
+                "company_id=%d name=%r: query %r unsearchable; skipping backup tiers",
+                company.id, company.name, query,
+            )
+            skipped += 1
+            continue
 
         # ------------------------------------------------------------------ #
         # Tier 2: EDGAR free lookup (SIC + approximate NAICS)
@@ -504,6 +572,7 @@ def enrich_batch(
         "provider": stats_provider,
         "provider_miss": stats_provider_miss,
         "provider_rejected": stats_provider_rejected,
+        "provider_dba": stats_provider_dba,
         "edgar": stats_edgar,
         "claude": stats_claude,
     }
