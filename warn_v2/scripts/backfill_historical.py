@@ -57,6 +57,7 @@ from warn_v2.scrapers.states.ky import _discover_workbook_urls as _discover_ky_w
 from warn_v2.scrapers.states.ky import parse_ky_workbook
 from warn_v2.scrapers.states.la import _fetch_la_year, parse_la_pdf
 from warn_v2.scrapers.states.la import _source_url as _la_source_url
+from warn_v2.scrapers.states.ma import _fetch_ma_fy, parse_ma_xlsx
 from warn_v2.scrapers.states.md import _fetch_md_year
 from warn_v2.scrapers.states.mn import (
     _discover_archive_pdf_urls as _discover_mn_pdf_urls,
@@ -138,6 +139,16 @@ _BACKFILL: dict[str, BackfillSpec] = {
         year_start=2025,
         fetch_year=lambda s, y: _fetch_la_year(y),
         parse_year=lambda b, y: parse_la_pdf(b, _la_source_url(y)),
+    ),
+    # MA: mass.gov publishes one XLSX per fiscal year back to FY22 ("Previous
+    # WARN reports"); downloads are Akamai-gated (httpx 403s from the cluster),
+    # so _fetch_ma_fy drives Playwright like the live scraper. Key the loop by
+    # the FY-ending year (FY22 -> 2022); FY26 is the live current year, so run
+    # --year-end 2025. Pre-FY22 is email-request only.
+    "MA": BackfillSpec(
+        year_start=2022,
+        fetch_year=lambda s, y: _fetch_ma_fy(y),
+        parse_year=lambda b, y: parse_ma_xlsx(b, y),
     ),
     # NV: per-year archive PDFs 2017+ in three layout eras; 2021 is a scanned
     # image (parsed via the tesseract OCR fallback) and 2025 coverage ends
