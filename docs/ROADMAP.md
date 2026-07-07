@@ -149,14 +149,16 @@ Ordered by recoverable rows:
   parse first). (A+gate)~~ — DONE 2026-07-07 (parser #197: one sheet per
   year 2004–2026; prod run w_homelab #627: **+2,203 rows, floor
   2026→2004-01**, near_miss=0, verified per-record).
-- [ ] **MA FY22–FY25** — mass.gov FY XLSX reports (Playwright fetch, like the
-  live scraper). (A+gate) — *parser done 2026-07-07* (PR #TBD): the "Previous
-  WARN reports" section links one XLSX per FY at `/doc/fy{NN}-warn-report`
-  (discovered via Playwright — no `.xlsx` in the href, Akamai gates the page);
-  `parse_ma_xlsx` handles both layouts (FY22/FY23 one sheet per region, FY24+
-  single CSV-style sheet). Loop keyed by FY-ending year (`year_start=2022`);
-  local dry-run parsed FY22 → 37 rows. **Remaining: the gated Job**
-  (`--year-end 2025`; FY26 is the live year) + re-audit.
+- ~~**MA FY22–FY25** — mass.gov FY XLSX reports (Playwright fetch, like the
+  live scraper). (A+gate)~~ — DONE 2026-07-07 (parser PR #212; Jobs w_homelab
+  #638 dry-run → #640 real): **+287 rows, floor FY2025 → 2021-04** (86 → 373
+  active). The "Previous WARN reports" section links one XLSX per FY at
+  `/doc/fy{NN}-warn-report` (discovered via Playwright — no `.xlsx` in the href,
+  Akamai gates the page); `parse_ma_xlsx` handles both layouts (FY22/FY23 one
+  sheet per region, FY24+ single CSV-style sheet). Dry-run and real run both
+  near_miss=0 / already_exists=0 (FY23 80→79 by in-batch hash dedup);
+  `mark-superseded` was a no-op. FY26 stays with the live scraper; pre-FY22 →
+  email request.
 - [ ] **MN multi-era parser** — 2015–16 monthlies, 2018–21 annuals, 2022–24
   wide format; Wayback discovery already implemented. (A+gate) — *parser
   done 2026-07-07* (#202: one word-position parser for all eras, reaches

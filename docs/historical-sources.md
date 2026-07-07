@@ -13,6 +13,21 @@ sources only).
 
 ## Progress (update as backfills run)
 
+- **2026-07-07 — MA FY22–FY25 backfilled in prod** (parser PR #212, image
+  `20260707-221659-222d71a`; Jobs w_homelab #638 dry-run → #640 real):
+  **+287 rows, floor FY2025 → 2021-04** (86 → 373 active). mass.gov's "Previous
+  WARN reports" links one XLSX per fiscal year at `/doc/fy{NN}-warn-report`;
+  `_fetch_ma_fy` discovers + downloads via Playwright (Akamai gates the page
+  **and** the files — httpx 403s from the cluster, confirmed; the download works
+  from the cluster via Playwright). `parse_ma_xlsx` handles two layouts: FY22/
+  FY23 are one sheet **per region** (region = sheet name, positional columns
+  under a title+header), FY24+ a single CSV-style sheet with a REGION column.
+  Both dry-run and real run were clean (near_miss=0, already_exists=0 all four
+  years); FY23 went 80→79 by in-batch hash dedup, so `mark-superseded` was a
+  no-op. Verified per-record via the public API (total 373, oldest 2021-04-19
+  Hilsinger / 2021-07-07 Sodexo@Suffolk). FY26 stays with the live weekly-CSV
+  scraper; pre-FY22 is email-request only (eolwdpress@mass.gov). Prune PR for
+  both Jobs to follow.
 - **2026-07-07 — CA 2009–2013 probe + detailed-PDF parser** (spike + parser;
   prod run pending). The interior hole (dense only from 2014, one stray 2008
   row) is **recoverable from the Wayback Machine — no CPRA request needed.**
@@ -216,7 +231,7 @@ delete Jobs after.
 | WI | ~~2020~~ **2016 ✅** | the Google Sheet is **cumulative from 2020-01 only** (no per-year tabs); 2016–2019 are static pages `/dislocatedworker/warn/{year}/default.htm` | **2016** | **done 2026-06-12** (+320, `--year-end 2019`) |
 | MN | 2023 | DEED PDFs via Wayback CDX replay (mn.gov prunes old assets): monthlies 2015–2016 + 2022+, annual summaries 2018–2021, cumulative yearly reports 2022–24; the Dec-2016 cumulative reaches month sections back through **2014** | **2014** (via the 2016 cumulative) | **multi-era parser done 2026-07-07** (`_parse_archive_words`, word-position columns from header labels; WARN=YES only; verified against every file's own "(N records)" section counts). Prod run pending — ⚠ live-scraper rows 2023+ were text-fallback parses with glued employer+city+industry; plan a PA-style purge + re-ingest of that era in the Job dry-run review |
 | MS | ~~2025~~ **PY2020 ✅** | MDES quarterly PDFs — `_discover_pdf_urls()` already returns all 23 (PY2020Q1+); old quarterlies merge "Company Name, City" (parser splits the trailing "City (County)" line) | **PY2020** (Jul 2020) | **done 2026-06-12** (+112; 4 quarterlies with a third layout variation skipped — known gap); older → request |
-| MA | 2025 | mass.gov WARN page publishes **FY22–FY25 XLSX reports** — "Previous WARN reports" links one XLSX per FY at `/doc/fy{NN}-warn-report/download` (discover via Playwright: Akamai gates the page and the href has no `.xlsx`). Two layouts: FY22/FY23 one sheet per region (region = sheet name), FY24+ single CSV-style sheet. | FY2022 | **parser done 2026-07-07** (`parse_ma_xlsx` + `_fetch_ma_fy`, `--state MA`; loop keyed by FY-ending year, `year_start=2022`); **Job pending** (`--year-end 2025`, FY26 is the live year); pre-FY22 → email (invited) |
+| MA | ~~2025~~ **FY2022 ✅** | mass.gov WARN page publishes **FY22–FY25 XLSX reports** — "Previous WARN reports" links one XLSX per FY at `/doc/fy{NN}-warn-report/download` (discover via Playwright: Akamai gates the page and the href has no `.xlsx`). Two layouts: FY22/FY23 one sheet per region (region = sheet name), FY24+ single CSV-style sheet. | **FY2022** (2021-04) | **done 2026-07-07** (+287, 86 → 373; see Progress); pre-FY22 → email (invited) |
 | WA | ~~2026~~ **2004 ✅** | `fortress.wa.gov/esd/file/warn/Public/SearchWARN.aspx` — ASP.NET `__VIEWSTATE` GridView; the scraper now replays the `Page$N` postback for every page (99 pages, ~15 rows each) | **2004** | **done 2026-07-07** (pagination fix; live fetch = 1,480 rows, floor 2004-01; deploys via the daily scrape, no one-off Job) |
 | OR | 2020 | HECC site states it retains only **six years** of WARN records; `data.oregon.gov` Socrata dataset `ijbz-jpx8` exists (content unverified) | ~mid-2020 | check Socrata dataset; pre-2020 → inquiry |
 | NV | ~~2025~~ **2017 ✅** | per-year PDFs under `detr.nv.gov/Content/Media/` in three layout eras (see `nv._ARCHIVE_SOURCES`); 2023 pruned live → Wayback; **2021 is a scanned image → OCR route (done 2026-07-07)**; 2025 snapshot ends Jun 3 | **2017** | **done 2026-07-02** (+584); 2021 OCR parser done 2026-07-07 (prod run pending); Jun–Dec 2025 + pre-2017 → request |
