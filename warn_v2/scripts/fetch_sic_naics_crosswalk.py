@@ -66,7 +66,7 @@ def _fetch_osha_page(sic_code: str) -> tuple[str, str] | None:
 
         url = f"https://www.osha.gov/pls/imis/sic_manual.display?sic={sic_code}&tab=description"
         resp = httpx.get(url, timeout=8, follow_redirects=True,
-                         headers={"User-Agent": "warn-v2/0.1 (research; raphael@wielandtech.com)"})
+                         headers={"User-Agent": "warn-v2/0.1 (research; contact@wielandtech.com)"})
         if not resp.is_success:
             return None
 
