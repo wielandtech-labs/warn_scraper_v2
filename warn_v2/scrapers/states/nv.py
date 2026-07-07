@@ -286,20 +286,26 @@ def _rows_from_words(
     (``page.extract_words()``) and scanned files (``ocr_word_boxes``, normalized
     to the same point scale).
 
-    Same row-bucketing approach as `_parse_page_rows`, but the archive files
-    render count and employer as separate words, so no merged-token handling
-    is needed (counts are right-aligned within their own column).
+    Groups words into visual rows by vertical proximity, then assigns columns
+    by x. Unlike `_parse_page_rows`'s fixed-grid `round(top / _ROW_BUCKET)`,
+    rows here are clustered on the gap to the previous word: a fixed grid splits
+    a row whose word tops straddle a bucket boundary, dropping the row's employer
+    into a continuation bucket that fails the date gate (seen with OCR word boxes,
+    whose tops jitter a few points within one row). Within a row that gap stays
+    small; between rows it exceeds `_ROW_BUCKET`.
     """
     b_rcv, b_eff, b_type, b_count, b_emp, b_city, b_county = bounds
 
-    row_map: dict[int, list] = defaultdict(list)
-    for w in words:
-        bucket = round(w["top"] / _ROW_BUCKET) * _ROW_BUCKET
-        row_map[bucket].append(w)
+    clusters: list[list] = []
+    for w in sorted(words, key=lambda w: w["top"]):
+        if clusters and w["top"] - clusters[-1][-1]["top"] <= _ROW_BUCKET:
+            clusters[-1].append(w)
+        else:
+            clusters.append([w])
 
     results: list[dict] = []
-    for y_key in sorted(row_map.keys()):
-        rws = sorted(row_map[y_key], key=lambda w: w["x0"])
+    for cluster in clusters:
+        rws = sorted(cluster, key=lambda w: w["x0"])
         first = rws[0]
         if first["x0"] > b_rcv or not _DATE_FIRST_RE.match(first["text"]):
             continue
