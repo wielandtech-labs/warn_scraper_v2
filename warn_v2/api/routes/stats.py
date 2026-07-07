@@ -6,7 +6,7 @@ pod (see api/__init__.py StaticFiles mount), so no CORS middleware is needed.
 from __future__ import annotations
 
 import calendar
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Query
@@ -549,7 +549,9 @@ def county_impact(
     ),
     industry: str | None = Query(None, description="NAICS sector id (e.g. 31-33)"),
     subsector: str | None = Query(None, description="3-digit NAICS subsector (e.g. 311)"),
-    after: date | None = Query(None),
+    after: date | None = Query(
+        None, description="Only notices on or after this date (default: 12 months ago)"
+    ),
     before: date | None = Query(None),
     db: Session = Depends(get_db),
 ) -> list[CountyImpactStat]:
@@ -560,7 +562,15 @@ def county_impact(
     with no CBP match, or under ``min_layoffs`` reported layoffs, are
     omitted — a raw layoff sum that small says more about missing
     layoff_count data than about local impact.
+
+    Unlike the other stats endpoints, ``after`` defaults to 12 months ago:
+    layoffs are a flow and the employment base is a point-in-time stock, so
+    an unbounded window accumulates decades of layoffs against today's jobs
+    and produces shares over 100%. Pass ``after`` explicitly for other
+    windows.
     """
+    if after is None:
+        after = _today() - timedelta(days=365)
     # Group and filter by the worksite's Location.state, not Notice.state:
     # this ranking is geographic, and a notice filed in one state can list a
     # worksite county in another — Notice.state would mislabel that county.

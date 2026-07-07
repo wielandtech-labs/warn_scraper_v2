@@ -127,9 +127,10 @@ export function CountyImpact({
           <DataTable data={rows} columns={columns} />
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Share of {cbpYear ?? "latest"} county employment (Census County Business
-            Patterns). Only notices with a reported layoff count are included, so
-            shares understate true impact; counties without a CBP match or with
-            fewer than 10 reported layoffs are omitted.
+            Patterns) over the selected period — the trailing 12 months when no
+            start date is chosen. Only notices with a reported layoff count are
+            included, so shares understate true impact; counties without a CBP
+            match or with fewer than 10 reported layoffs are omitted.
           </p>
         </div>
       )}
