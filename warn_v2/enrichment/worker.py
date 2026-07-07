@@ -18,6 +18,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from warn_v2.companies.normalize import (
+    cleaned_key,
+    dba_name,
     is_unsearchable,
     match_is_consistent,
     search_name,
@@ -232,6 +234,111 @@ def _persist_lookup_result(
     session.commit()
 
 
+# Sentinel for a cleaned key whose provider-enriched donors carry >=2 distinct
+# DUNS: two different legal entities (franchisees) share the key — never
+# propagate under it.
+_DONOR_CONFLICT = object()
+
+
+def _add_donor(donors: dict, donor: Company) -> None:
+    """Register a provider-enriched company as a propagation donor for its key."""
+    key = cleaned_key(donor.name)
+    if not key or is_unsearchable(key):
+        return
+    existing = donors.get(key)
+    if existing is _DONOR_CONFLICT:
+        return
+    if existing is None:
+        donors[key] = donor
+    elif existing.duns != donor.duns:
+        donors[key] = _DONOR_CONFLICT
+
+
+def _load_donor_index(session: Session) -> dict:
+    """Map cleaned_key -> provider-enriched donor Company (or _DONOR_CONFLICT).
+
+    Donors are provider hits with a DUNS only — the highest-quality anchor.
+    edgar/claude enrichments are guesses and never propagate; siblings never
+    chain (a 'sibling' row is not source='provider', so it can't donate).
+    """
+    donors: dict = {}
+    rows = session.scalars(
+        select(Company).where(
+            Company.enriched_at.is_not(None),
+            Company.duns.is_not(None),
+            Company.enrichment_source == "provider",
+        )
+    )
+    for donor in rows:
+        _add_donor(donors, donor)
+    return donors
+
+
+def _persist_sibling_result(session: Session, company: Company, donor: Company) -> None:
+    """Copy a provider-enriched twin's findings onto a site-variant row.
+
+    The donor describes the same legal entity, so all provider fields carry
+    over. Confidence is capped below the donor's so the donor always wins the
+    consolidator's survivor selection, and the source/provenance make the
+    indirection visible (and reversible via ``reset-enrichment --sources sibling``).
+    """
+    company.website = donor.website
+    company.sic_code = donor.sic_code
+    company.sic_desc = donor.sic_desc
+    company.duns = donor.duns
+    company.naics_code = donor.naics_code
+    company.naics_desc = donor.naics_desc
+    company.employee_count = donor.employee_count
+    company.parent_company_name = donor.parent_company_name
+    company.parent_duns = donor.parent_duns
+    company.global_ultimate_name = donor.global_ultimate_name
+    company.global_ultimate_duns = donor.global_ultimate_duns
+    company.global_ultimate_id = donor.global_ultimate_id
+    company.hq_address = donor.hq_address
+    company.enrichment_confidence = min(
+        donor.enrichment_confidence or Decimal("0"), Decimal("0.90")
+    )
+    company.enrichment_sources = json.dumps([f"sibling:company_id={donor.id}"])
+    company.enrichment_source = "sibling"
+    company.enriched_at = datetime.now(UTC)
+    session.add(company)
+    session.commit()
+
+
+def _propagate_siblings(session: Session, donors: dict, *, dry_run: bool = False) -> int:
+    """Enrich every pending site-variant twin of a provider-enriched donor.
+
+    Runs over ALL unenriched rows, not just this batch: the backlog twins are
+    already stamped ``provider_attempted_at`` and therefore invisible to
+    provider-only ``find_pending`` — this pre-pass is the only thing that ever
+    reaches them. Idempotent: propagated rows leave the unenriched set.
+    """
+    if not donors:
+        return 0
+    count = 0
+    # Scan plain (id, name) tuples, not ORM rows: the per-twin commit below
+    # expires every object in the session, and attribute access on expired
+    # rows would fire a refresh SELECT per remaining row of the ~20k scan.
+    pending = session.execute(
+        select(Company.id, Company.name).where(Company.enriched_at.is_(None))
+    ).all()
+    for company_id, name in pending:
+        donor = donors.get(cleaned_key(name))
+        if donor is None or donor is _DONOR_CONFLICT:
+            continue
+        if not match_is_consistent(name, donor.name):
+            continue
+        log.info(
+            "company_id=%d name=%r: sibling enrichment from company_id=%d name=%r duns=%r",
+            company_id, name, donor.id, donor.name, donor.duns,
+        )
+        if not dry_run:
+            company = session.get(Company, company_id)
+            _persist_sibling_result(session, company, donor)
+        count += 1
+    return count
+
+
 ALL_TIERS = frozenset({"provider", "edgar", "claude"})
 
 
@@ -251,11 +358,19 @@ def enrich_batch(
 ) -> dict:
     """Enrich a batch of companies. Returns summary stats.
 
+    Before the batch, a sibling pre-pass copies provider enrichment onto ALL
+    pending site-variant twins of already-enriched companies (same
+    ``cleaned_key``, single distinct DUNS, faithful match) — zero provider
+    cost, and it reaches backlog twins whose ``provider_attempted_at`` stamp
+    hides them from provider-only ``find_pending``.
+
     Tiers (subset of {"provider", "edgar", "claude"}):
       1. ``provider.lookup()`` if a provider is configured — DUNS linkage,
-         the main value. A provider MISS stamps ``provider_attempted_at`` and
-         leaves the company unenriched (still queued, skipped on future
-         provider-only runs) instead of falling through.
+         the main value. When the legal-entity query misses and the filing
+         carries a dba/aka trade name, that gets one retry lookup. A provider
+         MISS stamps ``provider_attempted_at`` and leaves the company
+         unenriched (still queued, skipped on future provider-only runs)
+         instead of falling through.
       2. EDGAR free lookup (SIC + approximate NAICS)
       3. Claude Haiku fallback (website + remaining gaps)
 
@@ -287,6 +402,17 @@ def enrich_batch(
     else:
         provider_attempted = None
 
+    # Sibling pre-pass: enrich site-variant twins of provider-enriched
+    # companies for free before spending any provider budget. Must run before
+    # find_pending so propagated rows drop out of the queue this same run.
+    donors = _load_donor_index(session)
+    stats_sibling = _propagate_siblings(session, donors, dry_run=dry_run)
+    if stats_sibling:
+        log.info(
+            "enrich_batch: propagated enrichment to %d sibling company/companies",
+            stats_sibling,
+        )
+
     companies = find_pending(
         session,
         limit=limit,
@@ -310,7 +436,9 @@ def enrich_batch(
     if not companies:
         log.info("enrich_batch: no pending companies found")
         return {"total": 0, "enriched": 0, "skipped": 0, "provider": 0,
-                "provider_miss": 0, "provider_rejected": 0, "edgar": 0, "claude": 0}
+                "provider_miss": 0, "provider_rejected": 0, "provider_dba": 0,
+                "unsearchable": 0, "edgar": 0, "claude": 0,
+                "sibling": stats_sibling}
 
     log.info(
         "enrich_batch: found %d company/companies to enrich (%d impact + %d recency)",
@@ -321,6 +449,8 @@ def enrich_batch(
     stats_provider = 0
     stats_provider_miss = 0
     stats_provider_rejected = 0
+    stats_provider_dba = 0
+    stats_unsearchable = 0
     stats_edgar = 0
     stats_claude = 0
     # Once the provider signals it can't search (session trip, cap, cooldown),
@@ -336,13 +466,34 @@ def enrich_batch(
         query = search_name(company.name)
         if query != company.name:
             log.info("company_id=%d: search query %r (from %r)", company.id, query, company.name)
+        unsearchable = is_unsearchable(query)
+
+        # A donor may have appeared mid-run (a fresh provider hit on a twin
+        # earlier in this batch) — copy it instead of burning another lookup.
+        donor = donors.get(cleaned_key(company.name))
+        if (
+            donor is not None
+            and donor is not _DONOR_CONFLICT
+            and donor.id != company.id
+            and match_is_consistent(company.name, donor.name)
+        ):
+            log.info(
+                "company_id=%d name=%r: sibling enrichment from company_id=%d "
+                "name=%r duns=%r",
+                company.id, company.name, donor.id, donor.name, donor.duns,
+            )
+            if not dry_run:
+                _persist_sibling_result(session, company, donor)
+            enriched += 1
+            stats_sibling += 1
+            continue
 
         # ------------------------------------------------------------------ #
         # Tier 1: external provider plugin
         # ------------------------------------------------------------------ #
         if "provider" in tiers and provider is not None and provider_ok:
             attempted = True
-            if is_unsearchable(query):
+            if unsearchable:
                 # Aggressive cleaning collapsed the name to a lone generic token
                 # ("Alliance"); a lookup would only match by luck — treat as a miss.
                 log.info(
@@ -408,9 +559,63 @@ def enrich_batch(
                     )
                     if not dry_run:
                         _persist_provider_result(session, company, pr)
+                        _add_donor(donors, company)  # twins later in this batch copy it
                     enriched += 1
                     stats_provider += 1
                     continue
+
+                # The legal-entity query missed (or resolved inconsistently) —
+                # give the dba/aka trade name one shot before recording the miss.
+                # The attempt stamp above stays either way: the company got its
+                # real provider shot on the primary query.
+                alt = dba_name(company.name) if provider_ok else None
+                if alt:
+                    log.info(
+                        "company_id=%d name=%r: dba retry with query %r",
+                        company.id, company.name, alt,
+                    )
+                    try:
+                        pr2 = provider.lookup(alt, state)
+                    except ProviderUnavailable as e:
+                        log.warning(
+                            "company_id=%d name=%r: provider unavailable on dba "
+                            "retry (%s); pausing provider tier for this run",
+                            company.id, company.name, e,
+                        )
+                        provider_ok = False
+                        pr2 = None
+                    except Exception:
+                        log.exception(
+                            "provider.lookup failed on dba retry for company_id=%d "
+                            "name=%r; pausing provider tier for this run",
+                            company.id, company.name,
+                        )
+                        provider_ok = False
+                        pr2 = None
+
+                    # Faithfulness is judged against the TRADE name — the legal
+                    # entity's tokens won't (and shouldn't) match its dba.
+                    if pr2 is not None and not match_is_consistent(alt, pr2.entity_name):
+                        log.warning(
+                            "company_id=%d name=%r: rejected dba retry match entity=%r "
+                            "conf=%.2f (shares no distinctive token with %r)",
+                            company.id, company.name, pr2.entity_name, pr2.confidence, alt,
+                        )
+                        pr2 = None
+
+                    if pr2 is not None:
+                        log.info(
+                            "company_id=%d name=%r: dba retry hit duns=%r sic=%r "
+                            "naics=%r conf=%.2f",
+                            company.id, company.name, pr2.duns, pr2.sic_code,
+                            pr2.naics_code, pr2.confidence,
+                        )
+                        if not dry_run:
+                            _persist_provider_result(session, company, pr2)
+                            _add_donor(donors, company)
+                        enriched += 1
+                        stats_provider_dba += 1
+                        continue
 
                 if rejected:
                     stats_provider_rejected += 1
@@ -424,6 +629,18 @@ def enrich_batch(
                 # backup-tier run rather than degrading to thin data. (Also the
                 # path for an unavailable provider — the company stays queued.)
                 continue
+
+        if unsearchable:
+            # EDGAR's similarity match and Claude's web search would only ever
+            # match a junk/truncated query by luck — don't burn the calls. Not
+            # counted in "skipped": that stat flips the CLI exit code, and an
+            # unsearchable name is an expected outcome, not an agent failure.
+            log.info(
+                "company_id=%d name=%r: query %r unsearchable; skipping backup tiers",
+                company.id, company.name, query,
+            )
+            stats_unsearchable += 1
+            continue
 
         # ------------------------------------------------------------------ #
         # Tier 2: EDGAR free lookup (SIC + approximate NAICS)
@@ -504,6 +721,9 @@ def enrich_batch(
         "provider": stats_provider,
         "provider_miss": stats_provider_miss,
         "provider_rejected": stats_provider_rejected,
+        "provider_dba": stats_provider_dba,
+        "unsearchable": stats_unsearchable,
         "edgar": stats_edgar,
         "claude": stats_claude,
+        "sibling": stats_sibling,
     }

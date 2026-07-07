@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from warn_v2.companies.normalize import (
     canonical_name,
+    dba_name,
     is_unsearchable,
     match_is_consistent,
     search_name,
@@ -290,6 +291,27 @@ def test_search_name_keeps_lowercase_update_like_words():
     assert search_name("Revised Editions LLC") == "Revised Editions LLC"
     # Mid-name stars are untouched.
     assert search_name("E*Trade Financial") == "E*Trade Financial"
+
+
+def test_dba_name_extracts_trade_name():
+    # The mirror image of the _DBA strip: the trade-name side, cleaned.
+    assert dba_name("Managed Services-IDS (dba Cardinal Health)") == "Cardinal Health"
+    assert dba_name("GMRI, Inc. d/b/a Eddie V's") == "Eddie V's"
+    assert dba_name("Bush Industries Inc. d/b/a eSolutions Group") == "eSolutions Group"
+    assert dba_name("Duckhorn Wine Company DBA Kosta Browne Winery") == (
+        "Kosta Browne Winery"
+    )
+    assert dba_name("Community Counseling of Bristol County (aka CCBC)") == "CCBC"
+    assert dba_name("115 New Montgomery LLC, DBA The Bird") == "The Bird"
+
+
+def test_dba_name_returns_none_when_useless():
+    assert dba_name("Acme Inc") is None  # no marker
+    assert dba_name(None) is None
+    assert dba_name("") is None
+    assert dba_name("Acme Inc dba Services") is None  # generic trade name
+    # A name that IS the marker word is not a clause.
+    assert dba_name("DBA Holdings LLC") is None
 
 
 def test_is_unsearchable_flags_lone_generic_token():

@@ -189,6 +189,39 @@ def search_name(name: str | None) -> str:
     return s if s else name
 
 
+# Trade-name extraction for the dba retry: everything AFTER the marker, the
+# mirror image of _DBA (which keeps the legal entity). Includes aka/fka — a
+# former or alternate name is still a searchable identity.
+_DBA_EXTRACT = re.compile(
+    r"\b(?:d/b/a|d\.b\.a\.?|dba|a/k/a|a\.k\.a\.?|aka|f/k/a|f\.k\.a\.?|fka)\b"
+    r"[:\s]+(?P<trade>.+)$",
+    re.IGNORECASE,
+)
+
+
+def dba_name(name: str | None) -> str | None:
+    """Return the cleaned trade-name side of a dba/aka/fka clause, or None.
+
+    ``search_name`` keeps the legal entity and drops the trade name — the right
+    default, but when the legal entity misses ("Managed Services-IDS (dba
+    Cardinal Health)") the trade name is the better query. Works on the raw
+    name because the clause often lives inside a parenthetical that
+    ``search_name`` deletes outright.
+    """
+    if not name:
+        return None
+    s = _WS.sub(" ", html.unescape(name).translate(_SMART_QUOTES))
+    m = _DBA_EXTRACT.search(s)
+    if not m or m.start() == 0:  # a name that IS the marker word is not a clause
+        return None
+    trade = search_name(m.group("trade").strip(" ,").rstrip(")]").strip(" ,"))
+    if not trade or is_unsearchable(trade):
+        return None
+    if trade.lower() == search_name(name).lower():
+        return None
+    return trade
+
+
 def _strip_dash_segment(s: str) -> str:
     """Drop a trailing ' - <segment>' worksite tag.
 
@@ -305,6 +338,17 @@ def match_is_consistent(original: str, matched: str) -> bool:
         return True
     shared = orig & _significant_tokens(matched)
     return bool(shared - _GENERIC_MATCH_TOKENS)
+
+
+def cleaned_key(name: str | None) -> str:
+    """Site-variant grouping key: canonical form of the SEARCH-cleaned name.
+
+    More aggressive than ``canonical_name`` alone — site designators collapse
+    ("ABM Industries - 1120" and "ABM Industries Incorporated" share a key), so
+    use it only where an acceptance guard backs it up (sibling enrichment
+    propagation), never for destructive merging.
+    """
+    return canonical_name(search_name(name))
 
 
 def canonical_name(name: str | None) -> str:

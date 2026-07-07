@@ -72,7 +72,9 @@ class Company(Base):
     enrichment_confidence: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))
     enrichment_sources: Mapped[str | None] = mapped_column(Text)  # JSON-encoded list
     enrichment_source: Mapped[str | None] = mapped_column(String(16))
-    # Values: 'provider' | 'edgar' | 'claude'. Null for rows enriched before this field existed.
+    # Values: 'provider' | 'edgar' | 'claude' | 'sibling' (copied from a
+    # provider-enriched site-variant twin). Null for rows enriched before
+    # this field existed.
 
     # --- consolidation (see warn_v2/scripts/consolidate_companies.py) ---
     canonical_company_id: Mapped[int | None] = mapped_column(
