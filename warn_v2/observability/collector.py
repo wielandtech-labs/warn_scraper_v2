@@ -40,7 +40,12 @@ class WarnCollector(Collector):
     def _collect(self):
         from sqlalchemy import func, select
 
-        from warn_v2.db.models import SCRAPER_SUCCESS_STATUSES, Company, ScraperRun
+        from warn_v2.db.models import (
+            SCRAPER_SUCCESS_STATUSES,
+            Company,
+            ScraperRun,
+            Subscription,
+        )
         from warn_v2.db.session import get_session_factory
 
         with get_session_factory()() as s:
@@ -201,4 +206,35 @@ class WarnCollector(Collector):
                     if ts.tzinfo is None:
                         ts = ts.replace(tzinfo=UTC)
                     g.add_metric([state], ts.timestamp())
+            yield g
+
+            # ------------------------------------------------------------------
+            # 9. Email alert subscriptions, by state filter, frequency, and
+            #    confirmation status. A live row is a current subscriber
+            #    (unsubscribe deletes the row); confirmed_at IS NOT NULL means
+            #    the double-opt-in was completed. state is nullable ("any").
+            #    No email/PII in labels — cardinality is bounded (states x
+            #    frequency x {confirmed,pending}). The per-subscriber list lives
+            #    in Grafana's Postgres datasource, not here.
+            # ------------------------------------------------------------------
+            confirmed_expr = Subscription.confirmed_at.isnot(None)
+            rows = s.execute(
+                select(
+                    Subscription.state,
+                    Subscription.frequency,
+                    confirmed_expr.label("confirmed"),
+                    func.count(),
+                ).group_by(Subscription.state, Subscription.frequency, confirmed_expr)
+            ).all()
+            g = GaugeMetricFamily(
+                "warn_subscriptions",
+                "Email alert subscriptions by state filter, frequency, and "
+                "confirmation status (confirmed=true once double-opt-in completes).",
+                labels=["state", "frequency", "confirmed"],
+            )
+            for state, frequency, confirmed, count in rows:
+                g.add_metric(
+                    [state or "any", frequency, "true" if confirmed else "false"],
+                    float(count),
+                )
             yield g
