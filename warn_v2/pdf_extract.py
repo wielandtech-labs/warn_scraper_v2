@@ -193,6 +193,63 @@ def _ocr_text(pdf_bytes: bytes, max_pages: int = _OCR_MAX_PAGES) -> str:
     return "\n".join(out)
 
 
+def ocr_word_boxes(
+    pdf_bytes: bytes, *, dpi: int = 300, max_pages: int = _OCR_MAX_PAGES
+) -> list[list[dict]]:
+    """OCR a scanned PDF into positioned words, one list per page.
+
+    Each word is a pdfplumber-``extract_words``-shaped dict —
+    ``{"text": str, "x0": float, "top": float}`` — with ``x0``/``top``
+    normalized from raster pixels back to PDF points (``px * 72 / dpi``), so a
+    caller's column x-boundaries stay in the familiar ~0-612 point scale
+    regardless of the OCR rasterization dpi.
+
+    This is the positioned-word sibling of ``_ocr_text``: same lazy imports and
+    same graceful degradation — returns ``[]`` (never raises) when the OCR stack
+    (pdf2image/pytesseract + the poppler/tesseract binaries) is unavailable, so a
+    non-OCR environment falls through to a clean "no rows" rather than crashing.
+    """
+    try:
+        import pytesseract
+        from pdf2image import convert_from_bytes
+        from pytesseract import Output
+    except Exception as e:  # libs not installed (e.g. local test env)
+        log.debug("pdf_extract: OCR libraries unavailable: %s", e)
+        return []
+    try:
+        images = convert_from_bytes(pdf_bytes, dpi=dpi, first_page=1, last_page=max_pages)
+    except Exception as e:  # poppler missing / unrasterizable
+        log.debug("pdf_extract: OCR rasterize failed: %s", e)
+        return []
+
+    scale = 72.0 / dpi
+    pages: list[list[dict]] = []
+    for img in images:
+        words: list[dict] = []
+        try:
+            data = pytesseract.image_to_data(img, config="--psm 6", output_type=Output.DICT)
+        except Exception as e:
+            log.debug("pdf_extract: OCR failed on a page: %s", e)
+            pages.append(words)
+            continue
+        for text, left, top, conf in zip(
+            data["text"], data["left"], data["top"], data["conf"], strict=True
+        ):
+            # tesseract emits blank/structural boxes with conf -1; keep only real words.
+            if not text or not text.strip() or float(conf) < 0:
+                continue
+            words.append(
+                {"text": text, "x0": left * scale, "top": top * scale}
+            )
+        pages.append(words)
+    log.info(
+        "pdf_extract: OCR word-box fallback produced %d words across %d page(s)",
+        sum(len(p) for p in pages),
+        len(pages),
+    )
+    return pages
+
+
 def _most_frequent_cz(pool: list[tuple[str, str]]) -> tuple[str, str] | None:
     """Most frequent (city, zip) in *pool*; ties broken by first appearance."""
     if not pool:

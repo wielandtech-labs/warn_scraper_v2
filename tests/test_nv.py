@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from datetime import date
 from pathlib import Path
 
@@ -141,8 +142,96 @@ def test_nv_archive_word_era(nv_archive_2025: bytes) -> None:
 
 
 def test_nv_fetch_year_skips_unpublished_years() -> None:
-    """2021 (scanned image) and 2016-and-earlier have no usable archive."""
-    from warn_v2.scrapers.states.nv import _fetch_nv_year
+    """2016-and-earlier have no usable archive; 2021 (scanned) now has a source."""
+    from warn_v2.scrapers.states.nv import _ARCHIVE_SOURCES, _fetch_nv_year
 
-    assert _fetch_nv_year(2021) is None
+    # No source URL -> _fetch_nv_year returns None without any network call.
     assert _fetch_nv_year(2016) is None
+    assert 2016 not in _ARCHIVE_SOURCES
+    # 2021 is a scanned-image PDF but is now published + OCR-parsed, so it has
+    # an archive source (fetched + OCR'd rather than skipped).
+    assert 2021 in _ARCHIVE_SOURCES
+
+
+# ---------------------------------------------------------------------------
+# 2021 scanned-image year — OCR archive route
+# ---------------------------------------------------------------------------
+
+
+def test_nv_rows_from_words_2021_bounds() -> None:
+    """The 2021 x-bounds assign OCR word boxes to the right columns.
+
+    Runs without OCR: feeds synthetic point-space words (as ocr_word_boxes would
+    emit) through the pure row-assembly function. Guards the column layout in CI,
+    where the real tesseract path is unavailable.
+    """
+    from warn_v2.scrapers.states.nv import _ARCHIVE_XBOUNDS, _rows_from_words
+
+    def w(text: str, x0: float, top: float) -> dict:
+        return {"text": text, "x0": x0, "top": top}
+
+    # One data row: Food Source, Reno, Washoe (bounds 129/186/239/291/454/526).
+    words = [
+        w("1/12/2021", 80, 100),   # < 129   -> received date
+        w("3/31/2021", 135, 100),  # < 186   -> effective date
+        w("Closure", 195, 100),    # < 239   -> type
+        w("33", 245, 100),         # < 291   -> count
+        w("Food", 300, 100),       # < 454   -> employer
+        w("Source", 330, 100),     # < 454   -> employer (continuation)
+        w("Reno", 460, 100),       # < 526   -> city
+        w("Washoe", 530, 100),     # >= 526  -> county (no notification column)
+    ]
+    rows = _rows_from_words(words, _ARCHIVE_XBOUNDS[2021])
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["rcv_date"] == "1/12/2021"
+    assert r["eff_date"] == "3/31/2021"
+    assert r["action_type"] == "Closure"
+    assert r["count"] == "33"
+    assert r["employer"] == "Food Source"
+    assert r["city"] == "Reno"
+    assert r["county"] == "Washoe"
+    assert r["notification"] is None
+
+
+@pytest.fixture
+def nv_archive_2021() -> bytes:
+    return (FIXTURE.parent / "archive_2021.pdf").read_bytes()
+
+
+@pytest.mark.skipif(
+    shutil.which("tesseract") is None,
+    reason="tesseract binary unavailable (installed only in the Docker image)",
+)
+def test_nv_archive_2021_ocr(nv_archive_2021: bytes) -> None:
+    """The 2021 scanned image OCRs into the 20 known notices.
+
+    Skipped wherever the OCR stack is missing (CI, local dev); runs in the
+    Docker image / in-cluster, and is the automated form of the prod-run
+    ground-truth check.
+    """
+    pytest.importorskip("pytesseract")
+    pytest.importorskip("pdf2image")
+    from warn_v2.scrapers.states.nv import parse_nv_archive
+
+    rows = parse_nv_archive(nv_archive_2021, 2021)
+    assert len(rows) >= 18  # 20 data rows; allow a little OCR slack
+    assert all(r.notice_date.year == 2021 for r in rows)
+    # 2021 has no Notification column.
+    assert all(r.extra.get("notification") == "" for r in rows)
+
+    food = next((r for r in rows if "Food Source" in (r.employer or "")), None)
+    assert food is not None, "expected Food Source entry"
+    assert food.notice_date == date(2021, 1, 12)
+    assert food.layoff_count == 33
+    assert food.city == "Reno"
+    assert food.county == "Washoe"
+    assert food.closure_type == "Closure"
+
+    sykes = next((r for r in rows if "Sykes" in (r.employer or "")), None)
+    assert sykes is not None and sykes.layoff_count == 242
+
+    hycroft = next((r for r in rows if "Hycroft" in (r.employer or "")), None)
+    assert hycroft is not None
+    assert hycroft.city == "Winnemucca"
+    assert hycroft.county == "Humboldt"

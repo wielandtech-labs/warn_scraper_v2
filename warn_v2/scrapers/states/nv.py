@@ -30,6 +30,7 @@ from collections import defaultdict
 import httpx
 import pdfplumber
 
+from warn_v2.pdf_extract import ocr_word_boxes
 from warn_v2.scrapers._helpers import as_date, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.http_cache import conditional_get
@@ -145,8 +146,8 @@ def _parse_page_rows(page: object) -> list[dict]:
 # The master PDF at the stable URL is rotated to the current year only; DETR
 # leaves per-year files behind under Content/Media with era-specific names
 # (probed live 2026-07-02). Gaps:
-#   * 2021 (WARN_2021.pdf) is a scanned image with no text layer — OCR would
-#     be needed; skipped.
+#   * 2021 (WARN_2021.pdf) is a scanned image with no text layer — parsed via
+#     the tesseract OCR fallback (see parse_nv_archive / ocr_word_boxes).
 #   * 2023 was pruned from the live site — fetched via Wayback replay
 #     (through Dec 8, 2023).
 #   * the newest dated 2025 snapshot ends June 3, 2025; Jun-Dec 2025 is
@@ -159,6 +160,7 @@ _ARCHIVE_SOURCES: dict[int, str] = {
     2018: "https://detr.nv.gov/Content/Media/2018.pdf",
     2019: "https://detr.nv.gov/Content/Media/2019.pdf",
     2020: "https://detr.nv.gov/Content/Media/2020.pdf",
+    2021: "https://detr.nv.gov/Content/Media/WARN_2021.pdf",
     2022: "https://detr.nv.gov/Content/Media/WARN_and_Non-WARN_Master_12.31.22.pdf",
     2023: (
         "https://web.archive.org/web/20250208173821id_/"
@@ -174,8 +176,12 @@ _ARCHIVE_SOURCES: dict[int, str] = {
 # Column x-boundaries per archive file (upper bound per column, measured from
 # each file's body rows — page sizes and column layouts differ per era).
 # Order: rcv_date, eff_date, type, count, employer, city, county; words at or
-# beyond the county bound are the Notification column (absent in 2022).
+# beyond the county bound are the Notification column (absent in 2021/2022).
+# 2021 is a scanned image with no text layer; its words come from OCR
+# (ocr_word_boxes normalizes them to points), so its bounds are measured from
+# the rendered page's column gridlines in the same point scale.
 _ARCHIVE_XBOUNDS: dict[int, tuple[int, int, int, int, int, int, int]] = {
+    2021: (129, 186, 239, 291, 454, 526, 10_000),
     2022: (105, 157, 235, 293, 508, 585, 10_000),
     2023: (150, 200, 240, 262, 432, 502, 608),
     2024: (95, 140, 180, 200, 365, 450, 515),
@@ -199,9 +205,11 @@ def _fetch_nv_year(year: int) -> bytes | None:
 def parse_nv_archive(raw: bytes, year: int) -> list[NoticeRow]:
     """Parse a per-year archive PDF (layout era chosen by year).
 
-    2017-2020 files are lattice tables (`extract_table` works); 2022+ files
-    have no grid lines and use word-position parsing like the live master,
-    but with per-era column boundaries.
+    2017-2020 files are lattice tables (`extract_table` works); 2021+ files
+    have no grid lines and use word-position parsing like the live master, but
+    with per-era column boundaries. 2021 is a scanned image with no text layer,
+    so its words come from the tesseract OCR fallback (`ocr_word_boxes`) — the
+    same "text layer, else OCR" idiom as `pdf_extract._extract_text`.
     """
     try:
         pdf = pdfplumber.open(io.BytesIO(raw))
@@ -214,9 +222,13 @@ def parse_nv_archive(raw: bytes, year: int) -> list[NoticeRow]:
             dicts = _parse_archive_lattice(pdf)
         else:
             bounds = _ARCHIVE_XBOUNDS[year]
+            words_by_page = [page.extract_words() for page in pdf.pages]
+            if not any(words_by_page):
+                # No text layer (scanned image, e.g. 2021) → OCR fallback.
+                words_by_page = ocr_word_boxes(raw)
             dicts = []
-            for page in pdf.pages:
-                dicts.extend(_parse_words_with_bounds(page, bounds))
+            for words in words_by_page:
+                dicts.extend(_rows_from_words(words, bounds))
 
     if not dicts:
         raise ParseFailed(f"NV archive {year}: no data rows found")
@@ -264,17 +276,21 @@ def _parse_archive_lattice(pdf) -> list[dict]:
     return results
 
 
-def _parse_words_with_bounds(
-    page: object, bounds: tuple[int, int, int, int, int, int, int]
+def _rows_from_words(
+    words: list[dict], bounds: tuple[int, int, int, int, int, int, int]
 ) -> list[dict]:
     """Word-position parsing with explicit per-era column boundaries.
+
+    Takes already-extracted words (each a dict with ``x0``/``top``/``text``) so
+    the same row-assembly logic serves both text-layer files
+    (``page.extract_words()``) and scanned files (``ocr_word_boxes``, normalized
+    to the same point scale).
 
     Same row-bucketing approach as `_parse_page_rows`, but the archive files
     render count and employer as separate words, so no merged-token handling
     is needed (counts are right-aligned within their own column).
     """
     b_rcv, b_eff, b_type, b_count, b_emp, b_city, b_county = bounds
-    words = page.extract_words()  # type: ignore[union-attr]
 
     row_map: dict[int, list] = defaultdict(list)
     for w in words:
