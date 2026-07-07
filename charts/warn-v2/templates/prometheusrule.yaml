@@ -25,9 +25,12 @@ spec:
               shadowed, or WarnCollector erroring).
 
         # The enricher CronJob fires every 6h; 13h = two consecutive missed
-        # windows with slack for run duration.
+        # windows with slack for run duration. Guarded on a non-empty backlog
+        # so a fully-enriched (or fully-attempted) queue doesn't page forever.
         - alert: WarnEnrichmentStalled
-          expr: sum(increase(warn_enrichment_total[13h])) == 0
+          expr: >-
+            sum(increase(warn_enrichment_total[13h])) == 0
+            and on() warn_enrichment_backlog > 0
           for: 1h
           labels:
             severity: warning
