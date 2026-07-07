@@ -420,3 +420,26 @@ def test_upsert_sanitizes_multi_value_naics(db) -> None:
     assert by_name["Two Codes Co"].naics_code == "423990"
     assert by_name["Clean Co"].naics_code == "321918"
     assert by_name["Junk Co"].naics_code is None
+
+
+def test_city_and_county_persist_without_zip(db) -> None:
+    """A row with city + county but no ZIP persists BOTH onto its Location.
+
+    NV (and other zip-less sources) publish worksite city and county but no ZIP;
+    the parser extracts both. This locks in that the storage layer writes county
+    as well as city — not just the ZIP'd path — so the location is exposed with
+    full geography via the API's LocationOut (see test_api::
+    test_notice_surfaces_location_city_and_county).
+    """
+    upsert_notices(db, [
+        _row(state="NV", employer="Hycroft Mining",
+             city="Winnemucca", county="Humboldt", zip=None),
+    ])
+    db.commit()
+
+    loc = db.query(Location).one()
+    assert loc.state == "NV"
+    assert loc.city == "Winnemucca"
+    assert loc.county == "Humboldt"
+    assert loc.zip in (None, "")
+    assert db.query(Notice).one().location_id == loc.id
