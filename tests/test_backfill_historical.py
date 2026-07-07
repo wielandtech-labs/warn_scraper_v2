@@ -180,6 +180,11 @@ def test_backfill_historical_dc_loops_years_and_upserts(db) -> None:
     assert stats["years_attempted"] == 2
     assert stats["years_ok"] == 2
     assert stats["rows_seen"] == 2
+    # Chunk runs are recorded with the backfill_ prefix so they never shadow
+    # the live scraper's latest run in health checks.
+    from warn_v2.db.models import ScraperRun
+
+    assert {r.status for r in db.query(ScraperRun).filter_by(state="DC")} == {"backfill_ok"}
 
 
 def test_backfill_historical_dc_dry_run_no_writes(db) -> None:

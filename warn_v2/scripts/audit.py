@@ -335,9 +335,14 @@ def audit_states(
                 y for y in range(sa.first_year, sa.last_year + 1) if y not in yc
             ]
 
-    # Latest scraper run status per state (single ordered pass).
+    # Latest scraper run status per state (single ordered pass). Backfill /
+    # ingest-file chunk runs (status backfill_*) are per-month/per-year slices
+    # whose small rows_scraped would fake out row_drift and whose failures
+    # aren't live-scraper breakage — health reads live runs only.
     run_stmt = select(
         ScraperRun.state, ScraperRun.status, ScraperRun.rows_scraped,
+    ).where(
+        ScraperRun.status.notlike("backfill\\_%", escape="\\")
     ).order_by(ScraperRun.started_at.desc())
     seen: set[str] = set()
     for state, status, rows_scraped in session.execute(run_stmt).all():

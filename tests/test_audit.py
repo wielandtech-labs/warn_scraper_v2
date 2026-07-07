@@ -213,6 +213,27 @@ def test_scraper_failure_flag(db) -> None:
     assert "scraper_fetch_failed" in ga.flags
 
 
+def test_backfill_runs_do_not_shadow_live_health(db) -> None:
+    # A backfill writes one run per chunk with tiny rows_scraped; the newest
+    # of those must not become the state's "latest run" (false row_drift /
+    # scraper_* flags — seen on PA after the 2026-07-07 top-up Jobs).
+    now = datetime.now(UTC)
+    db.add(ScraperRun(state="GA", started_at=now - timedelta(hours=3),
+                      status="ok", rows_scraped=400))
+    db.add(ScraperRun(state="GA", started_at=now - timedelta(hours=1),
+                      status="backfill_ok", rows_scraped=12))
+    db.add(ScraperRun(state="GA", started_at=now, status="backfill_fetch_failed",
+                      error="wayback 429", rows_scraped=None))
+    db.add(Notice(notice_id="ga3", state="GA", employer="X", notice_date=date(2026, 1, 1)))
+    db.commit()
+
+    ga = _one(audit_states(db, state_filter="GA", today=REF), "GA")
+    assert ga.last_status == "ok"
+    assert ga.last_rows == 400
+    assert "row_drift" not in ga.flags
+    assert not [f for f in ga.flags if f.startswith("scraper_")]
+
+
 def test_not_modified_run_adds_no_scraper_flag(db) -> None:
     # A conditional-GET short-circuit is a success; rows_scraped is NULL so the
     # row-drift check must stay silent too.

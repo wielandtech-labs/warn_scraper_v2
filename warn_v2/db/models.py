@@ -292,6 +292,9 @@ class ScraperRun(Base):
     # ok | not_modified | fetch_failed | parse_failed | validation_failed | storage_failed
     # not_modified is a success: the source was reachable but unchanged since the
     # last run (conditional GET), so parse/store were skipped (rows_scraped NULL).
+    # backfill-historical / ingest-file chunk runs prefix theirs "backfill_"
+    # (backfill_ok, backfill_fetch_failed, backfill_parse_failed) so live-scraper
+    # health checks can tell a one-chunk slice from a whole-source run.
     error: Mapped[str | None] = mapped_column(Text)
     snapshot_path: Mapped[str | None] = mapped_column(String(1024))
 
