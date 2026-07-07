@@ -1,0 +1,53 @@
+{{- if .Values.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "warn-v2.fullname" . }}
+  labels:
+    {{- include "warn-v2.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: warn-v2
+      rules:
+        # Catches the whole scrape-breakage class: target down, /metrics
+        # route broken (shadowed by the SPA mount, seen 2026-07-07), or the
+        # DB-backed collector failing on every scrape.
+        - alert: WarnMetricsAbsent
+          expr: absent(warn_enrichment_backlog)
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "warn-v2 metrics are absent"
+            description: >-
+              Prometheus has no warn_enrichment_backlog samples for 30m —
+              the warn-v2 /metrics scrape is broken (target down, route
+              shadowed, or WarnCollector erroring).
+
+        # The enricher CronJob fires every 6h; 13h = two consecutive missed
+        # windows with slack for run duration.
+        - alert: WarnEnrichmentStalled
+          expr: sum(increase(warn_enrichment_total[13h])) == 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "warn-v2 enrichment has stalled"
+            description: >-
+              No company has been enriched in 13h (two enricher windows).
+              Check the enricher CronJob and the D&B provider session.
+
+        # States that never succeeded are absent from the metric (no false
+        # page); a once-working state going silent for 8d (past the weekly
+        # pass) is a true signal.
+        - alert: WarnScrapeStale
+          expr: time() - warn_scrape_last_success_timestamp_seconds > 8 * 86400
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "warn-v2 scraper stale for {{ "{{ $labels.state }}" }}"
+            description: >-
+              State {{ "{{ $labels.state }}" }} has had no successful scrape
+              in over 8 days.
+{{- end }}

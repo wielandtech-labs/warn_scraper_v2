@@ -4,10 +4,13 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.gzip import GZipMiddleware
-from prometheus_client import REGISTRY, make_asgi_app
+from prometheus_client import REGISTRY
+from prometheus_client.exposition import choose_encoder
+from starlette.responses import Response
 
 from warn_v2.api import ratelimit
 from warn_v2.api.routes import (
@@ -41,7 +44,7 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     yield
 
 
-def create_app() -> FastAPI:
+def create_app(static_dir: Path | None = None) -> FastAPI:
     app = FastAPI(
         title="WARN Scraper",
         version="2",
@@ -61,8 +64,6 @@ def create_app() -> FastAPI:
     # StaticFiles mount below (~1 MB JS → ~300 KB) and large JSON like
     # /api/map-pins (~1 MB → ~150 KB). Level 6, not the default 9 — the pod
     # is CPU-limited and 9 buys ~1% extra ratio for noticeably more CPU.
-    # Prometheus's /metrics app gzips its own responses when asked; Starlette
-    # skips anything that already carries Content-Encoding.
     app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
 
     # --- health probe (readiness + liveness) ---
@@ -71,7 +72,18 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     # --- Prometheus metrics endpoint ---
-    app.mount("/metrics", make_asgi_app())
+    # An explicit route, NOT app.mount("/metrics", make_asgi_app()): a Mount
+    # only matches /metrics/... (Starlette appends "/{path:path}" to the
+    # prefix), so the exact path /metrics fell through to the SPA mount at "/"
+    # and Prometheus scraped the index HTML — target down since day one.
+    @app.get("/metrics", include_in_schema=False)
+    def metrics(request: Request) -> Response:
+        # Internal-only: anything that traversed the ingress carries
+        # X-Forwarded-For; Prometheus scrapes the pod directly and does not.
+        if "x-forwarded-for" in request.headers:
+            raise HTTPException(status_code=404)
+        encoder, content_type = choose_encoder(request.headers.get("accept", ""))
+        return Response(encoder(REGISTRY), media_type=content_type)
 
     # --- domain routes (all under /api so they don't shadow SPA paths) ---
     # auth/keys/usage/subscriptions stay outside the rate limiter: login and
@@ -99,15 +111,15 @@ def create_app() -> FastAPI:
 
     # --- SPA static assets (mounted LAST so API routes take precedence) ---
     # In dev (no built bundle) the directory won't exist; skip silently.
-    from pathlib import Path
     from typing import Any
 
     from fastapi.staticfiles import StaticFiles
-    from starlette.responses import HTMLResponse, Response
+    from starlette.responses import HTMLResponse
 
     from warn_v2.api.seo import page_meta_for_path, render_index
 
-    static_dir = Path(__file__).parent / "static"
+    if static_dir is None:
+        static_dir = Path(__file__).parent / "static"
     if static_dir.exists():
 
         class SPAStaticFiles(StaticFiles):

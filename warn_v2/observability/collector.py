@@ -55,7 +55,52 @@ class WarnCollector(Collector):
             )
 
             # ------------------------------------------------------------------
-            # 2. Total enriched companies by source tier
+            # 2. Total companies — denominator for enrichment coverage %.
+            # ------------------------------------------------------------------
+            companies = s.scalar(select(func.count()).select_from(Company)) or 0
+            yield GaugeMetricFamily(
+                "warn_companies",
+                "Total company records in the database.",
+                value=float(companies),
+            )
+
+            # ------------------------------------------------------------------
+            # 3. Provider (D&B) attempts and misses. A miss stamps
+            #    provider_attempted_at but leaves enriched_at NULL — the company
+            #    queues for the backup tiers (edgar/claude). Hit rate =
+            #    1 - misses/attempts; untried pool = backlog - misses.
+            # ------------------------------------------------------------------
+            attempted = (
+                s.scalar(
+                    select(func.count()).where(Company.provider_attempted_at.isnot(None))
+                )
+                or 0
+            )
+            c = CounterMetricFamily(
+                "warn_enrichment_provider_attempts",
+                "Companies the D&B provider tier has attempted (hit or miss).",
+            )
+            c.add_metric([], float(attempted))
+            yield c
+
+            misses = (
+                s.scalar(
+                    select(func.count()).where(
+                        Company.provider_attempted_at.isnot(None),
+                        Company.enriched_at.is_(None),
+                    )
+                )
+                or 0
+            )
+            yield GaugeMetricFamily(
+                "warn_enrichment_provider_misses",
+                "Provider-attempted companies still unenriched — the backup-tier "
+                "(edgar/claude) queue depth.",
+                value=float(misses),
+            )
+
+            # ------------------------------------------------------------------
+            # 4. Total enriched companies by source tier
             #    CounterMetricFamily appends _total suffix automatically.
             # ------------------------------------------------------------------
             rows = s.execute(
@@ -73,7 +118,7 @@ class WarnCollector(Collector):
             yield c
 
             # ------------------------------------------------------------------
-            # 3. Scraper run outcomes by state + status (cumulative count)
+            # 5. Scraper run outcomes by state + status (cumulative count)
             # ------------------------------------------------------------------
             rows = s.execute(
                 select(ScraperRun.state, ScraperRun.status, func.count())
@@ -89,7 +134,7 @@ class WarnCollector(Collector):
             yield c
 
             # ------------------------------------------------------------------
-            # 4. Net-new notices persisted by state (cumulative sum of rows_new)
+            # 6. Net-new notices persisted by state (cumulative sum of rows_new)
             # ------------------------------------------------------------------
             rows = s.execute(
                 select(ScraperRun.state, func.sum(ScraperRun.rows_new))
@@ -105,7 +150,7 @@ class WarnCollector(Collector):
             yield c
 
             # ------------------------------------------------------------------
-            # 5. Scraper duration summary by state (sum + count of seconds).
+            # 7. Scraper duration summary by state (sum + count of seconds).
             #    Dashboard uses rate(sum[1h]) / rate(count[1h]) for avg duration.
             # ------------------------------------------------------------------
             rows = s.execute(
@@ -131,7 +176,7 @@ class WarnCollector(Collector):
             yield c
 
             # ------------------------------------------------------------------
-            # 6. Last *successful* scrape timestamp per state (unix seconds).
+            # 8. Last *successful* scrape timestamp per state (unix seconds).
             #    Emitted as an absolute timestamp so alerting can do
             #    `time() - warn_scrape_last_success_timestamp_seconds > N`,
             #    mirroring kube_cronjob_status_last_successful_time. A state with
