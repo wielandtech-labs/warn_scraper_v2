@@ -25,6 +25,14 @@ def api_client(db):
     app.dependency_overrides.clear()
 
 
+@pytest.fixture(autouse=True)
+def _fixed_today(monkeypatch):
+    """Pin the default 12-month window so tests don't depend on the wall clock."""
+    from warn_v2.api.routes import stats
+
+    monkeypatch.setattr(stats, "_today", lambda: date(2026, 7, 1))
+
+
 @pytest.fixture()
 def cbp():
     """Seed the county employment table with a small fake CBP dataset."""
@@ -156,7 +164,7 @@ def test_state_and_date_filters_and_limit(api_client, db, cbp):
     _notice(db, state="TX", county="Loving", layoff_count=100)
     db.commit()
 
-    body = api_client.get("/api/stats/county-impact?state=ks").json()
+    body = api_client.get("/api/stats/county-impact?state=ks&after=2020-01-01").json()
     assert {r["state"] for r in body} == {"KS"}
     assert len(body) == 2
 
@@ -166,6 +174,21 @@ def test_state_and_date_filters_and_limit(api_client, db, cbp):
     body = api_client.get("/api/stats/county-impact?limit=1").json()
     assert len(body) == 1
     assert body[0]["county"] == "Loving"  # 100/500 = 20%, the top impact
+
+
+def test_default_window_is_trailing_year(api_client, db, cbp):
+    # Layoffs are a flow against a point-in-time employment stock: without a
+    # window, decades of notices accumulate into >100% shares. The default
+    # window is the 12 months before _today() (pinned to 2026-07-01 here).
+    _notice(db, state="KS", county="Sedgwick", layoff_count=100, notice_date=date(2026, 3, 1))
+    _notice(db, state="KS", county="Riley", layoff_count=100, notice_date=date(2025, 1, 1))
+    db.commit()
+
+    body = api_client.get("/api/stats/county-impact").json()
+    assert [r["county"] for r in body] == ["Sedgwick"]
+
+    body = api_client.get("/api/stats/county-impact?after=2024-01-01").json()
+    assert len(body) == 2
 
 
 def test_null_layoff_counts_do_not_crash(api_client, db, cbp):
