@@ -73,7 +73,7 @@ enrichment.
 
 <!-- BEGIN GENERATED TABLE -->
 _Generated 2026-07-06 from prod via `warn-v2 audit --markdown`
-(image `20260706-183645-f50cd66`)._
+(image `20260706-200917-f956b10`)._
 
 | State | Active | Superseded | Years | Eff% | Count% | PDF% | Geo% | Geo src | Enrich% | Scraper | Status | Next action |
 |-------|-------:|-----------:|-------|-----:|-------:|-----:|-----:|---------|--------:|---------|--------|-------------|
@@ -96,7 +96,7 @@ _Generated 2026-07-06 from prod via `warn-v2 audit --markdown`
 | KY | 427 | 0 | 2017-2026 | 100% | 92% | 0% | 76% | county 61% / ? 39% | 14% | ok | gaps | download-pdfs --state KY; backfill-geo; enrich --state KY; inspect parser date handling; inspect parser count handling |
 | LA | 34 | 0 | 2025-2026 | 100% | 100% | - | 74% | census 40% / zip 32% / ? 28% | 44% | ok | gaps | backfill-geo; enrich --state LA; inspect parser date handling |
 | MA | 86 | 0 | 2025-2026 | 100% | 100% | - | 72% | city 6% / ? 94% | 26% | ok | gaps | backfill-geo; enrich --state MA; inspect parser date handling |
-| MD | 1332 | 0 | 2010-2026 | 100% | 97% | - | 96% | census 64% / zip 8% / city 6% / county 0% / ? 22% | 24% | ok | gaps | enrich --state MD; inspect parser date handling; inspect parser count handling |
+| MD | 1333 | 0 | 2010-2026 | 100% | 97% | - | 96% | census 64% / zip 8% / city 6% / county 0% / ? 22% | 24% | ok | gaps | enrich --state MD; inspect parser date handling; inspect parser count handling |
 | ME | 80 | 0 | 2012-2026 | 100% | 100% | n/a | 52% | census 81% / zip 17% / ? 2% | 21% | ok | gaps | source detail/PDF for real dates; backfill-geo; enrich --state ME; inspect parser count handling |
 | MI | 105 | 0 | 2024-2026 | 100% | 96% | - | 90% | county 3% / ? 97% | 24% | ok | gaps | backfill-geo; enrich --state MI |
 | MN | 75 | 0 | 2023-2025 | 100% | 100% | - | 91% | city 85% / ? 15% | 0% | ok | gaps | backfill-geo; enrich --state MN; inspect parser date handling |
@@ -111,6 +111,7 @@ _Generated 2026-07-06 from prod via `warn-v2 audit --markdown`
 | NV | 601 | 0 | 2017-2026 | 100% | 98% | - | 95% | city 15% / county 7% / ? 78% | 22% | not_modified | gaps | enrich --state NV; inspect parser date handling; inspect parser count handling |
 | NY | 220 | 0 | 2025-2026 | 100% | 100% | 100% | 97% | census 24% / zip 4% / ? 72% | 15% | ok | gaps | enrich --state NY; inspect parser count handling |
 | OH | 2374 | 0 | 1991-2026 | 100% | 93% | 100% | 71% | city 92% / county 5% / ? 3% | 10% | ok | gaps | backfill-historical --state OH; backfill-geo; enrich --state OH; inspect parser date handling |
+| OK | 198 | 0 | 2001-2026 | 100% | 0% | n/a | 43% | zip 99% / city 1% | 25% | ok | gaps | source detail/PDF for real dates; backfill-geo; enrich --state OK |
 | OR | 100 | 0 | 2020-2026 | 100% | 98% | 0% | 100% | ? 100% | 18% | ok | gaps | source detail/PDF for real dates; download-pdfs --state OR; enrich --state OR |
 | PA | 388 | 288 | 2024-2026 | 100% | 65% | - | 76% | census 2% / zip 0% / ? 98% | 27% | ok | gaps | backfill-geo; enrich --state PA; mark-superseded --state PA; inspect parser date handling |
 | RI | 125 | 0 | 2009-2026 | 100% | 98% | - | 54% | ? 100% | 20% | not_modified | gaps | backfill-geo; enrich --state RI; inspect parser date handling |
@@ -121,7 +122,7 @@ _Generated 2026-07-06 from prod via `warn-v2 audit --markdown`
 | UT | 9 | 0 | 2026-2026 | 100% | 100% | - | 78% | ? 100% | 11% | ok | gaps | source detail/PDF for real dates; backfill-geo; enrich --state UT |
 | VA | 1114 | 0 | 2010-2026 | 100% | 100% | 100% | 86% | census 0% / zip 1% / ? 98% | 5% | ok | gaps | backfill-geo; enrich --state VA; inspect parser date handling; inspect parser count handling |
 | VT | 97 | 0 | 2003-2026 | 100% | 100% | n/a | 30% | census 41% / zip 31% / ? 28% | 14% | ok | gaps | backfill-historical --state VT; source detail/PDF for real dates; backfill-geo; enrich --state VT |
-| WA | 29 | 0 | 2026-2026 | 100% | 100% | - | 66% | city 37% / ? 63% | 69% | ok | gaps | backfill-geo |
+| WA | 31 | 0 | 2026-2026 | 100% | 100% | - | 65% | city 40% / ? 60% | 68% | ok | gaps | backfill-geo |
 | WI | 944 | 0 | 2016-2026 | 100% | 100% | 100% | 97% | census 1% / zip 2% / city 13% / county 1% / ? 84% | 21% | ok | gaps | enrich --state WI; inspect parser date handling; inspect parser count handling |
 | WV | 51 | 0 | 2021-2026 | 100% | 43% | 100% | 75% | zip 100% | 6% | ok | gaps | source detail/PDF for real dates; backfill-geo; enrich --state WV |
 <!-- END GENERATED TABLE -->
@@ -185,6 +186,13 @@ Findings the DB can't tell us — confirmed against the live sources.
   `fetch_failed`**: the known intermittent 503; the retry fix (PR #132)
   reached prod images only 2026-07-06 after that day's 07:17 scrape — expect
   the next daily run to clear it, else `/heal-scraper SD`.
+- **OK newly live (2026-07-06, PR #169)** — the assumed Salesforce/Aura auth
+  wall turned out to be a wrong-host probe; the Employ Oklahoma guest Aura
+  endpoint serves the full history unauthenticated. First scrape landed 198
+  active notices (2001–2026). Count% 0% is source-side (the portal publishes
+  no employee counts, and there is no per-notice PDF/detail route). Geo% 43%
+  is zip-tier only and near its ceiling: ~40% of source records carry no
+  city/zip (spread across all years, not just old filings).
 - **2026-07-06 Track-2 runs** — OH historical backfill +2,319 rows (Active
   2,374, span now 1991–2026; 2007–09/2011/2013 + 2023–24 still missing at
   source, recovery in progress); `backfill-layoff-counts` filled 94 counts
@@ -290,9 +298,9 @@ Findings the DB can't tell us — confirmed against the live sources.
   (transient `fetch_failed` at the 2026-06-29 run; back to `ok` at 2026-07-02 —
   see the scraper-health note at the top of this section).
 - **Blocked (not registered scrapers; appear in the audit only if legacy rows
-  exist):** AR (confidential by law), NH (no public listing), OK
-  (Salesforce/Aura auth wall), WY (no public data). Re-verify each blocker
-  periodically. (TN was unblocked 2026-06-26 via `curl_cffi` TLS impersonation.)
+  exist):** AR (confidential by law), NH (no public listing), WY (no public
+  data). Re-verify each blocker periodically. (TN was unblocked 2026-06-26 via
+  `curl_cffi` TLS impersonation; OK 2026-07-06 — see the newly-live note above.)
 
 ## Backlog (genuinely new code, not just a command)
 
