@@ -313,6 +313,7 @@ def _backfill_url_list(
                     scraper.state, label=url, status="fetch_failed",
                     error=str(e), dry_run=dry_run,
                 )
+                break
         if raw is None:
             continue
 

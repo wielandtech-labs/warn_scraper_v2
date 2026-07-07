@@ -182,6 +182,12 @@ _WAYBACK_BACKOFF = 30.0
 
 _DETAIL_ID_RE = re.compile(r"details\.asp\?.*?\bid=(\d+)", re.I)
 _NY_DATE_RE = re.compile(r"\d{1,2}/\d{1,2}/\d{2,4}")
+# Month-name form ("June 4, 2009") — some eras spell dates out (PA lesson).
+_NY_MONTHNAME_DATE_RE = re.compile(
+    r"(?:january|february|march|april|may|june|july|august|september|october|"
+    r"november|december)\s+\d{1,2},?\s+\d{4}",
+    re.I,
+)
 # "Rochester, NY  14650" (ZIP optional on the oldest pages).
 _NY_CITY_ZIP_RE = re.compile(r"^(.+?),\s*N\.?Y\.?\s*(\d{5})?(?:-\d{4})?\s*$", re.I)
 # Trailing control-number tokens on the Company line ("... Office 2008-W287").
@@ -274,7 +280,7 @@ def _discover_ny_detail_urls() -> list[str]:
 def _first_date(raw: str | None):
     if not raw:
         return None
-    m = _NY_DATE_RE.search(raw)
+    m = _NY_DATE_RE.search(raw) or _NY_MONTHNAME_DATE_RE.search(raw)
     return as_date(m.group(0)) if m else None
 
 
