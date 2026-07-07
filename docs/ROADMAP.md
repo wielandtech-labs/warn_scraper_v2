@@ -60,7 +60,10 @@ weakest axis (~16% avg, ~100 companies/day cap). Largest coverage gap: NY
 - [ ] **Quarterly blocked-source re-verify** — AR / NH / OK / WY per
   [deferred-states.md](deferred-states.md), plus a
   [coverage-vs-aggregators.md](coverage-vs-aggregators.md) refresh (that
-  cross-check found the CO freeze and the KY backfill error). (A)
+  cross-check found the CO freeze and the KY backfill error). (A) —
+  *2026-Q3 pass done 2026-07-07* (#204: AR/NH/WY still blocked, OK live;
+  coverage refreshed — CO/KY/NV/LA/OK anomalies resolved). Recurring:
+  next pass due ~2026-10.
 
 ## Track 2 — Prod follow-ups already coded
 
@@ -130,22 +133,56 @@ Ordered by recoverable rows:
   cover four format eras. Remaining: the gated backfill Job (~250 PDFs, est.
   +2,500–4,000 rows), `mark-superseded --state IL --dry-run`, then re-audit.
 - [ ] **NC 2014+** — archive-hub discovery (irregular slugs) +
-  `parse_nc_pdf`. (A+gate)
-- [ ] **NJ** — cumulative `WARN_Notice_Archive.xlsx` (year range unknown —
-  parse first). (A+gate)
+  `parse_nc_pdf`. (A+gate) — *parser done 2026-07-07* (PR #213):
+  `_discover_nc_pdf_urls` (hub anchors, three slug families) + a three-era
+  `parse_nc_pdf` that dispatches on detected content — 2014–~2017
+  summary-count (word-position, wrap-aware), ~2018–2021 SSRS grid (city+zip
+  from the glued Address cell, repeated-address lines collapsed by WARN
+  number), 2022–2025 live-schema grid (shares `_row_from_nc_grid` with the
+  live HTML parser). **Remaining: the gated prod run** — dry-run pilot
+  (`--limit 3`) → full run → `mark-superseded --state NC --dry-run` →
+  re-audit (floor 2026→2014).
+- [x] ~~**NJ** — cumulative `WARN_Notice_Archive.xlsx` (year range unknown —
+  parse first). (A+gate)~~ — DONE 2026-07-07 (parser #197: one sheet per
+  year 2004–2026; prod run w_homelab #627: **+2,203 rows, floor
+  2026→2004-01**, near_miss=0, verified per-record).
 - [ ] **MA FY22–FY25** — mass.gov FY XLSX reports (Playwright fetch, like the
   live scraper). (A+gate)
 - [ ] **MN multi-era parser** — 2015–16 monthlies, 2018–21 annuals, 2022–24
-  wide format; Wayback discovery already implemented. (A+gate)
-- [ ] **WA `__VIEWSTATE` pagination** — implement ASP.NET postback paging,
-  then reassess depth (10+ pages, depth unknown). (A+gate)
+  wide format; Wayback discovery already implemented. (A+gate) — *parser
+  done 2026-07-07* (#202: one word-position parser for all eras, reaches
+  2014 via the Dec-2016 cumulative). **Remaining: the gated prod run** —
+  after the NY Job finishes (Wayback pacing); dry-run review plans the
+  purge of the glued-employer 2023+ live rows (historical-sources.md MN
+  row).
+- ~~**WA `__VIEWSTATE` pagination** — implement ASP.NET postback paging,
+  then reassess depth (10+ pages, depth unknown). (A+gate)~~ — DONE 2026-07-07
+  (PR #TBD): `fetch()` now replays the `Page$N` GridView postback for each
+  page (carrying the fresh `__VIEWSTATE`/`__EVENTVALIDATION` tokens forward)
+  and concatenates the raw pages; `parse()` scans every `ucPSW_gvMain` grid.
+  **Depth reassessed: 99 pages / 1,480 rows / floor 2004-01** (was page-1
+  only, ~15 rows). No one-off backfill Job needed — WA's source is a single
+  cumulative list, so the next daily scrape upserts the full history via the
+  normal image-tag chain.
 - [ ] **CA 2009–2013 probe** — EDD archive search for the interior hole
   (archive currently = 11 PDFs + 1 XLSX, FY2014–2025); fall back to the CA
   records request. (A: spike + report)
-- [ ] **NV 2021** — scanned-image year PDF; extend the archive route through
-  the existing tesseract OCR fallback. (A+gate)
-- [ ] **MS straggler quarterlies** — 4 files with a third layout variation
-  (e.g. `py2024-q4`), known gap from the PY2020+ run. (A+gate)
+- [x] ~~**NV 2021** — scanned-image year PDF; extend the archive route through
+  the existing tesseract OCR fallback. (A+gate)~~ — *parser done 2026-07-07*
+  (PR #210): `WARN_2021.pdf` is a single-page scanned table (no text layer);
+  `parse_nv_archive` now OCR-falls-back to `pdf_extract.ocr_word_boxes` (points-
+  normalized word boxes) and reuses the 2022-shaped word-position parser with
+  2021 bounds. 20 known notices, no Notification column. OCR can't run in
+  CI/local (tesseract is Docker-only), so a synthetic-word unit test guards the
+  column layout and a skip-guarded fixture test covers real OCR. **Remaining:
+  the gated prod run** (`backfill-historical --state NV --year-start 2021
+  --year-end 2021`, dry-run first — new year, no dedup), verify +~20 rows vs the
+  known ground truth, then re-audit.
+- [x] ~~**MS straggler quarterlies** — 4 files with a third layout variation
+  (e.g. `py2024-q4`), known gap from the PY2020+ run. (A+gate)~~ — DONE
+  2026-07-07 (parser #196; prod run w_homelab #627: **+18 rows**, 3 glued
+  qtr-1 rows purged, verified per-record; MDES's `py2023-qtr-4` file
+  actually carries Q1 content — PY2023-Q4 is published nowhere).
 
 ## Track 4 — Records-request (FOIA) pipeline
 
