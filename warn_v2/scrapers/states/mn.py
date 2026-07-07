@@ -280,7 +280,6 @@ def _parse_archive_pdf(pdf_bytes: bytes, url: str) -> list[NoticeRow]:
 # ---------------------------------------------------------------------------
 
 _RR_SECTION_RE = re.compile(r"RR Start Date:\s*([A-Za-z]+)\s+(20\d{2})", re.I)
-_RECORDS_RE = re.compile(r"\(\s*\d+\s+records?\)")
 _MD_ONLY_RE = re.compile(r"^\d{1,2}/\d{1,2}$")
 _DATE_TOKEN_RE = re.compile(r"^\d{1,2}/\d{1,2}(/\d{2,4})?$")
 _MONTH_NUM = {name.lower(): i for i, name in enumerate(calendar.month_name) if name}
