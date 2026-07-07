@@ -74,7 +74,7 @@ export function StatsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Statistics</h1>
+      <h1 className="text-2xl font-semibold">Trends</h1>
       <FilterBar
         values={search}
         onChange={handleFilterChange}
