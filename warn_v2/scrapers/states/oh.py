@@ -290,7 +290,24 @@ _COUNT_LDATE_RE = re.compile(r"\s(\d(?:[\d ,]*\d)?)\s+(\d{1,2}\s*/\s*\S.*)$")
 # 5-digit serial ("... AD-EX Cincinnati 110 37971 (513) ..." in WARN_2003);
 # without this branch _COUNT_ONLY_RE swallows both numbers into one count.
 _COUNT_SERIAL_RE = re.compile(r"\s(\d[\d,]*)\s+(\d{5})\s*$")
+# .stm-era PDFs wrap long layoff-date cells across lines, leaving fragments
+# after the count on the notice's own line: a month-name date ("394 and
+# June 18, 2009"), or a bare year ("54 2009" from "...between May 26, | 2009").
+_MONTHS_ALT = (
+    "january|february|march|april|may|june|july|august|september|october|"
+    "november|december"
+)
+_COUNT_MONTHNAME_RE = re.compile(
+    rf"\s(\d[\d,]*)\s+(?:and\s+|until\s+|through\s+)?"
+    rf"((?:{_MONTHS_ALT})\s+\d{{1,2}},?\s+\d{{4}})\s*$",
+    re.IGNORECASE,
+)
+_COUNT_YEAR_RE = re.compile(r"\s(\d[\d,]*)\s+((?:19|20)\d{2})\s*$")
 _COUNT_ONLY_RE = re.compile(r"\s(\d(?:[\d ,]*\d)?)\s*$")
+# The space/comma tolerance in _COUNT_ONLY_RE exists for extraction artifacts
+# that split ONE number ("1 ,200"); a merged result this large means it
+# swallowed a wrapped-cell fragment instead ("57 4525" from a split phone).
+_COUNT_MERGE_MAX = 20_000
 _EXCEL_EPOCH = date(1899, 12, 30)
 # Era PDFs use 2-digit years ("2/28/01"); the live-table regex requires 4.
 _ANY_DATE_RE = re.compile(r"\d{1,2}/\d{1,2}/\d{2,4}")
@@ -664,10 +681,27 @@ def _parse_oh_pdf_line(date_str: str, line: str, year: int) -> NoticeRow | None:
             layoff_count = as_int(m.group(1).replace(",", ""))
             effective_date = serial_date
             line = line[: m.start()].rstrip()
+        elif m2 := _COUNT_MONTHNAME_RE.search(line):
+            layoff_count = as_int(m2.group(1).replace(",", ""))
+            effective_date = as_date(m2.group(2))
+            line = line[: m2.start()].rstrip()
+        elif m3 := _COUNT_YEAR_RE.search(line):
+            # Bare year fragment from a wrapped date cell — count only.
+            layoff_count = as_int(m3.group(1).replace(",", ""))
+            line = line[: m3.start()].rstrip()
         else:
             m = _COUNT_ONLY_RE.search(line)
             if m:
-                layoff_count = as_int(m.group(1).replace(" ", "").replace(",", ""))
+                merged = as_int(m.group(1).replace(" ", "").replace(",", ""))
+                if (
+                    merged is not None
+                    and merged > _COUNT_MERGE_MAX
+                    and re.search(r"[\s,]", m.group(1).strip())
+                ):
+                    # Implausible merge of count + wrapped fragment: keep the
+                    # first number, drop the fragment.
+                    merged = as_int(m.group(1).split()[0].rstrip(","))
+                layoff_count = merged
                 line = line[: m.start()].rstrip()
 
     employer, city, county = _split_employer_city(line)
