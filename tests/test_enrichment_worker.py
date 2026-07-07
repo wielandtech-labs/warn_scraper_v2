@@ -425,7 +425,7 @@ def test_enrich_batch_provider_hit_skips_edgar_and_claude(db, monkeypatch) -> No
     stats = enrich_batch(db, _StubClient(), provider=_FakeProvider(), inter_delay_s=0)
     assert stats == {"total": 1, "enriched": 1, "skipped": 0,
                      "provider": 1, "provider_miss": 0, "provider_rejected": 0,
-                     "provider_dba": 0, "edgar": 0, "claude": 0}
+                     "provider_dba": 0, "unsearchable": 0, "edgar": 0, "claude": 0}
     assert edgar_calls == []
     assert claude_calls == []
 
@@ -472,7 +472,7 @@ def test_enrich_batch_edgar_hit_skips_claude(db, monkeypatch) -> None:
     stats = enrich_batch(db, _StubClient(), inter_delay_s=0)
     assert stats == {"total": 1, "enriched": 1, "skipped": 0,
                      "provider": 0, "provider_miss": 0, "provider_rejected": 0,
-                     "provider_dba": 0, "edgar": 1, "claude": 0}
+                     "provider_dba": 0, "unsearchable": 0, "edgar": 1, "claude": 0}
     assert claude_calls == []
 
     db.refresh(c)
@@ -497,7 +497,7 @@ def test_enrich_batch_falls_through_to_claude(db, monkeypatch) -> None:
     stats = enrich_batch(db, _StubClient(), inter_delay_s=0)
     assert stats == {"total": 1, "enriched": 1, "skipped": 0,
                      "provider": 0, "provider_miss": 0, "provider_rejected": 0,
-                     "provider_dba": 0, "edgar": 0, "claude": 1}
+                     "provider_dba": 0, "unsearchable": 0, "edgar": 0, "claude": 1}
 
     db.refresh(c)
     assert c.enrichment_source == "claude"
@@ -843,7 +843,8 @@ def test_unsearchable_query_skips_backup_tiers(db, monkeypatch) -> None:
     stats = enrich_batch(db, _StubClient(), inter_delay_s=0, tiers={"edgar", "claude"})
     assert edgar_calls == []
     assert claude_calls == []
-    assert stats["skipped"] == 1
+    assert stats["unsearchable"] == 1
+    assert stats["skipped"] == 0  # an unsearchable name must not fail the run
     assert stats["enriched"] == 0
 
     db.refresh(junk)

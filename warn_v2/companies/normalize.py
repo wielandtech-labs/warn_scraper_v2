@@ -339,6 +339,17 @@ def match_is_consistent(original: str, matched: str) -> bool:
     return bool(shared - _GENERIC_MATCH_TOKENS)
 
 
+def cleaned_key(name: str | None) -> str:
+    """Site-variant grouping key: canonical form of the SEARCH-cleaned name.
+
+    More aggressive than ``canonical_name`` alone — site designators collapse
+    ("ABM Industries - 1120" and "ABM Industries Incorporated" share a key), so
+    use it only where an acceptance guard backs it up (sibling enrichment
+    propagation), never for destructive merging.
+    """
+    return canonical_name(search_name(name))
+
+
 def canonical_name(name: str | None) -> str:
     """Return the normalized comparison key for a company name (may be "")."""
     if not name:
