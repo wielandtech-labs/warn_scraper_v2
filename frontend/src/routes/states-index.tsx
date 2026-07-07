@@ -6,6 +6,7 @@ import { QueryError } from "../components/QueryError";
 import { UsChoroplethMap } from "../components/UsChoroplethMap";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { STATE_NAMES, US_STATES, fmtNum } from "../lib/format";
+import { NO_COUNTS } from "../lib/unavailable";
 
 export function StatesIndexPage() {
   useDocumentTitle("Layoffs by state — WARN Tracker");
@@ -74,7 +75,11 @@ export function StatesIndexPage() {
               </div>
             </div>
             <div className="text-right">
-              <div className="text-sm font-semibold">{fmtNum(s.layoff_total)}</div>
+              {/* NO_COUNTS states: the source publishes no employee counts, so
+                  a zero would misread as "no workers affected". */}
+              <div className="text-sm font-semibold">
+                {s.code in NO_COUNTS ? "—" : fmtNum(s.layoff_total)}
+              </div>
               <div className="text-xs text-slate-500 dark:text-slate-400">workers</div>
             </div>
           </Link>
