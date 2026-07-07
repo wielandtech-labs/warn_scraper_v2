@@ -46,6 +46,9 @@ _UA = {
 # docs/historical-sources.md (CA row) for the probe write-up.
 _CDX_API = "https://web.archive.org/cdx/search/cdx"
 _WAYBACK_REPLAY = "https://web.archive.org/web/{ts}id_/{url}"
+# Escalating backoff (seconds) between CDX discovery retries; 5 attempts total
+# (the four gaps below + a final attempt) span ~110s to outlast a Wayback flap.
+_CDX_RETRY_BACKOFFS = (5, 15, 30, 60)
 # da(1-A) dbd(B-D) del(E-L) dmr(M-R) ds(S-S) dtz(T-Z); YY = 06..14.
 _CA_DETAIL_RE = re.compile(r"eddwarncn(?:da|dbd|del|dmr|ds|dtz)(\d{2})\.pdf$", re.I)
 
@@ -271,7 +274,12 @@ def _discover_ca_historical_urls() -> list[str]:
     """
     import time
 
-    for attempt in (1, 2):
+    # web.archive.org flaps under load — refusing connections (Errno 111) for
+    # seconds at a time. Discovery is a single upfront call and a lost one
+    # no-ops the whole run, so retry with escalating backoff (like the fetch
+    # loop) to ride the flap out rather than the old 2-attempt/5s try.
+    captures = None
+    for backoff in (*_CDX_RETRY_BACKOFFS, None):
         try:
             r = httpx.get(
                 _CDX_API,
@@ -293,10 +301,9 @@ def _discover_ca_historical_urls() -> list[str]:
             captures = r.json()
             break
         except (httpx.HTTPError, ValueError) as e:
-            if attempt == 1:
-                time.sleep(5)
-                continue
-            raise ScrapeFailed(f"CA: CDX query for historical PDFs: {e}") from e
+            if backoff is None:
+                raise ScrapeFailed(f"CA: CDX query for historical PDFs: {e}") from e
+            time.sleep(backoff)
 
     if not isinstance(captures, list):
         return []

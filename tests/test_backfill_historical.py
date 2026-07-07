@@ -135,13 +135,37 @@ def test_ca_discover_historical_urls_keeps_detailed_latest_capture():
 
 
 @respx.mock
-def test_ca_discover_historical_urls_empty_on_cdx_error():
+def test_ca_discover_historical_urls_empty_on_cdx_error(monkeypatch):
     from warn_v2.scrapers.base import ScrapeFailed
     from warn_v2.scrapers.states.ca import _CDX_API, _discover_ca_historical_urls
 
+    monkeypatch.setattr("time.sleep", lambda *a: None)  # skip the retry backoffs
     respx.get(_CDX_API).mock(return_value=httpx.Response(503))
     with pytest.raises(ScrapeFailed):
         _discover_ca_historical_urls()
+
+
+@respx.mock
+def test_ca_discover_historical_urls_retries_through_flap(monkeypatch):
+    """A transient Wayback refusal is ridden out: later attempts still succeed."""
+    from warn_v2.scrapers.states.ca import _CDX_API, _discover_ca_historical_urls
+
+    monkeypatch.setattr("time.sleep", lambda *a: None)
+    good = [
+        ["timestamp", "original"],
+        ["20140611173541", "http://www.edd.ca.gov/Jobs_and_Training/warn/eddwarncnda14.pdf"],
+    ]
+    responses = [
+        httpx.Response(503),
+        httpx.ConnectError("connection refused"),
+        httpx.Response(200, json=good),
+    ]
+    respx.get(_CDX_API).mock(side_effect=responses)
+
+    assert _discover_ca_historical_urls() == [
+        "https://web.archive.org/web/20140611173541id_/"
+        "http://www.edd.ca.gov/Jobs_and_Training/warn/eddwarncnda14.pdf"
+    ]
 
 
 def test_parse_ca_detail_pdf_2013_clean_format():
