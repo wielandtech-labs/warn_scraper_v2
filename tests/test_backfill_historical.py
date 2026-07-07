@@ -671,6 +671,55 @@ def test_ms_parse_old_quarterly_merged_company_city():
     assert row.closure_type == "Layoff"
 
 
+def test_ms_parse_stacked_header_quarterly():
+    """PY2023-PY2024 quarterlies stack header labels across rows ('Date of' /
+    'WARN' / 'Notice') and pad the grid with ghost columns; the '(County)'
+    line can wrap below its city inside the merged company cell."""
+    from pathlib import Path
+
+    from warn_v2.scrapers.states.ms import _parse_pdf
+
+    pdf_bytes = (
+        Path(__file__).resolve().parents[1]
+        / "warn_v2" / "scrapers" / "fixtures" / "ms" / "sample_stacked_header.pdf"
+    ).read_bytes()
+
+    rows = _parse_pdf(pdf_bytes)
+    assert len(rows) == 3
+    first = rows[0]
+    assert first.employer == "View Operating Corporation"
+    assert first.notice_date == date(2024, 10, 3)
+    assert first.city == "Olive Branch"
+    assert first.county == "DeSoto"
+    assert first.layoff_count == 147
+    assert first.closure_type == "Layoff"
+    levi = next(r for r in rows if "Levi Strauss" in r.employer)
+    assert (levi.city, levi.county) == ("Canton", "Madison")
+
+
+def test_ms_parse_stacked_wide_quarterly():
+    """The PY2024 Q4 variant pads the same stacked layout out to 25 grid
+    columns and appends a summary page, which must not be ingested as data."""
+    from pathlib import Path
+
+    from warn_v2.scrapers.states.ms import _parse_pdf
+
+    pdf_bytes = (
+        Path(__file__).resolve().parents[1]
+        / "warn_v2" / "scrapers" / "fixtures" / "ms" / "sample_stacked_wide.pdf"
+    ).read_bytes()
+
+    rows = _parse_pdf(pdf_bytes)
+    assert len(rows) == 7  # matches the PDF's own summary total
+    first = rows[0]
+    assert first.employer == "NauticStar Boats"
+    assert first.notice_date == date(2025, 3, 18)
+    assert first.effective_date == date(2025, 4, 17)
+    assert (first.city, first.county) == ("Amory", "Monroe")
+    assert first.layoff_count == 47
+    assert all("notices" not in r.employer.lower() for r in rows)  # no summary rows
+
+
 @respx.mock
 def test_backfill_historical_ms_ingests_all_discovered_pdfs(db) -> None:
     """MS ingests every discovered quarterly PDF (the live scraper takes only [0])."""
