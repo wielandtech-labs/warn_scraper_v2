@@ -1712,6 +1712,30 @@ def test_nc_parse_pdf_ssrs_era():
     assert flex[0].layoff_count == 69
 
 
+def test_nc_ssrs_city_zip_anchors_on_state_not_first_digits():
+    """ZIP + city come from the trailing 'NC <zip>', never the first 5-digit run
+    (a 5-digit street number) or an out-of-state HQ ZIP glued into the cell."""
+    from warn_v2.scrapers.states.nc import _ssrs_city_zip
+
+    # 5-digit street number must NOT be taken as the ZIP.
+    assert _ssrs_city_zip("10815 Quality Dr Charlotte NC 28278") == ("Charlotte", "28278")
+    assert _ssrs_city_zip(
+        "10101 David Taylor Drive Suite 200 Charlotte NC 28262"
+    ) == ("Charlotte", "28262")
+    # Out-of-state HQ ZIP glued in front of the real NC worksite ZIP.
+    assert _ssrs_city_zip(
+        "2701 N. Rocky Point Drive Tampa Fl 33607 Fayetteville NC 28314"
+    ) == ("Fayetteville", "28314")
+    # Normal 4-digit street number and a two-word city.
+    assert _ssrs_city_zip("7201 Hewitt Associates Drive Charlotte NC 28262") == (
+        "Charlotte",
+        "28262",
+    )
+    assert _ssrs_city_zip("123 Main St Rocky Mount NC 27801") == ("Rocky Mount", "27801")
+    # No NC anchor -> nothing.
+    assert _ssrs_city_zip("somewhere with no state") == (None, None)
+
+
 def test_nc_parse_pdf_current_grid_era():
     """2022+ grid shares the live HTML schema and _row_from_nc_grid."""
     from warn_v2.scrapers.states.nc import parse_nc_pdf
