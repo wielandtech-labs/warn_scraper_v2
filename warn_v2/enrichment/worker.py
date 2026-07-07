@@ -18,6 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from warn_v2.companies.normalize import (
+    cleaned_key,
     dba_name,
     is_unsearchable,
     match_is_consistent,
@@ -233,6 +234,105 @@ def _persist_lookup_result(
     session.commit()
 
 
+# Sentinel for a cleaned key whose provider-enriched donors carry >=2 distinct
+# DUNS: two different legal entities (franchisees) share the key — never
+# propagate under it.
+_DONOR_CONFLICT = object()
+
+
+def _add_donor(donors: dict, donor: Company) -> None:
+    """Register a provider-enriched company as a propagation donor for its key."""
+    key = cleaned_key(donor.name)
+    if not key or is_unsearchable(key):
+        return
+    existing = donors.get(key)
+    if existing is _DONOR_CONFLICT:
+        return
+    if existing is None:
+        donors[key] = donor
+    elif existing.duns != donor.duns:
+        donors[key] = _DONOR_CONFLICT
+
+
+def _load_donor_index(session: Session) -> dict:
+    """Map cleaned_key -> provider-enriched donor Company (or _DONOR_CONFLICT).
+
+    Donors are provider hits with a DUNS only — the highest-quality anchor.
+    edgar/claude enrichments are guesses and never propagate; siblings never
+    chain (a 'sibling' row is not source='provider', so it can't donate).
+    """
+    donors: dict = {}
+    rows = session.scalars(
+        select(Company).where(
+            Company.enriched_at.is_not(None),
+            Company.duns.is_not(None),
+            Company.enrichment_source == "provider",
+        )
+    )
+    for donor in rows:
+        _add_donor(donors, donor)
+    return donors
+
+
+def _persist_sibling_result(session: Session, company: Company, donor: Company) -> None:
+    """Copy a provider-enriched twin's findings onto a site-variant row.
+
+    The donor describes the same legal entity, so all provider fields carry
+    over. Confidence is capped below the donor's so the donor always wins the
+    consolidator's survivor selection, and the source/provenance make the
+    indirection visible (and reversible via ``reset-enrichment --sources sibling``).
+    """
+    company.website = donor.website
+    company.sic_code = donor.sic_code
+    company.sic_desc = donor.sic_desc
+    company.duns = donor.duns
+    company.naics_code = donor.naics_code
+    company.naics_desc = donor.naics_desc
+    company.employee_count = donor.employee_count
+    company.parent_company_name = donor.parent_company_name
+    company.parent_duns = donor.parent_duns
+    company.global_ultimate_name = donor.global_ultimate_name
+    company.global_ultimate_duns = donor.global_ultimate_duns
+    company.global_ultimate_id = donor.global_ultimate_id
+    company.hq_address = donor.hq_address
+    company.enrichment_confidence = min(
+        donor.enrichment_confidence or Decimal("0"), Decimal("0.90")
+    )
+    company.enrichment_sources = json.dumps([f"sibling:company_id={donor.id}"])
+    company.enrichment_source = "sibling"
+    company.enriched_at = datetime.now(UTC)
+    session.add(company)
+    session.commit()
+
+
+def _propagate_siblings(session: Session, donors: dict, *, dry_run: bool = False) -> int:
+    """Enrich every pending site-variant twin of a provider-enriched donor.
+
+    Runs over ALL unenriched rows, not just this batch: the backlog twins are
+    already stamped ``provider_attempted_at`` and therefore invisible to
+    provider-only ``find_pending`` — this pre-pass is the only thing that ever
+    reaches them. Idempotent: propagated rows leave the unenriched set.
+    """
+    if not donors:
+        return 0
+    count = 0
+    pending = session.scalars(select(Company).where(Company.enriched_at.is_(None)))
+    for company in pending:
+        donor = donors.get(cleaned_key(company.name))
+        if donor is None or donor is _DONOR_CONFLICT:
+            continue
+        if not match_is_consistent(company.name, donor.name):
+            continue
+        log.info(
+            "company_id=%d name=%r: sibling enrichment from company_id=%d name=%r duns=%r",
+            company.id, company.name, donor.id, donor.name, donor.duns,
+        )
+        if not dry_run:
+            _persist_sibling_result(session, company, donor)
+        count += 1
+    return count
+
+
 ALL_TIERS = frozenset({"provider", "edgar", "claude"})
 
 
@@ -251,6 +351,12 @@ def enrich_batch(
     tiers: frozenset[str] | set[str] = ALL_TIERS,
 ) -> dict:
     """Enrich a batch of companies. Returns summary stats.
+
+    Before the batch, a sibling pre-pass copies provider enrichment onto ALL
+    pending site-variant twins of already-enriched companies (same
+    ``cleaned_key``, single distinct DUNS, faithful match) — zero provider
+    cost, and it reaches backlog twins whose ``provider_attempted_at`` stamp
+    hides them from provider-only ``find_pending``.
 
     Tiers (subset of {"provider", "edgar", "claude"}):
       1. ``provider.lookup()`` if a provider is configured — DUNS linkage,
@@ -290,6 +396,17 @@ def enrich_batch(
     else:
         provider_attempted = None
 
+    # Sibling pre-pass: enrich site-variant twins of provider-enriched
+    # companies for free before spending any provider budget. Must run before
+    # find_pending so propagated rows drop out of the queue this same run.
+    donors = _load_donor_index(session)
+    stats_sibling = _propagate_siblings(session, donors, dry_run=dry_run)
+    if stats_sibling:
+        log.info(
+            "enrich_batch: propagated enrichment to %d sibling company/companies",
+            stats_sibling,
+        )
+
     companies = find_pending(
         session,
         limit=limit,
@@ -314,7 +431,8 @@ def enrich_batch(
         log.info("enrich_batch: no pending companies found")
         return {"total": 0, "enriched": 0, "skipped": 0, "provider": 0,
                 "provider_miss": 0, "provider_rejected": 0, "provider_dba": 0,
-                "unsearchable": 0, "edgar": 0, "claude": 0}
+                "unsearchable": 0, "edgar": 0, "claude": 0,
+                "sibling": stats_sibling}
 
     log.info(
         "enrich_batch: found %d company/companies to enrich (%d impact + %d recency)",
@@ -343,6 +461,26 @@ def enrich_batch(
         if query != company.name:
             log.info("company_id=%d: search query %r (from %r)", company.id, query, company.name)
         unsearchable = is_unsearchable(query)
+
+        # A donor may have appeared mid-run (a fresh provider hit on a twin
+        # earlier in this batch) — copy it instead of burning another lookup.
+        donor = donors.get(cleaned_key(company.name))
+        if (
+            donor is not None
+            and donor is not _DONOR_CONFLICT
+            and donor.id != company.id
+            and match_is_consistent(company.name, donor.name)
+        ):
+            log.info(
+                "company_id=%d name=%r: sibling enrichment from company_id=%d "
+                "name=%r duns=%r",
+                company.id, company.name, donor.id, donor.name, donor.duns,
+            )
+            if not dry_run:
+                _persist_sibling_result(session, company, donor)
+            enriched += 1
+            stats_sibling += 1
+            continue
 
         # ------------------------------------------------------------------ #
         # Tier 1: external provider plugin
@@ -415,6 +553,7 @@ def enrich_batch(
                     )
                     if not dry_run:
                         _persist_provider_result(session, company, pr)
+                        _add_donor(donors, company)  # twins later in this batch copy it
                     enriched += 1
                     stats_provider += 1
                     continue
@@ -467,6 +606,7 @@ def enrich_batch(
                         )
                         if not dry_run:
                             _persist_provider_result(session, company, pr2)
+                            _add_donor(donors, company)
                         enriched += 1
                         stats_provider_dba += 1
                         continue
@@ -579,4 +719,5 @@ def enrich_batch(
         "unsearchable": stats_unsearchable,
         "edgar": stats_edgar,
         "claude": stats_claude,
+        "sibling": stats_sibling,
     }

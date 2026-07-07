@@ -425,7 +425,8 @@ def test_enrich_batch_provider_hit_skips_edgar_and_claude(db, monkeypatch) -> No
     stats = enrich_batch(db, _StubClient(), provider=_FakeProvider(), inter_delay_s=0)
     assert stats == {"total": 1, "enriched": 1, "skipped": 0,
                      "provider": 1, "provider_miss": 0, "provider_rejected": 0,
-                     "provider_dba": 0, "unsearchable": 0, "edgar": 0, "claude": 0}
+                     "provider_dba": 0, "unsearchable": 0, "edgar": 0, "claude": 0,
+                     "sibling": 0}
     assert edgar_calls == []
     assert claude_calls == []
 
@@ -472,7 +473,8 @@ def test_enrich_batch_edgar_hit_skips_claude(db, monkeypatch) -> None:
     stats = enrich_batch(db, _StubClient(), inter_delay_s=0)
     assert stats == {"total": 1, "enriched": 1, "skipped": 0,
                      "provider": 0, "provider_miss": 0, "provider_rejected": 0,
-                     "provider_dba": 0, "unsearchable": 0, "edgar": 1, "claude": 0}
+                     "provider_dba": 0, "unsearchable": 0, "edgar": 1, "claude": 0,
+                     "sibling": 0}
     assert claude_calls == []
 
     db.refresh(c)
@@ -497,7 +499,8 @@ def test_enrich_batch_falls_through_to_claude(db, monkeypatch) -> None:
     stats = enrich_batch(db, _StubClient(), inter_delay_s=0)
     assert stats == {"total": 1, "enriched": 1, "skipped": 0,
                      "provider": 0, "provider_miss": 0, "provider_rejected": 0,
-                     "provider_dba": 0, "unsearchable": 0, "edgar": 0, "claude": 1}
+                     "provider_dba": 0, "unsearchable": 0, "edgar": 0, "claude": 1,
+                     "sibling": 0}
 
     db.refresh(c)
     assert c.enrichment_source == "claude"
@@ -849,6 +852,171 @@ def test_unsearchable_query_skips_backup_tiers(db, monkeypatch) -> None:
 
     db.refresh(junk)
     assert junk.enriched_at is None
+
+
+# ---------------------------------------------------------------------------
+# Sibling propagation
+# ---------------------------------------------------------------------------
+
+def _provider_enriched(db, name: str, duns: str, confidence="0.95", **kw) -> Company:
+    from datetime import UTC, datetime
+    return _company(
+        db, name=name, duns=duns, enrichment_source="provider",
+        enriched_at=datetime.now(UTC), enrichment_confidence=Decimal(confidence),
+        website="https://abm.example", sic_code="7349", naics_code="561720",
+        employee_count=1000, parent_company_name="Parent Co",
+        hq_address="1 Main St", **kw,
+    )
+
+
+def test_sibling_prepass_enriches_attempted_twin_without_provider_call(db) -> None:
+    """The backlog case: a twin already stamped provider_attempted_at is
+    invisible to provider-only find_pending — the pre-pass still enriches it,
+    with no provider lookup spent."""
+    from datetime import UTC, datetime
+
+    donor = _provider_enriched(db, "ABM Industries Incorporated", "555555555")
+    twin = _company(db, name="ABM Industries - 1120")
+    twin.provider_attempted_at = datetime.now(UTC)
+    db.commit()
+
+    provider = _MissProviderCounting()
+    stats = enrich_batch(
+        db, _StubClient(), provider=provider, inter_delay_s=0, tiers={"provider"}
+    )
+    assert stats["sibling"] == 1
+    assert provider.calls == []  # nothing left to look up
+
+    db.refresh(twin)
+    assert twin.enrichment_source == "sibling"
+    assert twin.duns == donor.duns
+    assert twin.website == donor.website
+    assert twin.naics_code == donor.naics_code
+    assert twin.enrichment_confidence == Decimal("0.90")  # capped below donor
+    assert twin.enriched_at is not None
+    assert json.loads(twin.enrichment_sources) == [f"sibling:company_id={donor.id}"]
+
+
+def test_sibling_prepass_skips_conflicting_duns(db) -> None:
+    """Two donors under one key with different DUNS = different legal entities
+    (franchisees) — never propagate under that key."""
+    # Both donors clean to the key 'hooters' but carry different DUNS.
+    _provider_enriched(db, "Hooters - Austin", "111111111")
+    _provider_enriched(db, "Hooters - Tampa", "222222222")
+    twin = _company(db, name="Hooters - Alamo")
+    db.commit()
+
+    stats = enrich_batch(
+        db, _StubClient(), provider=_MissProviderCounting(), inter_delay_s=0,
+        tiers={"provider"},
+    )
+    assert stats["sibling"] == 0
+    db.refresh(twin)
+    assert twin.enrichment_source != "sibling"
+    assert twin.duns is None
+
+
+def test_sibling_prepass_skips_generic_key_and_non_provider_donors(db) -> None:
+    from datetime import UTC, datetime
+
+    # Generic single-token key ("services") never donates.
+    _provider_enriched(db, "Services LLC", "333333333")
+    generic_twin = _company(db, name="Services - Houston")
+    # edgar/claude enrichments are guesses — never propagate them.
+    edgar_donor = _company(
+        db, name="Edgar Corp", enrichment_source="edgar",
+        enriched_at=datetime.now(UTC), enrichment_confidence=Decimal("0.85"),
+        sic_code="1234",
+    )
+    edgar_twin = _company(db, name="Edgar Corp - Plant 2")
+    db.commit()
+
+    stats = enrich_batch(
+        db, _StubClient(), provider=_MissProviderCounting(), inter_delay_s=0,
+        tiers={"provider"},
+    )
+    assert stats["sibling"] == 0
+    db.refresh(generic_twin)
+    db.refresh(edgar_twin)
+    assert generic_twin.duns is None
+    assert edgar_twin.enriched_at is None
+    assert edgar_donor.enrichment_source == "edgar"
+
+
+def test_sibling_propagates_in_run_after_fresh_provider_hit(db) -> None:
+    """Two same-key rows in one batch: the provider is called once, the second
+    row copies the first row's fresh hit."""
+    from warn_v2.enrichment.provider import ProviderResult
+
+    class _OneHitProvider:
+        def __init__(self):
+            self.calls: list[str] = []
+
+        def lookup(self, company_name: str, state):
+            self.calls.append(company_name)
+            return ProviderResult(
+                entity_name="Take 5 Oil Change LLC", duns="666666666",
+                confidence=0.95,
+            )
+
+        def close(self) -> None:
+            pass
+
+    first = _company(db, name="Take 5 Oil Change #101")
+    second = _company(db, name="Take 5 Oil Change #202")
+    db.commit()
+
+    provider = _OneHitProvider()
+    stats = enrich_batch(
+        db, _StubClient(), provider=provider, inter_delay_s=0, tiers={"provider"}
+    )
+    assert len(provider.calls) == 1  # one lookup covered both rows
+    assert stats["provider"] == 1
+    assert stats["sibling"] == 1
+
+    db.refresh(first)
+    db.refresh(second)
+    duns = {first.duns, second.duns}
+    assert duns == {"666666666"}
+    sources = {first.enrichment_source, second.enrichment_source}
+    assert sources == {"provider", "sibling"}
+
+
+def test_sibling_prepass_requires_faithful_match(db) -> None:
+    """A cleaned_key collision made only of generic tokens is not evidence the
+    rows are the same company — the faithfulness guard blocks propagation."""
+    donor = _provider_enriched(db, "National Staffing Inc", "777777777")
+    # Same key ('national staffing') but every shared token is generic.
+    twin = _company(db, name="National Staffing - Dallas")
+    db.commit()
+
+    stats = enrich_batch(
+        db, _StubClient(), provider=_MissProviderCounting(), inter_delay_s=0,
+        tiers={"provider"},
+    )
+    assert stats["sibling"] == 0
+    db.refresh(twin)
+    assert twin.duns is None
+    assert donor.duns == "777777777"
+
+
+def test_sibling_prepass_dry_run_writes_nothing(db) -> None:
+    from datetime import UTC, datetime
+
+    _provider_enriched(db, "ABM Industries Incorporated", "555555555")
+    twin = _company(db, name="ABM Industries - 1120")
+    twin.provider_attempted_at = datetime.now(UTC)
+    db.commit()
+
+    stats = enrich_batch(
+        db, _StubClient(), provider=_MissProviderCounting(), inter_delay_s=0,
+        tiers={"provider"}, dry_run=True,
+    )
+    assert stats["sibling"] >= 1  # counted...
+    db.refresh(twin)
+    assert twin.enriched_at is None  # ...but nothing written
+    assert twin.duns is None
+    assert twin.enrichment_source is None
 
 
 def test_provider_only_dry_run_does_not_stamp(db) -> None:
