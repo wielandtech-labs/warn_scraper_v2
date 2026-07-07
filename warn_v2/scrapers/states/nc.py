@@ -36,7 +36,7 @@ import httpx
 import pdfplumber
 from bs4 import BeautifulSoup
 
-from warn_v2.scrapers._helpers import as_date, as_int, as_str, zip_from
+from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.registry import register
 
@@ -275,16 +275,20 @@ _STREET_SUFFIX = frozenset(
 )
 
 
-def _ssrs_city(address: str) -> str | None:
-    """Best-effort city from an SSRS address ('... Charlotte NC 28262' -> 'Charlotte').
+def _ssrs_city_zip(address: str) -> tuple[str | None, str | None]:
+    """City + ZIP from an SSRS address ('... Charlotte NC 28262' -> Charlotte, 28262).
 
-    No comma delimits the city, so walk backward from the state token over
-    alphabetic words until a street suffix or a numbered street element ends
-    the run (handles two-word cities like 'Rocky Mount').
+    Both are anchored on the trailing ``NC <zip>`` so the ZIP is the one that
+    follows the state, not the first 5-digit run (which would grab a 5-digit
+    street number like '10815 Quality Dr' or an out-of-state HQ ZIP glued into
+    the cell). No comma delimits the city, so walk backward from the state
+    token over alphabetic words until a street suffix or a numbered street
+    element ends the run (handles two-word cities like 'Rocky Mount').
     """
-    m = re.search(r"(.+?)\s+NC\s+\d{5}", address, re.I)
+    m = re.search(r"(.+?)\s+NC\s+(\d{5})", address, re.I)
     if not m:
-        return None
+        return None, None
+    zip_code = m.group(2)
     parts: list[str] = []
     for tok in reversed(m.group(1).split()):
         cleaned = tok.strip(".,").lower()
@@ -293,7 +297,7 @@ def _ssrs_city(address: str) -> str | None:
         parts.insert(0, tok)
         if len(parts) >= 3:
             break
-    return " ".join(parts) or None
+    return (" ".join(parts) or None), zip_code
 
 
 def _parse_nc_ssrs_grid(pdf, source_url: str) -> list[NoticeRow]:
@@ -328,6 +332,7 @@ def _parse_nc_ssrs_grid(pdf, source_url: str) -> list[NoticeRow]:
                 continue  # same notice, another worksite line — count already counted
 
             address = as_str(cell("address"))
+            city, zip_code = _ssrs_city_zip(address) if address else (None, None)
             by_key[key] = NoticeRow(
                 state="NC",
                 employer=employer,
@@ -335,9 +340,9 @@ def _parse_nc_ssrs_grid(pdf, source_url: str) -> list[NoticeRow]:
                 effective_date=as_date(cell("effective date")),
                 layoff_count=as_int(cell("no. of employees")),
                 closure_type=as_str(cell("layoff/closure")),
-                city=_ssrs_city(address) if address else None,
+                city=city,
                 county=as_str(cell("county/parish")),
-                zip=zip_from(address),
+                zip=zip_code,
                 address=address,
                 source_url=source_url,
                 extra={"warn_number": warn_no} if warn_no else {},
