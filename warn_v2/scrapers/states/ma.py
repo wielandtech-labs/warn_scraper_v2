@@ -24,6 +24,7 @@ import io
 import json
 import logging
 import re
+from datetime import date, datetime
 
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
@@ -43,8 +44,16 @@ _CHROME_UA = (
 )
 
 _DATE_RE = re.compile(r"\d{1,2}/\d{1,2}/\d{4}")
+# Looser date for the historical XLSX parser: 1-/2-digit month & day, 2-/4-digit
+# year (e.g. "8/15/26", "07/07/2021 - (08/30/2021)").
+_LOOSE_DATE_RE = re.compile(r"(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})")
+_INT_RE = re.compile(r"\d[\d,]*")
 # Strip trailing state label from CITY/TOWN values like "Boston, MA"
 _STATE_SUFFIX_RE = re.compile(r",\s*(MA|Massachusetts)\s*$", re.IGNORECASE)
+# Historical per-fiscal-year XLSX reports ("Previous WARN reports" on the page):
+#   https://www.mass.gov/doc/fy22-warn-report/download  ...  fy26 (a -0 suffix).
+_FY_DOC_RE = re.compile(r"/doc/fy(\d\d)-warn-report", re.IGNORECASE)
+_FY_REPORT_URL = "https://www.mass.gov/doc/fy{yy:02d}-warn-report/download"
 
 
 class MAScraper(PlaywrightScraper):
@@ -150,6 +159,45 @@ class MAScraper(PlaywrightScraper):
         return rows
 
 
+def _match_columns(norm_header: list[str]) -> dict[str, int | None]:
+    """Fuzzy-map WARN fields to column indices, tolerating both the live CSV
+    headers (RECEIVED / EMPLOYER / # EMPLOYEES IMPACTED) and the historical XLSX
+    variants (Date Received / Company Name / # Affected)."""
+    def find(patterns: tuple[tuple[str, ...], ...]) -> int | None:
+        for i, h in enumerate(norm_header):
+            for pat in patterns:
+                if all(s in h for s in pat):
+                    return i
+        return None
+
+    return {
+        "employer": find((("EMPLOYER",), ("COMPANY",))),
+        "received": find((("RECEIVED",),)),
+        "city": find((("CITY",), ("TOWN",))),
+        "region": find((("REGION",),)),
+        "layoff_date": find((("DATE", "LAYOFF"),)),
+        "count": find((("IMPACTED",), ("EMPLOYEE",), ("AFFECTED",))),
+    }
+
+
+def _clean_employer(value: object) -> str | None:
+    """Coerce to a name, stripping "*Updated*"/"*UDATED*" amendment markers."""
+    employer = as_str(value)
+    if not employer:
+        return None
+    if employer.startswith("*"):
+        employer = re.sub(r"^\*[^*]+\*\s*", "", employer).strip() or employer
+    return employer
+
+
+def _clean_city(value: object) -> str | None:
+    """Coerce to a city, dropping a trailing ", MA"/", Massachusetts"."""
+    city = as_str(value)
+    if not city:
+        return None
+    return as_str(_STATE_SUFFIX_RE.sub("", city))
+
+
 def _parse_csv(csv_text: str, url: str) -> list[NoticeRow]:
     reader = csv.reader(io.StringIO(csv_text))
     try:
@@ -157,54 +205,46 @@ def _parse_csv(csv_text: str, url: str) -> list[NoticeRow]:
     except StopIteration:
         return []
 
-    # Normalize headers
     norm_header = [h.strip().upper() for h in header]
-    col: dict[str, int] = {h: i for i, h in enumerate(norm_header)}
-
-    employer_col = next((c for c in col if "EMPLOYER" in c), None)
-    date_col = next((c for c in col if "RECEIVED" in c), None)
-    if employer_col is None or date_col is None:
+    col = _match_columns(norm_header)
+    emp_i, rec_i = col["employer"], col["received"]
+    if emp_i is None or rec_i is None:
         return []
-
-    city_col = next((c for c in col if "CITY" in c or "TOWN" in c), None)
-    region_col = next((c for c in col if "REGION" in c), None)
-    layoff_date_col = next((c for c in col if "DATE" in c and "LAYOFF" in c), None)
-    count_col = next((c for c in col if "IMPACTED" in c or "EMPLOYEE" in c), None)
 
     rows: list[NoticeRow] = []
     for record in reader:
-        if not record or len(record) <= max(col[employer_col], col[date_col]):
+        if not record or len(record) <= max(emp_i, rec_i):
             continue
-        employer = as_str(record[col[employer_col]])
+        employer = _clean_employer(record[emp_i])
         if not employer:
             continue
-        # Strip "Updated*" prefix markers like "*Updated* Company Name"
-        if employer.startswith("*"):
-            employer = re.sub(r"^\*[^*]+\*\s*", "", employer).strip() or employer
 
-        notice_date = as_date(record[col[date_col]])
+        notice_date = as_date(record[rec_i])
         if notice_date is None:
             continue
 
-        city_raw = (
-            record[col[city_col]].strip()
-            if city_col is not None and col[city_col] < len(record)
+        city_i = col["city"]
+        city = (
+            _clean_city(record[city_i])
+            if city_i is not None and city_i < len(record)
             else None
         )
-        city = as_str(_STATE_SUFFIX_RE.sub("", city_raw)) if city_raw else None
 
         effective_date = None
-        if layoff_date_col is not None and col[layoff_date_col] < len(record):
-            m = _DATE_RE.search(record[col[layoff_date_col]])
+        layoff_i = col["layoff_date"]
+        if layoff_i is not None and layoff_i < len(record):
+            m = _DATE_RE.search(record[layoff_i])
             if m:
                 effective_date = as_date(m.group(0))
 
         extra: dict[str, str] = {}
-        if region_col is not None and col[region_col] < len(record):
-            region = as_str(record[col[region_col]])
+        region_i = col["region"]
+        if region_i is not None and region_i < len(record):
+            region = as_str(record[region_i])
             if region:
                 extra["region"] = region
 
+        count_i = col["count"]
         rows.append(
             NoticeRow(
                 state="MA",
@@ -212,8 +252,8 @@ def _parse_csv(csv_text: str, url: str) -> list[NoticeRow]:
                 notice_date=notice_date,
                 effective_date=effective_date,
                 layoff_count=(
-                    as_int(record[col[count_col]])
-                    if count_col is not None and col[count_col] < len(record)
+                    as_int(record[count_i])
+                    if count_i is not None and count_i < len(record)
                     else None
                 ),
                 city=city,
@@ -224,40 +264,258 @@ def _parse_csv(csv_text: str, url: str) -> list[NoticeRow]:
     return rows
 
 
-def _discover_csv_links(page, attempts: int = 3) -> list[str]:
-    """Return the weekly-CSV download URLs on the mass.gov WARN page.
+def _discover_links(page, href_substr: str = ".csv", attempts: int = 3) -> list[str]:
+    """Return href URLs on the mass.gov WARN page matching ``href_substr``.
 
-    The CSV download anchor is server-rendered into the page, so a clean
-    (residential) request finds it on the first load.  From datacenter IPs
+    The download anchors are server-rendered into the page, so a clean
+    (residential) request finds them on the first load.  From datacenter IPs
     (the cluster) Akamai serves a bot-challenge page on the first navigation;
     its sensor JS then sets the clearance cookie, so a *reload* returns the
-    real content.  We therefore reload-and-retry until the anchor appears,
-    which is what fixes the recurring "no CSV links found" cluster failure.
+    real content.  We therefore reload-and-retry until an anchor appears,
+    which is what fixes the recurring "no links found" cluster failure.
     """
+    selector = f"a[href*='{href_substr}']"
     for attempt in range(1, attempts + 1):
         page.goto(SOURCE_URL, wait_until="load", timeout=60_000)
         try:
             # Wait for the anchor in the DOM (state="attached": it may live in a
             # collapsed download region and not be "visible").
-            page.wait_for_selector(
-                "a[href*='.csv']", state="attached", timeout=15_000
-            )
+            page.wait_for_selector(selector, state="attached", timeout=15_000)
         except Exception:
             pass  # fall through to the explicit check + reload below
 
-        hrefs = page.eval_on_selector_all(
-            "a[href*='.csv']", "els => els.map(e => e.href)"
-        )
-        csv_urls = list(dict.fromkeys(hrefs))  # deduplicate, keep order
-        if csv_urls:
-            return csv_urls
+        hrefs = page.eval_on_selector_all(selector, "els => els.map(e => e.href)")
+        urls = list(dict.fromkeys(hrefs))  # deduplicate, keep order
+        if urls:
+            return urls
 
         log.warning(
-            "MA: no CSV link on attempt %d/%d; reloading to clear Akamai challenge",
-            attempt, attempts,
+            "MA: no %r link on attempt %d/%d; reloading to clear Akamai challenge",
+            href_substr, attempt, attempts,
         )
 
     return []
+
+
+def _discover_csv_links(page, attempts: int = 3) -> list[str]:
+    """Weekly-CSV download URLs (live scraper); see :func:`_discover_links`."""
+    return _discover_links(page, ".csv", attempts)
+
+
+# ---------------------------------------------------------------------------
+# Historical backfill — per-fiscal-year XLSX reports (FY22-FY25)
+#
+# The "Previous WARN reports" section links one XLSX per fiscal year. Two
+# layouts occur: FY22/FY23 are one sheet *per region* (region = sheet name,
+# a title row then a header at row 3, columns Date Received / Company Name /
+# City / Layoff Date / # Affected); FY24+ are a single sheet whose row-1 header
+# matches the live CSV (RECEIVED / EMPLOYER / CITY/TOWN / REGION / DATE(S) OF
+# LAYOFFS / # EMPLOYEES IMPACTED). Downloads are Akamai-gated (httpx 403s from
+# the cluster), so fetch via Playwright like the live scraper. Used by
+# warn_v2.scripts.backfill_historical.
+# ---------------------------------------------------------------------------
+
+def _coerce_date(value: object) -> date | None:
+    """Date from an openpyxl cell: real datetime, or the first m/d/y in a string
+    (handles ranges like "07/07/2021 - (08/30/2021)" and 2-digit years)."""
+    if isinstance(value, datetime):
+        return as_date(value)
+    if isinstance(value, date):
+        return as_date(value)
+    s = as_str(value)
+    if not s:
+        return None
+    m = _LOOSE_DATE_RE.search(s)
+    if not m:
+        return as_date(s)
+    month, day, year = (int(g) for g in m.groups())
+    if year < 100:
+        year += 2000
+    try:
+        return as_date(date(year, month, day))
+    except ValueError:
+        return None
+
+
+def _first_int(value: object) -> int | None:
+    """Count from a cell: a numeric cell, or the first integer in a string like
+    "207 total locations" / "180 (1 resides in MA)"."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            return int(value)
+        except (ValueError, OverflowError):
+            return None
+    s = as_str(value)
+    if not s:
+        return None
+    n = as_int(s)
+    if n is not None:
+        return n
+    m = _INT_RE.search(s)
+    return int(m.group(0).replace(",", "")) if m else None
+
+
+def _build_xlsx_row(
+    url: str,
+    *,
+    employer: object,
+    received: object,
+    city: object,
+    region: object,
+    layoff: object,
+    count: object,
+) -> NoticeRow | None:
+    """Build a NoticeRow from raw XLSX cell values, or None when there's no
+    employer (blank/spacer rows). notice_date is best-effort — a handful of
+    historical rows carry no received date (the column is nullable)."""
+    name = _clean_employer(employer)
+    if not name:
+        return None
+    extra: dict[str, str] = {}
+    region_str = as_str(region)
+    if region_str:
+        extra["region"] = region_str
+    return NoticeRow(
+        state="MA",
+        employer=name,
+        notice_date=_coerce_date(received),
+        effective_date=_coerce_date(layoff),
+        layoff_count=_first_int(count),
+        city=_clean_city(city),
+        source_url=url,
+        extra=extra,
+    )
+
+
+def _cell(row: tuple, i: int | None) -> object:
+    return row[i] if i is not None and i < len(row) else None
+
+
+def _row_from_columns(row: tuple, col: dict[str, int | None], url: str) -> NoticeRow | None:
+    """FY24+ layout: fields located by the row-1 header (region is a column)."""
+    return _build_xlsx_row(
+        url,
+        employer=_cell(row, col["employer"]),
+        received=_cell(row, col["received"]),
+        city=_cell(row, col["city"]),
+        region=_cell(row, col["region"]),
+        layoff=_cell(row, col["layoff_date"]),
+        count=_cell(row, col["count"]),
+    )
+
+
+def _row_positional(row: tuple, url: str, region: str | None) -> NoticeRow | None:
+    """FY22/FY23 regional layout: fixed columns, region from the sheet name.
+    Date Received | Company | City | Layoff Date | # Affected."""
+    return _build_xlsx_row(
+        url,
+        employer=_cell(row, 1),
+        received=_cell(row, 0),
+        city=_cell(row, 2),
+        region=region,
+        layoff=_cell(row, 3),
+        count=_cell(row, 4),
+    )
+
+
+def _parse_ma_sheet(ws, url: str) -> list[NoticeRow]:
+    data = list(ws.iter_rows(values_only=True))
+    header_idx: int | None = None
+    layout: str | None = None
+    col: dict[str, int | None] | None = None
+    for i, row in enumerate(data[:6]):
+        norm = [str(c).strip().upper() if c is not None else "" for c in row]
+        has_received = any("RECEIVED" in c for c in norm)
+        has_employer = any("EMPLOYER" in c for c in norm)
+        has_company = any("COMPANY" in c for c in norm)
+        if has_employer and has_received:  # live-CSV-style header, region column
+            header_idx, layout, col = i, "columns", _match_columns(norm)
+            break
+        if has_company:  # regional sheet: positional columns, region = sheet name
+            header_idx, layout = i, "positional"
+            break
+    if header_idx is None:
+        return []
+
+    region = as_str(ws.title) if layout == "positional" else None
+    out: list[NoticeRow] = []
+    for row in data[header_idx + 1:]:
+        built = (
+            _row_from_columns(row, col, url)
+            if layout == "columns"
+            else _row_positional(row, url, region)
+        )
+        if built is not None:
+            out.append(built)
+    return out
+
+
+def parse_ma_xlsx(raw: bytes, year: int) -> list[NoticeRow]:
+    """Parse a mass.gov FY WARN XLSX report (all region/year sheets)."""
+    import openpyxl
+
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
+    except Exception as e:
+        raise ParseFailed(f"MA xlsx: could not open workbook: {e}") from e
+
+    url = _FY_REPORT_URL.format(yy=year % 100)
+    rows: list[NoticeRow] = []
+    for ws in wb.worksheets:
+        rows.extend(_parse_ma_sheet(ws, url))
+    if not rows:
+        raise ParseFailed("MA xlsx: no data rows parsed from any sheet")
+    return rows
+
+
+def _download_file(page, url: str) -> bytes | None:
+    """Navigate to a mass.gov download URL and return the file bytes.
+
+    The server replies with ``Content-Disposition: attachment``, so
+    ``page.goto`` raises "Download is starting"; the file is captured by
+    ``expect_download`` regardless (same pattern as the live CSV fetch)."""
+    from pathlib import Path
+
+    with page.expect_download(timeout=60_000) as dl_info:
+        try:
+            page.goto(url, wait_until="commit", timeout=60_000)
+        except Exception:
+            pass
+    dl_path = dl_info.value.path()
+    return Path(dl_path).read_bytes() if dl_path else None
+
+
+def _fetch_ma_fy(year: int) -> bytes | None:
+    """Download the FY<year> WARN XLSX report via Playwright, or None if the
+    page has no report for that fiscal year (year-loop skips it)."""
+    yy = year % 100
+    try:
+        from playwright.sync_api import sync_playwright
+
+        from warn_v2.scrapers.playwright_base import _LAUNCH_ARGS
+
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True, args=_LAUNCH_ARGS)
+            try:
+                ctx = browser.new_context(user_agent=_CHROME_UA, accept_downloads=True)
+                page = ctx.new_page()
+                fy_urls: dict[int, str] = {}
+                for href in _discover_links(page, "/doc/"):
+                    m = _FY_DOC_RE.search(href)
+                    if m:
+                        fy_urls.setdefault(int(m.group(1)), href)
+                url = fy_urls.get(yy)
+                if url is None:
+                    log.info("MA: no FY%02d report link on the WARN page", yy)
+                    return None
+                log.info("MA: downloading FY%02d report %s", yy, url)
+                return _download_file(page, url)
+            finally:
+                browser.close()
+    except Exception as exc:
+        raise ScrapeFailed(f"MA: FY{yy:02d} fetch failed: {exc}") from exc
 
 
 register(MAScraper())

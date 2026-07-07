@@ -150,7 +150,13 @@ Ordered by recoverable rows:
   year 2004–2026; prod run w_homelab #627: **+2,203 rows, floor
   2026→2004-01**, near_miss=0, verified per-record).
 - [ ] **MA FY22–FY25** — mass.gov FY XLSX reports (Playwright fetch, like the
-  live scraper). (A+gate)
+  live scraper). (A+gate) — *parser done 2026-07-07* (PR #TBD): the "Previous
+  WARN reports" section links one XLSX per FY at `/doc/fy{NN}-warn-report`
+  (discovered via Playwright — no `.xlsx` in the href, Akamai gates the page);
+  `parse_ma_xlsx` handles both layouts (FY22/FY23 one sheet per region, FY24+
+  single CSV-style sheet). Loop keyed by FY-ending year (`year_start=2022`);
+  local dry-run parsed FY22 → 37 rows. **Remaining: the gated Job**
+  (`--year-end 2025`; FY26 is the live year) + re-audit.
 - [ ] **MN multi-era parser** — 2015–16 monthlies, 2018–21 annuals, 2022–24
   wide format; Wayback discovery already implemented. (A+gate) — *parser
   done 2026-07-07* (#202: one word-position parser for all eras, reaches
@@ -160,16 +166,24 @@ Ordered by recoverable rows:
   row).
 - ~~**WA `__VIEWSTATE` pagination** — implement ASP.NET postback paging,
   then reassess depth (10+ pages, depth unknown). (A+gate)~~ — DONE 2026-07-07
-  (PR #TBD): `fetch()` now replays the `Page$N` GridView postback for each
+  (PR #209): `fetch()` now replays the `Page$N` GridView postback for each
   page (carrying the fresh `__VIEWSTATE`/`__EVENTVALIDATION` tokens forward)
   and concatenates the raw pages; `parse()` scans every `ucPSW_gvMain` grid.
   **Depth reassessed: 99 pages / 1,480 rows / floor 2004-01** (was page-1
   only, ~15 rows). No one-off backfill Job needed — WA's source is a single
   cumulative list, so the next daily scrape upserts the full history via the
   normal image-tag chain.
-- [ ] **CA 2009–2013 probe** — EDD archive search for the interior hole
+- ~~**CA 2009–2013 probe** — EDD archive search for the interior hole
   (archive currently = 11 PDFs + 1 XLSX, FY2014–2025); fall back to the CA
-  records request. (A: spike + report)
+  records request. (A: spike + report)~~ — DONE 2026-07-07, PR #214:
+  **route found, no CPRA needed.** Live EDD = FY2014+ only, but Wayback holds
+  EDD's calendar-year reports 2006–2014 (`eddwarncn*.pdf`). Landed the parser
+  in the same PR (see the follow-up below), so this became spike **+ build**.
+- [ ] **CA 2006–2013 Wayback backfill** — parser done 2026-07-07
+  (`parse_ca_detail_pdf` + `_discover_ca_historical_urls`, detailed A–Z slices;
+  see [historical-sources.md](historical-sources.md) CA row). Remaining: the
+  gated prod Job (dry-run → real → re-audit) per the runbook — ~6.8K rows, the
+  largest remaining CA gap. (A+gate)
 - [x] ~~**NV 2021** — scanned-image year PDF; extend the archive route through
   the existing tesseract OCR fallback. (A+gate)~~ — *parser done 2026-07-07*
   (PR #210): `WARN_2021.pdf` is a single-page scanned table (no text layer);
@@ -191,8 +205,10 @@ Ordered by recoverable rows:
 
 - [ ] **Send the drafts** — 31 ready in [foia/](foia/), tracker in
   [foia/README.md](foia/README.md). Suggested first wave by recoverable rows:
-  NY, TX (pre-2020), MI (pre-Nov-2024), CA (pre-2008 + 2009–2013 if the probe
-  fails). **Sending is a human action.** (H)
+  NY, TX (pre-2020), MI (pre-Nov-2024). CA 2009–2013 dropped — the probe passed
+  (Wayback route, 2026-07-07); only CA **pre-2008** might warrant a request, and
+  `cn00`–`cn08` are in Wayback too, so spike that before drafting. **Sending is
+  a human action.** (H)
 - [ ] **Track + follow up** — once any are sent, agents maintain the tracker
   (sent date, statutory deadline, response), draft follow-ups/appeals. (A+gate)
 - [ ] **Ingest responses** — `warn-v2 ingest-file --state XX` per the runbook,

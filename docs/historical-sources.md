@@ -13,22 +13,47 @@ sources only).
 
 ## Progress (update as backfills run)
 
-- **2026-07-07 — IL PDF era 1999–2019 parser landed** (`parse_il_pdf`, PR #211):
-  the archive's monthly PDFs are a two-column labeled *form*, not a table —
-  `extract_text()` flattens the columns and glues a left value onto the next
-  right label, so the parser splits each flattened line **at its right-column
-  label** (x-independent — the column geometry compresses between files, e.g.
-  July 2003's labels start ~8px left, which a fixed-x split bisected), collects
-  `LABEL: value` pairs per notice block, and joins
-  wrapped values. Validated across four format eras (1999 SIC + `PRIMARY EVENT
-  COUNTY` section headers; 2005 `CITY, STATE` no-ZIP; 2010 NAICS + UNION; 2019
-  `Monthly WARN Report` naming). SIC (1999–2005) → `extra["sic_code"]`, not
-  `naics_code`. Discovery bounded to years ≤ 2019 (2020+ is the ingested XLSX
-  era) and skips the WARN Act statute PDF. Wired into the IL backfill spec next
-  to the xlsx discovery (`--state IL` now covers the whole history; xlsx
-  re-ingest is idempotent). **Gated backfill Job pending** — ~250 monthly PDFs,
-  est. +2,500–4,000 net-new rows (DB floor is 2020, so 1999–2019 is all new);
-  run `--dry-run` → real → `mark-superseded --state IL --dry-run` → re-audit.
+- **2026-07-07 — CA 2009–2013 probe + detailed-PDF parser** (spike + parser;
+  prod run pending). The interior hole (dense only from 2014, one stray 2008
+  row) is **recoverable from the Wayback Machine — no CPRA request needed.**
+  Probe findings:
+  - The live EDD page (`.../layoff_services_warn/`) lists **FY2014–2025 only**.
+    But EDD's calendar-year listings **2006–2014** survive in web.archive.org
+    under `edd.ca.gov/Jobs_and_Training/warn/eddwarncn*.pdf`.
+  - Three parallel presentations per year. We ingest the **detailed** variants
+    `eddwarncn{da,dbd,del,dmr,ds,dtz}{YY}.pdf` (an A–Z alphabet split, 6 files/
+    year): unlike the simple `cn{YY}.pdf` they carry the real **Date Notice
+    Received** and a **street address**, so every row gets a unique dedup hash.
+    The simple consolidations were rejected (no notice_date/zip → collisions).
+  - Files are rolling **year-to-date** snapshots, so discovery takes the
+    **latest 200 capture per file** (the earlier ones are partial years).
+  - New `parse_ca_detail_pdf` (word-position block parser: fixed columns —
+    employer/address x0<300, count+effective date 300–425, Local Workforce
+    Investment Area x0≥425; strips `(cid:NN)` glyphs that broke the 2009–2010
+    captures; rejoins wrapped employer names). `_discover_ca_historical_urls`
+    (Wayback CDX) + the CA `BackfillSpec` now dispatch detailed URLs to it and
+    keep the live FY2014+ path on `parse_ca_pdf`.
+  - **Volume**: ~6.8K aggregator delta since 2009-01. A single filing can list
+    multiple layoff waves (distinct effective dates + counts) under one
+    received-date/address; those collapse to one `notice_id` on ingest — the
+    same accepted dedup granularity as PA, so expect `seen`>`inserted` deltas.
+  - **Remaining**: the gated prod backfill Job (dry-run → real → re-audit).
+    Pre-2008 (`cn00`–`cn08` also in Wayback) is a possible later spike.
+- **2026-07-07 — IL PDF era 1999–2019 parser landed** (`parse_il_pdf`, PR #211
+  + column-split fix follow-up): the archive's monthly PDFs are a two-column
+  labeled *form*, not a table — `extract_text()` glues each left value onto the
+  next right label, so the parser splits every flattened line **at its
+  right-column label** (x-independent — the geometry compresses between files,
+  e.g. July 2003's labels start ~8px left, which the fixed-x split #211 first
+  shipped bisected, dropping the whole month; fixed in the follow-up). Validated
+  across four format eras (1999 SIC + `PRIMARY EVENT COUNTY` headers; 2005
+  `CITY, STATE` no-ZIP; 2010 NAICS + UNION; 2019 `Monthly WARN Report`) plus the
+  shifted layout. SIC (1999–2005) → `extra["sic_code"]`, not `naics_code`.
+  Discovery bounded to years ≤ 2019 (2020+ is the ingested XLSX era) and skips
+  the WARN Act statute PDF. Dry-run (w_homelab #635): **~2,724 net-new rows**
+  across 1999–2019, near_miss=0; Jan 2019 is image-only (no text layer → OCR
+  gap). **Gated real Job pending** → `mark-superseded --state IL --dry-run` →
+  re-audit.
 - **2026-07-07 — NV 2021 OCR route added** (parser PR #210): the last NV
   archive gap, `Content/Media/WARN_2021.pdf`, is a single-page **scanned image
   with no text layer** (one 842×387 px embedded image, 20-row lattice table,
@@ -170,6 +195,7 @@ delete Jobs after.
 
 | State | DB floor | Source / route | Available back to | Backfill route |
 |-------|----------|----------------|-------------------|----------------|
+| CA | 2014 (dense; 1 stray 2008 row) | Live EDD page publishes **FY2014–2025 only** (verified 2026-07-07). Pre-2014 calendar-year reports survive in **Wayback** at `edd.ca.gov/Jobs_and_Training/warn/eddwarncn*.pdf`. We ingest the **detailed** A–Z slices `eddwarncn{da,dbd,del,dmr,ds,dtz}{YY}.pdf` (6/year, carry notice-received date + street address; the simple `cn{YY}` consolidations lack both → dedup collisions, rejected). Rolling year-to-date snapshots → take the **latest 200 capture per file**. Records are two-column (LWIA name wraps at x0≥425) with `(cid:NN)` glyphs in 2009–2010 | **2006** (Wayback; `cn00`–`cn08` reach 2000) | **parser done 2026-07-07** (`parse_ca_detail_pdf` + `_discover_ca_historical_urls`, Wayback CDX); **gated prod Job pending**. ~6.8K aggregator delta; multi-wave filings collapse per `notice_id` (expect seen>inserted) |
 | CO | ~~2021~~ **2015 ✅** | one Google Sheet per year linked from `cdle.colorado.gov/employers/layoff-separations/layoff-warn-list` (co.py registry + link discovery; regular scraper reads only the two newest sheets) | **2015** | **done 2026-07-02** (+768, via the #110 full sweep); re-runs via year loop (`--state CO`) |
 | KS | ~~2026~~ **1999 ✅** | `kansasworks.com/search/warn_lookups?q[notice_on_gteq]=YYYY-01-01` (JobLink date-range search) | **1999** | **done 2026-06-12** (+542) |
 | ME | ~~2026~~ **2012 ✅** | `joblink.maine.gov/search/warn_lookups` (JobLink) | **2012** | **done 2026-06-12** (+76) |
@@ -190,7 +216,7 @@ delete Jobs after.
 | WI | ~~2020~~ **2016 ✅** | the Google Sheet is **cumulative from 2020-01 only** (no per-year tabs); 2016–2019 are static pages `/dislocatedworker/warn/{year}/default.htm` | **2016** | **done 2026-06-12** (+320, `--year-end 2019`) |
 | MN | 2023 | DEED PDFs via Wayback CDX replay (mn.gov prunes old assets): monthlies 2015–2016 + 2022+, annual summaries 2018–2021, cumulative yearly reports 2022–24; the Dec-2016 cumulative reaches month sections back through **2014** | **2014** (via the 2016 cumulative) | **multi-era parser done 2026-07-07** (`_parse_archive_words`, word-position columns from header labels; WARN=YES only; verified against every file's own "(N records)" section counts). Prod run pending — ⚠ live-scraper rows 2023+ were text-fallback parses with glued employer+city+industry; plan a PA-style purge + re-ingest of that era in the Job dry-run review |
 | MS | ~~2025~~ **PY2020 ✅** | MDES quarterly PDFs — `_discover_pdf_urls()` already returns all 23 (PY2020Q1+); old quarterlies merge "Company Name, City" (parser splits the trailing "City (County)" line) | **PY2020** (Jul 2020) | **done 2026-06-12** (+112; 4 quarterlies with a third layout variation skipped — known gap); older → request |
-| MA | 2025 | mass.gov WARN page publishes **FY22–FY25 XLSX reports** | FY2022 | ingest FY xlsx; pre-FY22 → email (invited) |
+| MA | 2025 | mass.gov WARN page publishes **FY22–FY25 XLSX reports** — "Previous WARN reports" links one XLSX per FY at `/doc/fy{NN}-warn-report/download` (discover via Playwright: Akamai gates the page and the href has no `.xlsx`). Two layouts: FY22/FY23 one sheet per region (region = sheet name), FY24+ single CSV-style sheet. | FY2022 | **parser done 2026-07-07** (`parse_ma_xlsx` + `_fetch_ma_fy`, `--state MA`; loop keyed by FY-ending year, `year_start=2022`); **Job pending** (`--year-end 2025`, FY26 is the live year); pre-FY22 → email (invited) |
 | WA | ~~2026~~ **2004 ✅** | `fortress.wa.gov/esd/file/warn/Public/SearchWARN.aspx` — ASP.NET `__VIEWSTATE` GridView; the scraper now replays the `Page$N` postback for every page (99 pages, ~15 rows each) | **2004** | **done 2026-07-07** (pagination fix; live fetch = 1,480 rows, floor 2004-01; deploys via the daily scrape, no one-off Job) |
 | OR | 2020 | HECC site states it retains only **six years** of WARN records; `data.oregon.gov` Socrata dataset `ijbz-jpx8` exists (content unverified) | ~mid-2020 | check Socrata dataset; pre-2020 → inquiry |
 | NV | ~~2025~~ **2017 ✅** | per-year PDFs under `detr.nv.gov/Content/Media/` in three layout eras (see `nv._ARCHIVE_SOURCES`); 2023 pruned live → Wayback; **2021 is a scanned image → OCR route (done 2026-07-07)**; 2025 snapshot ends Jun 3 | **2017** | **done 2026-07-02** (+584); 2021 OCR parser done 2026-07-07 (prod run pending); Jun–Dec 2025 + pre-2017 → request |

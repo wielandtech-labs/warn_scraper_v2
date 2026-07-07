@@ -45,7 +45,13 @@ from warn_v2.pipeline.dedup import _norm, notice_id
 from warn_v2.pipeline.storage import upsert_notices
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.registry import get_scraper
-from warn_v2.scrapers.states.ca import _discover_archive_urls, parse_ca_pdf
+from warn_v2.scrapers.states.ca import (
+    _CA_DETAIL_RE,
+    _discover_archive_urls,
+    _discover_ca_historical_urls,
+    parse_ca_detail_pdf,
+    parse_ca_pdf,
+)
 from warn_v2.scrapers.states.co import _fetch_co_year, _parse_co_year
 from warn_v2.scrapers.states.dc import _fetch_dc_year
 from warn_v2.scrapers.states.fl import _fetch_fl_year
@@ -57,6 +63,7 @@ from warn_v2.scrapers.states.ky import _discover_workbook_urls as _discover_ky_w
 from warn_v2.scrapers.states.ky import parse_ky_workbook
 from warn_v2.scrapers.states.la import _fetch_la_year, parse_la_pdf
 from warn_v2.scrapers.states.la import _source_url as _la_source_url
+from warn_v2.scrapers.states.ma import _fetch_ma_fy, parse_ma_xlsx
 from warn_v2.scrapers.states.md import _fetch_md_year
 from warn_v2.scrapers.states.mn import (
     _discover_archive_pdf_urls as _discover_mn_pdf_urls,
@@ -103,9 +110,19 @@ def _joblink_fetch(scraper, year: int) -> bytes:
 # `backfill_historical._fetch_dc_year` / `._discover_archive_urls` /
 # `.parse_ca_pdf` exactly as before the registry rewrite.
 _BACKFILL: dict[str, BackfillSpec] = {
+    # CA: the live archive page (FY2014+ PDFs → parse_ca_pdf) plus the pre-FY2014
+    # detailed reports recovered from the Wayback Machine (→ parse_ca_detail_pdf,
+    # url-aware so rows carry the replay source_url). Detailed URLs are matched by
+    # filename; everything else .pdf falls to the current-year parser.
     "CA": BackfillSpec(
-        discover_urls=lambda: _discover_archive_urls(),
-        parse_for_url=lambda u: parse_ca_pdf if u.lower().endswith(".pdf") else None,
+        discover_urls=lambda: _discover_archive_urls() + _discover_ca_historical_urls(),
+        parse_for_url=lambda u: (
+            (lambda raw, _u=u: parse_ca_detail_pdf(raw, _u))
+            if _CA_DETAIL_RE.search(u)
+            else parse_ca_pdf
+            if u.lower().endswith(".pdf")
+            else None
+        ),
     ),
     "DC": BackfillSpec(year_start=2013, fetch_year=lambda s, y: _fetch_dc_year(y)),
     # CO: one Google Sheet per year, 2015+; the regular scraper reads only the
@@ -138,6 +155,16 @@ _BACKFILL: dict[str, BackfillSpec] = {
         year_start=2025,
         fetch_year=lambda s, y: _fetch_la_year(y),
         parse_year=lambda b, y: parse_la_pdf(b, _la_source_url(y)),
+    ),
+    # MA: mass.gov publishes one XLSX per fiscal year back to FY22 ("Previous
+    # WARN reports"); downloads are Akamai-gated (httpx 403s from the cluster),
+    # so _fetch_ma_fy drives Playwright like the live scraper. Key the loop by
+    # the FY-ending year (FY22 -> 2022); FY26 is the live current year, so run
+    # --year-end 2025. Pre-FY22 is email-request only.
+    "MA": BackfillSpec(
+        year_start=2022,
+        fetch_year=lambda s, y: _fetch_ma_fy(y),
+        parse_year=lambda b, y: parse_ma_xlsx(b, y),
     ),
     # NV: per-year archive PDFs 2017+ in three layout eras; 2021 is a scanned
     # image (parsed via the tesseract OCR fallback) and 2025 coverage ends
