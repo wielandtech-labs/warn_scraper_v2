@@ -81,9 +81,11 @@ outstanding.
   2026-07-06: 22/31 years ok, **+2,319 rows** (floor now 1996). One parse
   artifact found and healed (AD-EX 2003 Excel-serial count; parser fix
   PR #153). The 7 gap years (2007–09, 2011, 2013, 2023–24) were discovery
-  failures, fixed 2026-07-06 in PR #159 (CDX-pinned `.stm` snapshots;
-  June-2026 site year CSVs) — **remaining: re-run 2007–2024** (dedupes by
-  `notice_id`); 2025 stays with the OH request. (A+gate)
+  failures, fixed 2026-07-06 in PR #159; the re-run (w_homelab #611)
+  added **+798 rows** after #181 filtered cross-year junk. Six
+  wrapped-count artifacts (up to 1.58M "affected") were parser-fixed
+  (#183) and healed in place with source-verified values (w_homelab
+  #614). OH is complete 1996–2024; 2025 stays with the OH request.
 - ~~**`mark-superseded` for IA (479), PA (286), IL (14)** — `--dry-run`
   preview, then commit. (A+gate)~~ — DONE 2026-07-06: those audit numbers
   count rows *already marked* in earlier passes; the sweep found only 3
@@ -104,12 +106,16 @@ Ordered by recoverable rows:
   (2001–2020, incl. counts + addresses); recommendation = parser route with
   FOIA as backstop — see the NY row in
   [historical-sources.md](historical-sources.md). Decision pending.
-- [ ] **PA 2001–2022** — Wayback snapshots of the old dli.pa.gov pages;
-  strict dedup (286 superseded rows already); `--year-end 2022`. (A+gate) —
-  *parser done 2026-07-06*: CDX-discovered month pages across both retired
-  hosts, 262/264 months archived (2021-10 and 2022-04 never captured);
-  `_fetch_pa_year` hard-caps at 2022 so `--year-end` is belt-and-braces.
-  Remaining: the gated one-off backfill Job, then re-audit.
+- ~~**PA 2001–2022** — Wayback snapshots of the old dli.pa.gov pages;
+  strict dedup (286 superseded rows already); `--year-end 2022`.
+  (A+gate)~~ — DONE 2026-07-07 (parser #166 + hardening #183; Jobs
+  w_homelab #600/#605/#614/#616/#617): **3,158 rows across 2001–2022,
+  262/262 archived months** verified per-month in prod (2021-10 and
+  2022-04 were never captured by Wayback — the only misses). The
+  2017–2022 era was purged + re-ingested after #183 (label-variant
+  junk removal + ~200 recovered effective dates); Wayback throttle
+  drops needed two top-up runs — per-month prod coverage, not
+  chunk counts, is the completion check.
 - [ ] **IL PDF era 1999–2019** — `parse_il_pdf` for the monthly archive PDFs
   (xlsx era 2020+ already ingested). (A+gate)
 - [ ] **NC 2014+** — archive-hub discovery (irregular slugs) +
