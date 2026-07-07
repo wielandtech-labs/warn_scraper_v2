@@ -325,11 +325,15 @@ _CITY_NO_ZIP_RE = re.compile(r"^(.+),\s*PA\.?\s*$", re.I)
 # usually carry asterisks ("*UPDATE TO 6/17/14 WARN*", caught by the "*"
 # prefix check) but sometimes not: bare "UPDATE" before the employer name
 # (Sept 2014), "(Update)" (2011), "(Updated WARN)" (Oct 2010). "CONTRACT
-# CANCELLED" (Sept 2014) sits *between* label lines of a completed block.
-# Anchored tightly so a real employer ("Community Bank & Trust (Update)")
-# never matches.
+# CANCELLED" (Sept 2014) sits *between* label lines of a completed block,
+# as does "NOT SPECIFIED" standing in for the closure-type line (2001-2002).
+# A lone "#" is the "# AFFECTED:" label split across lines (2004, 2008; the
+# "AFFECTED:" remainder is a label alias in _HIST_LABEL_RES). Anchored
+# tightly so a real employer ("Community Bank & Trust (Update)") never
+# matches.
 _HIST_ANNOTATION_RE = re.compile(
-    r"^[(\s]*(?:update[ds]?(?:\s+to\s+\S+)?(?:\s+warn)?|contract\s+cancell?ed)[)\s]*$",
+    r"^[(\s]*(?:update[ds]?(?:\s+to\s+\S+)?(?:\s+warn)?|contract\s+cancell?ed"
+    r"|not\s+specified|#)[)\s]*$",
     re.I,
 )
 
@@ -341,6 +345,10 @@ _HIST_ANNOTATION_RE = re.compile(
 _HIST_LABEL_RES: tuple[tuple[re.Pattern, str], ...] = (
     (re.compile(r"^county\s*:", re.I), "COUNTY"),
     (re.compile(r"^(?:#\s*|total\s+)affected\s*:?", re.I), "# AFFECTED"),
+    # "#\nAFFECTED: 101" — the label's "#" wrapped onto its own line (2004,
+    # 2008); the lone "#" is skipped as an annotation. Colon required here so
+    # a plain word "affected" in prose can't become a label.
+    (re.compile(r"^affected\s*:", re.I), "# AFFECTED"),
     (re.compile(r"^(?:layof{1,2}\s+)?effective\s+dates?\s*:", re.I), "EFFECTIVE DATE"),
     (re.compile(r"^layof{1,2}\s+dates?\s*:", re.I), "EFFECTIVE DATE"),
     (re.compile(r"^(?:closing|closure)\s+or\s+layoff\s*:", re.I), "CLOSURE"),

@@ -1224,6 +1224,35 @@ def test_parse_pa_month_paren_update_markers():
     assert sm.city == "Tunkhannock"
 
 
+def test_parse_pa_month_not_specified_closure_slot():
+    """Sept 2001: 'NOT SPECIFIED' stands in for the closure-type line between
+    labels; it must not become an employer row, and the block it interrupts
+    keeps its remaining labels (prod grew 3 'NOT SPECIFIED' rows from this)."""
+    from warn_v2.scrapers.states.pa import parse_pa_month
+
+    rows = parse_pa_month(_pa_month_envelope("archive_portal_2001_09.html", 9), 2001)
+    assert not any("SPECIFIED" in r.employer.upper() for r in rows)
+    mw = next(r for r in rows if r.employer == "Mail-Well Envelope")
+    assert mw.layoff_count == 112
+    assert mw.effective_date == date(2001, 10, 29)
+    assert mw.county == "Lehigh"
+
+
+def test_parse_pa_month_split_affected_label():
+    """July 2004 wraps the '# AFFECTED:' label across lines ('#' then
+    'AFFECTED: 101'). The lone '#' must not start a bogus employer row, and
+    the count must land on the real employer (prod grew '#' rows with the
+    real rows' counts lost)."""
+    from warn_v2.scrapers.states.pa import parse_pa_month
+
+    rows = parse_pa_month(_pa_month_envelope("archive_portal_2004_07.html", 7), 2004)
+    assert not any(r.employer == "#" for r in rows)
+    bh = next(r for r in rows if r.employer == "Breuners Home")
+    assert bh.layoff_count == 101
+    assert bh.effective_date == date(2004, 7, 12)
+    assert bh.closure_type == "PLANT CLOSING"
+
+
 def test_parse_pa_month_monthname_effective_dates():
     """'LAYOFF EFFECTIVE DATES: May 30, 2019' — month-name dates parse."""
     from warn_v2.scrapers.states.pa import parse_pa_month
