@@ -125,7 +125,7 @@ sources only).
     as previously noted) — PDF era still deferred.
 - Remaining Wave 2: OH gap-year re-run (2007–2024), PA 2001+ (Wayback-era
   parse, strict dedup), MN multi-era parser, NC PDFs 2014+, NJ cumulative
-  xlsx, MA FY xlsx; WA pagination fix.
+  xlsx, MA FY xlsx.
 - **FOIA drafts in [foia/](foia/) are written but unsent** — tracker in
   foia/README.md; ingest responses with `warn-v2 ingest-file`.
 
@@ -161,7 +161,7 @@ delete Jobs after.
 | MN | 2023 | DEED PDFs via Wayback CDX replay (mn.gov prunes old assets): monthlies 2015–2016 + 2022+, annual summaries 2018–2021, cumulative yearly reports 2022–24; the Dec-2016 cumulative reaches month sections back through **2014** | **2014** (via the 2016 cumulative) | **multi-era parser done 2026-07-07** (`_parse_archive_words`, word-position columns from header labels; WARN=YES only; verified against every file's own "(N records)" section counts). Prod run pending — ⚠ live-scraper rows 2023+ were text-fallback parses with glued employer+city+industry; plan a PA-style purge + re-ingest of that era in the Job dry-run review |
 | MS | ~~2025~~ **PY2020 ✅** | MDES quarterly PDFs — `_discover_pdf_urls()` already returns all 23 (PY2020Q1+); old quarterlies merge "Company Name, City" (parser splits the trailing "City (County)" line) | **PY2020** (Jul 2020) | **done 2026-06-12** (+112; 4 quarterlies with a third layout variation skipped — known gap); older → request |
 | MA | 2025 | mass.gov WARN page publishes **FY22–FY25 XLSX reports** | FY2022 | ingest FY xlsx; pre-FY22 → email (invited) |
-| WA | 2026 | `fortress.wa.gov/esd/file/warn/Public/SearchWARN.aspx` — ASP.NET `__VIEWSTATE` pagination the scraper doesn't follow (10+ pages; depth unknown) | TBD | implement postback paging, then reassess |
+| WA | ~~2026~~ **2004 ✅** | `fortress.wa.gov/esd/file/warn/Public/SearchWARN.aspx` — ASP.NET `__VIEWSTATE` GridView; the scraper now replays the `Page$N` postback for every page (99 pages, ~15 rows each) | **2004** | **done 2026-07-07** (pagination fix; live fetch = 1,480 rows, floor 2004-01; deploys via the daily scrape, no one-off Job) |
 | OR | 2020 | HECC site states it retains only **six years** of WARN records; `data.oregon.gov` Socrata dataset `ijbz-jpx8` exists (content unverified) | ~mid-2020 | check Socrata dataset; pre-2020 → inquiry |
 | NV | ~~2025~~ **2017 ✅** | per-year PDFs under `detr.nv.gov/Content/Media/` in three layout eras (see `nv._ARCHIVE_SOURCES`); 2023 pruned live → Wayback; **2021 is a scanned image (OCR needed)**; 2025 snapshot ends Jun 3 | **2017** | **done 2026-07-02** (+584); 2021 + Jun–Dec 2025 + pre-2017 → request |
 | LA | ~~2026~~ **2025 ✅** | `WarnNotices{year}.pdf` — only 2025+ still resolve; the 2025 file's layout (no Address column) now parses | **2025** | **done 2026-07-02** (+23); pre-2025 → request (drafted) |

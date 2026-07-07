@@ -143,8 +143,15 @@ Ordered by recoverable rows:
   after the NY Job finishes (Wayback pacing); dry-run review plans the
   purge of the glued-employer 2023+ live rows (historical-sources.md MN
   row).
-- [ ] **WA `__VIEWSTATE` pagination** — implement ASP.NET postback paging,
-  then reassess depth (10+ pages, depth unknown). (A+gate)
+- ~~**WA `__VIEWSTATE` pagination** — implement ASP.NET postback paging,
+  then reassess depth (10+ pages, depth unknown). (A+gate)~~ — DONE 2026-07-07
+  (PR #TBD): `fetch()` now replays the `Page$N` GridView postback for each
+  page (carrying the fresh `__VIEWSTATE`/`__EVENTVALIDATION` tokens forward)
+  and concatenates the raw pages; `parse()` scans every `ucPSW_gvMain` grid.
+  **Depth reassessed: 99 pages / 1,480 rows / floor 2004-01** (was page-1
+  only, ~15 rows). No one-off backfill Job needed — WA's source is a single
+  cumulative list, so the next daily scrape upserts the full history via the
+  normal image-tag chain.
 - [ ] **CA 2009–2013 probe** — EDD archive search for the interior hole
   (archive currently = 11 PDFs + 1 XLSX, FY2014–2025); fall back to the CA
   records request. (A: spike + report)
