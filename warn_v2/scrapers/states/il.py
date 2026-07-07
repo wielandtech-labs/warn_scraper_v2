@@ -20,18 +20,24 @@ the header map handles both variants. Multi-worksite filings pack one
 number per site into the workers cell ('27   4   2') — summed on parse.
 Some archive rows (e.g. Feb 2021) are shifted: an extra layoff date sits in
 the workers cell and the true count in TYPE OF LAYOFF — recovered on parse.
+
+Historical PDF era (1999-2019): the same archive page lists one monthly PDF per
+month back to 1999. Those are a two-column labeled *form* (not a table), parsed
+by ``parse_il_pdf`` for the ``backfill-historical`` path — see that function.
 """
 from __future__ import annotations
 
 import io
 import re
 from datetime import date, datetime
+from urllib.parse import unquote
 
 import httpx
 import openpyxl
+import pdfplumber
 from bs4 import BeautifulSoup
 
-from warn_v2.scrapers._helpers import as_int, as_str, zip_from
+from warn_v2.scrapers._helpers import as_date, as_int, as_str, zip_from
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.http_cache import conditional_get
 from warn_v2.scrapers.registry import register
@@ -154,6 +160,251 @@ def _discover_archive_xlsx_urls() -> list[str]:
         if url not in urls:
             urls.append(url)
     return urls
+
+
+# ---------------------------------------------------------------------------
+# Historical PDF era (monthly archive reports, 1999-2019)
+# ---------------------------------------------------------------------------
+#
+# The PDFs are a two-column labeled form repeated per notice, e.g.
+#     COMPANY NAME: Acme Corp            TYPE OF EVENT: Closing
+#     COMPANY ADDRESS: 1 Main St         WARN NOTIFIED DATE: 12/2/19
+#     CITY, STATE, ZIP: Chicago, IL ...  FIRST LAYOFF DATE: 1/31/20
+# page.extract_text() flattens the two columns onto one physical line (gluing a
+# left value to a right label), so we split words by x first: geometry is stable
+# across the whole era (page width 612) — left labels sit at x~20, right labels
+# at x~380 — so a split at x=376 cleanly separates the two label columns.
+_PDF_COL_SPLIT = 376.0
+
+# Field labels we extract (value follows the label — a colon is usual but the
+# 2005 REGION line has none, so matching is by prefix). Adding one is a one-liner.
+_PDF_FIELD_LABELS = frozenset({
+    "COMPANY NAME", "COMPANY ADDRESS", "CITY, STATE, ZIP", "CITY, STATE",
+    "LOCAL WORKFORCE AREA", "SUBSTATE AREA & NUMBER",
+    "TYPE OF EVENT", "PERMANENT OR TEMPORARY", "WARN NOTIFIED DATE",
+    "FIRST LAYOFF DATE", "# WORKERS AFFECTED", "WORKERS AFFECTED",
+    "EVENT CAUSES", "COMPANY SIC", "COMPANY NAICS", "COUNTY",
+})
+# Every label on the form, including ones we don't extract. Unmapped labels must
+# still be recognized so they end the previous field instead of being appended to
+# it as a wrapped-value continuation. Longest first so 'CITY, STATE, ZIP' wins
+# over 'CITY, STATE' and 'COMPANY ADDRESS' over a bare prefix.
+_PDF_BOUNDARY_LABELS = sorted(
+    _PDF_FIELD_LABELS
+    | {
+        "COMPANY CONTACT", "TELEPHONE", "UNION", "BUMPING RIGHTS",
+        "REGION NUMBER & NAME", "TYPE OF COMPANY", "ENDING LAYOFF DATE",
+    },
+    key=len,
+    reverse=True,
+)
+
+# A monthly report PDF's filename always contains "WARN"; the WARN Act statute
+# PDF (IllinoisWARNSB2665.pdf) also does, but carries no month/year and so is
+# dropped by the year filter below.
+_PDF_HREF_RE = re.compile(r"warn.*\.pdf$", re.I)
+_YEAR_RE = re.compile(r"(?:19|20)\d\d")
+_PDF_COUNTY_HDR_RE = re.compile(r"PRIMARY EVENT COUNTY:\s*(.+)", re.I)
+
+# XLSX era; PDFs from this year on are skipped so the same months are not
+# re-ingested in a second format.
+_PDF_YEAR_END = 2019
+
+
+def _discover_archive_pdf_urls(year_end: int = _PDF_YEAR_END) -> list[str]:
+    """All monthly WARN report PDF URLs from the archive page (1999-``year_end``).
+
+    Mirrors ``_discover_archive_xlsx_urls`` but for the PDF era. PDFs whose year
+    is greater than ``year_end`` (the XLSX era, ingested separately) and the
+    non-monthly statute PDF are skipped. Returns page order, de-duplicated; the
+    percent-encoded form is kept (filenames contain spaces).
+    """
+    try:
+        r = httpx.get(_ARCHIVE_URL, headers=_UA, timeout=60, follow_redirects=True)
+        r.raise_for_status()
+    except httpx.HTTPError as e:
+        raise ScrapeFailed(f"IL: archive page fetch error: {e}") from e
+
+    soup = BeautifulSoup(r.content, "lxml")
+    urls: list[str] = []
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        m = re.search(r"SourceUrl=([^&\"']+\.pdf)(?:&|$)", href, re.I)
+        url = m.group(1) if m else None
+        if url is None:
+            if re.search(r"\.pdf$", href, re.I):
+                url = href if href.startswith("http") else _BASE_URL + href
+            else:
+                continue
+        # Match/date-filter on the decoded filename (the encoded "%20" would let
+        # the year regex read "2019" out of "%201999").
+        name = unquote(url.rsplit("/", 1)[-1])
+        if not _PDF_HREF_RE.search(name):
+            continue
+        ym = _YEAR_RE.search(name)
+        if ym is None or int(ym.group()) > year_end:
+            continue
+        if url not in urls:
+            urls.append(url)
+    return urls
+
+
+def _pdf_lines(words: list[dict]) -> list[list[dict]]:
+    """Group extract_words() output into visual lines (by ``top``), each sorted
+    left-to-right by ``x0``."""
+    out: list[list[dict]] = []
+    cur: list[dict] = []
+    cy: float | None = None
+    for w in sorted(words, key=lambda w: w["top"]):
+        if cy is None or abs(w["top"] - cy) <= 3.0:
+            cur.append(w)
+            cy = cy if cy is not None else w["top"]
+        else:
+            out.append(sorted(cur, key=lambda w: w["x0"]))
+            cur = [w]
+            cy = w["top"]
+    if cur:
+        out.append(sorted(cur, key=lambda w: w["x0"]))
+    return out
+
+
+def _pdf_split_label(text: str) -> tuple[str | None, str]:
+    """('COMPANY NAME: Foo') -> ('COMPANY NAME', 'Foo'); a line not starting with
+    a known label returns (None, text) so it can continue the previous field."""
+    up = text.upper()
+    for lab in _PDF_BOUNDARY_LABELS:
+        if up.startswith(lab):
+            return lab, text[len(lab):].lstrip(": ").strip()
+    return None, text
+
+
+def _pdf_record_to_row(rec: dict[str, str], source_url: str | None) -> NoticeRow | None:
+    """Build a NoticeRow from one collected notice block, or None if empty."""
+    employer = as_str(rec.get("COMPANY NAME"))
+    if not employer:
+        return None
+    employer = " ".join(employer.split())
+
+    # Drop rows with no filing date (mirrors the XLSX parser and dedup, which key
+    # on notice_date). This also discards the 1999 legend/instructions block,
+    # whose label placeholders parse as a dateless pseudo-notice.
+    notice_date = as_date(rec.get("WARN NOTIFIED DATE"))
+    if notice_date is None:
+        return None
+
+    city_state_zip = rec.get("CITY, STATE, ZIP") or rec.get("CITY, STATE")
+    workers = rec.get("# WORKERS AFFECTED") or rec.get("WORKERS AFFECTED")
+    # PDF workers cells are a clean number or "Not Provided"; as_int drops the
+    # latter to None.
+    layoff_count = as_int(workers) if workers else None
+
+    street = as_str(rec.get("COMPANY ADDRESS"))
+    address = ", ".join(p for p in (street, as_str(city_state_zip)) if p) or None
+
+    # SIC (1999-2005) and NAICS (2010+) are different taxonomies; keep SIC out of
+    # naics_code (read as NAICS downstream) and stash it in extra instead.
+    sic = as_str(rec.get("COMPANY SIC"))
+
+    extra: dict[str, str] = {}
+    layoff_type = as_str(rec.get("PERMANENT OR TEMPORARY"))
+    if layoff_type:
+        extra["layoff_type"] = layoff_type
+    event_causes = as_str(rec.get("EVENT CAUSES"))
+    if event_causes:
+        extra["event_causes"] = event_causes
+    workforce_area = as_str(rec.get("LOCAL WORKFORCE AREA")) or as_str(
+        rec.get("SUBSTATE AREA & NUMBER")
+    )
+    if workforce_area:
+        extra["workforce_area"] = workforce_area
+    if sic:
+        extra["sic_code"] = sic
+
+    return NoticeRow(
+        state="IL",
+        employer=employer,
+        notice_date=notice_date,
+        effective_date=as_date(rec.get("FIRST LAYOFF DATE")),
+        layoff_count=layoff_count,
+        city=_parse_city(city_state_zip),
+        county=as_str(rec.get("COUNTY")) or as_str(rec.get("_county_hdr")),
+        zip=zip_from(city_state_zip),
+        address=address,
+        closure_type=as_str(rec.get("TYPE OF EVENT")),
+        naics_code=as_str(rec.get("COMPANY NAICS")),
+        source_url=source_url or _SOURCE_URL,
+        extra=extra,
+    )
+
+
+def parse_il_pdf(raw: bytes, source_url: str | None = None) -> list[NoticeRow]:
+    """Parse a monthly IL WARN archive PDF (1999-2019 label-form era).
+
+    The report is a two-column labeled form repeated per notice. Words are split
+    by x-coordinate into the left/right label columns (see ``_PDF_COL_SPLIT``),
+    then each ``LABEL: value`` pair is collected into the current notice block; a
+    ``COMPANY NAME`` label starts a new block. A leading non-label line continues
+    the previous field on that side (wrapped company names / addresses / causes).
+    1999 has no per-notice county — notices sit under centered ``PRIMARY EVENT
+    COUNTY`` section headers, tracked here and applied to those blocks.
+    """
+    try:
+        pdf = pdfplumber.open(io.BytesIO(raw))
+    except Exception as e:
+        raise ParseFailed(f"IL PDF: could not open: {e}") from e
+
+    records: list[dict[str, str]] = []
+    cur: dict[str, str] | None = None
+    county_hdr: str | None = None
+    last_field: dict[str, str | None] = {"L": None, "R": None}
+
+    with pdf:
+        for page in pdf.pages:
+            for lws in _pdf_lines(page.extract_words()):
+                full = " ".join(w["text"] for w in lws).strip()
+                # 1999 groups notices under centered county section headers; the
+                # value can sit at the split x, so match on the full line.
+                m = _PDF_COUNTY_HDR_RE.match(full)
+                if m:
+                    county_hdr = m.group(1).strip()
+                    continue
+                if full.startswith("STATE OF ILLINOIS") or full.startswith("MONTH "):
+                    continue  # page banner
+                left = " ".join(
+                    w["text"] for w in lws if w["x0"] < _PDF_COL_SPLIT
+                ).strip()
+                right = " ".join(
+                    w["text"] for w in lws if w["x0"] >= _PDF_COL_SPLIT
+                ).strip()
+                for side, text in (("L", left), ("R", right)):
+                    if not text:
+                        continue
+                    lab, val = _pdf_split_label(text)
+                    if lab == "COMPANY NAME":
+                        cur = {"_county_hdr": county_hdr} if county_hdr else {}
+                        cur["COMPANY NAME"] = val
+                        records.append(cur)
+                        last_field["L"] = "COMPANY NAME"
+                        last_field["R"] = None
+                    elif cur is None:
+                        continue
+                    elif lab is not None:
+                        cur[lab] = val
+                        last_field[side] = lab
+                    else:
+                        prev = last_field[side]
+                        if prev and val:
+                            cur[prev] = (cur.get(prev, "") + " " + val).strip()
+
+        rows = [
+            row
+            for row in (_pdf_record_to_row(rec, source_url) for rec in records)
+            if row is not None
+        ]
+
+    if not rows:
+        raise ParseFailed("IL PDF: no notices found")
+    return rows
 
 
 def _as_date(val: object) -> date | None:
