@@ -189,6 +189,27 @@ def test_notice_detail_not_found(api_client, db):
     assert resp.status_code == 404
 
 
+def test_notice_surfaces_location_city_and_county(api_client, db):
+    """The notice view exposes location.city and location.county.
+
+    Regression guard for the NV zip-less shape (city + county, no ZIP): the
+    fields are parsed and persisted (see test_storage::
+    test_city_and_county_persist_without_zip); this asserts LocationOut surfaces
+    both through /api/notices/{id} rather than dropping them to null.
+    """
+    loc = Location(state="NV", city="Winnemucca", county="Humboldt")
+    db.add(loc)
+    db.flush()
+    n = _notice(db, state="NV", employer="Hycroft Mining")
+    n.location_id = loc.id
+    db.commit()
+
+    body = api_client.get(f"/api/notices/{n.notice_id}").json()
+    assert body["location"]["city"] == "Winnemucca"
+    assert body["location"]["county"] == "Humboldt"
+    assert body["location"]["state"] == "NV"
+
+
 def test_notices_excludes_superseded(api_client, db):
     """is_superseded=True notices must not appear in list results or totals."""
     _notice(db, state="IA", employer="Active Co", notice_date=date(2026, 1, 10))
