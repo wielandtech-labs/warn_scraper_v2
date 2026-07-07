@@ -22,6 +22,7 @@ from __future__ import annotations
 import csv
 import functools
 import io
+import logging
 import re
 from datetime import date, timedelta
 
@@ -31,6 +32,8 @@ from bs4 import BeautifulSoup
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.registry import register
+
+log = logging.getLogger(__name__)
 
 SOURCE_URL = (
     "https://jfs.ohio.gov/job-workforce-services/job-programs-and-services/"
@@ -472,10 +475,28 @@ def _fetch_oh_year(year: int) -> bytes | None:
     return None
 
 
+def _own_year_rows(rows: list[NoticeRow], year: int) -> list[NoticeRow]:
+    """Keep only rows dated in the file's own year.
+
+    Some per-year era files carry the previous year's listing appended (the
+    CDX-pinned WARN_2013.stm ends with a 2012 section in a different column
+    layout that line-parses into fragments — numeric employers, dates as
+    cities). Each year's own file is the canonical source for its rows, so
+    cross-year rows are dropped wholesale rather than cherry-picked.
+    """
+    kept = [r for r in rows if r.notice_date and r.notice_date.year == year]
+    if len(kept) != len(rows):
+        log.info(
+            "OH %d: dropped %d cross-year rows (the adjacent year's file is "
+            "canonical for them)", year, len(rows) - len(kept),
+        )
+    return kept
+
+
 def parse_oh_year(raw: bytes, year: int) -> list[NoticeRow]:
     """Dispatch on content shape: era PDF, portal JSON, year CSV, or HTML table."""
     if raw[:4] == b"%PDF":
-        return _parse_oh_pdf(raw, year)
+        return _own_year_rows(_parse_oh_pdf(raw, year), year)
     if b"js-placeholder-json-data" in raw:
         return _parse_oh_portal_json(raw, year)
     if not raw.lstrip().startswith(b"<"):

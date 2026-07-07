@@ -1143,3 +1143,21 @@ def test_pa_fetch_year_hard_caps_at_live_era():
 
     assert _fetch_pa_year(2023) is None
     assert _fetch_pa_year(2024) is None
+
+
+def test_oh_own_year_rows_drops_cross_year():
+    """Per-year era files sometimes carry the previous year's listing appended
+    (CDX-pinned WARN_2013.stm); those rows are junk or duplicates of the
+    canonical year file and must be dropped."""
+    from warn_v2.scrapers.states.oh import _own_year_rows
+
+    mk = lambda y, m, d, emp: NoticeRow(  # noqa: E731
+        state="OH", employer=emp, notice_date=date(y, m, d)
+    )
+    rows = [
+        mk(2013, 8, 9, "Real Co"),
+        mk(2012, 2, 28, "63"),        # wrapped-line fragment from the 2012 section
+        mk(2012, 2, 21, "Kodak"),     # real notice, but 2012's file is canonical
+    ]
+    kept = _own_year_rows(rows, 2013)
+    assert [r.employer for r in kept] == ["Real Co"]
