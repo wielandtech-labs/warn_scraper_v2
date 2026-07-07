@@ -73,7 +73,7 @@ export function ApiDocsPage() {
         counts, HQ address. Keyed responses carry <code>X-RateLimit-*</code>{" "}
         headers, and <code>/api/usage</code> reports your quota. Enterprise
         (raw company identifiers, custom quotas, support):{" "}
-        <a href="mailto:raphael@wielandtech.com">get in touch</a>.
+        <a href="mailto:contact@wielandtech.com">get in touch</a>.
       </p>
 
       <h2>Bulk download</h2>

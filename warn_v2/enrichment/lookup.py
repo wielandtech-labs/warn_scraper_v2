@@ -164,7 +164,7 @@ def edgar_lookup(
             _EDGAR_URL,
             params=params,
             timeout=_EDGAR_TIMEOUT,
-            headers={"User-Agent": "warn-v2/0.1 (research; raphael@wielandtech.com)"},
+            headers={"User-Agent": "warn-v2/0.1 (research; contact@wielandtech.com)"},
         )
         resp.raise_for_status()
         data = resp.json()

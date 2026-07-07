@@ -98,7 +98,7 @@ def fetch_svg(local_path: str | None) -> str:
     log.info("Fetching %s", _SOURCE_URL)
     req = urllib.request.Request(
         _SOURCE_URL,
-        headers={"User-Agent": "warn-v2/0.1 (research; raphael@wielandtech.com)"},
+        headers={"User-Agent": "warn-v2/0.1 (research; contact@wielandtech.com)"},
     )
     with urllib.request.urlopen(req, timeout=30) as resp:
         return resp.read().decode("utf-8")
