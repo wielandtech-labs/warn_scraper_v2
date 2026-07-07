@@ -162,9 +162,10 @@ _BACKFILL: dict[str, BackfillSpec] = {
         fetch_year=lambda s, y: _fetch_wi_archive_year(y),
         parse_year=lambda b, y: parse_wi_archive_html(b, y),
     ),
-    # MN: DEED PDFs discovered via Wayback CDX (annual 2018-2021, monthly
-    # 2022+). MNScraper.parse expects a JSON envelope — route raw PDF bytes
-    # to the archive parser instead.
+    # MN: DEED PDFs discovered via Wayback CDX (monthlies 2015-16 and 2022+,
+    # annual summaries 2018-2021, cumulative yearly reports). MNScraper.parse
+    # expects a JSON envelope — route raw PDF bytes to the archive parser,
+    # which dispatches pre-2025 files to the word-position era parser.
     "MN": BackfillSpec(
         discover_urls=lambda: _discover_mn_pdf_urls(),
         parse_for_url=lambda u: (lambda raw, _u=u: _parse_mn_archive_pdf(raw, _u)),
