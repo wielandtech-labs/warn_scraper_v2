@@ -290,7 +290,12 @@ def _backfill_url_list(
         log.info("%s: fetching %s", scraper.state, url)
         is_wayback = "web.archive.org" in url
         raw = None
-        for attempt in (1, 2):
+        # Wayback's throttle refuses connections in bursts; escalating
+        # backoffs clear most of them (a single 30s retry still dropped 12%
+        # of the NY pilot, 2026-07-07 — a lost page costs a whole extra
+        # multi-hour pass, so patience here is cheap).
+        backoffs = (30, 90)
+        for attempt in (1, 2, 3):
             if is_wayback:
                 # Wayback throttles request bursts; pace replay downloads.
                 time.sleep(3)
@@ -302,11 +307,9 @@ def _backfill_url_list(
                 raw = r.content
                 break
             except httpx.HTTPError as e:
-                # Wayback's throttle refuses connections in bursts; one long
-                # backoff usually clears it (observed 2026-07-07 at NY scale).
-                if is_wayback and attempt == 1:
+                if is_wayback and attempt < 3:
                     log.info("%s: wayback refused %s — backing off", scraper.state, url)
-                    time.sleep(30)
+                    time.sleep(backoffs[attempt - 1])
                     continue
                 log.warning("%s: fetch failed for %s: %s", scraper.state, url, e)
                 _record_run(
