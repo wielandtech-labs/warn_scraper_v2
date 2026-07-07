@@ -137,7 +137,8 @@ _BACKFILL: dict[str, BackfillSpec] = {
         parse_year=lambda b, y: parse_la_pdf(b, _la_source_url(y)),
     ),
     # NV: per-year archive PDFs 2017+ in three layout eras; 2021 is a scanned
-    # image (skipped) and 2025 coverage ends June 3 — see nv._ARCHIVE_SOURCES.
+    # image (parsed via the tesseract OCR fallback) and 2025 coverage ends
+    # June 3 — see nv._ARCHIVE_SOURCES.
     "NV": BackfillSpec(
         year_start=2017,
         fetch_year=lambda s, y: _fetch_nv_year(y),
