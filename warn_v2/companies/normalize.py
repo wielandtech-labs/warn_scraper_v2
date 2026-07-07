@@ -68,6 +68,25 @@ _TRAILING_OPEN_PAREN = re.compile(r"\s*\([^()]*$")
 # "(KI Jones Elementary)", "(6230)". Supersedes the old numeric-only rule.
 # Tolerates trailing footnote stars glued to the paren ("(CANCELLED)**").
 _TRAILING_PAREN = re.compile(r"\s*\([^()]*\)\**\s*$")
+# Same for square brackets: "GE Transportation Systems ... [Erie Plant]".
+_TRAILING_BRACKET = re.compile(r"\s*\[[^\[\]]*\]\**\s*$")
+# Trailing 1-2 digit affected-count, only when it directly follows a closing
+# paren/bracket or the word "county" ("DuPont (Pickaway) 65"). The anchor keeps
+# real short-number names ("Motel 6", "Pier 1", "Take 5 Oil Change") safe;
+# 3+-digit counts are already handled by _TRAILING_SITE_NO.
+_TRAILING_PAREN_COUNT = re.compile(r"([)\]]|\bcounty)\s*\d{1,2}\s*$", re.IGNORECASE)
+# Dangling conjunction left over from a truncated multi-entity name:
+# "Alliance Castings Company, LLC Alliance (Stark) 394 and".
+_TRAILING_CONJ = re.compile(r"\s+(?:and|&)\s*$", re.IGNORECASE)
+# Leading filing-status noise: bare star wrappers ("**JC Penney (Cancelled)",
+# "*RESCINDED* Advanced Packaging, Inc.") and UPPERCASE status words
+# ("UPDATE First Brands Group ..."). Case-sensitive on the words so an ordinary
+# name like "Update Parts Inc" is never touched; a wrong strip on a genuinely
+# star-named company degrades to a no-match per the module contract.
+_LEADING_NOISE = re.compile(
+    r"^\s*(?:\*+\s*|(?:UPDATED?|AMENDED|AMENDMENT|REVISED|RESCINDED|CORRECTED|"
+    r"CANCELLED)\b\**[:\s-]+)"
+)
 # Appended worksite address, anchored on a trailing US state+ZIP — high
 # precision. The leading-number requirement keeps real leading-number names
 # ("10x Genomics", "3M", "10 Roads") safe; the middle is length-bounded so a
@@ -130,23 +149,42 @@ def search_name(name: str | None) -> str:
     # anchored rule below uses ``.*$``, which can't cross a "\n", so a multi-line
     # stored name would silently defeat the descriptive/paren/address strips.
     s = _WS.sub(" ", s)
+    # Leading status noise can stack ("**RESCINDED** Acme"); strip until stable,
+    # but never down to nothing.
+    head = s
+    while True:
+        stripped = _LEADING_NOISE.sub("", head, count=1)
+        if stripped == head:
+            break
+        head = stripped
+    if head.strip():
+        s = head
     s = _HASH_STORE_NO.sub(" ", _LEADING_STORE_NO.sub("", s))
     s = _DBA.sub("", s)
     s = _DESCRIPTIVE_CLAUSE.sub("", s)
     s = _SUBSIDIARY_CLAUSE.sub("", s)
     s = _truncate_repeated_entity(s)
-    s = _TRAILING_STAR_NOTE.sub("", s)
-    s = _TRAILING_OPEN_PAREN.sub("", s)
-    s = _TRAILING_ADDR_ZIP.sub("", s)
-    # Trailing parens can stack ("Foo (Bar) (1234)"); strip until stable.
+    # Trailing junk stacks in layers ("... (Trumbull) 150": the count hides the
+    # parenthetical from the paren rule), so run the whole trailing block to a
+    # fixed point — each pass only ever shortens the string, so this terminates.
     while True:
-        stripped = _TRAILING_PAREN.sub("", s)
-        if stripped == s:
+        prev = s
+        s = _TRAILING_STAR_NOTE.sub("", s)
+        s = _TRAILING_OPEN_PAREN.sub("", s)
+        s = _TRAILING_ADDR_ZIP.sub("", s)
+        # Trailing parens/brackets can stack ("Foo (Bar) (1234)"); strip until stable.
+        while True:
+            stripped = _TRAILING_BRACKET.sub("", _TRAILING_PAREN.sub("", s))
+            if stripped == s:
+                break
+            s = stripped
+        s = _TRAILING_PAREN_COUNT.sub(r"\1", s)
+        s = _TRAILING_CONJ.sub("", s)
+        s = _strip_dash_segment(s)
+        s = _FACILITY_SUFFIX.sub("", s)
+        s = _TRAILING_SITE_NO.sub("", s)
+        if s == prev:
             break
-        s = stripped
-    s = _strip_dash_segment(s)
-    s = _FACILITY_SUFFIX.sub("", s)
-    s = _TRAILING_SITE_NO.sub("", s)
     s = _WS.sub(" ", s).strip(" ,")
     return s if s else name
 
@@ -190,22 +228,62 @@ def _truncate_repeated_entity(s: str) -> str:
     return s
 
 
+def _fuse_initialisms(tokens: list[str]) -> list[str]:
+    """Fuse runs of >=2 consecutive single-letter tokens into one token.
+
+    Punctuation stripping tokenizes "T&H" and "T & H" differently ("t h" both,
+    but only after the "&" is dropped); fusing the run to "th" gives both
+    spellings the same distinctive token so the faithfulness check can see
+    they agree. A lone single letter ("Toys R Us") is left as-is.
+    """
+    out: list[str] = []
+    run: list[str] = []
+    for t in tokens:
+        if len(t) == 1 and t.isalpha():
+            run.append(t)
+            continue
+        out.extend(["".join(run)] if len(run) >= 2 else run)
+        run = []
+        out.append(t)
+    out.extend(["".join(run)] if len(run) >= 2 else run)
+    return out
+
+
 def _significant_tokens(name: str) -> set[str]:
     """Distinctive lowercase tokens of a name (no legal suffixes, stopwords,
     pure numbers, or single chars) — the basis for the faithfulness check."""
     return {
         t
-        for t in canonical_name(name).split()
+        for t in _fuse_initialisms(canonical_name(name).split())
         if t not in _STOPWORDS and not t.isdigit() and len(t) > 1
     }
 
 
+# Scraped table-header fragments that ended up stored as company names
+# ("# AFFECTED 85", "# AFFECTED/ EFFECTIVE DATE:").
+_HEADER_ARTIFACT = re.compile(r"#\s*AFFECTED|EFFECTIVE\s+DATE", re.IGNORECASE)
+# A name cut off mid-phrase upstream ("Bank of", "Medical College of"): any
+# match would be pure guesswork, so don't search at all. Deliberately narrow —
+# "in"/"at"/"to" would false-positive on real names ("Sonic Drive In").
+_DANGLING_LAST_TOKENS: frozenset[str] = frozenset({"of", "for", "the"})
+
+
 def is_unsearchable(cleaned: str) -> bool:
-    """True when a cleaned query is too generic to look up (a lone generic
-    token). Lets aggressive stripping run without risking luck-of-the-draw
-    matches on names like "Alliance"."""
+    """True when a cleaned query is too generic or too broken to look up: a
+    lone generic token ("Alliance"), a header artifact stored as a name, a
+    string with no letters at all ("#1349"), or a name truncated mid-phrase
+    ("Bank of"). Lets aggressive stripping run without risking
+    luck-of-the-draw matches."""
     tokens = cleaned.split()
-    return len(tokens) == 1 and tokens[0].lower() in _GENERIC_SINGLE_TOKENS
+    if not tokens:
+        return True
+    if len(tokens) == 1 and tokens[0].lower() in _GENERIC_SINGLE_TOKENS:
+        return True
+    if _HEADER_ARTIFACT.search(cleaned):
+        return True
+    if not any(ch.isalpha() for ch in cleaned):
+        return True
+    return tokens[-1].lower() in _DANGLING_LAST_TOKENS
 
 
 def match_is_consistent(original: str, matched: str) -> bool:
