@@ -19,8 +19,8 @@ anthropic:
   secretKey: api-key
 
 snapshotStorage:
-  # NFS PVC for raw scrape snapshots (replay material for debugging/repair).
-  storageClass: nfs-client
+  # RWX PVC for raw scrape snapshots (replay material for debugging/repair).
+  storageClass: synostorage-nfs
   size: 10Gi
 
 scraper:
@@ -97,7 +97,7 @@ dnb:
 # raises reCAPTCHA risk). Requires enricher.providerImage to be set.
 hooversStorage:
   enabled: false
-  storageClass: nfs-client
+  storageClass: synostorage-nfs
   size: 1Gi
 
 # Periodic duplicate-company consolidation (consolidate-companies). Uses the
@@ -133,7 +133,7 @@ serviceMonitor:
 
 pdfStorage:
   enabled: false        # flip on in HelmRelease; requires a PVC-capable storage class
-  storageClass: nfs-client
+  storageClass: synostorage-nfs
   size: 20Gi
 
 pdfDownloader:
@@ -205,7 +205,7 @@ alertDigest:
 # GET /api/reports/{state}. 51 small markdown files — 1Gi is generous.
 reportStorage:
   enabled: false        # flip on in HelmRelease
-  storageClass: nfs-client
+  storageClass: synostorage-nfs
   size: 1Gi
 
 # Weekly per-state economic sentiment reports (warn-v2 sentiment-report).
