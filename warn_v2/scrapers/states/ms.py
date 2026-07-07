@@ -174,7 +174,7 @@ def _parse_stacked_header_tables(tables: list[list[list]]) -> list[NoticeRow] | 
             header = compact
         for row in page_data:
             cells = [c for c in row if c is not None]
-            if len(cells) == len(compact):
+            if len(cells) == len(header):
                 data_rows.append(cells)
     if header is None:
         return None
