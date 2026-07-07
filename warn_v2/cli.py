@@ -232,6 +232,7 @@ def enrich(
         f"provider_miss={stats['provider_miss']} "
         f"provider_rejected={stats.get('provider_rejected', 0)} "
         f"provider_dba={stats.get('provider_dba', 0)} "
+        f"sibling={stats.get('sibling', 0)} "
         f"skipped={stats['skipped']} total={stats['total']}{suffix}"
     )
     # Provider misses are EXPECTED outcomes (stamped + left queued), not
