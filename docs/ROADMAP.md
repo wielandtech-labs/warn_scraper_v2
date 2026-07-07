@@ -129,7 +129,15 @@ Ordered by recoverable rows:
 - [ ] **IL PDF era 1999–2019** — `parse_il_pdf` for the monthly archive PDFs
   (xlsx era 2020+ already ingested). (A+gate)
 - [ ] **NC 2014+** — archive-hub discovery (irregular slugs) +
-  `parse_nc_pdf`. (A+gate)
+  `parse_nc_pdf`. (A+gate) — *parser done 2026-07-07* (PR #TBD):
+  `_discover_nc_pdf_urls` (hub anchors, three slug families) + a three-era
+  `parse_nc_pdf` that dispatches on detected content — 2014–~2017
+  summary-count (word-position, wrap-aware), ~2018–2021 SSRS grid (city+zip
+  from the glued Address cell, repeated-address lines collapsed by WARN
+  number), 2022–2025 live-schema grid (shares `_row_from_nc_grid` with the
+  live HTML parser). **Remaining: the gated prod run** — dry-run pilot
+  (`--limit 3`) → full run → `mark-superseded --state NC --dry-run` →
+  re-audit (floor 2026→2014).
 - [x] ~~**NJ** — cumulative `WARN_Notice_Archive.xlsx` (year range unknown —
   parse first). (A+gate)~~ — DONE 2026-07-07 (parser #197: one sheet per
   year 2004–2026; prod run w_homelab #627: **+2,203 rows, floor
