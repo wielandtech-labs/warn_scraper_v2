@@ -148,8 +148,17 @@ Ordered by recoverable rows:
 - [ ] **CA 2009–2013 probe** — EDD archive search for the interior hole
   (archive currently = 11 PDFs + 1 XLSX, FY2014–2025); fall back to the CA
   records request. (A: spike + report)
-- [ ] **NV 2021** — scanned-image year PDF; extend the archive route through
-  the existing tesseract OCR fallback. (A+gate)
+- [x] ~~**NV 2021** — scanned-image year PDF; extend the archive route through
+  the existing tesseract OCR fallback. (A+gate)~~ — *parser done 2026-07-07*
+  (PR #TBD): `WARN_2021.pdf` is a single-page scanned table (no text layer);
+  `parse_nv_archive` now OCR-falls-back to `pdf_extract.ocr_word_boxes` (points-
+  normalized word boxes) and reuses the 2022-shaped word-position parser with
+  2021 bounds. 20 known notices, no Notification column. OCR can't run in
+  CI/local (tesseract is Docker-only), so a synthetic-word unit test guards the
+  column layout and a skip-guarded fixture test covers real OCR. **Remaining:
+  the gated prod run** (`backfill-historical --state NV --year-start 2021
+  --year-end 2021`, dry-run first — new year, no dedup), verify +~20 rows vs the
+  known ground truth, then re-audit.
 - [x] ~~**MS straggler quarterlies** — 4 files with a third layout variation
   (e.g. `py2024-q4`), known gap from the PY2020+ run. (A+gate)~~ — DONE
   2026-07-07 (parser #196; prod run w_homelab #627: **+18 rows**, 3 glued
