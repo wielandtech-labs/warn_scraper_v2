@@ -127,6 +127,10 @@ def test_pa_raises_on_bad_html() -> None:
         # Live text uses an en-dash (chr avoids the literal, per ruff RUF001).
         ("81 Total " + chr(0x2013) + " 13 of which reside in PA", None),
         ("9,236 Nationwide; PA total pending verification", None),
+        # '0' means the source didn't state a count (2001-2010 portal-era
+        # pages publish '# AFFECTED: 0'), not zero workers -> unknown.
+        ("0", None),
+        ("0 (within PA)", None),
         ("Unknown", None),
         ("unknown", None),
         ("TBD", None),
