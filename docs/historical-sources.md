@@ -13,7 +13,7 @@ sources only).
 
 ## Progress (update as backfills run)
 
-- **2026-07-07 — IL PDF era 1999–2019 parser landed** (`parse_il_pdf`, PR #TBD):
+- **2026-07-07 — IL PDF era 1999–2019 parser landed** (`parse_il_pdf`, PR #211):
   the archive's monthly PDFs are a two-column labeled *form*, not a table —
   `extract_text()` flattens the columns and glues a left value onto the next
   right label, so the parser splits `extract_words()` by x (labels at x≈20/380,
