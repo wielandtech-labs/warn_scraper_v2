@@ -1972,6 +1972,17 @@ def test_nc_ssrs_city_strips_unit_letters_and_directions():
         assert _ssrs_city_zip(addr)[0] == want, addr
 
 
+def test_nc_summary_join_city_collapses_letter_spacing():
+    """Some 2014 summary cells render the city letter-spaced (pdfplumber returns
+    one word per char); those collapse, real multi-word cities keep their space."""
+    from warn_v2.scrapers.states.nc import _join_city
+
+    assert _join_city(["S", "a", "l", "i", "s", "b", "u", "r", "y"]) == "Salisbury"
+    assert _join_city(["G", "o", "l", "d", "sboro"]) == "Goldsboro"
+    assert _join_city(["Rocky", "Mount"]) == "Rocky Mount"
+    assert _join_city(["Charlotte"]) == "Charlotte"
+
+
 def test_nc_parse_pdf_current_grid_era():
     """2022+ grid shares the live HTML schema and _row_from_nc_grid."""
     from warn_v2.scrapers.states.nc import parse_nc_pdf
