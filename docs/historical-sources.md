@@ -13,6 +13,18 @@ sources only).
 
 ## Progress (update as backfills run)
 
+- **2026-07-07 — MS stragglers + NJ workbook backfilled in prod** (parsers
+  #196/#197, image `20260707-202905-5a80b93`; Jobs w_homelab #626 dry-run →
+  #627 real → #629 prune): **MS +18** from the 4 stacked-header quarterlies
+  (124 → 139 after purging 3 glued-employer qtr-1 rows — the June run had
+  ingested "Alan Ritchey, Inc. Southaven (DeSoto)"-style rows with city=None;
+  deletes were guarded on the exact glued string + the clean replacement
+  existing). **NJ +2,203** from the cumulative `WARN_Notice_Archive.xlsx`
+  (floor 2026-01 → **2004-01**, 2,282 total; 2,349 parsed → 2,281 after
+  in-batch hash dedupe; dry-run near_miss=0 and every pre-existing prod row
+  hashed identical to its workbook copy). Both verified per-record via the
+  public API. Note: MDES posted PY2023-Q1 content under the `py2023-qtr-4`
+  slug — PY2023-Q4 (Apr–Jun 2024) itself is published nowhere.
 - **2026-07-06 — OH first backfill run in prod** (w_homelab #595, one-off Job
   per the runbook): **+2,319 rows, 22/31 years OK** (1996–2024 attempted;
   2025/2026 are expected misses — no source / live-scraper year). The 7 real
@@ -135,7 +147,7 @@ delete Jobs after.
 | FL | ~~2026~~ **2020 ✅** | `reactwarn.floridajobs.org/WarnList/Records?year=Y` — paginated (e.g. 2020 = 1,337 records); page links followed | **2020** (older years return 0 rows) | **done 2026-06-12** (+2,167); pre-2020 → FOIA |
 | TX | ~~2026~~ **2020 ✅** | `warn-act-listings-{year}-twc.xlsx` — **only 2020+ still resolve** (pre-2020 files removed from twc.texas.gov; the old `/files/news/` era is dead; Socrata `data.texas.gov/dataset/8w53-c4f6` starts 2019-01, 2,363 rows — verified 2026-06-12) | **2020** | **done 2026-06-12** (+2,166); pre-2020 → records request (warn.list@twc.texas.gov) |
 | NC | 2026 | archive hub `commerce.nc.gov/...warn-summary-report-archives` → per-year **PDF** documents with irregular slugs (`warn-report-2019/open` etc.) | **2014** | needs a PDF parser → Wave 2 (hub discovery + `parse_nc_pdf`) |
-| NJ | 2026 | cumulative `nj.gov/labor/assets/PDFs/WARN/WARN_Notice_Archive.xlsx` — one sheet per year, same 5 columns as the live PDF (parsed 2026-07-07: 23 sheets 2004–2026, 2,349 rows; the 2026 sheet dedupes 76/78 against the live PDF by notice_id) | **2004** | parser done 2026-07-07 (`parse_nj_archive_xlsx`, spec `--state NJ`); prod run pending |
+| NJ | ~~2026~~ **2004 ✅** | cumulative `nj.gov/labor/assets/PDFs/WARN/WARN_Notice_Archive.xlsx` — one sheet per year, same 5 columns as the live PDF (23 sheets 2004–2026, 2,349 rows) | **2004** | **done 2026-07-07** (+2,203, near_miss=0; see Progress) |
 | NM | ~~2025~~ **2016 ✅** | per-year PDFs on `dws.nm.gov/Rapid-Response` (filenames vary 2016–2018 → discovered from the hub's anchors) | **2016** | **done 2026-06-12** (+109); pre-2016 → request |
 | HI | ~~2026~~ **2019 ✅** | `labor.hawaii.gov/wdc/{year}-warn-notices/`; hub `real-time-warn-updates` lists 2019–2026 | **2019** | **done 2026-06-12** (+401); pre-2019 → UIPA request |
 | KY | ~~2025~~ **2017 ✅** (the earlier "2021 ✅" claim was wrong) | per-year CSVs exist only for **2025+**; the 2021–2024 folders hold `.xls`/`.xlsx` instead, and any recent `.xlsx` workbook carries **one sheet per year back to 2017** (verified 2026-07-02; see Progress) | **2017** | **done 2026-07-02** (+343, workbook route); pre-2017 → request |
