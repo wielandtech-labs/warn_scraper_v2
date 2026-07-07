@@ -63,6 +63,7 @@ from warn_v2.scrapers.states.mn import (
     _parse_archive_pdf as _parse_mn_archive_pdf,
 )
 from warn_v2.scrapers.states.ms import _discover_pdf_urls as _discover_ms_pdf_urls
+from warn_v2.scrapers.states.nc import _discover_nc_pdf_urls, parse_nc_pdf
 from warn_v2.scrapers.states.nj import ARCHIVE_XLSX_URL as _NJ_ARCHIVE_XLSX_URL
 from warn_v2.scrapers.states.nj import parse_nj_archive_xlsx
 from warn_v2.scrapers.states.nm import _discover_archive_pdf_urls as _discover_nm_pdf_urls
@@ -150,6 +151,13 @@ _BACKFILL: dict[str, BackfillSpec] = {
     "NJ": BackfillSpec(
         discover_urls=lambda: [_NJ_ARCHIVE_XLSX_URL],
         parse_for_url=lambda u: parse_nj_archive_xlsx,
+    ),
+    # NC: per-year archive PDFs 2014+ discovered from the hub (irregular slugs).
+    # Three layout eras; parse_nc_pdf dispatches on detected content. Capture
+    # the URL so each PDF's parser records its own source_url.
+    "NC": BackfillSpec(
+        discover_urls=lambda: _discover_nc_pdf_urls(),
+        parse_for_url=lambda u: (lambda raw, _u=u: parse_nc_pdf(raw, _u)),
     ),
     # NM: yearly PDFs back to 2016 with irregular filenames — discover from hub.
     "NM": BackfillSpec(discover_urls=lambda: _discover_nm_pdf_urls()),
