@@ -37,6 +37,18 @@ _UA = {
     )
 }
 
+# --- Historical archive (pre-FY2014) via the Wayback Machine ---------------
+# The live archive page only lists FY2014+ reports; EDD's calendar-year listings
+# 2006-2014 survive only in web.archive.org.  We ingest the *detailed* listing
+# variants (`eddwarncn{da,dbd,del,dmr,ds,dtz}{YY}.pdf`, an A-Z alphabet split) —
+# unlike the simple `cn{YY}.pdf` they carry the real notice-received date and a
+# street address, so every row gets a unique dedup hash.  See
+# docs/historical-sources.md (CA row) for the probe write-up.
+_CDX_API = "https://web.archive.org/cdx/search/cdx"
+_WAYBACK_REPLAY = "https://web.archive.org/web/{ts}id_/{url}"
+# da(1-A) dbd(B-D) del(E-L) dmr(M-R) ds(S-S) dtz(T-Z); YY = 06..14.
+_CA_DETAIL_RE = re.compile(r"eddwarncn(?:da|dbd|del|dmr|ds|dtz)(\d{2})\.pdf$", re.I)
+
 
 def _discover_archive_urls() -> list[str]:
     """Scrape EDD WARN archive page; return absolute URLs for all historical files.
@@ -247,6 +259,235 @@ def _read_with_header_detection(raw: bytes) -> pd.DataFrame:
     # Drop trailing summary rows; detect by missing company.
     df = df.dropna(subset=[c for c in df.columns if norm(c) in _COMPANY_KEYS])
     return df
+
+
+def _discover_ca_historical_urls() -> list[str]:
+    """Wayback replay URLs for EDD's pre-FY2014 *detailed* WARN listing PDFs.
+
+    Queries the CDX index for `edd.ca.gov/.../warn/` captures, keeps only the
+    detailed alphabet-split files (`_CA_DETAIL_RE`, years 2006-2014), and returns
+    the latest 200 capture per filename — the earlier captures are rolling
+    year-to-date snapshots, so only the last one holds the complete calendar year.
+    """
+    import time
+
+    for attempt in (1, 2):
+        try:
+            r = httpx.get(
+                _CDX_API,
+                params={
+                    "url": "edd.ca.gov/jobs_and_training/warn/",
+                    "matchType": "prefix",
+                    "output": "json",
+                    "fl": "timestamp,original",
+                    # Server-side filters keep the response under the row cap and
+                    # spare us the simple/local variants we don't ingest.
+                    "filter": ["statuscode:200", r"original:.*eddwarncnd.*\.pdf"],
+                    "collapse": "urlkey",
+                    "limit": "5000",
+                },
+                headers=_UA,
+                timeout=120,
+            )
+            r.raise_for_status()
+            captures = r.json()
+            break
+        except (httpx.HTTPError, ValueError) as e:
+            if attempt == 1:
+                time.sleep(5)
+                continue
+            raise ScrapeFailed(f"CA: CDX query for historical PDFs: {e}") from e
+
+    if not isinstance(captures, list):
+        return []
+    # filename -> (latest_ts, original_url); the ".pdf" match is on the filename
+    # so scheme/host variants collapse together.
+    best: dict[str, tuple[str, str]] = {}
+    for cap in captures[1:]:  # row 0 is the field-name header
+        if not (isinstance(cap, list) and len(cap) == 2):
+            continue
+        ts, original = str(cap[0]), str(cap[1])
+        m = _CA_DETAIL_RE.search(original)
+        if m is None:
+            continue
+        fname = m.group(0).lower()
+        if fname not in best or ts > best[fname][0]:
+            best[fname] = (ts, original)
+    return [
+        _WAYBACK_REPLAY.format(ts=ts, url=original)
+        for _fname, (ts, original) in sorted(best.items())
+    ]
+
+
+# --- Detailed-PDF block parser --------------------------------------------
+# Fixed-column layout (verified 2006-2014): employer + address at x0<300, the
+# count and effective (layoff) date in a 300-425 middle band, and the Local
+# Workforce Investment Area wrapping down the right column at x0>=425.  The
+# per-record job-title breakdown and the notice/closure metadata sit on their
+# own labelled lines.  `extract_text` glues the LWIA column onto the address, so
+# we parse from word positions instead.
+_CID_RE = re.compile(r"\(cid:\d+\)")
+_DATE_TOKEN_RE = re.compile(r"^\d{1,2}/\d{1,2}/\d{4}$")
+_NOTICE_DATE_RE = re.compile(r"Date Notice Received:\s*(\d{1,2}/\d{1,2}/\d{4})")
+_CLOSURE_RE = re.compile(r"Layoff or Closure:\s*([A-Za-z/ ]+?)(?:\s{2,}|$)")
+_CITYLINE_RE = re.compile(r",\s*[A-Z]{2}\.?\s+\d{5}\b")
+# The ZIP is the 5-digit group after the state code — not the first 5-digit run,
+# which on these records is often a 5-digit street number (e.g. "26531 YNEZ RD").
+_ZIP_AFTER_STATE_RE = re.compile(r"\b[A-Z]{2}\.?\s+(\d{5})(?:-\d{4})?\b")
+_PAGE_CHROME_RE = re.compile(r"^(rev\.|page\s+\d+\s+of\s)", re.I)
+# x-coordinate bands (page width 612).
+_LEFT_MAX = 300.0   # employer / address column
+_REGION_MIN = 425.0  # Local Workforce Investment Area column (dropped)
+
+
+def _clean(text: str) -> str:
+    return " ".join(_CID_RE.sub(" ", text).split())
+
+
+def _detail_lines(raw: bytes) -> list[list[dict]]:
+    """Return every text line as a list of ``{'text','x0'}`` words, in page order."""
+    import pdfplumber
+
+    lines: list[list[dict]] = []
+    with pdfplumber.open(io.BytesIO(raw)) as pdf:
+        for page in pdf.pages:
+            rows: dict[int, list[dict]] = {}
+            for w in page.extract_words(use_text_flow=False):
+                text = _clean(w["text"])
+                if not text:
+                    continue
+                rows.setdefault(round(w["top"]), []).append(
+                    {"text": text, "x0": float(w["x0"])}
+                )
+            for top in sorted(rows):
+                lines.append(sorted(rows[top], key=lambda d: d["x0"]))
+    return lines
+
+
+def _is_record_header(words: list[dict]) -> bool:
+    """A record starts on the line carrying the effective date in the middle band.
+
+    The 'Date Notice Received' line also holds a 4-digit date, but it lands in the
+    right (LWIA) column at x0>=425, so the band check alone separates them; the
+    keyword guard is belt-and-suspenders.
+    """
+    has_employer = any(w["x0"] < _LEFT_MAX for w in words)
+    has_mid_date = any(
+        _DATE_TOKEN_RE.match(w["text"]) and _LEFT_MAX <= w["x0"] < _REGION_MIN
+        for w in words
+    )
+    if not (has_employer and has_mid_date):
+        return False
+    joined = " ".join(w["text"] for w in words).lower()
+    return "date notice received" not in joined and "company contact" not in joined
+
+
+def parse_ca_detail_pdf(raw: bytes, source_url: str | None = None) -> list[NoticeRow]:
+    """Parse an EDD *detailed* historical WARN PDF (2006-2014) into NoticeRows.
+
+    One PDF is an alphabet slice (e.g. B-D) of a calendar year; the discovery
+    layer supplies the six slices per year.  Dates come from the record itself,
+    so the parser is year-agnostic.
+    """
+    try:
+        lines = _detail_lines(raw)
+    except Exception as e:
+        raise ParseFailed(f"CA detail PDF: {e}") from e
+
+    header_idx = [i for i, ln in enumerate(lines) if _is_record_header(ln)]
+    if not header_idx:
+        raise ParseFailed("CA detail PDF: no WARN record headers found")
+
+    rows: list[NoticeRow] = []
+    for k, start in enumerate(header_idx):
+        end = header_idx[k + 1] if k + 1 < len(header_idx) else len(lines)
+        row = _parse_detail_block(lines[start:end], source_url)
+        if row is not None:
+            rows.append(row)
+    return rows
+
+
+def _parse_detail_block(block: list[list[dict]], source_url: str | None) -> NoticeRow | None:
+    header = block[0]
+    date_word = next(
+        (w for w in header if _DATE_TOKEN_RE.match(w["text"]) and w["x0"] < _REGION_MIN),
+        None,
+    )
+    if date_word is None:
+        return None
+    effective_date = as_date(date_word["text"])
+
+    # Count: the integer token in the middle band, left of the date. When the
+    # employer didn't state it the cell reads "EDNS" (→ None). Employer text lives
+    # in the fixed left column, so cut there — never sweep in the count/EDNS token.
+    count = None
+    for w in header:
+        if _LEFT_MAX <= w["x0"] < date_word["x0"]:
+            c = as_int(w["text"])
+            if c is not None:
+                count = c
+                break
+    employer_parts = [w["text"] for w in header if w["x0"] < _LEFT_MAX]
+
+    address_lines: list[str] = []
+    address_started = False
+    notice_date = None
+    closure = None
+    for ln in block[1:]:
+        joined = " ".join(w["text"] for w in ln)
+        low = joined.lower()
+        if _PAGE_CHROME_RE.match(low):
+            continue
+        if "date notice received" in low or "company contact" in low:
+            m = _NOTICE_DATE_RE.search(joined)
+            if m:
+                notice_date = as_date(m.group(1))
+            address_started = True  # metadata block begins; stop taking address
+            continue
+        if "layoff or closure" in low:
+            m = _CLOSURE_RE.search(joined)
+            if m:
+                closure = m.group(1).strip()
+            continue
+        if "job title:" in low:
+            break
+        if notice_date is not None or closure is not None:
+            continue  # already past the address, inside metadata / job titles
+        left = " ".join(w["text"] for w in ln if w["x0"] < _REGION_MIN).strip()
+        if not left:
+            continue
+        looks_addr = (
+            left[:1].isdigit()
+            or bool(_CITYLINE_RE.search(left))
+            or left.upper().startswith(("PO BOX", "P.O", "P O"))
+        )
+        if looks_addr:
+            address_lines.append(left)
+            address_started = True
+        elif not address_started:
+            employer_parts.append(left)  # wrapped employer name
+        # else: stray line after the address block — ignore
+
+    employer = _clean(" ".join(employer_parts))
+    if not employer:
+        return None
+    address = ", ".join(address_lines) or None
+    zip_code = None
+    if address:
+        m = _ZIP_AFTER_STATE_RE.search(address)
+        zip_code = m.group(1) if m else zip_from(None, address)
+    return NoticeRow(
+        state="CA",
+        employer=employer,
+        notice_date=notice_date,
+        effective_date=effective_date,
+        layoff_count=count,
+        closure_type=closure,
+        city=city_from_address(address),
+        zip=zip_code,
+        address=address,
+        source_url=source_url or SOURCE_URL,
+    )
 
 
 register(CAScraper())
