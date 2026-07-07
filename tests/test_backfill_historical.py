@@ -1161,3 +1161,76 @@ def test_oh_own_year_rows_drops_cross_year():
     ]
     kept = _own_year_rows(rows, 2013)
     assert [r.employer for r in kept] == ["Real Co"]
+
+
+def test_parse_pa_month_label_variants_2017_2020():
+    """2017-2020 pages use 'LAYOFF EFFECTIVE DATE(S):' labels and '*UPDATE*'
+    marker lines; neither may leak into employer names (they produced ~200
+    bogus locationless rows in the first backfill run)."""
+    from warn_v2.scrapers.states.pa import parse_pa_month
+
+    rows = parse_pa_month(_pa_month_envelope("archive_sp_2018_08.html", 8), 2018)
+    assert not any(
+        w in r.employer.upper()
+        for r in rows
+        for w in ("EFFECTIVE", "AFFECTED", "COUNTY:", "*UPDATE", "LAYOF")
+    )
+    hw = next(r for r in rows if "Harbison" in r.employer)
+    # The '*UPDATE to January 29, 2018 WARN*' marker precedes the name in the
+    # same bold block and must be skipped, not taken as the employer.
+    assert hw.employer == "Harbison Walker International"
+    assert hw.layoff_count == 88
+    assert hw.effective_date == date(2018, 7, 27)  # LAYOFF EFFECTIVE DATE:
+    assert hw.closure_type == "Closure"
+    assert hw.city == "Claysburg"
+
+
+def test_parse_pa_month_monthname_effective_dates():
+    """'LAYOFF EFFECTIVE DATES: May 30, 2019' — month-name dates parse."""
+    from warn_v2.scrapers.states.pa import parse_pa_month
+
+    rows = parse_pa_month(_pa_month_envelope("archive_sp_2019_02.html", 2), 2019)
+    cm = next(r for r in rows if "Conemaugh" in r.employer)
+    assert cm.effective_date == date(2019, 5, 30)
+    assert cm.layoff_count == 100
+    # Every row in this month resolves an effective date (source has none TBD).
+    assert all(r.effective_date is not None for r in rows)
+
+
+def test_parse_oh_pdf_line_wrapped_date_fragments():
+    """.stm-era PDFs wrap long layoff-date cells, leaving fragments after the
+    count; those must not merge into the count (prod saw 65 2009 -> 652009,
+    57 4525 -> 574525, 394 and June 18, 2009 -> 182009)."""
+    from warn_v2.scrapers.states.oh import _parse_oh_pdf_line
+
+    # Month-name date fragment (optionally led by and/until/through).
+    row = _parse_oh_pdf_line(
+        "4/7/2009",
+        "Alliance Castings Company, LLC Alliance (Stark) 394 and June 18, 2009 "
+        "(330) 829-5600 Lodge DS30 006-08-171",
+        2009,
+    )
+    assert row.layoff_count == 394
+    assert row.effective_date == date(2009, 6, 18)
+
+    # Bare-year fragment: count only, no date.
+    row = _parse_oh_pdf_line(
+        "3/31/2009",
+        "Myers Industries Company) (Hancock) 54 2009 (419) 435-1811 #1915 007-08-167",
+        2009,
+    )
+    assert row.layoff_count == 54
+    assert row.effective_date is None
+
+    # Other fragment (split phone number): implausible merge keeps the first
+    # number.
+    row = _parse_oh_pdf_line(
+        "11/10/2008",
+        "Rexam Closure Systems, Inc. (Wood) 57 4525 (419) 373-4525 UAW 007-08-063",
+        2008,
+    )
+    assert row.layoff_count == 57
+
+    # Plausible single-number splits ("1 ,200") still merge as before.
+    row = _parse_oh_pdf_line("1/5/2000", "Acme Corp Dayton 1 ,200", 2000)
+    assert row.layoff_count == 1200

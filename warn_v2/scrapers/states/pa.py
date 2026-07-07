@@ -105,6 +105,15 @@ def _parse_effective_date(raw: str) -> date | None:
     if not m:
         m = _DATE_RE.search(raw)
     if not m:
+        # Month-name form ("May 30, 2019"; ranges take the first date).
+        mn = _MONTHNAME_DATE_RE.search(raw)
+        if mn:
+            try:
+                return date(
+                    int(mn.group(3)), _MONTH_NUM[mn.group(1).lower()], int(mn.group(2))
+                )
+            except ValueError:
+                return None
         return None
     parts = m.group(1).split("/")
     if len(parts) != 3:
@@ -295,6 +304,9 @@ _MONTH_NUM = {
     )
 }
 _MONTH_ALT = "|".join(_MONTH_NUM)
+# "May 30, 2019" — used by _parse_effective_date as a fallback for label
+# values the numeric M/D/Y regexes miss (common 2017+).
+_MONTHNAME_DATE_RE = re.compile(rf"({_MONTH_ALT})\s+(\d{{1,2}}),?\s+(\d{{4}})", re.I)
 _PORTAL_MONTH_RE = re.compile(rf"/({_MONTH_ALT})_(\d{{4}})_warn_notices/", re.I)
 _SP_MONTH_RE = re.compile(rf"/pages/({_MONTH_ALT})-(\d{{4}})\.aspx", re.I)
 # Standalone closure line between the labels — "PLANT CLOSING", "CLOSING",
@@ -306,12 +318,27 @@ _CLOSURE_LINE_RE = re.compile(
 # "City, PA" with no ZIP (early portal pages often omit it).
 _CITY_NO_ZIP_RE = re.compile(r"^(.+),\s*PA\.?\s*$", re.I)
 
-# Inline labels; the late SharePoint era (~2021+) labels the closure type
-# ("CLOSING OR LAYOFF: Closure") instead of a standalone bold line.
-_HIST_LABELS = (
-    "COUNTY:", "# AFFECTED:", "EFFECTIVE DATE:",
-    "CLOSING OR LAYOFF:", "CLOSURE OR LAYOFF:",
+# Label lines, canonicalized. The vocabulary drifted over the years:
+# "EFFECTIVE DATE:" (2001-2016), "LAYOFF EFFECTIVE DATE(S):" (2017-2020,
+# incl. a "LAYOF" typo and "LAYOFF DATE:"), "TOTAL AFFECTED:" and a
+# colon-less "# AFFECTED 85" (2020), "CLOSING/CLOSURE OR LAYOFF:" (~2018+).
+# Unmatched label lines silently become bogus employer rows, so match wide.
+_HIST_LABEL_RES: tuple[tuple[re.Pattern, str], ...] = (
+    (re.compile(r"^county\s*:", re.I), "COUNTY"),
+    (re.compile(r"^(?:#\s*|total\s+)affected\s*:?", re.I), "# AFFECTED"),
+    (re.compile(r"^(?:layof{1,2}\s+)?effective\s+dates?\s*:", re.I), "EFFECTIVE DATE"),
+    (re.compile(r"^layof{1,2}\s+dates?\s*:", re.I), "EFFECTIVE DATE"),
+    (re.compile(r"^(?:closing|closure)\s+or\s+layoff\s*:", re.I), "CLOSURE"),
 )
+
+
+def _match_hist_label(line: str) -> tuple[str, str] | None:
+    """(canonical key, inline value) for a label line, else None."""
+    for rx, key in _HIST_LABEL_RES:
+        m = rx.match(line)
+        if m:
+            return key, line[m.end():].strip()
+    return None
 
 
 def _cdx_snapshots(url_pattern: str, month_re: re.Pattern) -> dict[tuple[int, int], str]:
@@ -452,20 +479,22 @@ def _parse_month_cell(lines: list[str], year: int, month: int) -> list[NoticeRow
         )
 
     for line in lines:
-        upper = line.upper()
-        if any(upper.startswith(p) for p in _HIST_LABELS):
-            key, _, val = line.partition(":")
-            key = key.strip().upper()
-            if key in ("CLOSING OR LAYOFF", "CLOSURE OR LAYOFF"):
-                key = "CLOSURE"
-            if val.strip():
-                labels[key] = val.strip()
+        matched = _match_hist_label(line)
+        if matched is not None:
+            key, val = matched
+            if val:
+                labels[key] = val
                 pending = None
             else:
                 pending = key
         elif pending is not None:
             labels[pending] = line
             pending = None
+        elif line.startswith("*"):
+            # "*UPDATE TO M/D/YY WARN*" markers precede the employer name in
+            # the same bold block; "*All employees will ..." footnotes trail
+            # the labels. Neither is an employer, address, or new block.
+            continue
         elif labels and _CLOSURE_LINE_RE.match(line):
             labels["CLOSURE"] = line
         elif labels:
