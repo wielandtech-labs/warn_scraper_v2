@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 from datetime import date
 
 import pytest
@@ -180,3 +181,50 @@ def test_export_route_not_shadowed_by_notice_id(api_client, db):
     """/api/notices/export must hit the export route, not /notices/{id}='export'."""
     db.commit()
     assert api_client.get("/api/notices/export").status_code == 200
+
+
+def test_notices_export_industry_and_geocoded_filters(api_client, db):
+    """Filters that join Company/Location must compose with the export query's
+    own outer joins (company_joined/location_joined) instead of double-joining."""
+    from warn_v2.db.models import Location
+
+    loc = Location(city="Oakland", county="Alameda", state="CA", zip="94607",
+                   lat=37.8044, lon=-122.2711)
+    db.add(loc)
+    db.flush()
+    mfg = Company(name="Factory Co", naics_code="336111")
+    db.add(mfg)
+    db.flush()
+    n = _notice(db, employer="Factory Co", company=mfg)
+    n.location_id = loc.id
+    _notice(db, employer="No Industry Co", notice_date=date(2026, 2, 1))
+    db.commit()
+
+    body = api_client.get("/api/notices/export?format=json&industry=31-33").json()
+    assert [r["employer"] for r in body] == ["Factory Co"]
+    assert body[0]["naics_code"] == "336111"
+
+    body = api_client.get("/api/notices/export?format=json&geocoded_only=true").json()
+    assert [r["employer"] for r in body] == ["Factory Co"]
+    assert body[0]["city"] == "Oakland"
+
+    both = api_client.get(
+        "/api/notices/export?format=json&industry=31-33&geocoded_only=true"
+    ).json()
+    assert len(both) == 1
+
+
+def test_notices_export_json_is_streamed_and_valid(api_client, db):
+    """The JSON export is assembled incrementally — the full body must still
+    parse as one well-formed array (brackets/commas emitted correctly)."""
+    for i in range(3):
+        _notice(db, employer=f"Co {i}", notice_date=date(2026, 1, i + 1))
+    db.commit()
+
+    resp = api_client.get("/api/notices/export?format=json")
+    assert resp.headers["content-type"].startswith("application/json")
+    body = json.loads(resp.text)
+    assert len(body) == 3
+
+    empty = json.loads(api_client.get("/api/notices/export?format=json&state=ZZ").text)
+    assert empty == []

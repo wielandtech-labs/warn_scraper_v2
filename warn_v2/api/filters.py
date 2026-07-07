@@ -32,14 +32,17 @@ def apply_notice_filters(
     before: date | None = None,
     geocoded_only: bool = False,
     location_joined: bool = False,
+    company_joined: bool = False,
 ) -> Select:
     """Apply the standard notice filters to a SELECT over ``Notice``.
 
-    ``location_joined`` should be True when the caller has already joined
-    ``Location`` (e.g. the map-pins query), so a ``geocoded_only`` filter adds
-    the lat/lon predicate without a duplicate join. An ``industry``/``subsector``
-    filter inner-joins ``Company`` and so excludes notices with no linked
-    company — matching the long-standing behaviour of the notices endpoint.
+    ``location_joined``/``company_joined`` should be True when the caller has
+    already joined that table (e.g. the map-pins and export queries), so the
+    filter adds only its predicate instead of a duplicate join. An
+    ``industry``/``subsector`` filter inner-joins ``Company`` and so excludes
+    notices with no linked company — matching the long-standing behaviour of
+    the notices endpoint. (With a caller-supplied OUTER join the predicate
+    still excludes company-less notices: NULL fails the NAICS match.)
     """
     if state:
         stmt = stmt.where(Notice.state == state.upper())
@@ -49,7 +52,9 @@ def apply_notice_filters(
         stmt = stmt.where(Notice.closure_category == closure_category)
     industry_filter = naics_filter(Company.naics_code, industry, subsector)
     if industry_filter is not None:
-        stmt = stmt.join(Company, Notice.company_id == Company.id).where(industry_filter)
+        if not company_joined:
+            stmt = stmt.join(Company, Notice.company_id == Company.id)
+        stmt = stmt.where(industry_filter)
     if after:
         stmt = stmt.where(Notice.notice_date >= after)
     if before:
