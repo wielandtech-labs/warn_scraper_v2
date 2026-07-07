@@ -31,7 +31,7 @@ import { useTheme } from "../hooks/useTheme";
 import { STATE_NAMES, fmtCompact, fmtDate, fmtNum, fmtPeriod, stateName } from "../lib/format";
 import { withProjectionSeries } from "../lib/projection";
 import { CHART_COLORS } from "../lib/themeColors";
-import { LAW_BLOCKED } from "../lib/unavailable";
+import { LAW_BLOCKED, NO_COUNTS } from "../lib/unavailable";
 
 export function StateDetailPage() {
   const { resolved } = useTheme();
@@ -42,6 +42,9 @@ export function StateDetailPage() {
   // State law blocks publication of these states' notices — no data will ever
   // arrive, so skip the stats fetches and show an explainer instead.
   const blocked = code in LAW_BLOCKED;
+  // The source publishes notices but no employee counts — layoff totals are
+  // structurally unavailable, so show a note instead of a misleading zero.
+  const noCounts = code in NO_COUNTS;
   const name = stateName(code);
 
   useDocumentTitle(
@@ -153,7 +156,10 @@ export function StateDetailPage() {
         </div>
         <div className="card">
           <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Workers affected</div>
-          <div className="mt-1 text-3xl font-semibold">{fmtNum(layoffTotal)}</div>
+          <div className="mt-1 text-3xl font-semibold">{noCounts ? "—" : fmtNum(layoffTotal)}</div>
+          {noCounts && (
+            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Not published by the source</div>
+          )}
         </div>
         <div className="card">
           <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Most recent notice</div>
@@ -162,6 +168,10 @@ export function StateDetailPage() {
           </div>
         </div>
       </div>
+
+      {noCounts && (
+        <p className="text-sm text-slate-500 dark:text-slate-400">{NO_COUNTS[code]}</p>
+      )}
 
       <AlertSignup state={code} />
 
