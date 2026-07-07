@@ -378,3 +378,4 @@ def test_is_unsearchable_flags_junk_and_truncated_names():
     assert not is_unsearchable("Bank of America")
     assert not is_unsearchable("3M")
     assert not is_unsearchable("Advantest, Inc.")
+    assert not is_unsearchable("Sonic Drive In")  # 'in'/'at'/'to' are NOT dangling
