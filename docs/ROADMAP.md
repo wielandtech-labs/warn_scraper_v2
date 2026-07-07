@@ -126,15 +126,17 @@ Ordered by recoverable rows:
   junk removal + ~200 recovered effective dates); Wayback throttle
   drops needed two top-up runs — per-month prod coverage, not
   chunk counts, is the completion check.
-- [ ] **IL PDF era 1999–2019** — `parse_il_pdf` for the monthly archive PDFs
-  (xlsx era 2020+ already ingested). (A+gate) — *parser done 2026-07-07*
-  (PR #211): the PDFs are a two-column labeled form → each flattened line split
-  at its right-column label (x-independent, so it survives the compressed layout
-  in files like July 2003; the fixed-x split that #211 shipped is fixed in the
-  follow-up). Wired into the IL backfill spec, tests cover four format eras plus
-  the shifted layout. Dry-run (w_homelab #635): ~2,724 net-new rows across
-  1999–2019, near_miss=0; one image-only month (Jan 2019) needs OCR. Remaining:
-  the real backfill Job, `mark-superseded --state IL --dry-run`, then re-audit.
+- ~~**IL PDF era 1999–2019** — `parse_il_pdf` for the monthly archive PDFs
+  (xlsx era 2020+ already ingested). (A+gate)~~ — DONE 2026-07-07 (parser #211
+  + column-split fix #217; Jobs w_homelab #635 dry-run → #644 real → #645
+  prune): **+2,707 rows, floor 2020 → 1999** (IL 1,017 → **3,732**, verified via
+  the public API: pre-2000 = 149 = the 1999 rows). The PDFs are a two-column
+  labeled form → each flattened line split at its right-column label
+  (x-independent; #217 fixed one compressed-layout month, July 2003, that the
+  fixed-x split #211 shipped dropped to 0 rows). `mark-superseded` was a no-op
+  (all rows net-new below the old floor, near_miss=0). Sole gap: **January 2019**
+  is an image-only scan (no text layer) — a later tesseract-OCR follow-up, same
+  path as NV 2021.
 - [ ] **NC 2014+** — archive-hub discovery (irregular slugs) +
   `parse_nc_pdf`. (A+gate) — *parser done 2026-07-07* (PR #213):
   `_discover_nc_pdf_urls` (hub anchors, three slug families) + a three-era
