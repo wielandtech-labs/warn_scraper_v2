@@ -65,6 +65,7 @@ from warn_v2.scrapers.states.mn import (
 from warn_v2.scrapers.states.ms import _discover_pdf_urls as _discover_ms_pdf_urls
 from warn_v2.scrapers.states.nm import _discover_archive_pdf_urls as _discover_nm_pdf_urls
 from warn_v2.scrapers.states.nv import _fetch_nv_year, parse_nv_archive
+from warn_v2.scrapers.states.ny import _discover_ny_detail_urls, parse_ny_detail
 from warn_v2.scrapers.states.oh import _fetch_oh_year, parse_oh_year
 from warn_v2.scrapers.states.pa import _fetch_pa_year, parse_pa_month
 from warn_v2.scrapers.states.tx import _fetch_tx_year
@@ -172,6 +173,14 @@ _BACKFILL: dict[str, BackfillSpec] = {
         fetch_year=lambda s, y: _fetch_oh_year(y),
         parse_year=lambda b, y: parse_oh_year(b, y),
     ),
+    # NY: archived details.asp records via Wayback CDX (~4,300 ids,
+    # 2001-2020, full fields incl. counts + addresses). Empty chrome-only
+    # captures parse to 0 rows and are skipped. No live-scraper overlap
+    # (Tableau era starts 2025).
+    "NY": BackfillSpec(
+        discover_urls=lambda: _discover_ny_detail_urls(),
+        parse_for_url=lambda u: (lambda raw, _u=u: parse_ny_detail(raw, _u)),
+    ),
     # PA: archived per-month pages via Wayback CDX (portal.state.pa.us
     # 2001-2015, SharePoint dli.pa.gov 2011-2022; same content template).
     # _fetch_pa_year hard-caps at 2022 — the AEM live era (2023+) stamps
@@ -193,6 +202,7 @@ def backfill_historical(
     year_start: int | None = None,
     year_end: int | None = None,
     dry_run: bool = False,
+    limit: int | None = None,
 ) -> dict[str, int]:
     """Fetch and ingest all available historical WARN data for ``state``.
 
@@ -216,7 +226,7 @@ def backfill_historical(
     scraper = get_scraper(state)
 
     if spec.discover_urls is not None:
-        _backfill_url_list(scraper, spec, stats, dry_run=dry_run)
+        _backfill_url_list(scraper, spec, stats, dry_run=dry_run, limit=limit)
     else:
         start = year_start or spec.year_start or datetime.now().year
         end = year_end or datetime.now().year
@@ -248,7 +258,12 @@ _FETCH_HEADERS = {
 
 
 def _backfill_url_list(
-    scraper, spec: BackfillSpec, stats: dict[str, int], *, dry_run: bool
+    scraper,
+    spec: BackfillSpec,
+    stats: dict[str, int],
+    *,
+    dry_run: bool,
+    limit: int | None = None,
 ) -> None:
     log.info("%s: discovering historical file URLs", scraper.state)
     try:
@@ -261,23 +276,44 @@ def _backfill_url_list(
         log.warning("%s: no historical file links found", scraper.state)
         return
 
+    if limit is not None and len(urls) > limit:
+        log.info(
+            "%s: --limit %d — processing the first %d of %d file(s)",
+            scraper.state, limit, limit, len(urls),
+        )
+        urls = urls[:limit]
+
     log.info("%s: found %d historical file(s)", scraper.state, len(urls))
 
     for url in urls:
         stats["years_attempted"] += 1
         log.info("%s: fetching %s", scraper.state, url)
-        if "web.archive.org" in url:
-            # Wayback throttles request bursts; pace replay downloads.
-            time.sleep(3)
-        try:
-            r = httpx.get(url, headers=_FETCH_HEADERS, timeout=120, follow_redirects=True)
-            r.raise_for_status()
-            raw = r.content
-        except httpx.HTTPError as e:
-            log.warning("%s: fetch failed for %s: %s", scraper.state, url, e)
-            _record_run(
-                scraper.state, label=url, status="fetch_failed", error=str(e), dry_run=dry_run
-            )
+        is_wayback = "web.archive.org" in url
+        raw = None
+        for attempt in (1, 2):
+            if is_wayback:
+                # Wayback throttles request bursts; pace replay downloads.
+                time.sleep(3)
+            try:
+                r = httpx.get(
+                    url, headers=_FETCH_HEADERS, timeout=120, follow_redirects=True
+                )
+                r.raise_for_status()
+                raw = r.content
+                break
+            except httpx.HTTPError as e:
+                # Wayback's throttle refuses connections in bursts; one long
+                # backoff usually clears it (observed 2026-07-07 at NY scale).
+                if is_wayback and attempt == 1:
+                    log.info("%s: wayback refused %s — backing off", scraper.state, url)
+                    time.sleep(30)
+                    continue
+                log.warning("%s: fetch failed for %s: %s", scraper.state, url, e)
+                _record_run(
+                    scraper.state, label=url, status="fetch_failed",
+                    error=str(e), dry_run=dry_run,
+                )
+        if raw is None:
             continue
 
         parse_fn = spec.parse_for_url(url) if spec.parse_for_url else None
