@@ -97,6 +97,126 @@ def test_ca_discover_urls_empty_when_no_files():
 
 
 # ---------------------------------------------------------------------------
+# CA — pre-FY2014 Wayback historical route (detailed PDFs)
+# ---------------------------------------------------------------------------
+
+def _ca_fixture(name: str) -> bytes:
+    return (
+        Path(__file__).resolve().parents[1]
+        / "warn_v2" / "scrapers" / "fixtures" / "ca" / name
+    ).read_bytes()
+
+
+@respx.mock
+def test_ca_discover_historical_urls_keeps_detailed_latest_capture():
+    """Only the detailed cnd* variants survive; latest capture per file wins;
+    the simple cn/cnal/cnmz consolidations are ignored."""
+    from warn_v2.scrapers.states.ca import _CDX_API, _discover_ca_historical_urls
+
+    cdx = [
+        ["timestamp", "original"],
+        # same detailed file, two captures -> keep the later timestamp
+        ["20130407160403", "http://www.edd.ca.gov/Jobs_and_Training/warn/eddwarncndtz13.pdf"],
+        ["20161221021806", "http://edd.ca.gov/jobs_and_training/warn/eddwarncndtz13.pdf"],
+        # a detailed file for another year
+        ["20140611173541", "http://www.edd.ca.gov/Jobs_and_Training/warn/eddwarncnda14.pdf"],
+        # simple/consolidated variants -> ignored (no notice date / address)
+        ["20130407160543", "http://www.edd.ca.gov/Jobs_and_Training/warn/eddwarncn13.pdf"],
+        ["20130407165151", "http://www.edd.ca.gov/Jobs_and_Training/warn/eddwarncnal13.pdf"],
+    ]
+    respx.get(_CDX_API).mock(return_value=httpx.Response(200, json=cdx))
+
+    assert _discover_ca_historical_urls() == [
+        "https://web.archive.org/web/20140611173541id_/"
+        "http://www.edd.ca.gov/Jobs_and_Training/warn/eddwarncnda14.pdf",
+        "https://web.archive.org/web/20161221021806id_/"
+        "http://edd.ca.gov/jobs_and_training/warn/eddwarncndtz13.pdf",
+    ]
+
+
+@respx.mock
+def test_ca_discover_historical_urls_empty_on_cdx_error():
+    from warn_v2.scrapers.base import ScrapeFailed
+    from warn_v2.scrapers.states.ca import _CDX_API, _discover_ca_historical_urls
+
+    respx.get(_CDX_API).mock(return_value=httpx.Response(503))
+    with pytest.raises(ScrapeFailed):
+        _discover_ca_historical_urls()
+
+
+def test_parse_ca_detail_pdf_2013_clean_format():
+    """FY2013 detailed slice: full fields, multi-worksite records, url passthrough."""
+    from warn_v2.scrapers.states.ca import parse_ca_detail_pdf
+
+    src = "https://web.archive.org/web/20140830010000id_/eddwarncnda13.pdf"
+    rows = parse_ca_detail_pdf(_ca_fixture("detail_2013.pdf"), src)
+
+    assert len(rows) == 4
+    first = rows[0]
+    assert first.state == "CA"
+    assert first.employer == "ABBOTT VASCULAR"
+    assert first.notice_date == date(2013, 2, 25)
+    assert first.effective_date == date(2013, 2, 21)
+    assert first.layoff_count == 395
+    assert first.city == "TEMECULA"
+    assert first.zip == "92591"  # not the 5-digit street number "26531"
+    assert first.closure_type == "Layoff"
+    assert first.source_url == src
+    # distinct worksites of one filing keep their own address/count
+    assert [r.layoff_count for r in rows] == [395, 30, 15, 10]
+
+
+def test_parse_ca_detail_pdf_2009_strips_cid_and_wraps_employer():
+    """FY2009 slice: (cid:NN) glyphs stripped; a wrapped employer name rejoined;
+    two same-employer notices kept as separate rows."""
+    from warn_v2.scrapers.states.ca import parse_ca_detail_pdf
+
+    rows = parse_ca_detail_pdf(_ca_fixture("detail_2009.pdf"), "wb://cnda09")
+
+    assert len(rows) == 4
+    assert not any("(cid" in r.employer for r in rows)
+
+    m3, first_transit, abx1, abx2 = rows
+    assert m3.employer == "3M COMPANY"
+    assert m3.notice_date == date(2008, 12, 10)
+    assert m3.effective_date == date(2009, 2, 1)
+    assert m3.closure_type == "Closure"
+
+    # header line wrapped: "...DBA-FIRST" + continuation "TRANSIT"
+    assert first_transit.employer == "A FIRSTGROUP AMERICA CO DBA-FIRST TRANSIT"
+    assert first_transit.notice_date == date(2009, 1, 5)
+    assert first_transit.city == "LOS ANGELES"
+    assert first_transit.zip == "90032"
+    assert first_transit.layoff_count == 177
+
+    # same employer, two distinct notices (different received + effective dates)
+    assert abx1.employer == abx2.employer == "ABX AIR, INC"
+    assert abx1.effective_date == date(2009, 1, 13)
+    assert abx2.effective_date == date(2009, 2, 13)
+
+
+def test_ca_backfill_spec_dispatches_by_url():
+    """The CA spec routes detailed Wayback URLs to parse_ca_detail_pdf (url-aware)
+    and live-archive PDFs to parse_ca_pdf; xlsx falls through to scraper.parse."""
+    from warn_v2.scripts.backfill_historical import _BACKFILL, parse_ca_pdf
+
+    spec = _BACKFILL["CA"]
+    detail_url = (
+        "https://web.archive.org/web/20140830010000id_/"
+        "http://www.edd.ca.gov/Jobs_and_Training/warn/eddwarncnda13.pdf"
+    )
+    live_pdf = "https://edd.ca.gov/Jobs_and_Training/warn/WARN_Report_FY21-22.pdf"
+
+    detail_fn = spec.parse_for_url(detail_url)
+    rows = detail_fn(_ca_fixture("detail_2013.pdf"))
+    assert rows[0].employer == "ABBOTT VASCULAR"
+    assert rows[0].source_url == detail_url  # url passed through to the parser
+
+    assert spec.parse_for_url(live_pdf) is parse_ca_pdf
+    assert spec.parse_for_url("https://edd.ca.gov/.../WARN_Report.xlsx") is None
+
+
+# ---------------------------------------------------------------------------
 # DC — _fetch_dc_year
 # ---------------------------------------------------------------------------
 
@@ -222,7 +342,11 @@ def test_backfill_historical_ca_upserts_rows_xlsx(db) -> None:
 
     respx.get(archive_url).mock(return_value=httpx.Response(200, content=xlsx_bytes))
 
-    with patch("warn_v2.scripts.backfill_historical._discover_archive_urls") as mock_disc:
+    with patch("warn_v2.scripts.backfill_historical._discover_archive_urls") as mock_disc, \
+         patch(
+             "warn_v2.scripts.backfill_historical._discover_ca_historical_urls",
+             return_value=[],
+         ):
         mock_disc.return_value = [archive_url]
 
         with patch("warn_v2.scripts.backfill_historical.session_scope") as mock_scope:
@@ -970,7 +1094,11 @@ def test_backfill_historical_ca_upserts_rows_pdf(db) -> None:
 
     respx.get(archive_url).mock(return_value=httpx.Response(200, content=b"%PDF-1.4 fake"))
 
-    with patch("warn_v2.scripts.backfill_historical._discover_archive_urls") as mock_disc:
+    with patch("warn_v2.scripts.backfill_historical._discover_archive_urls") as mock_disc, \
+         patch(
+             "warn_v2.scripts.backfill_historical._discover_ca_historical_urls",
+             return_value=[],
+         ):
         mock_disc.return_value = [archive_url]
         with patch("warn_v2.scripts.backfill_historical.parse_ca_pdf", return_value=fake_rows):
             with patch("warn_v2.scripts.backfill_historical.session_scope") as mock_scope:
