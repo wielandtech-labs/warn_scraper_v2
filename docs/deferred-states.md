@@ -5,7 +5,12 @@ need investigation (URL moved, new bot protection, page rebuilt with
 JS-rendered content). Listed here as a queue of scrapers to repair or
 re-enable later.
 
-Last checked: 2026-05-27.
+Last checked: 2026-05-27; blocked stubs (AR / NH / WY) re-verified 2026-07-07
+(quarterly re-check): no change — AR's Rapid Response page still states DWS
+holds employer data confidential (A.C.A. § 11-10-314), NH still publishes no
+listing (records request to `masslayoff@nhes.nh.gov` only; FOIA draft in
+[foia/](foia/) covers it), WY DWS still has no structured WARN listing. Next
+re-check due ~2026-10.
 
 | State | V1 URL | What changed | Next step |
 |-------|--------|--------------|-----------|
