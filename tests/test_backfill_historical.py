@@ -901,6 +901,66 @@ def test_il_discover_archive_xlsx_urls_unwraps_and_excludes_pdfs():
 
 
 @respx.mock
+def test_il_discover_archive_pdf_urls_filters_year_statute_and_format():
+    from warn_v2.scrapers.states.il import _ARCHIVE_URL, _discover_archive_pdf_urls
+
+    html = (
+        b"<html>"
+        # WARN report PDFs 1999-2019 → kept (percent-encoding preserved)
+        b"<a href='/_layouts/download.aspx?SourceUrl=https://www.illinoisworknet.com"
+        b"/DownloadPrint/April%202005%20WARN.pdf'>Apr 2005</a>"
+        b"<a href='/DownloadPrint/December%201999%20WARN.PDF'>Dec 1999</a>"
+        # 2020 PDF overlaps the XLSX era → dropped by the year filter
+        b"<a href='/DownloadPrint/January%202020%20Monthly%20WARN%20Report.pdf'>Jan 2020</a>"
+        # WARN Act statute PDF (no month/year) → dropped
+        b"<a href='/DownloadPrint/IllinoisWARNSB2665.pdf'>statute</a>"
+        # non-WARN PDF and an XLSX → not monthly reports
+        b"<a href='/DownloadPrint/AnnualReport2010.pdf'>annual</a>"
+        b"<a href='/DownloadPrint/March%202019%20WARN.xlsx'>xlsx</a>"
+        # duplicate of Apr 2005 → deduped
+        b"<a href='/_layouts/15/download.aspx?SourceUrl=https://www.illinoisworknet.com"
+        b"/DownloadPrint/April%202005%20WARN.pdf'>dup</a>"
+        b"</html>"
+    )
+    respx.get(_ARCHIVE_URL).mock(return_value=httpx.Response(200, content=html))
+
+    urls = _discover_archive_pdf_urls()
+    assert urls == [
+        "https://www.illinoisworknet.com/DownloadPrint/April%202005%20WARN.pdf",
+        "https://www.illinoisworknet.com/DownloadPrint/December%201999%20WARN.PDF",
+    ]
+
+
+@respx.mock
+def test_backfill_historical_il_routes_pdfs_to_parse_il_pdf(db) -> None:
+    """PDF-era URLs dispatch to parse_il_pdf, not the XLSX scraper.parse."""
+    pdf_bytes = (
+        Path(__file__).resolve().parents[1]
+        / "warn_v2" / "scrapers" / "fixtures" / "il" / "sample_pdf_2019.pdf"
+    ).read_bytes()
+
+    urls = [
+        "https://www.illinoisworknet.com/DownloadPrint/December%202019%20WARN.pdf",
+        "https://www.illinoisworknet.com/DownloadPrint/November%202019%20WARN.pdf",
+    ]
+    for u in urls:
+        respx.get(u).mock(return_value=httpx.Response(200, content=pdf_bytes))
+
+    with patch(
+        "warn_v2.scripts.backfill_historical._discover_il_xlsx_urls", return_value=[]
+    ), patch(
+        "warn_v2.scripts.backfill_historical._discover_il_pdf_urls", return_value=urls
+    ):
+        stats = backfill_historical("IL", dry_run=True)
+
+    # rows_seen > 0 proves the PDF parser ran (XLSX parse on PDF bytes would fail).
+    assert stats["years_attempted"] == 2
+    assert stats["years_ok"] == 2
+    assert stats["rows_seen"] > 0
+    assert db.query(Notice).count() == 0
+
+
+@respx.mock
 def test_backfill_historical_ca_upserts_rows_pdf(db) -> None:
     """PDF archive URLs are dispatched to parse_ca_pdf instead of scraper.parse."""
     archive_url = "https://edd.ca.gov/Jobs_and_Training/warn/WARN_Report_FY21-22.pdf"

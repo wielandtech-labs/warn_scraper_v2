@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 from datetime import date
+from pathlib import Path
 
 import openpyxl
 import pytest
@@ -11,6 +12,13 @@ from warn_v2.db.models import Company
 from warn_v2.pipeline.storage import upsert_notices
 from warn_v2.scrapers.base import NoticeRow, ParseFailed
 from warn_v2.scrapers.registry import get_scraper
+from warn_v2.scrapers.states.il import parse_il_pdf
+
+_FIXTURES = Path(__file__).resolve().parents[1] / "warn_v2" / "scrapers" / "fixtures" / "il"
+
+
+def _pdf(name: str) -> bytes:
+    return (_FIXTURES / name).read_bytes()
 
 # ---------------------------------------------------------------------------
 # Fixture builder
@@ -307,3 +315,107 @@ def test_naics_none_does_not_clear_existing(db) -> None:
     upsert_notices(db, [_il_row(naics_code=None)])
     db.commit()
     assert db.query(Company).one().naics_code == "331110"
+
+
+# ---------------------------------------------------------------------------
+# Historical PDF era (1999-2019) — parse_il_pdf
+# ---------------------------------------------------------------------------
+#
+# Fixtures are real monthly archive PDFs, one per format era:
+#   1999 — COMPANY SIC, PRIMARY EVENT COUNTY section headers, no ENDING date
+#   2005 — CITY, STATE (no ZIP), SIC, per-notice COUNTY
+#   2010 — COMPANY NAICS, UNION/BUMPING/Permanent-or-Temporary
+#   2019 — NAICS, "Monthly WARN Report" naming, wrapped company name
+
+
+def _first(rows: list[NoticeRow], employer: str) -> NoticeRow:
+    return next(r for r in rows if r.employer == employer)
+
+
+def test_il_pdf_2019_first_row_fields() -> None:
+    rows = parse_il_pdf(_pdf("sample_pdf_2019.pdf"), "http://x/dec2019.pdf")
+    r = rows[0]
+    assert r.state == "IL"
+    # wrapped company name is joined across the two form lines
+    assert r.employer == "The GSI Group (Grain Systems, Inc.)"
+    assert r.notice_date == date(2019, 12, 2)
+    assert r.effective_date == date(2020, 1, 31)
+    assert r.layoff_count == 89
+    assert r.city == "Flora"
+    assert r.zip == "62839"
+    assert r.county == "Clay"
+    assert r.closure_type == "Closing"
+    assert r.naics_code == "332311"
+    assert r.address == "1051 W. North Ave., Flora, IL 62839"
+    assert r.source_url == "http://x/dec2019.pdf"
+    assert r.extra["layoff_type"] == "Permanent"
+    assert r.extra["event_causes"] == "Consolidation"
+    assert "sic_code" not in r.extra
+
+
+def test_il_pdf_1999_sic_kept_out_of_naics() -> None:
+    """1999 reports carry SIC (not NAICS): naics_code stays None, SIC → extra."""
+    rows = parse_il_pdf(_pdf("sample_pdf_1999.pdf"))
+    r = _first(rows, "Newark Electronics Distribution Cntr")
+    assert r.notice_date == date(1999, 12, 3)
+    assert r.effective_date == date(2000, 1, 31)
+    assert r.layoff_count == 60
+    assert r.city == "Chicago"
+    assert r.zip == "60624"
+    assert r.naics_code is None
+    assert r.extra["sic_code"] == "5065"
+    # 1999 has no per-notice county — it comes from the PRIMARY EVENT COUNTY header
+    assert r.county == "Cook"
+
+
+def test_il_pdf_1999_legend_block_dropped() -> None:
+    """The 1999 field-legend block parses as a dateless pseudo-notice → dropped."""
+    rows = parse_il_pdf(_pdf("sample_pdf_1999.pdf"))
+    assert all(r.notice_date is not None for r in rows)
+    assert not any("event company" in r.employer.lower() for r in rows)
+
+
+def test_il_pdf_2005_city_state_without_zip() -> None:
+    """2005 uses 'CITY, STATE' (no ZIP): city parses, zip is None."""
+    rows = parse_il_pdf(_pdf("sample_pdf_2005.pdf"))
+    r = _first(rows, "Delta Air Lines")
+    assert r.notice_date == date(2005, 12, 12)
+    assert r.city == "Chicago"
+    assert r.zip is None
+    assert r.county == "Cook"
+    assert r.extra["sic_code"] == "4512"
+
+
+def test_il_pdf_2010_naics_and_layoff_type() -> None:
+    rows = parse_il_pdf(_pdf("sample_pdf_2010.pdf"))
+    r = _first(rows, "Kaplan University")
+    assert r.notice_date == date(2010, 12, 10)
+    assert r.effective_date == date(2011, 2, 6)
+    assert r.layoff_count == 192
+    assert r.naics_code == "611699"
+    assert "sic_code" not in r.extra
+    assert r.extra["layoff_type"] == "Permanent"
+
+
+def test_il_pdf_not_provided_count_is_none() -> None:
+    """'# WORKERS AFFECTED: Not Provided' yields no count, not a fabricated one."""
+    rows = parse_il_pdf(_pdf("sample_pdf_2005.pdf"))
+    r = _first(rows, "Doumak, Inc.")
+    assert r.layoff_count is None
+
+
+def test_il_pdf_all_rows_have_employer_and_date() -> None:
+    for name in (
+        "sample_pdf_1999.pdf",
+        "sample_pdf_2005.pdf",
+        "sample_pdf_2010.pdf",
+        "sample_pdf_2019.pdf",
+    ):
+        rows = parse_il_pdf(_pdf(name))
+        assert rows, name
+        assert all(r.employer and r.notice_date for r in rows), name
+
+
+def test_il_pdf_raises_on_non_pdf() -> None:
+    with pytest.raises(ParseFailed):
+        parse_il_pdf(b"not a pdf")
