@@ -63,6 +63,8 @@ from warn_v2.scrapers.states.mn import (
     _parse_archive_pdf as _parse_mn_archive_pdf,
 )
 from warn_v2.scrapers.states.ms import _discover_pdf_urls as _discover_ms_pdf_urls
+from warn_v2.scrapers.states.nj import ARCHIVE_XLSX_URL as _NJ_ARCHIVE_XLSX_URL
+from warn_v2.scrapers.states.nj import parse_nj_archive_xlsx
 from warn_v2.scrapers.states.nm import _discover_archive_pdf_urls as _discover_nm_pdf_urls
 from warn_v2.scrapers.states.nv import _fetch_nv_year, parse_nv_archive
 from warn_v2.scrapers.states.ny import _discover_ny_detail_urls, parse_ny_detail
@@ -140,6 +142,13 @@ _BACKFILL: dict[str, BackfillSpec] = {
         year_start=2017,
         fetch_year=lambda s, y: _fetch_nv_year(y),
         parse_year=lambda b, y: parse_nv_archive(b, y),
+    ),
+    # NJ: one cumulative workbook, one sheet per year back to 2004; the live
+    # scraper reads only the current-year PDF. Field semantics match the PDF
+    # parser, so overlap years dedupe by notice_id.
+    "NJ": BackfillSpec(
+        discover_urls=lambda: [_NJ_ARCHIVE_XLSX_URL],
+        parse_for_url=lambda u: parse_nj_archive_xlsx,
     ),
     # NM: yearly PDFs back to 2016 with irregular filenames — discover from hub.
     "NM": BackfillSpec(discover_urls=lambda: _discover_nm_pdf_urls()),

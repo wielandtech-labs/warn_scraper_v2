@@ -754,6 +754,47 @@ def test_ms_parse_old_quarterly_merged_company_city():
     assert row.closure_type == "Layoff"
 
 
+def test_nj_parse_archive_xlsx():
+    """The cumulative NJ workbook (one sheet per year, 2004+) parses with the
+    live PDF parser's semantics; footnote/blank/spillover rows are dropped."""
+    from warn_v2.scrapers.states.nj import ARCHIVE_XLSX_URL, parse_nj_archive_xlsx
+
+    rows = parse_nj_archive_xlsx(
+        (
+            Path(__file__).resolve().parents[1]
+            / "warn_v2" / "scrapers" / "fixtures" / "nj" / "archive_sample.xlsx"
+        ).read_bytes()
+    )
+
+    assert {r.notice_date.year for r in rows} == {2004, 2007, 2009, 2021, 2023}
+    assert all(r.state == "NJ" and r.source_url == ARCHIVE_XLSX_URL for r in rows)
+
+    pnc = next(r for r in rows if r.employer == "PNC FINANCIAL")
+    assert pnc.notice_date == date(2004, 1, 1)  # Month Posted + sheet year
+    assert pnc.effective_date == date(2004, 3, 19)  # datetime cell
+    assert (pnc.layoff_count, pnc.city) == (131, "BRIDGEWATER")
+
+    jc = next(r for r in rows if r.employer == "JOHNSON CONTROLS")
+    assert jc.effective_date == date(2007, 3, 4)  # nbsp-padded string date
+
+    dash = next(r for r in rows if r.employer == "UNIVERSAL FOLDING BOX")
+    assert dash.layoff_count is None  # workforce cell is '-'
+
+    # 2009 footnote row ('* Most employees...') and blank rows are skipped.
+    assert [r.employer for r in rows if r.notice_date.year == 2009] == ["Alcan Baltek"]
+    # The 2023 sheet ends with a January row duplicated from the 2024 sheet;
+    # dating it 2023-01 would mint a mis-dated near-duplicate — dropped.
+    assert not any("ACME" in r.employer for r in rows)
+
+
+def test_nj_parse_archive_xlsx_raises_on_bad_bytes():
+    from warn_v2.scrapers.base import ParseFailed
+    from warn_v2.scrapers.states.nj import parse_nj_archive_xlsx
+
+    with pytest.raises(ParseFailed):
+        parse_nj_archive_xlsx(b"this is not a workbook")
+
+
 def test_ms_parse_stacked_header_quarterly():
     """PY2023-PY2024 quarterlies stack header labels across rows ('Date of' /
     'WARN' / 'Notice') and pad the grid with ghost columns; the '(County)'

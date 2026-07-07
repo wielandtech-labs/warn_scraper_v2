@@ -18,6 +18,11 @@ Quirks:
 For V2 we keep `effective_date` and `layoff_count` to the first parseable value
 in each cell — the raw string is preserved in `extra` for downstream consumers
 that need the full nuance.
+
+NJ also publishes a cumulative workbook (WARN_Notice_Archive.xlsx) with one
+sheet per year back to 2004, same five columns as the PDF.  The historical
+backfill ingests it via parse_nj_archive_xlsx(), which mirrors the PDF
+parser's field semantics so overlap years dedupe by notice_id.
 """
 from __future__ import annotations
 
@@ -34,6 +39,7 @@ from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.registry import register
 
 URL_TEMPLATE = "https://www.nj.gov/labor/assets/PDFs/WARN/{year}_WARN_Notice_Archive.pdf"
+ARCHIVE_XLSX_URL = "https://www.nj.gov/labor/assets/PDFs/WARN/WARN_Notice_Archive.xlsx"
 
 _MONTH_BY_NAME: dict[str, int] = {
     name.lower(): num for num, name in enumerate(calendar.month_name) if name
@@ -118,7 +124,78 @@ class NJScraper:
         return out
 
 
-def _clean_cell(value: str | None) -> str:
+_SHEET_YEAR_RE = re.compile(r"\b(20\d{2})\b")
+
+
+def parse_nj_archive_xlsx(raw: bytes) -> list[NoticeRow]:
+    """Parse the cumulative WARN_Notice_Archive.xlsx (one sheet per year, 2004+).
+
+    Field semantics deliberately mirror the live PDF parser so that overlap
+    years produce identical notice_ids: notice_date is the first of the
+    "Month Posted" month in the sheet's year, effective_date/layoff_count
+    take the first parseable value, raw strings go to ``extra``.
+
+    Sheet quirks handled: footnote rows starting with "*" (2009), all-blank
+    padding rows, and a trailing January spillover row duplicated from the
+    next year's sheet (2023) — dropped, since dating it with this sheet's
+    year would mint a mis-dated near-duplicate.
+    """
+    import openpyxl
+
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
+    except Exception as e:
+        raise ParseFailed(f"NJ archive xlsx: could not open: {e}") from e
+
+    out: list[NoticeRow] = []
+    for ws in wb.worksheets:
+        m = _SHEET_YEAR_RE.search(str(ws.title))
+        if not m:
+            continue
+        year = int(m.group(1))
+        seen_december = False
+        for values in ws.iter_rows(values_only=True):
+            cells = tuple(values) + (None,) * 5
+            employer = _clean_cell(cells[0])
+            low = employer.lower()
+            if not employer or low == "company" or low.startswith(("company ", "*")):
+                continue
+            month_text = _clean_cell(cells[2])
+            month_low = month_text.split()[0].lower() if month_text else ""
+            if month_low == "december":
+                seen_december = True
+            elif month_low == "january" and seen_december:
+                continue  # spillover row from the next year's sheet
+
+            effective = cells[3]
+            if isinstance(effective, datetime):
+                effective_date: date | None = effective.date()
+                effective_text = effective.strftime("%m/%d/%Y")
+            else:
+                effective_text = _clean_cell(effective)
+                effective_date = _first_date(effective_text)
+            workforce_text = _clean_cell(cells[4])
+
+            out.append(
+                NoticeRow(
+                    state="NJ",
+                    employer=employer,
+                    notice_date=_month_to_date(month_text, year),
+                    effective_date=effective_date,
+                    layoff_count=_first_int(workforce_text),
+                    city=_clean_cell(cells[1]) or None,
+                    source_url=ARCHIVE_XLSX_URL,
+                    extra={
+                        "effective_date_raw": effective_text or "",
+                        "workforce_affected_raw": workforce_text or "",
+                        "month_posted": month_text or "",
+                    },
+                )
+            )
+    return out
+
+
+def _clean_cell(value: object) -> str:
     """Collapse newlines and surrounding whitespace into single spaces."""
     s = as_str(value)
     if not s:
