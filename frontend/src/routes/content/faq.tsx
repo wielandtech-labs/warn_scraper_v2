@@ -21,9 +21,8 @@ export function FaqPage() {
 
       <h2>Which states are covered?</h2>
       <p>
-        All 50 states plus the District of Columbia, wherever the state publishes a
-        machine-readable WARN listing. A handful of states restrict or don't publish
-        their data; coverage notes live on each <a href="/states">state page</a>.
+        See the <a href="/status">scraper status page</a> for the current list of
+        covered states and how recently each was updated.
       </p>
 
       <h2>Does a notice mean the layoffs definitely happened?</h2>
