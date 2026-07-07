@@ -175,6 +175,25 @@ _ARCHIVE_ROWS = [
      None, None, "No", "No", 3, "Central", "Retail", "Layoff",
      date(2024, 9, 3), date(2024, 10, 31), None, None,
      None, "Permanent", None, "Sangamon", None),
+    # Shifted row (as in "February 2021"): an extra layoff date sits in the
+    # workers cell and the true count in TYPE OF LAYOFF. Digit-summing the
+    # date fabricated counts (4/14/2021 -> 2039, prod's "Gallatin IL 379%").
+    ("Flying Food Group, LLC", None, "4330 N. Transworld Road",
+     "Schiller Park, IL 60176", "Roger Keirn", "847-555-0726", "Yes", "Yes",
+     7, 4, "Caterers", "Mass Layoff",
+     date(2020, 8, 3), date(2021, 2, 16), date(2021, 4, 1), None,
+     "4/14/2021", 80, "COVID-19", "Cook", "722320"),
+    # Shifted row where the next column holds no numeric count either.
+    ("Peabody Midwest Management Services, LLC", None, "420 Long Lane Road",
+     "Equality, Illinois 62934", None, None, "Yes", "No", 25, 5,
+     "Mining", "Layoff",
+     date(2019, 10, 14), date(2020, 5, 1), None, None,
+     date(2020, 5, 14), "Permanent", None, "Gallatin", None),
+    # Month-name date in the workers cell.
+    ("Month Name Co", None, "2 Main St", "Springfield, IL 62701",
+     None, None, "No", "No", 3, "Central", "Retail", "Layoff",
+     date(2021, 1, 5), date(2021, 3, 1), None, None,
+     "Feb 16, 2021", "Permanent", None, "Sangamon", None),
 ]
 
 
@@ -209,6 +228,29 @@ def test_il_archive_blank_workers_cell_is_none() -> None:
     scraper = get_scraper("IL")
     rows = scraper.parse(_build_archive_xlsx())
     assert rows[2].layoff_count is None
+
+
+def test_il_shifted_row_recovers_count_from_type_of_layoff() -> None:
+    """Date in the workers cell + count in TYPE OF LAYOFF -> count recovered."""
+    scraper = get_scraper("IL")
+    rows = scraper.parse(_build_archive_xlsx())
+    assert rows[3].layoff_count == 80
+    # TYPE OF LAYOFF held the count, not a real layoff type.
+    assert rows[3].extra.get("layoff_type") is None
+
+
+def test_il_date_workers_cell_without_shifted_count_is_none() -> None:
+    """A datetime workers cell must never be digit-summed into a count."""
+    scraper = get_scraper("IL")
+    rows = scraper.parse(_build_archive_xlsx())
+    assert rows[4].layoff_count is None  # was 2+16+2021-style garbage before
+    assert rows[4].extra.get("layoff_type") == "Permanent"
+
+
+def test_il_month_name_workers_cell_is_none() -> None:
+    scraper = get_scraper("IL")
+    rows = scraper.parse(_build_archive_xlsx())
+    assert rows[5].layoff_count is None
 
 
 # ---------------------------------------------------------------------------

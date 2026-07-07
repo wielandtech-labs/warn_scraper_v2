@@ -18,6 +18,8 @@ Archive files (2020 through mid-2025) title the workers column
 "# WORKERS AFFECTED" and may carry extra COMPANY CONTACT / PHONE columns;
 the header map handles both variants. Multi-worksite filings pack one
 number per site into the workers cell ('27   4   2') — summed on parse.
+Some archive rows (e.g. Feb 2021) are shifted: an extra layoff date sits in
+the workers cell and the true count in TYPE OF LAYOFF — recovered on parse.
 """
 from __future__ import annotations
 
@@ -58,13 +60,38 @@ _WORKERS_KEYS = ("WORKERS AFFECTED", "# WORKERS AFFECTED")
 # Thousands separator between digits ("1,604" -> "1604").
 _THOUSANDS_RE = re.compile(r"(?<=\d),(?=\d{3}\b)")
 
+# Date-shaped cell content: slash/dash-separated digits ('4/14/2021',
+# '2021-02-16') or a month name ('Feb 16, 2021').
+_DATE_SEP_RE = re.compile(r"\d\s*[/-]\s*\d")
+_MONTH_NAME_RE = re.compile(
+    r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b", re.I
+)
+
+
+def _is_date_shaped(val: object) -> bool:
+    """True when a cell holds a date rather than a workers count.
+
+    Some archive files (e.g. Feb 2021) shift part of the row: an extra layoff
+    date lands in the WORKERS AFFECTED column and the true count in TYPE OF
+    LAYOFF. Digit-summing such a date fabricates a count (4/14/2021 -> 2039).
+    """
+    if isinstance(val, date):  # datetime is a date subclass
+        return True
+    s = as_str(val)
+    if not s:
+        return False
+    return bool(_DATE_SEP_RE.search(s) or _MONTH_NAME_RE.search(s))
+
 
 def _workers_count(val: object) -> int | None:
     """WORKERS AFFECTED cell value -> count.
 
     Multi-worksite filings pack one number per site into a single
     whitespace-padded cell ('27   4   2', mirroring the address cell) — sum them.
+    Date-shaped cells (shifted rows, see _is_date_shaped) yield None.
     """
+    if _is_date_shaped(val):
+        return None
     n = as_int(val)
     if n is not None:
         return n
@@ -204,7 +231,16 @@ class ILScraper:
                 continue
 
             effective_date = _as_date(_col("FIRST LAYOFF DATE"))
-            layoff_count = _workers_count(_col(workers_key)) if workers_key else None
+            workers_raw = _col(workers_key) if workers_key else None
+            layoff_count = _workers_count(workers_raw)
+            layoff_type = as_str(_col("TYPE OF LAYOFF")) or None
+            if layoff_count is None and _is_date_shaped(workers_raw):
+                # Shifted row: the count sits one column right, in TYPE OF
+                # LAYOFF (which then holds no real layoff type).
+                shifted = as_int(_col("TYPE OF LAYOFF"))
+                if shifted is not None:
+                    layoff_count = shifted
+                    layoff_type = None
 
             city_state_zip = as_str(_col("CITY, STATE, ZIP")) or None
             city = _parse_city(city_state_zip)
@@ -215,7 +251,6 @@ class ILScraper:
             address_parts = [p for p in (company_address, city_state_zip) if p]
             address = ", ".join(address_parts) if address_parts else None
             closure_type = as_str(_col("TYPE OF EVENT")) or None
-            layoff_type = as_str(_col("TYPE OF LAYOFF")) or None
             event_causes = as_str(_col("EVENT CAUSES")) or None
             naics_raw = _col("COMPANY NAICS")
             if isinstance(naics_raw, (int, float)):
