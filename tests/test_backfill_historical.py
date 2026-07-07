@@ -1238,6 +1238,22 @@ def test_parse_pa_month_not_specified_closure_slot():
     assert mw.county == "Lehigh"
 
 
+def test_parse_pa_month_bare_permanent_closure_line():
+    """June 2013 writes just 'PERMANENT' where the closure line goes; it must
+    be read as the closure type, not the next employer (prod grew 2
+    'PERMANENT' rows). Full-line match only — an employer named 'X Temporary
+    Services' must never be eaten as a closure line."""
+    from warn_v2.scrapers.states.pa import _CLOSURE_LINE_RE, parse_pa_month
+
+    rows = parse_pa_month(_pa_month_envelope("archive_sp_2013_06.html", 6), 2013)
+    assert not any(r.employer.upper() == "PERMANENT" for r in rows)
+    ab = next(r for r in rows if "Abraxas" in r.employer)
+    assert ab.closure_type == "PERMANENT"
+    assert ab.layoff_count == 63
+    assert ab.effective_date == date(2013, 7, 19)
+    assert not _CLOSURE_LINE_RE.match("Kelly Temporary Services")
+
+
 def test_parse_pa_month_split_affected_label():
     """July 2004 wraps the '# AFFECTED:' label across lines ('#' then
     'AFFECTED: 101'). The lone '#' must not start a bogus employer row, and

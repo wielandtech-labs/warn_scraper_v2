@@ -314,10 +314,15 @@ _MONTHNAME_DATE_RE = re.compile(rf"({_MONTH_ALT})\s+(\d{{1,2}}),?\s+(\d{{4}})", 
 _PORTAL_MONTH_RE = re.compile(rf"/({_MONTH_ALT})_(\d{{4}})_warn_notices/", re.I)
 _SP_MONTH_RE = re.compile(rf"/pages/({_MONTH_ALT})-(\d{{4}})\.aspx", re.I)
 # Standalone closure line between the labels — "PLANT CLOSING", "CLOSING",
-# "MASS LAYOFF", "PLANT CLOSURE AND MASS LAYOFF", ... Only consulted between
-# labels (never for the employer line), so a keyword match is safe.
+# "MASS LAYOFF", "PLANT CLOSURE AND MASS LAYOFF", plus 2013's bare
+# "PERMANENT"/"TEMPORARY" (the qualifier is the whole line). The qualifiers
+# must match the full line — keyword-anywhere would eat a following
+# employer named e.g. "X Temporary Services". Only consulted between labels
+# (never for the employer line), so the keyword match is safe.
 _CLOSURE_LINE_RE = re.compile(
-    r"^(?=.{0,45}$)[^:]*\b(?:closing|closure|layoff)s?\b[^:]*$", re.I
+    r"^(?=.{0,45}$)(?:[^:]*\b(?:closing|closure|layoff)s?\b[^:]*"
+    r"|permanent|temporary)$",
+    re.I,
 )
 # "City, PA" with no ZIP (early portal pages often omit it).
 _CITY_NO_ZIP_RE = re.compile(r"^(.+),\s*PA\.?\s*$", re.I)
