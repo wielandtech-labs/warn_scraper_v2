@@ -152,9 +152,10 @@ state agency advertise retraining programs to an affected cohort (ties into C).
 
 ## 4. Shared prerequisite: NAICS enrichment coverage
 
-Ideas A, C, D all key on NAICS, currently ~16% coverage at ~100 companies/day
-(ROADMAP Track 5). Raising throughput is the single highest-leverage
-investment:
+Ideas A, C, D all key on NAICS, currently ~16% coverage. The D&B provider cap
+was **doubled to 400 companies/day** on 2026-07-07 (w_homelab #630; the
+earlier "~100/day" figure undercounted even the pre-doubling 200/day cap).
+Raising throughput further is still high-leverage:
 
 - **Batch-mode Haiku**: the Claude enrichment path
   (`warn_v2/enrichment/agent.py`) at 50% batch-API discount; rough math —
