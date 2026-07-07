@@ -50,7 +50,9 @@ from warn_v2.scrapers.states.co import _fetch_co_year, _parse_co_year
 from warn_v2.scrapers.states.dc import _fetch_dc_year
 from warn_v2.scrapers.states.fl import _fetch_fl_year
 from warn_v2.scrapers.states.hi import _fetch_hi_year
+from warn_v2.scrapers.states.il import _discover_archive_pdf_urls as _discover_il_pdf_urls
 from warn_v2.scrapers.states.il import _discover_archive_xlsx_urls as _discover_il_xlsx_urls
+from warn_v2.scrapers.states.il import parse_il_pdf
 from warn_v2.scrapers.states.ky import _discover_workbook_urls as _discover_ky_workbook_urls
 from warn_v2.scrapers.states.ky import parse_ky_workbook
 from warn_v2.scrapers.states.la import _fetch_la_year, parse_la_pdf
@@ -173,9 +175,16 @@ _BACKFILL: dict[str, BackfillSpec] = {
     # MS: the landing page lists every quarterly PDF back to PY2020; the
     # regular scraper ingests only the most recent one.
     "MS": BackfillSpec(discover_urls=lambda: _discover_ms_pdf_urls()),
-    # IL: monthly Excel files 2020+ from the archive page (the 1999-2019 PDF
-    # era needs a dedicated parser — deferred).
-    "IL": BackfillSpec(discover_urls=lambda: _discover_il_xlsx_urls()),
+    # IL: monthly Excel files 2020+ plus the monthly PDF era 1999-2019 (a
+    # labeled two-column form → parse_il_pdf; XLSX re-ingest is idempotent).
+    "IL": BackfillSpec(
+        discover_urls=lambda: _discover_il_xlsx_urls() + _discover_il_pdf_urls(),
+        parse_for_url=lambda u: (
+            (lambda raw, _u=u: parse_il_pdf(raw, _u))
+            if u.lower().endswith(".pdf")
+            else None
+        ),
+    ),
     # OH: four era formats back to 1996, mostly via Wayback replay (see
     # docs/historical-sources.md); 2025 has no known source anywhere.
     "OH": BackfillSpec(

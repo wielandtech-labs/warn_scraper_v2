@@ -124,7 +124,11 @@ Ordered by recoverable rows:
   drops needed two top-up runs — per-month prod coverage, not
   chunk counts, is the completion check.
 - [ ] **IL PDF era 1999–2019** — `parse_il_pdf` for the monthly archive PDFs
-  (xlsx era 2020+ already ingested). (A+gate)
+  (xlsx era 2020+ already ingested). (A+gate) — *parser done 2026-07-07*
+  (PR #TBD): the PDFs are a two-column labeled form → coordinate split of
+  `extract_words` (not `extract_text`); wired into the IL backfill spec, tests
+  cover four format eras. Remaining: the gated backfill Job (~250 PDFs, est.
+  +2,500–4,000 rows), `mark-superseded --state IL --dry-run`, then re-audit.
 - [ ] **NC 2014+** — archive-hub discovery (irregular slugs) +
   `parse_nc_pdf`. (A+gate)
 - [ ] **NJ** — cumulative `WARN_Notice_Archive.xlsx` (year range unknown —
