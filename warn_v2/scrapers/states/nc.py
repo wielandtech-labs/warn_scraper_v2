@@ -391,6 +391,19 @@ def _assign_summary_word(cur: dict, x: float, text: str, *, cont: bool) -> None:
         cur["ctype"] = text
 
 
+def _join_city(parts: list[str]) -> str:
+    """Join city tokens, collapsing letter-spaced runs.
+
+    A few 2014 cells render the city with wide tracking, so pdfplumber returns
+    one word per character ("S a l i s b u r y"). When any token is a single
+    letter the whole cell is letter-spaced → join with no separator; otherwise
+    join real multi-word cities ("Rocky Mount") with a space.
+    """
+    if any(len(p.strip(".,")) == 1 for p in parts):
+        return "".join(parts)
+    return " ".join(parts)
+
+
 def _parse_nc_summary_count(pdf, source_url: str) -> list[NoticeRow]:
     """2014-~2017 flowing-text report; word-position columns, wrap-aware.
 
@@ -416,7 +429,7 @@ def _parse_nc_summary_count(pdf, source_url: str) -> list[NoticeRow]:
                         effective_date=as_date(cur["eff"]) if cur["eff"] else None,
                         layoff_count=as_int(cur["count"]) if cur["count"] else None,
                         closure_type=as_str(cur["ctype"]),
-                        city=as_str(" ".join(cur["city"])) or None,
+                        city=as_str(_join_city(cur["city"])) or None,
                         source_url=source_url,
                     )
                 )
