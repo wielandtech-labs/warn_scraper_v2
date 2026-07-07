@@ -17,14 +17,21 @@ Both formats are detected automatically.
 Schema (2026 clean format confirmed, May 2026):
   Layoff Name | Account: City | Account: Industry | Layoff Start |
   WARN Act | WARN Received | Layoff Type | Layoff Status | Federal Impact | Affected Workers
+
+Historical backfill covers the 2015-2024 archive eras (monthlies 2015-16 and
+2022-24, annual summaries 2018-2021, cumulative yearly reports) via a
+word-position parser that derives column bounds from the header words — see
+_parse_archive_words.
 """
 from __future__ import annotations
 
 import base64
+import calendar
 import io
 import json
 import logging
 import re
+from bisect import bisect_right
 from datetime import date, timedelta
 
 import httpx
@@ -159,39 +166,29 @@ def _parse_pdf(pdf_bytes: bytes, url: str) -> list[NoticeRow]:
 
 
 # ---------------------------------------------------------------------------
-# Historical backfill (2018+)
+# Historical backfill (2015+)
 #
-# DEED report naming drifted: monthly PDFs are "plant-closing-*" (2022) or
-# "plant-closing-mass-layoff-warn-*" (2023+); 2018-2021 published one annual
-# summary each ("mass-layoff-summary-2018", "2019-mass-layoffs",
-# "2020-mass-layoff-report", "plant-closing-mass-layoff-2021"). One broad CDX
-# query catches all eras; non-report PDFs parse to 0 rows and are skipped.
+# DEED report naming drifted: monthly PDFs are "mass-layoff-summary*" (2015-16),
+# "plant-closing-*" (2022) or "plant-closing-mass-layoff-warn-*" (2023+);
+# 2018-2021 published one annual summary each ("mass-layoff-summary-2018",
+# "2019-mass-layoffs", "2020-mass-layoff-report",
+# "plant-closing-mass-layoff-2021"), and 2022-2024 also have cumulative yearly
+# reports overlapping the monthlies (identical rows dedupe by notice_id). One
+# broad CDX query catches all eras; non-report PDFs parse to 0 rows and are
+# skipped.
+#
+# Pre-2025 files (all eras) are parsed by the word-position parser below —
+# pdfplumber's table extraction sees only ghost grids in them, and plain text
+# extraction glues employer+city+industry into one run. 2025+ files keep the
+# live parser chain so backfilled rows hash identically to live-scraped ones.
 # ---------------------------------------------------------------------------
 
 _ARCHIVE_NAME_RE = re.compile(r"(plant-closing|mass-layoff)", re.I)
-# Annual-era PDFs glue the report year onto the employer cell
-# ("National Recoveries 2021") — strip it so rows hash like monthly-era rows.
+# Era-era PDFs glue the report year onto the employer cell
+# ("National Recoveries 2021", "Fool Me Once bar, 2024.") — strip it so rows
+# hash like monthly-era rows.
 _TRAILING_YEAR_RE = re.compile(r"\s+20\d{2}$")
-
-# Month-name token with letter boundaries ("summary" must not match "mar"),
-# or a numeric MMYY token ("summary0715" = July 2015).
-_MONTH_RE = re.compile(
-    r"(?<![a-z])(january|february|march|april|may|june|july|august|september"
-    r"|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)"
-    r"(?![a-z])"
-    r"|(?<!\d)(0[1-9]|1[0-2])\d{2}(?!\d)",
-    re.I,
-)
-
-
-def _is_annual_archive_url(url: str) -> bool:
-    """Annual summary PDFs (2018-2021) have no month token in the filename.
-
-    Their layout glues employer+city+industry into one text run that the
-    monthly parsers can't split — they need a dedicated parser and are
-    excluded from discovery until one exists.
-    """
-    return _MONTH_RE.search(url.rsplit("/", 1)[-1]) is None
+_ARCHIVE_TRAILING_YEAR_RE = re.compile(r"[\s,]*[-\u2013\u2014]?\s*20\d{2}[.,]?$")
 
 
 def _discover_archive_pdf_urls() -> list[str]:
@@ -226,30 +223,302 @@ def _discover_archive_pdf_urls() -> list[str]:
         raise ScrapeFailed(f"MN: CDX API error: {exc}") from exc
 
     by_original: dict[str, str] = {}
-    skipped_annual = 0
     for entry in entries[1:]:  # skip header row
         if len(entry) < 2:
             continue
         url, ts = entry[0], entry[1]
         if not url.endswith(".pdf") or not _ARCHIVE_NAME_RE.search(url) or url in by_original:
             continue
-        if _is_annual_archive_url(url):
-            skipped_annual += 1
-            continue
         by_original[url] = f"https://web.archive.org/web/{ts}id_/{url}"
-    if skipped_annual:
-        log.info(
-            "MN: skipped %d annual summary PDF(s) — no parser for that layout yet",
-            skipped_annual,
-        )
     return [by_original[u] for u in sorted(by_original)]
 
 
+# Report year from the filename (the trailing "_tcm1045-NNNNNN" asset token is
+# stripped first — its digits would otherwise read as months/years). 2015-16
+# files may carry only a numeric MMYY token ("summary0715" = July 2015).
+_FILE_YEAR_RE = re.compile(r"20(1[5-9]|2\d)")
+_FILE_MMYY_RE = re.compile(r"(?<!\d)(0[1-9]|1[0-2])(1[5-9]|2\d)(?!\d)")
+# 2025+ files parse via the live chain (identical hashing with live rows);
+# everything older goes to the word-position archive parser.
+_ARCHIVE_WORDS_MAX_YEAR = 2024
+
+
+def _archive_file_year(url: str) -> int | None:
+    name = url.rsplit("/", 1)[-1].split("_tcm")[0]
+    m = _FILE_YEAR_RE.search(name)
+    if m:
+        return int(m.group(0))
+    m = _FILE_MMYY_RE.search(name)
+    if m:
+        return 2000 + int(m.group(2))
+    return None
+
+
 def _parse_archive_pdf(pdf_bytes: bytes, url: str) -> list[NoticeRow]:
-    """Parse a historical DEED PDF, normalizing annual-era employer names."""
+    """Parse a historical DEED PDF, dispatching on the report's era."""
+    year = _archive_file_year(url)
+    if year is not None and year <= _ARCHIVE_WORDS_MAX_YEAR:
+        try:
+            with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+                return _parse_archive_words(pdf, url)
+        except Exception:
+            return []
     rows = _parse_pdf(pdf_bytes, url)
     for row in rows:
         row.employer = _TRAILING_YEAR_RE.sub("", row.employer)
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Word-position parser for the 2015-2024 archive eras.
+#
+# Every era prints the same line-oriented report — only the column set drifts
+# (2015-16 monthlies have Provider/no Layoff Type; WARN Received appears 2021;
+# 2016-2019 order Industry before Layoff Start; ...). Deriving column x-bounds
+# from the header words handles all of them with one parser, and cleanly
+# splits the employer / city / industry runs that text extraction glues.
+# ---------------------------------------------------------------------------
+
+_RR_SECTION_RE = re.compile(r"RR Start Date:\s*([A-Za-z]+)\s+(20\d{2})", re.I)
+_RECORDS_RE = re.compile(r"\(\s*\d+\s+records?\)")
+_MD_ONLY_RE = re.compile(r"^\d{1,2}/\d{1,2}$")
+_DATE_TOKEN_RE = re.compile(r"^\d{1,2}/\d{1,2}(/\d{2,4})?$")
+_MONTH_NUM = {name.lower(): i for i, name in enumerate(calendar.month_name) if name}
+# Max vertical distance (pt) between stacked header lines, and max horizontal
+# gap (pt) between words of one header label. Lines carrying any numeric token
+# (dates, counts, report years) are never header lines — that keeps section,
+# totals, title and data lines out of the band.
+_HDR_BAND = 24
+_HDR_GAP = 7
+_NUMERIC_TOKEN_RE = re.compile(r"^[\d,./()-]*\d[\d,./()-]*$")
+# Values sit at or right of their column label; small slack for rounding.
+_COL_SLACK = 3
+
+# Known header labels across all 2015-2024 eras, longest-first. Dense
+# single-line headers (2023-24) leave inter-column gaps as small as
+# within-label gaps, so geometric clustering alone can't split them — clusters
+# are re-split by greedy vocabulary match instead.
+_HEADER_VOCAB: list[tuple[str, ...]] = [
+    tuple(v.split())
+    for v in (
+        "total affected workers",
+        "layoff start date",
+        "account: industry",
+        "affected workers",
+        "account: city",
+        "layoff status",
+        "warn received",
+        "layoff count",
+        "layoff start",
+        "layoff name",
+        "layoff type",
+        "taa related",
+        "taa status",
+        "warn act",
+        "industry",
+        "provider",
+        "city",
+        "taa",
+    )
+]
+
+
+def _lines_by_top(words: list[dict]) -> list[list[dict]]:
+    """Group words into visual lines (top within 2pt), each x-sorted."""
+    lines: list[tuple[float, list[dict]]] = []
+    for w in sorted(words, key=lambda w: (w["top"], w["x0"])):
+        if lines and abs(lines[-1][0] - w["top"]) <= 2:
+            lines[-1][1].append(w)
+        else:
+            lines.append((w["top"], [w]))
+    return [sorted(ws, key=lambda w: w["x0"]) for _, ws in lines]
+
+
+def _split_by_vocab(words: list[dict]) -> list[tuple[float, str]]:
+    """Greedily re-split one geometric cluster into known header labels."""
+    ordered = sorted(words, key=lambda w: (w["top"], w["x0"]))
+    tokens = [w["text"].lower().lstrip("*") for w in ordered]
+    out: list[tuple[float, str]] = []
+    i = 0
+    while i < len(tokens):
+        label = next(
+            (v for v in _HEADER_VOCAB if tuple(tokens[i : i + len(v)]) == v), None
+        )
+        if label:
+            out.append((min(w["x0"] for w in ordered[i : i + len(label)]), " ".join(label)))
+            i += len(label)
+        else:
+            i += 1  # stray token (wrapped fragment) — ignore
+    return out or [(min(w["x0"] for w in words), " ".join(tokens))]
+
+
+def _header_band(lines: list[list[dict]], anchor_top: float) -> list[list[dict]]:
+    """Lines belonging to the stacked header block around the anchor."""
+    return [
+        ws
+        for ws in lines
+        if abs(ws[0]["top"] - anchor_top) <= _HDR_BAND
+        and not any(_NUMERIC_TOKEN_RE.match(w["text"]) for w in ws)
+    ]
+
+
+def _header_columns(lines: list[list[dict]], anchor_idx: int) -> list[tuple[float, str]]:
+    """Cluster the stacked header block around the anchor line into columns.
+
+    Returns [(min_x0, normalized label), ...] sorted by x position. Words on
+    one line split into segments at gaps > _HDR_GAP; segments from stacked
+    lines merge when their x-ranges overlap ("WARN" over "Act"); each merged
+    cluster is then re-split against the label vocabulary.
+    """
+    anchor_top = lines[anchor_idx][0]["top"]
+    segments: list[dict] = []  # {x0, x1, words}
+    for ws in _header_band(lines, anchor_top):
+        seg: dict | None = None
+        for w in ws:
+            if seg is not None and w["x0"] - seg["x1"] <= _HDR_GAP:
+                seg["x1"] = max(seg["x1"], w["x1"])
+                seg["words"].append(w)
+            else:
+                seg = {"x0": w["x0"], "x1": w["x1"], "words": [w]}
+                segments.append(seg)
+    # Merge segments across lines while their x-ranges overlap.
+    merged: list[dict] = []
+    for seg in sorted(segments, key=lambda s: s["x0"]):
+        hit = next((m for m in merged if seg["x0"] < m["x1"] and m["x0"] < seg["x1"]), None)
+        if hit:
+            hit["x0"] = min(hit["x0"], seg["x0"])
+            hit["x1"] = max(hit["x1"], seg["x1"])
+            hit["words"].extend(seg["words"])
+        else:
+            merged.append(seg)
+    cols: list[tuple[float, str]] = []
+    for m in sorted(merged, key=lambda s: s["x0"]):
+        cols.extend(_split_by_vocab(m["words"]))
+    return sorted(cols)
+
+
+def _parse_archive_words(pdf: pdfplumber.PDF, url: str) -> list[NoticeRow]:  # type: ignore[name-defined]
+    """Parse a 2015-2024 era report by assigning words to header columns."""
+    starts: list[float] = []
+    roles: dict[str, int] = {}
+    section: tuple[int, int] | None = None  # (year, month) of "RR Start Date:"
+    open_rec: dict[int, list[str]] | None = None
+    rows: list[NoticeRow] = []
+
+    def _close() -> None:
+        nonlocal open_rec
+        if open_rec is None:
+            return
+        rec, open_rec = open_rec, None
+
+        def cell(role: str) -> str | None:
+            i = roles.get(role)
+            return " ".join(rec[i]) if i is not None and rec.get(i) else None
+
+        if (cell("warn") or "").upper() != "YES":
+            return
+        # A Layoff Type value can print left of its own header label and land
+        # in the WARN Received column ("4/4/2024 Workforce") — keep only the
+        # leading date/dash in Received and shift the rest into Type.
+        if "received" in roles and rec.get(roles["received"]):
+            toks = rec[roles["received"]]
+            keep = 1 if _DATE_TOKEN_RE.match(toks[0]) or toks[0] in ("-", "\u2013") else 0
+            if len(toks) > keep:
+                if "type" in roles:
+                    rec.setdefault(roles["type"], [])[:0] = toks[keep:]
+                rec[roles["received"]] = toks[:keep]
+        employer = as_str(_ARCHIVE_TRAILING_YEAR_RE.sub("", cell("name") or ""))
+        if not employer:
+            return
+        effective_date = as_date(cell("start"))
+        recv_raw = cell("received")
+        notice_date = None
+        if recv_raw and _MD_ONLY_RE.match(recv_raw):
+            yr = effective_date.year if effective_date else (section or (date.today().year,))[0]
+            recv_raw = f"{recv_raw}/{yr}"
+        if recv_raw:
+            notice_date = as_date(recv_raw)
+        if notice_date is None:
+            notice_date = effective_date
+        if notice_date is None and section:
+            notice_date = date(section[0], section[1], 1)
+        industry = cell("industry")
+        rows.append(
+            NoticeRow(
+                state="MN",
+                employer=employer,
+                notice_date=notice_date,
+                effective_date=effective_date,
+                layoff_count=as_int(cell("count")),
+                closure_type=as_str(cell("type")),
+                city=as_str(cell("city")),
+                source_url=url,
+                extra={"industry": industry} if industry else {},
+            )
+        )
+
+    for page in pdf.pages:
+        _close()  # rows never wrap across pages; don't absorb next-page chrome
+        lines = _lines_by_top(page.extract_words())
+        header_tops: set[float] = set()
+        for idx, ws in enumerate(lines):
+            text = " ".join(w["text"] for w in ws)
+            if text.startswith(("*", "�")):
+                continue  # footnote blocks
+            if "Layoff Name" in text:
+                cols = _header_columns(lines, idx)
+                labels = [label for _, label in cols]
+                starts = [x for x, _ in cols]
+                roles = {}
+                for role, pred in (
+                    ("name", lambda s: "name" in s),
+                    ("city", lambda s: "city" in s),
+                    ("industry", lambda s: "industry" in s),
+                    ("start", lambda s: "start" in s),
+                    ("warn", lambda s: "warn" in s and "act" in s),
+                    ("received", lambda s: "received" in s),
+                    ("type", lambda s: "type" in s),
+                    ("count", lambda s: "affected" in s),
+                ):
+                    i = next((i for i, s in enumerate(labels) if pred(s)), None)
+                    if i is not None:
+                        roles[role] = i
+                header_tops = {
+                    band[0]["top"] for band in _header_band(lines, ws[0]["top"])
+                }
+                continue
+            if ws[0]["top"] in header_tops:
+                continue
+            if text.startswith("Grand Totals"):
+                _close()
+                return rows
+            m = _RR_SECTION_RE.search(text)
+            if m:
+                _close()
+                month = _MONTH_NUM.get(m.group(1).lower())
+                if month:
+                    section = (int(m.group(2)), month)
+                continue
+            if not starts or {"name", "warn"} - roles.keys():
+                continue
+            by_col: dict[int, list[str]] = {}
+            for w in ws:
+                col = bisect_right(starts, w["x0"] + _COL_SLACK) - 1
+                if col >= 0:
+                    by_col.setdefault(col, []).append(w["text"])
+            warn_words = by_col.get(roles["warn"], [])
+            if warn_words and warn_words[0] in ("YES", "NO"):
+                _close()
+                if len(warn_words) > 1 and "received" in roles:
+                    # A WARN Received date can print left of its own header
+                    # label and land in the WARN Act column — move it over.
+                    by_col[roles["warn"]] = warn_words[:1]
+                    by_col.setdefault(roles["received"], [])[:0] = warn_words[1:]
+                open_rec = by_col
+            elif open_rec is not None:
+                for col, texts in by_col.items():
+                    open_rec.setdefault(col, []).extend(texts)
+    _close()
     return rows
 
 

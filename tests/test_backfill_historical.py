@@ -600,14 +600,13 @@ def test_backfill_historical_wi_year_routes_archive_parser(db) -> None:
 
 @respx.mock
 def test_mn_discover_archive_pdf_urls_filters_and_sorts():
-    """Monthly PDFs become Wayback replay URLs; annuals and non-reports drop."""
+    """Report PDFs (monthly and annual) become Wayback replay URLs."""
     from warn_v2.scrapers.states.mn import _CDX_API, _discover_archive_pdf_urls
 
     base = "https://mn.gov/deed/assets"
     cdx = [
         ["original", "timestamp"],
         [f"{base}/plant-closing-mass-layoff-warn-2026-january_x.pdf", "20260201000000"],
-        # Annual summary (no month token) — excluded until a parser exists.
         [f"{base}/mass-layoff-summary-2018_y.pdf", "20190101000000"],
         [f"{base}/unrelated-budget-report.pdf", "20240101000000"],
         [f"{base}/plant-closing-april-2022_z.pdf", "20220501000000"],
@@ -618,6 +617,8 @@ def test_mn_discover_archive_pdf_urls_filters_and_sorts():
 
     urls = _discover_archive_pdf_urls()
     assert urls == [
+        "https://web.archive.org/web/20190101000000id_/"
+        "https://mn.gov/deed/assets/mass-layoff-summary-2018_y.pdf",
         "https://web.archive.org/web/20220501000000id_/"
         "https://mn.gov/deed/assets/plant-closing-april-2022_z.pdf",
         "https://web.archive.org/web/20260201000000id_/"
@@ -625,27 +626,109 @@ def test_mn_discover_archive_pdf_urls_filters_and_sorts():
     ]
 
 
-def test_mn_is_annual_archive_url():
-    from warn_v2.scrapers.states.mn import _is_annual_archive_url
+def test_mn_archive_file_year():
+    """Filename year detection ignores the _tcm asset token; MMYY handled."""
+    from warn_v2.scrapers.states.mn import _archive_file_year
 
-    assert _is_annual_archive_url("https://mn.gov/deed/assets/mass-layoff-summary-2018_y.pdf")
-    assert _is_annual_archive_url("https://mn.gov/deed/assets/plant-closing-mass-layoff-2021_z.pdf")
-    assert not _is_annual_archive_url("https://mn.gov/deed/assets/plant-closing-april-2022_z.pdf")
-    assert not _is_annual_archive_url("https://mn.gov/deed/assets/mass-layoff-summary0715_a.pdf")
+    assert _archive_file_year("https://x/plant-closing-mass-layoff-2021_tcm1045-515051.pdf") == 2021
+    assert _archive_file_year("https://x/mass-layoff-summary0815_tcm1045-133763.pdf") == 2015
+    assert _archive_file_year("https://x/mass-layoff-summary-mar2016_tcm1045-226970.pdf") == 2016
+    assert (
+        _archive_file_year("https://x/plant-closing-mass-layoff-warn-2026-january_tcm1045-722872.pdf")
+        == 2026
+    )
+    assert _archive_file_year("https://x/dwp-mass-layoff-english_tcm1045-259927.pdf") is None
 
 
-def test_mn_parse_archive_pdf_strips_trailing_year():
-    """Annual-era PDFs glue the report year onto employer names."""
+def test_mn_parse_archive_pdf_routes_2025_plus_to_live_chain():
+    """2025+ files keep the live parser chain (identical hashing with live rows)."""
     from warn_v2.scrapers.states import mn
 
     fake = [
-        NoticeRow(state="MN", employer="National Recoveries 2021", notice_date=date(2021, 10, 15)),
-        NoticeRow(state="MN", employer="Coleman", notice_date=date(2021, 8, 31)),
+        NoticeRow(state="MN", employer="National Recoveries 2025", notice_date=date(2025, 10, 15)),
+        NoticeRow(state="MN", employer="Coleman", notice_date=date(2025, 8, 31)),
     ]
-    with patch.object(mn, "_parse_pdf", return_value=fake):
-        rows = mn._parse_archive_pdf(b"%PDF-1.4", "https://mn.gov/x.pdf")
+    with patch.object(mn, "_parse_pdf", return_value=fake) as parse_pdf:
+        rows = mn._parse_archive_pdf(b"%PDF-1.4", "https://mn.gov/plant-closing-warn-march-2025.pdf")
 
+    parse_pdf.assert_called_once()
     assert [r.employer for r in rows] == ["National Recoveries", "Coleman"]
+
+
+_MN_FIXTURES = Path(__file__).resolve().parents[1] / "warn_v2" / "scrapers" / "fixtures" / "mn"
+
+
+def test_mn_parse_archive_2015_monthly():
+    """2015-16 era: Name|City|Start|Industry|Count|WARN|Provider|Status|TAA."""
+    from warn_v2.scrapers.states import mn
+
+    rows = mn._parse_archive_pdf(
+        (_MN_FIXTURES / "archive_monthly_2015_08.pdf").read_bytes(),
+        "https://web.archive.org/web/x/mass-layoff-summary0815_tcm1045-133763.pdf",
+    )
+    assert [r.employer for r in rows] == ["Sivantos", "Univita Health"]  # WARN=YES only
+    sivantos = rows[0]
+    assert sivantos.city == "Plymouth"
+    assert sivantos.layoff_count == 96
+    assert sivantos.notice_date == date(2015, 8, 17)  # no WARN Received column
+    assert sivantos.extra["industry"] == "Manufacturing"
+    # "Univita Health 2015" wraps its city onto a second line ("Eden"/"Prairie").
+    assert rows[1].city == "Eden Prairie"
+
+
+def test_mn_parse_archive_2016_cumulative():
+    """Dec-2016 era reorders columns (Industry before Start) and runs 24 pages
+    of month sections cumulatively back through 2014."""
+    from warn_v2.scrapers.states import mn
+
+    rows = mn._parse_archive_pdf(
+        (_MN_FIXTURES / "archive_cumulative_2016_12.pdf").read_bytes(),
+        "https://web.archive.org/web/x/mass-layoff-summary-december-2016_tcm1045-270006.pdf",
+    )
+    assert len(rows) == 112
+    assert all(r.notice_date is not None for r in rows)
+    years = {r.notice_date.year for r in rows}
+    assert 2014 in years and 2016 in years
+    elite = next(r for r in rows if r.employer.startswith("Elite Line Services"))
+    assert elite.city == "St Paul"
+    assert elite.layoff_count == 86
+    assert elite.notice_date == date(2017, 1, 31)
+    assert elite.extra["industry"] == "Accommodation"
+
+
+def test_mn_parse_archive_2021_annual():
+    """2021+ era adds WARN Received; its value can print left of its own
+    header label (into the WARN Act column) and must be reassigned."""
+    from warn_v2.scrapers.states import mn
+
+    rows = mn._parse_archive_pdf(
+        (_MN_FIXTURES / "archive_annual_2021.pdf").read_bytes(),
+        "https://web.archive.org/web/x/plant-closing-mass-layoff-2021_tcm1045-515051.pdf",
+    )
+    assert len(rows) == 11
+    nr = next(r for r in rows if r.employer == "National Recoveries")  # year stripped
+    assert nr.notice_date == date(2021, 10, 15)  # WARN Received
+    assert nr.effective_date == date(2021, 10, 1)  # Layoff Start
+    assert nr.city == "Arden Hills"
+    assert nr.layoff_count == 60
+    assert nr.closure_type == "Workforce Reduction"
+
+
+def test_mn_parse_archive_2024_monthly():
+    """2023-24 era prints the whole header on one dense line (vocabulary split)
+    and no lines-strategy table exists at all."""
+    from warn_v2.scrapers.states import mn
+
+    rows = mn._parse_archive_pdf(
+        (_MN_FIXTURES / "archive_monthly_2024_04.pdf").read_bytes(),
+        "https://web.archive.org/web/x/plant-closing-mass-layoff-warn-april-2024_tcm1045-623664.pdf",
+    )
+    assert [r.employer for r in rows] == ["Aramark at General Mills"]
+    aramark = rows[0]
+    assert aramark.city == "Golden Valley"
+    assert aramark.notice_date == date(2024, 4, 4)
+    assert aramark.effective_date == date(2024, 5, 31)
+    assert aramark.layoff_count == 56
 
 
 def test_ms_parse_old_quarterly_merged_company_city():
