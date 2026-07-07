@@ -97,19 +97,36 @@ sources only).
   "Supplementals" are amendments the parser skips every month) and ingested
   inline via the storage path (w_homelab #647, +10 rows, 1,223 workers). **IL
   1999–2019 is complete: 3,742 notices.**
-- **2026-07-07 — NV 2021 OCR route added** (parser PR #210): the last NV
-  archive gap, `Content/Media/WARN_2021.pdf`, is a single-page **scanned image
-  with no text layer** (one 842×387 px embedded image, 20-row lattice table,
-  7 columns, no Notification column — the 2022 shape). `parse_nv_archive` now
-  detects the missing text layer and falls back to the tesseract OCR path via
-  the new `pdf_extract.ocr_word_boxes` (returns pdfplumber-shaped word boxes
-  with x0/top normalized from pixels to points), then reuses the existing
-  word-position parser with 2021 x-bounds `(129,186,239,291,454,526,10_000)`.
-  OCR is Docker-only (no tesseract in CI/local), so a synthetic-word unit test
-  guards the column layout and the real-OCR fixture test is skip-guarded.
-  **Remaining: the gated prod run** (`backfill-historical --state NV
-  --year-start 2021 --year-end 2021`, dry-run first — brand-new year, no
-  dedup), verify **+~20 rows** against the known ground truth, then re-audit.
+- **2026-07-07 — NV 2021 OCR route backfilled in prod** (parsers #210/#216/#219,
+  image `20260707-230121-6c24205`; Jobs w_homelab #634/#641/#646 dry-runs →
+  #648 real → #649 prune): **+20 rows** (all of `Content/Media/WARN_2021.pdf`,
+  a single-page **scanned image with no text layer** — 842×387 px, 20-row
+  lattice, 7 cols, no Notification column, the 2022 shape). `parse_nv_archive`
+  detects the missing text layer and OCR-falls-back via the new
+  `pdf_extract.ocr_word_boxes` (pdfplumber-shaped word boxes, x0/top normalized
+  pixels→points), then the word-position parser. Verified per-record via the
+  public API: 20 notices, counts sum 1198, near_miss=0 (2021 is a brand-new NV
+  year; one pre-existing Rawhide Mine row from another source makes 21 total).
+  **Two rasterizer-sensitivity bugs, caught by the dry-runs:**
+  - **Row grouping (13→19 rows, rasterizer-dependent).** A fixed-grid
+    `round(top/_ROW_BUCKET)` splits a row whose word tops straddle a bucket
+    boundary; a gap-cluster instead *chains* rows (city/county words at
+    in-between tops bridge two rows into one with two date anchors). Fix
+    (#219): **date-anchor rows** — one received-date word per row; assign every
+    other word to the nearest anchor by top. Threshold-free, robust to the
+    ~1pt top-jitter between poppler (cluster) and pdfium.
+  - **Silent count loss (20 rows but nulled counts).** The 2021 x-bounds were
+    the tight column gridlines, but OCR word x0 shifts ~1pt between rasterizers:
+    poppler puts count digits at x0≈238.8, left of the `b_type=239` bound, so
+    the count fell into the type column and was nulled while the row survived
+    (invisible to a row-count check). Fix (#219): bounds are now **midpoints
+    between the observed OCR column x-ranges** (25–50pt margins).
+  Validated end-to-end by reproducing the exact `pdf2image`+poppler+tesseract
+  path locally (installed tesseract + poppler). OCR is Docker-only, so a
+  synthetic-word test guards the layout in CI and the skip-guarded fixture test
+  asserts all 20 rows **+ the count total** (a nulled count a row-count misses).
+  NV city/county are None DB-wide (live + all archive years) — a pre-existing NV
+  location gap, tracked separately, not caused by this backfill.
 - **2026-07-07 — MS stragglers + NJ workbook backfilled in prod** (parsers
   #196/#197, image `20260707-202905-5a80b93`; Jobs w_homelab #626 dry-run →
   #627 real → #629 prune): **MS +18** from the 4 stacked-header quarterlies
@@ -262,7 +279,7 @@ delete Jobs after.
 | MA | ~~2025~~ **FY2022 ✅** | mass.gov WARN page publishes **FY22–FY25 XLSX reports** — "Previous WARN reports" links one XLSX per FY at `/doc/fy{NN}-warn-report/download` (discover via Playwright: Akamai gates the page and the href has no `.xlsx`). Two layouts: FY22/FY23 one sheet per region (region = sheet name), FY24+ single CSV-style sheet. | **FY2022** (2021-04) | **done 2026-07-07** (+287, 86 → 373; see Progress); pre-FY22 → email (invited) |
 | WA | ~~2026~~ **2004 ✅** | `fortress.wa.gov/esd/file/warn/Public/SearchWARN.aspx` — ASP.NET `__VIEWSTATE` GridView; the scraper now replays the `Page$N` postback for every page (99 pages, ~15 rows each) | **2004** | **done 2026-07-07** (pagination fix; live fetch = 1,480 rows, floor 2004-01; deploys via the daily scrape, no one-off Job) |
 | OR | 2020 | HECC site states it retains only **six years** of WARN records; `data.oregon.gov` Socrata dataset `ijbz-jpx8` exists (content unverified) | ~mid-2020 | check Socrata dataset; pre-2020 → inquiry |
-| NV | ~~2025~~ **2017 ✅** | per-year PDFs under `detr.nv.gov/Content/Media/` in three layout eras (see `nv._ARCHIVE_SOURCES`); 2023 pruned live → Wayback; **2021 is a scanned image → OCR route (done 2026-07-07)**; 2025 snapshot ends Jun 3 | **2017** | **done 2026-07-02** (+584); 2021 OCR parser done 2026-07-07 (prod run pending); Jun–Dec 2025 + pre-2017 → request |
+| NV | ~~2025~~ **2017 ✅** | per-year PDFs under `detr.nv.gov/Content/Media/` in three layout eras (see `nv._ARCHIVE_SOURCES`); 2023 pruned live → Wayback; **2021 scanned image → OCR route done 2026-07-07**; 2025 snapshot ends Jun 3 | **2017** | **done 2026-07-02** (+584) + **2021 OCR +20 (2026-07-07)**; Jun–Dec 2025 + pre-2017 → request |
 | LA | ~~2026~~ **2025 ✅** | `WarnNotices{year}.pdf` — only 2025+ still resolve; the 2025 file's layout (no Address column) now parses | **2025** | **done 2026-07-02** (+23); pre-2025 → request (drafted) |
 
 ## Tier 2 — investigated, resolved
