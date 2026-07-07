@@ -446,6 +446,14 @@ def _record_run(
     rows_new: int | None = None,
     dry_run: bool,
 ) -> None:
+    """Persist one per-chunk ScraperRun, status-prefixed ``backfill_``.
+
+    The prefix keeps these rows out of everything that reasons about the
+    *live* scraper's health from a state's newest run — the audit's
+    row-drift/broken flags, /api/runs/status last-success, the staleness
+    metric, and cadence inference all treat a whole-source scrape's row
+    count as the signal, which a one-month/one-year chunk would fake out.
+    """
     if dry_run:
         return
     now = datetime.now().astimezone()
@@ -454,7 +462,7 @@ def _record_run(
             state=state,
             started_at=now,
             finished_at=now,
-            status=status,
+            status=f"backfill_{status}",
             error=error,
             rows_scraped=rows_scraped,
             rows_new=rows_new,
