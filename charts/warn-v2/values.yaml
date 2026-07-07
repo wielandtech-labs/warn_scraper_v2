@@ -124,8 +124,10 @@ api:
       cert-manager.io/cluster-issuer: letsencrypt-prod
       traefik.ingress.kubernetes.io/router.entrypoints: websecure
   resources:
-    requests: { cpu: 50m, memory: 128Mi }
-    limits:   { cpu: 500m, memory: 256Mi }
+    # 256Mi OOMKilled the API on 2026-07-07 once the DB passed ~45k notices
+    # (paged /api/notices traffic during backfill verification tipped it).
+    requests: { cpu: 50m, memory: 256Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
 
 serviceMonitor:
   enabled: true   # picked up by your existing Prometheus
