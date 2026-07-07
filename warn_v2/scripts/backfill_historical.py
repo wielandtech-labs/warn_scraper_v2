@@ -56,7 +56,9 @@ from warn_v2.scrapers.states.co import _fetch_co_year, _parse_co_year
 from warn_v2.scrapers.states.dc import _fetch_dc_year
 from warn_v2.scrapers.states.fl import _fetch_fl_year
 from warn_v2.scrapers.states.hi import _fetch_hi_year
+from warn_v2.scrapers.states.il import _discover_archive_pdf_urls as _discover_il_pdf_urls
 from warn_v2.scrapers.states.il import _discover_archive_xlsx_urls as _discover_il_xlsx_urls
+from warn_v2.scrapers.states.il import parse_il_pdf
 from warn_v2.scrapers.states.ky import _discover_workbook_urls as _discover_ky_workbook_urls
 from warn_v2.scrapers.states.ky import parse_ky_workbook
 from warn_v2.scrapers.states.la import _fetch_la_year, parse_la_pdf
@@ -69,6 +71,7 @@ from warn_v2.scrapers.states.mn import (
     _parse_archive_pdf as _parse_mn_archive_pdf,
 )
 from warn_v2.scrapers.states.ms import _discover_pdf_urls as _discover_ms_pdf_urls
+from warn_v2.scrapers.states.nc import _discover_nc_pdf_urls, parse_nc_pdf
 from warn_v2.scrapers.states.nj import ARCHIVE_XLSX_URL as _NJ_ARCHIVE_XLSX_URL
 from warn_v2.scrapers.states.nj import parse_nj_archive_xlsx
 from warn_v2.scrapers.states.nm import _discover_archive_pdf_urls as _discover_nm_pdf_urls
@@ -153,7 +156,8 @@ _BACKFILL: dict[str, BackfillSpec] = {
         parse_year=lambda b, y: parse_la_pdf(b, _la_source_url(y)),
     ),
     # NV: per-year archive PDFs 2017+ in three layout eras; 2021 is a scanned
-    # image (skipped) and 2025 coverage ends June 3 — see nv._ARCHIVE_SOURCES.
+    # image (parsed via the tesseract OCR fallback) and 2025 coverage ends
+    # June 3 — see nv._ARCHIVE_SOURCES.
     "NV": BackfillSpec(
         year_start=2017,
         fetch_year=lambda s, y: _fetch_nv_year(y),
@@ -165,6 +169,13 @@ _BACKFILL: dict[str, BackfillSpec] = {
     "NJ": BackfillSpec(
         discover_urls=lambda: [_NJ_ARCHIVE_XLSX_URL],
         parse_for_url=lambda u: parse_nj_archive_xlsx,
+    ),
+    # NC: per-year archive PDFs 2014+ discovered from the hub (irregular slugs).
+    # Three layout eras; parse_nc_pdf dispatches on detected content. Capture
+    # the URL so each PDF's parser records its own source_url.
+    "NC": BackfillSpec(
+        discover_urls=lambda: _discover_nc_pdf_urls(),
+        parse_for_url=lambda u: (lambda raw, _u=u: parse_nc_pdf(raw, _u)),
     ),
     # NM: yearly PDFs back to 2016 with irregular filenames — discover from hub.
     "NM": BackfillSpec(discover_urls=lambda: _discover_nm_pdf_urls()),
@@ -189,9 +200,16 @@ _BACKFILL: dict[str, BackfillSpec] = {
     # MS: the landing page lists every quarterly PDF back to PY2020; the
     # regular scraper ingests only the most recent one.
     "MS": BackfillSpec(discover_urls=lambda: _discover_ms_pdf_urls()),
-    # IL: monthly Excel files 2020+ from the archive page (the 1999-2019 PDF
-    # era needs a dedicated parser — deferred).
-    "IL": BackfillSpec(discover_urls=lambda: _discover_il_xlsx_urls()),
+    # IL: monthly Excel files 2020+ plus the monthly PDF era 1999-2019 (a
+    # labeled two-column form → parse_il_pdf; XLSX re-ingest is idempotent).
+    "IL": BackfillSpec(
+        discover_urls=lambda: _discover_il_xlsx_urls() + _discover_il_pdf_urls(),
+        parse_for_url=lambda u: (
+            (lambda raw, _u=u: parse_il_pdf(raw, _u))
+            if u.lower().endswith(".pdf")
+            else None
+        ),
+    ),
     # OH: four era formats back to 1996, mostly via Wayback replay (see
     # docs/historical-sources.md); 2025 has no known source anywhere.
     "OH": BackfillSpec(

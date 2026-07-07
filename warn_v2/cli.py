@@ -544,7 +544,7 @@ def backfill_layoff_counts_cmd(
 @click.option(
     "--state", required=True,
     help="State to backfill: AZ, CA, DC, DE, FL, HI, IL, KS, KY, MD, ME, MN, "
-         "MS, NM, NY, OH, PA, TX, VT, WI (CO is already cumulative)",
+         "MS, NC, NM, NY, OH, PA, TX, VT, WI (CO is already cumulative)",
 )
 @click.option("--year-start", type=int, default=None,
               help="First year to fetch (default: per-state earliest; "
@@ -567,7 +567,7 @@ def backfill_historical_cmd(
 
     \b
     Supported states: AZ, CA, CO, DC, DE, FL, HI, IL, KS, KY, MD, ME, MN, MS,
-    NM, NY, OH, PA, TX, VT, WI.
+    NC, NM, NY, OH, PA, TX, VT, WI.
     Per-state earliest years and the dedup protocol: docs/historical-sources.md.
     Dry runs print a duplicate preview (already_exists / near_miss counts).
 

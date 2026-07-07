@@ -1025,6 +1025,66 @@ def test_il_discover_archive_xlsx_urls_unwraps_and_excludes_pdfs():
 
 
 @respx.mock
+def test_il_discover_archive_pdf_urls_filters_year_statute_and_format():
+    from warn_v2.scrapers.states.il import _ARCHIVE_URL, _discover_archive_pdf_urls
+
+    html = (
+        b"<html>"
+        # WARN report PDFs 1999-2019 → kept (percent-encoding preserved)
+        b"<a href='/_layouts/download.aspx?SourceUrl=https://www.illinoisworknet.com"
+        b"/DownloadPrint/April%202005%20WARN.pdf'>Apr 2005</a>"
+        b"<a href='/DownloadPrint/December%201999%20WARN.PDF'>Dec 1999</a>"
+        # 2020 PDF overlaps the XLSX era → dropped by the year filter
+        b"<a href='/DownloadPrint/January%202020%20Monthly%20WARN%20Report.pdf'>Jan 2020</a>"
+        # WARN Act statute PDF (no month/year) → dropped
+        b"<a href='/DownloadPrint/IllinoisWARNSB2665.pdf'>statute</a>"
+        # non-WARN PDF and an XLSX → not monthly reports
+        b"<a href='/DownloadPrint/AnnualReport2010.pdf'>annual</a>"
+        b"<a href='/DownloadPrint/March%202019%20WARN.xlsx'>xlsx</a>"
+        # duplicate of Apr 2005 → deduped
+        b"<a href='/_layouts/15/download.aspx?SourceUrl=https://www.illinoisworknet.com"
+        b"/DownloadPrint/April%202005%20WARN.pdf'>dup</a>"
+        b"</html>"
+    )
+    respx.get(_ARCHIVE_URL).mock(return_value=httpx.Response(200, content=html))
+
+    urls = _discover_archive_pdf_urls()
+    assert urls == [
+        "https://www.illinoisworknet.com/DownloadPrint/April%202005%20WARN.pdf",
+        "https://www.illinoisworknet.com/DownloadPrint/December%201999%20WARN.PDF",
+    ]
+
+
+@respx.mock
+def test_backfill_historical_il_routes_pdfs_to_parse_il_pdf(db) -> None:
+    """PDF-era URLs dispatch to parse_il_pdf, not the XLSX scraper.parse."""
+    pdf_bytes = (
+        Path(__file__).resolve().parents[1]
+        / "warn_v2" / "scrapers" / "fixtures" / "il" / "sample_pdf_2019.pdf"
+    ).read_bytes()
+
+    urls = [
+        "https://www.illinoisworknet.com/DownloadPrint/December%202019%20WARN.pdf",
+        "https://www.illinoisworknet.com/DownloadPrint/November%202019%20WARN.pdf",
+    ]
+    for u in urls:
+        respx.get(u).mock(return_value=httpx.Response(200, content=pdf_bytes))
+
+    with patch(
+        "warn_v2.scripts.backfill_historical._discover_il_xlsx_urls", return_value=[]
+    ), patch(
+        "warn_v2.scripts.backfill_historical._discover_il_pdf_urls", return_value=urls
+    ):
+        stats = backfill_historical("IL", dry_run=True)
+
+    # rows_seen > 0 proves the PDF parser ran (XLSX parse on PDF bytes would fail).
+    assert stats["years_attempted"] == 2
+    assert stats["years_ok"] == 2
+    assert stats["rows_seen"] > 0
+    assert db.query(Notice).count() == 0
+
+
+@respx.mock
 def test_backfill_historical_ca_upserts_rows_pdf(db) -> None:
     """PDF archive URLs are dispatched to parse_ca_pdf instead of scraper.parse."""
     archive_url = "https://edd.ca.gov/Jobs_and_Training/warn/WARN_Report_FY21-22.pdf"
@@ -1742,3 +1802,174 @@ def test_backfill_historical_ny_url_list_with_limit(db) -> None:
     assert stats["years_attempted"] == 1  # second URL never fetched
     assert stats["rows_seen"] == 2  # main + other-site row
     assert db.query(Notice).filter(Notice.state == "NY").count() == 2
+
+
+# ---------------------------------------------------------------------------
+# NC — archive-hub discovery + three-era parse_nc_pdf
+# ---------------------------------------------------------------------------
+
+def _nc_fixture(name: str) -> bytes:
+    return (
+        Path(__file__).resolve().parents[1]
+        / "warn_v2" / "scrapers" / "fixtures" / "nc" / name
+    ).read_bytes()
+
+
+@respx.mock
+def test_nc_discover_pdf_urls_dedupes_years_and_absolutizes():
+    """Hub lists three slug families back to 2014, newest first; one URL/year."""
+    from warn_v2.scrapers.states.nc import _ARCHIVE_HUB, _discover_nc_pdf_urls
+
+    html = (
+        b"<html><body>"
+        b"<a href='/.../report-workforce-warn-listings-2025/open'>2025</a>"
+        b"<a href='/worker-adjustment-and-retraining-notification-warn-report-2021/open'>2021</a>"
+        b"<a href='/warn-report-2019/open'>2019</a>"
+        b"<a href='/warn-report-2014-0/open'>2014</a>"
+        b"<a href='/warn-report-2014-0/open'>2014 dup</a>"
+        b"<a href='/data-tools-reports/some-other-report-2023/open'>not warn</a>"
+        b"<a href='/warn-summary-report-archives'>hub self-link</a>"
+        b"</body></html>"
+    )
+    respx.get(_ARCHIVE_HUB).mock(return_value=httpx.Response(200, content=html))
+
+    urls = _discover_nc_pdf_urls()
+    assert urls == [
+        "https://www.commerce.nc.gov/.../report-workforce-warn-listings-2025/open",
+        "https://www.commerce.nc.gov/worker-adjustment-and-retraining-notification-warn-report-2021/open",
+        "https://www.commerce.nc.gov/warn-report-2019/open",
+        "https://www.commerce.nc.gov/warn-report-2014-0/open",
+    ]
+
+
+@respx.mock
+def test_nc_discover_pdf_urls_empty_on_http_error():
+    from warn_v2.scrapers.states.nc import _ARCHIVE_HUB, _discover_nc_pdf_urls
+
+    respx.get(_ARCHIVE_HUB).mock(return_value=httpx.Response(500))
+    assert _discover_nc_pdf_urls() == []
+
+
+def test_nc_parse_pdf_summary_count_era():
+    """2014-~2017 'WARN Notice - Summary Count' flowing text: word-position
+    columns, monthly subtotal lines skipped, wrapped company names rejoined."""
+    from warn_v2.scrapers.states.nc import parse_nc_pdf
+
+    rows = parse_nc_pdf(_nc_fixture("archive_summary_2016.pdf"), "http://x/2016")
+    assert len(rows) >= 15
+    assert all(r.state == "NC" and r.source_url == "http://x/2016" for r in rows)
+
+    first = rows[0]
+    assert first.employer == "Daimler Trucks North America LLC"
+    assert first.notice_date == date(2016, 1, 4)
+    assert first.effective_date == date(2016, 3, 5)
+    assert first.layoff_count == 936
+    assert first.city == "Cleveland"
+    assert first.closure_type == "Layoff/Temporary"
+
+    # Company name wrapped across two lines is reassembled.
+    morrison = next(r for r in rows if "Morrison" in r.employer)
+    assert morrison.employer == "(Morrison Healthcare) Carolina Medical Center"
+    assert (morrison.city, morrison.layoff_count) == ("Charlotte", 47)
+
+    # Monthly subtotal / header lines never become notices.
+    assert not any("Sum of" in r.employer or "Total" in r.employer for r in rows)
+
+
+def test_nc_parse_pdf_ssrs_era():
+    """~2018-2021 SSRS grid: city+zip pulled from the glued Address cell; a WARN
+    number spanning multiple address lines collapses to one row (no double count)."""
+    from warn_v2.scrapers.states.nc import parse_nc_pdf
+
+    rows = parse_nc_pdf(_nc_fixture("archive_ssrs_2018.pdf"), "http://x/2018")
+    assert all(r.state == "NC" for r in rows)
+
+    aon = next(r for r in rows if r.employer == "Aon Hewitt (Aon)")
+    assert aon.notice_date == date(2018, 1, 4)
+    assert aon.effective_date == date(2018, 3, 9)
+    assert aon.layoff_count == 76
+    assert aon.city == "Charlotte"
+    assert aon.zip == "28262"
+    assert aon.county == "Mecklenburg County"
+    assert aon.extra["warn_number"] == "20180001"
+
+    # WARN 20180002 (Flextronics) appears on two address lines, same total (69);
+    # it must collapse to a single row rather than sum to 138.
+    flex = [r for r in rows if r.extra.get("warn_number") == "20180002"]
+    assert len(flex) == 1
+    assert flex[0].layoff_count == 69
+
+
+def test_nc_ssrs_city_zip_anchors_on_state_not_first_digits():
+    """ZIP + city come from the trailing 'NC <zip>', never the first 5-digit run
+    (a 5-digit street number) or an out-of-state HQ ZIP glued into the cell."""
+    from warn_v2.scrapers.states.nc import _ssrs_city_zip
+
+    # 5-digit street number must NOT be taken as the ZIP.
+    assert _ssrs_city_zip("10815 Quality Dr Charlotte NC 28278") == ("Charlotte", "28278")
+    assert _ssrs_city_zip(
+        "10101 David Taylor Drive Suite 200 Charlotte NC 28262"
+    ) == ("Charlotte", "28262")
+    # Out-of-state HQ ZIP glued in front of the real NC worksite ZIP.
+    assert _ssrs_city_zip(
+        "2701 N. Rocky Point Drive Tampa Fl 33607 Fayetteville NC 28314"
+    ) == ("Fayetteville", "28314")
+    # Normal 4-digit street number and a two-word city.
+    assert _ssrs_city_zip("7201 Hewitt Associates Drive Charlotte NC 28262") == (
+        "Charlotte",
+        "28262",
+    )
+    assert _ssrs_city_zip("123 Main St Rocky Mount NC 27801") == ("Rocky Mount", "27801")
+    # No NC anchor -> nothing.
+    assert _ssrs_city_zip("somewhere with no state") == (None, None)
+
+
+def test_nc_parse_pdf_current_grid_era():
+    """2022+ grid shares the live HTML schema and _row_from_nc_grid."""
+    from warn_v2.scrapers.states.nc import parse_nc_pdf
+
+    rows = parse_nc_pdf(_nc_fixture("archive_grid_2025.pdf"), "http://x/2025")
+    assert len(rows) >= 15
+
+    first = rows[0]
+    assert first.employer == "Resilience US, Inc."
+    assert first.notice_date == date(2025, 1, 6)
+    assert first.effective_date == date(2025, 12, 15)
+    assert first.layoff_count == 120
+    assert first.city == "Durham"
+    assert first.county == "Durham County"
+    assert first.closure_type == "Permanent"
+    assert first.extra["warn_number"] == "202500001"
+    assert first.extra["warn_notice_type"] == "Layoff"
+
+
+def test_nc_parse_pdf_raises_on_bad_bytes():
+    from warn_v2.scrapers.base import ParseFailed
+    from warn_v2.scrapers.states.nc import parse_nc_pdf
+
+    with pytest.raises(ParseFailed):
+        parse_nc_pdf(b"not a pdf", "http://x/bad")
+
+
+@respx.mock
+def test_backfill_historical_nc_dispatches_per_url(db) -> None:
+    """NC runs in url-list mode; each discovered PDF is parsed by parse_nc_pdf."""
+    summary_url = "https://www.commerce.nc.gov/warn-report-2016-0/open"
+    grid_url = "https://www.commerce.nc.gov/.../report-workforce-warn-listings-2025/open"
+    respx.get(summary_url).mock(
+        return_value=httpx.Response(200, content=_nc_fixture("archive_summary_2016.pdf"))
+    )
+    respx.get(grid_url).mock(
+        return_value=httpx.Response(200, content=_nc_fixture("archive_grid_2025.pdf"))
+    )
+
+    with patch(
+        "warn_v2.scripts.backfill_historical._discover_nc_pdf_urls",
+        return_value=[grid_url, summary_url],
+    ):
+        stats = backfill_historical("NC", dry_run=True)
+
+    assert stats["years_attempted"] == 2
+    assert stats["years_ok"] == 2
+    assert stats["rows_seen"] > 0
+    assert db.query(Notice).count() == 0  # dry run writes nothing
