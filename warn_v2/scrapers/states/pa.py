@@ -79,19 +79,23 @@ _AFFECTED_AT_RE = re.compile(r"(\d[\d,]*)\s*@")
 
 
 def _parse_affected(raw: str | None) -> int | None:
-    """Parse the '# AFFECTED' value; None for unknown/TBD/ambiguous text."""
+    """Parse the '# AFFECTED' value; None for unknown/TBD/ambiguous text.
+
+    "# AFFECTED: 0" (common on 2001-2010 portal-era pages) means the source
+    didn't state a count, not that zero workers were affected -> None.
+    """
     if raw is None:
         return None
     n = as_int(raw)
     if n is not None:
-        return n
+        return n or None
     s = raw.strip()
     ats = _AFFECTED_AT_RE.findall(s)
     if len(ats) >= 2:
-        return sum(int(a.replace(",", "")) for a in ats)
+        return sum(int(a.replace(",", "")) for a in ats) or None
     m = _AFFECTED_LEAD_RE.match(s)
     if m:
-        return int(m.group(1).replace(",", ""))
+        return int(m.group(1).replace(",", "")) or None
     return None
 
 
@@ -310,13 +314,33 @@ _MONTHNAME_DATE_RE = re.compile(rf"({_MONTH_ALT})\s+(\d{{1,2}}),?\s+(\d{{4}})", 
 _PORTAL_MONTH_RE = re.compile(rf"/({_MONTH_ALT})_(\d{{4}})_warn_notices/", re.I)
 _SP_MONTH_RE = re.compile(rf"/pages/({_MONTH_ALT})-(\d{{4}})\.aspx", re.I)
 # Standalone closure line between the labels — "PLANT CLOSING", "CLOSING",
-# "MASS LAYOFF", "PLANT CLOSURE AND MASS LAYOFF", ... Only consulted between
-# labels (never for the employer line), so a keyword match is safe.
+# "MASS LAYOFF", "PLANT CLOSURE AND MASS LAYOFF", plus 2013's bare
+# "PERMANENT"/"TEMPORARY" (the qualifier is the whole line). The qualifiers
+# must match the full line — keyword-anywhere would eat a following
+# employer named e.g. "X Temporary Services". Only consulted between labels
+# (never for the employer line), so the keyword match is safe.
 _CLOSURE_LINE_RE = re.compile(
-    r"^(?=.{0,45}$)[^:]*\b(?:closing|closure|layoff)s?\b[^:]*$", re.I
+    r"^(?=.{0,45}$)(?:[^:]*\b(?:closing|closure|layoff)s?\b[^:]*"
+    r"|permanent|temporary)$",
+    re.I,
 )
 # "City, PA" with no ZIP (early portal pages often omit it).
 _CITY_NO_ZIP_RE = re.compile(r"^(.+),\s*PA\.?\s*$", re.I)
+# Annotation lines that are neither an employer nor a label. Update markers
+# usually carry asterisks ("*UPDATE TO 6/17/14 WARN*", caught by the "*"
+# prefix check) but sometimes not: bare "UPDATE" before the employer name
+# (Sept 2014), "(Update)" (2011), "(Updated WARN)" (Oct 2010). "CONTRACT
+# CANCELLED" (Sept 2014) sits *between* label lines of a completed block,
+# as does "NOT SPECIFIED" standing in for the closure-type line (2001-2002).
+# A lone "#" is the "# AFFECTED:" label split across lines (2004, 2008; the
+# "AFFECTED:" remainder is a label alias in _HIST_LABEL_RES). Anchored
+# tightly so a real employer ("Community Bank & Trust (Update)") never
+# matches.
+_HIST_ANNOTATION_RE = re.compile(
+    r"^[(\s]*(?:update[ds]?(?:\s+to\s+\S+)?(?:\s+warn)?|contract\s+cancell?ed"
+    r"|not\s+specified|#)[)\s]*$",
+    re.I,
+)
 
 # Label lines, canonicalized. The vocabulary drifted over the years:
 # "EFFECTIVE DATE:" (2001-2016), "LAYOFF EFFECTIVE DATE(S):" (2017-2020,
@@ -326,6 +350,10 @@ _CITY_NO_ZIP_RE = re.compile(r"^(.+),\s*PA\.?\s*$", re.I)
 _HIST_LABEL_RES: tuple[tuple[re.Pattern, str], ...] = (
     (re.compile(r"^county\s*:", re.I), "COUNTY"),
     (re.compile(r"^(?:#\s*|total\s+)affected\s*:?", re.I), "# AFFECTED"),
+    # "#\nAFFECTED: 101" — the label's "#" wrapped onto its own line (2004,
+    # 2008); the lone "#" is skipped as an annotation. Colon required here so
+    # a plain word "affected" in prose can't become a label.
+    (re.compile(r"^affected\s*:", re.I), "# AFFECTED"),
     (re.compile(r"^(?:layof{1,2}\s+)?effective\s+dates?\s*:", re.I), "EFFECTIVE DATE"),
     (re.compile(r"^layof{1,2}\s+dates?\s*:", re.I), "EFFECTIVE DATE"),
     (re.compile(r"^(?:closing|closure)\s+or\s+layoff\s*:", re.I), "CLOSURE"),
@@ -490,10 +518,12 @@ def _parse_month_cell(lines: list[str], year: int, month: int) -> list[NoticeRow
         elif pending is not None:
             labels[pending] = line
             pending = None
-        elif line.startswith("*"):
+        elif line.startswith("*") or _HIST_ANNOTATION_RE.match(line):
             # "*UPDATE TO M/D/YY WARN*" markers precede the employer name in
             # the same bold block; "*All employees will ..." footnotes trail
-            # the labels. Neither is an employer, address, or new block.
+            # the labels; unstarred variants ("UPDATE", "(Update)", "CONTRACT
+            # CANCELLED") appear too. None is an employer, address, or new
+            # block.
             continue
         elif labels and _CLOSURE_LINE_RE.match(line):
             labels["CLOSURE"] = line
