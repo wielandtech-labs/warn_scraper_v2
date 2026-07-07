@@ -230,6 +230,68 @@ def test_search_name_long_input_is_safe():
     assert isinstance(search_name(pathological), str)
 
 
+def test_search_name_strips_layered_trailing_junk():
+    # OH-history names layer "(County) count" behind the paren rule: the count
+    # hides the parenthetical unless the trailing block runs to a fixed point.
+    assert search_name("Lexington Precision Corporation (Trumbull) 150") == (
+        "Lexington Precision Corporation"
+    )
+    assert search_name("DuPont (Pickaway) 65") == "DuPont"
+    assert search_name("Insurance.com Solon (Cuyahoga) 144") == "Insurance.com Solon"
+    assert search_name("KUEHNE + NAGEL (KN) 2026") == "KUEHNE + NAGEL"
+    assert search_name("LAZ Parking (Hartford)1") == "LAZ Parking"
+
+
+def test_search_name_strips_trailing_conjunction():
+    assert search_name(
+        "Alliance Castings Company, LLC Alliance (Stark) 394 and"
+    ) == "Alliance Castings Company, LLC Alliance"
+    assert search_name("Lockheed Martin Corporation Rotary &") == (
+        "Lockheed Martin Corporation Rotary"
+    )
+
+
+def test_search_name_keeps_real_short_number_names():
+    # The 1-2 digit count strip is anchored on ")]"/"county" — bare trailing
+    # short numbers are part of the name.
+    assert search_name("Motel 6") == "Motel 6"
+    assert search_name("Pier 1") == "Pier 1"
+    assert search_name("Take 5 Oil Change") == "Take 5 Oil Change"
+    assert search_name("3M") == "3M"
+
+
+def test_search_name_strips_trailing_brackets():
+    assert search_name(
+        "GE Transportation Systems (General Electric Company) [Erie Plant]"
+    ) == "GE Transportation Systems"
+    assert search_name(
+        "KBR [Earth Resources Observation & Science (EROS) Data Center]"
+    ) == "KBR"
+    assert search_name(
+        "Piercing Pagoda (General Operations) [Zale Delaware, Inc.]"
+    ) == "Piercing Pagoda"
+
+
+def test_search_name_strips_leading_status_markers():
+    assert search_name("**JC Penney (Cancelled)") == "JC Penney"
+    assert search_name("*RESCINDED* Advanced Packaging, Inc.") == (
+        "Advanced Packaging, Inc."
+    )
+    assert search_name("UPDATE First Brands Group Cuyahoga 4") == (
+        "First Brands Group Cuyahoga 4"
+    )
+    assert search_name("**CoreLogic Credco, LLC (Cancelled)") == "CoreLogic Credco, LLC"
+
+
+def test_search_name_keeps_lowercase_update_like_words():
+    # The status-word strip is case-sensitive: a real company that happens to
+    # start with "Update" must survive.
+    assert search_name("Update Parts Inc") == "Update Parts Inc"
+    assert search_name("Revised Editions LLC") == "Revised Editions LLC"
+    # Mid-name stars are untouched.
+    assert search_name("E*Trade Financial") == "E*Trade Financial"
+
+
 def test_is_unsearchable_flags_lone_generic_token():
     # The dangerous over-strip: distinguishing info was only in the parens.
     assert is_unsearchable(search_name("Alliance (Piera Barbaglia Shaheen Health)"))
@@ -264,3 +326,34 @@ def test_match_is_consistent_trusts_provider_for_tokenless_names():
     # lock them out of a DUNS forever, so trust the provider's match instead.
     assert match_is_consistent("AT&T", "AT&T Inc")
     assert match_is_consistent("H&M", "H&M Inc")
+
+
+def test_match_is_consistent_fuses_ampersand_initialisms():
+    # "T&H" tokenizes to "t h" once punctuation drops, and D&B spells it
+    # "T & H" — the fused "th" token lets the exact match through (a conf=1.00
+    # provider hit was previously rejected on exactly this shape).
+    assert match_is_consistent("T&H Services LLC", "T & H Services, LLC")
+    assert match_is_consistent("T & H Services, LLC", "T&H Services LLC")
+    assert match_is_consistent("A B C Manufacturing", "ABC Manufacturing")
+    # But a different initialism plus a generic word is still not the same firm.
+    assert not match_is_consistent("T&H Services LLC", "B&G Services Inc")
+
+
+def test_is_unsearchable_flags_junk_and_truncated_names():
+    # Scraped header fragments stored as company names.
+    assert is_unsearchable("# AFFECTED 85")
+    assert is_unsearchable("# AFFECTED/ EFFECTIVE DATE:")
+    # No letters at all (store numbers, dashes, counts).
+    assert is_unsearchable("#1349")
+    assert is_unsearchable("85")
+    assert is_unsearchable("-")
+    assert is_unsearchable("")
+    # Truncated mid-phrase: any match would be guesswork.
+    assert is_unsearchable("Bank of")
+    assert is_unsearchable("Medical College of")
+    assert is_unsearchable("American Medical Response of")
+    # Real names stay searchable.
+    assert not is_unsearchable("Bank of America")
+    assert not is_unsearchable("3M")
+    assert not is_unsearchable("Advantest, Inc.")
+    assert not is_unsearchable("Sonic Drive In")  # 'in'/'at'/'to' are NOT dangling
