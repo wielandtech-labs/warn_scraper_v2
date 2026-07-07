@@ -13,7 +13,7 @@ sources only).
 
 ## Progress (update as backfills run)
 
-- **2026-07-07 — NV 2021 OCR route added** (parser PR #TBD): the last NV
+- **2026-07-07 — NV 2021 OCR route added** (parser PR #210): the last NV
   archive gap, `Content/Media/WARN_2021.pdf`, is a single-page **scanned image
   with no text layer** (one 842×387 px embedded image, 20-row lattice table,
   7 columns, no Notification column — the 2022 shape). `parse_nv_archive` now

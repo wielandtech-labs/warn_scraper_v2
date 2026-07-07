@@ -150,7 +150,7 @@ Ordered by recoverable rows:
   records request. (A: spike + report)
 - [x] ~~**NV 2021** — scanned-image year PDF; extend the archive route through
   the existing tesseract OCR fallback. (A+gate)~~ — *parser done 2026-07-07*
-  (PR #TBD): `WARN_2021.pdf` is a single-page scanned table (no text layer);
+  (PR #210): `WARN_2021.pdf` is a single-page scanned table (no text layer);
   `parse_nv_archive` now OCR-falls-back to `pdf_extract.ocr_word_boxes` (points-
   normalized word boxes) and reuses the 2022-shaped word-position parser with
   2021 bounds. 20 known notices, no Notification column. OCR can't run in
