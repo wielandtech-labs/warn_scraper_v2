@@ -296,8 +296,9 @@ def _significant_tokens(name: str) -> set[str]:
 # ("# AFFECTED 85", "# AFFECTED/ EFFECTIVE DATE:").
 _HEADER_ARTIFACT = re.compile(r"#\s*AFFECTED|EFFECTIVE\s+DATE", re.IGNORECASE)
 # A name cut off mid-phrase upstream ("Bank of", "Medical College of"): any
-# match would be pure guesswork, so don't search at all.
-_DANGLING_LAST_TOKENS: frozenset[str] = frozenset({"of", "for", "the", "to", "in", "at"})
+# match would be pure guesswork, so don't search at all. Deliberately narrow —
+# "in"/"at"/"to" would false-positive on real names ("Sonic Drive In").
+_DANGLING_LAST_TOKENS: frozenset[str] = frozenset({"of", "for", "the"})
 
 
 def is_unsearchable(cleaned: str) -> bool:
