@@ -190,16 +190,21 @@ Ordered by recoverable rows:
   gated prod Job (dry-run → real → re-audit) per the runbook — ~6.8K rows, the
   largest remaining CA gap. (A+gate)
 - [x] ~~**NV 2021** — scanned-image year PDF; extend the archive route through
-  the existing tesseract OCR fallback. (A+gate)~~ — *parser done 2026-07-07*
-  (PR #210): `WARN_2021.pdf` is a single-page scanned table (no text layer);
-  `parse_nv_archive` now OCR-falls-back to `pdf_extract.ocr_word_boxes` (points-
-  normalized word boxes) and reuses the 2022-shaped word-position parser with
-  2021 bounds. 20 known notices, no Notification column. OCR can't run in
-  CI/local (tesseract is Docker-only), so a synthetic-word unit test guards the
-  column layout and a skip-guarded fixture test covers real OCR. **Remaining:
-  the gated prod run** (`backfill-historical --state NV --year-start 2021
-  --year-end 2021`, dry-run first — new year, no dedup), verify +~20 rows vs the
-  known ground truth, then re-audit.
+  the existing tesseract OCR fallback. (A+gate)~~ — DONE 2026-07-07 (parsers
+  #210/#216/#219; Jobs w_homelab #634/#641/#646 dry-runs → #648 real → #649
+  prune): **+20 rows** (all of `WARN_2021.pdf`), floor for 2021 established,
+  verified per-record via the public API (sum 1198, near_miss=0). `parse_nv_archive`
+  OCR-falls-back to `pdf_extract.ocr_word_boxes` (points-normalized word boxes)
+  and reuses the word-position parser with 2021 bounds; no Notification column.
+  Two rasterizer-sensitivity bugs surfaced across dry-runs and were fixed:
+  grouping OCR words by a fixed grid / gap-cluster split or chained rows (13→19
+  rows, rasterizer-dependent) → **date-anchor rows** (#219, threshold-free); and
+  tight gridline column bounds put count digits on the wrong side, silently
+  nulling counts → **midpoint bounds**. Validated end-to-end against the real
+  pdf2image+poppler+tesseract path reproduced locally. OCR is Docker-only, so a
+  synthetic-word test guards the layout and the skip-guarded fixture test asserts
+  all 20 rows + the count total. (NV location fields are None DB-wide — a
+  pre-existing NV gap, separate follow-up.)
 - [x] ~~**MS straggler quarterlies** — 4 files with a third layout variation
   (e.g. `py2024-q4`), known gap from the PY2020+ run. (A+gate)~~ — DONE
   2026-07-07 (parser #196; prod run w_homelab #627: **+18 rows**, 3 glued
