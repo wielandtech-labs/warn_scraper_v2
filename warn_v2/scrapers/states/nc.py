@@ -265,14 +265,20 @@ def _parse_nc_current_grid(pdf, source_url: str) -> list[NoticeRow]:
 
 
 # Street elements that terminate the trailing city run in an SSRS address cell.
+# Deliberately excludes words that double as NC city-name tails ("Trail" as in
+# Indian Trail, "Run", "Way", "Loop") — those would truncate a real city; the
+# preceding real street suffix (Rd/Hwy/Blvd/...) ends the street instead.
 _STREET_SUFFIX = frozenset(
     {
         "st", "street", "ave", "avenue", "rd", "road", "dr", "drive", "blvd",
-        "boulevard", "ln", "lane", "way", "ct", "court", "cir", "circle",
-        "pkwy", "parkway", "hwy", "highway", "pl", "place", "ste", "suite",
-        "unit", "fl", "floor", "trl", "trail", "loop", "run", "pike", "row",
+        "boulevard", "ln", "lane", "ct", "court", "cir", "circle", "pkwy",
+        "parkway", "hwy", "highway", "pl", "place", "ste", "suite", "unit",
+        "fl", "floor", "apt", "room", "trl", "pike",
     }
 )
+# Unit letters ("Suite A") and lone compass directions ("Hwy 87 W") sit between
+# the street and the city and must not be read as the first city word.
+_DIRECTIONS = frozenset({"n", "s", "e", "w", "ne", "nw", "se", "sw"})
 
 
 def _ssrs_city_zip(address: str) -> tuple[str | None, str | None]:
@@ -283,7 +289,9 @@ def _ssrs_city_zip(address: str) -> tuple[str | None, str | None]:
     street number like '10815 Quality Dr' or an out-of-state HQ ZIP glued into
     the cell). No comma delimits the city, so walk backward from the state
     token over alphabetic words until a street suffix or a numbered street
-    element ends the run (handles two-word cities like 'Rocky Mount').
+    element ends the run (handles two-word cities like 'Rocky Mount'), then drop
+    a leading unit letter / compass direction that the street left behind
+    ("Ste A Greensboro" -> Greensboro, "Hwy 87 W Fayetteville" -> Fayetteville).
     """
     m = re.search(r"(.+?)\s+NC\s+(\d{5})", address, re.I)
     if not m:
@@ -295,9 +303,12 @@ def _ssrs_city_zip(address: str) -> tuple[str | None, str | None]:
         if any(ch.isdigit() for ch in tok) or cleaned in _STREET_SUFFIX or tok == "#":
             break
         parts.insert(0, tok)
-        if len(parts) >= 3:
+        if len(parts) >= 4:
             break
-    return (" ".join(parts) or None), zip_code
+    # Strip street-trailing unit letters / directions that led the collected run.
+    while parts and (len(parts[0].strip(".,")) == 1 or parts[0].strip(".,").lower() in _DIRECTIONS):
+        parts.pop(0)
+    return (" ".join(parts[-3:]) or None), zip_code
 
 
 def _parse_nc_ssrs_grid(pdf, source_url: str) -> list[NoticeRow]:
