@@ -397,6 +397,22 @@ def test_il_pdf_2010_naics_and_layoff_type() -> None:
     assert r.extra["layoff_type"] == "Permanent"
 
 
+def test_il_pdf_shifted_columns_still_parse() -> None:
+    """Some files (e.g. July 2003) compress the layout so the right-label column
+    starts ~8px further left. A fixed x-split bisected those labels and dropped
+    every row; the label-text split handles it."""
+    rows = parse_il_pdf(_pdf("sample_pdf_2003_shifted.pdf"))
+    assert len(rows) >= 10
+    r = rows[0]
+    assert r.employer == "Dura Automotive Systems"
+    assert r.notice_date == date(2003, 7, 29)
+    assert r.city == "Mt. Carroll"
+    assert r.county == "Carroll"
+    assert r.extra["sic_code"] == "7538"
+    # every row keeps its filing date (the bug dropped all of them)
+    assert all(x.notice_date is not None for x in rows)
+
+
 def test_il_pdf_not_provided_count_is_none() -> None:
     """'# WORKERS AFFECTED: Not Provided' yields no count, not a fabricated one."""
     rows = parse_il_pdf(_pdf("sample_pdf_2005.pdf"))
