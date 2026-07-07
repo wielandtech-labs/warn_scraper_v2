@@ -138,16 +138,19 @@ Ordered by recoverable rows:
   image-only scan — OCR mangles this gridded form's dates, `1/3/19`→`173/19`) was
   hand-transcribed from the legible scan and ingested inline (w_homelab #647,
   +10 rows, 1,223 workers). **IL 1999–2019 is now complete: 3,742 notices.**
-- [ ] **NC 2014+** — archive-hub discovery (irregular slugs) +
-  `parse_nc_pdf`. (A+gate) — *parser done 2026-07-07* (PR #213):
+- [x] ~~**NC 2014+** — archive-hub discovery (irregular slugs) +
+  `parse_nc_pdf`. (A+gate)~~ — DONE 2026-07-07 (parser #213; fixes #215/#220/
+  letter-spacing; Jobs w_homelab #631→#650): **+864 rows, floor 2026→2014,
+  NC total 913** (verified per-year via `/api/stats/over-time`).
   `_discover_nc_pdf_urls` (hub anchors, three slug families) + a three-era
-  `parse_nc_pdf` that dispatches on detected content — 2014–~2017
-  summary-count (word-position, wrap-aware), ~2018–2021 SSRS grid (city+zip
-  from the glued Address cell, repeated-address lines collapsed by WARN
-  number), 2022–2025 live-schema grid (shares `_row_from_nc_grid` with the
-  live HTML parser). **Remaining: the gated prod run** — dry-run pilot
-  (`--limit 3`) → full run → `mark-superseded --state NC --dry-run` →
-  re-audit (floor 2026→2014).
+  `parse_nc_pdf` dispatching on detected content — 2014–~2017 summary-count
+  (word-position, wrap-aware, letter-spacing collapse), ~2018–2021 SSRS grid,
+  2022–2025 live-schema grid (shares `_row_from_nc_grid` with the live HTML
+  parser). Two data-quality bugs surfaced in prod verification and were fixed:
+  the SSRS ZIP/city extraction (#215/#220), and — root cause — a storage
+  **zip-less location promotion** that let a historical ZIP poison a shared
+  city location (corrupted 78 notices incl. live rows); #220 guards it, and
+  w_homelab #650 purged 2018–2021 + nulled the poisoned ZIPs + re-ran clean.
 - [x] ~~**NJ** — cumulative `WARN_Notice_Archive.xlsx` (year range unknown —
   parse first). (A+gate)~~ — DONE 2026-07-07 (parser #197: one sheet per
   year 2004–2026; prod run w_homelab #627: **+2,203 rows, floor

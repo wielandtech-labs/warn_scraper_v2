@@ -13,6 +13,27 @@ sources only).
 
 ## Progress (update as backfills run)
 
+- **2026-07-07 — NC 2014+ backfilled in prod** (parser #213; Jobs w_homelab
+  #631 dry-run → #632 real → #650 repair): **+864 rows, floor 2026→2014, NC
+  total 913** (verified per-year via `/api/stats/over-time`). Three PDF eras,
+  `parse_nc_pdf` dispatches on detected content. Prod verification (the
+  geocoding log, not the dry-run's near-miss preview, is what exposes
+  address/ZIP bugs) caught two issues, both fixed:
+  - **SSRS ZIP/city extraction** (#215/#220): `zip_from` grabbed a 5-digit
+    *street number* instead of the trailing `NC <zip>` (19 rows); city walk-back
+    swallowed unit letters / directions (`Ste A Greensboro`) and dropped cities
+    ending in a suffix word (`Indian Trail`); 2014 letter-spaced city cells
+    (`S a l i s b u r y`) collapse now. `_ssrs_city_zip` anchors both on
+    `NC (\d{5})`.
+  - **ZIP poisoning — root cause in storage** (#220): `_get_or_create_location`
+    promoted a zip-less city location *in place* when a zip'd row arrived, but a
+    city-level zip-less location (NC publishes no ZIP) is shared by many
+    worksites — one historical bad ZIP poisoned the shared Charlotte location
+    across **78 notices incl. live 2026 rows** (lat/lon stayed correct). #220
+    now promotes only a location backing ≤1 notice; w_homelab #650 purged
+    2018–2021, nulled the poisoned ZIPs (→ 0), and re-ran clean (no
+    re-poisoning). Lesson: a historical ZIP can bleed onto shared city
+    locations via zip-less promotion — verify `Location.zip` after a backfill.
 - **2026-07-07 — MA FY22–FY25 backfilled in prod** (parser PR #212, image
   `20260707-221659-222d71a`; Jobs w_homelab #638 dry-run → #640 real):
   **+287 rows, floor FY2025 → 2021-04** (86 → 373 active). mass.gov's "Previous
@@ -224,7 +245,7 @@ delete Jobs after.
 | VT | ~~2026~~ **2003 ✅** | `vermontjoblink.com/search/warn_lookups` (JobLink) | **2003** | **done 2026-06-12** (+91) |
 | FL | ~~2026~~ **2020 ✅** | `reactwarn.floridajobs.org/WarnList/Records?year=Y` — paginated (e.g. 2020 = 1,337 records); page links followed | **2020** (older years return 0 rows) | **done 2026-06-12** (+2,167); pre-2020 → FOIA |
 | TX | ~~2026~~ **2020 ✅** | `warn-act-listings-{year}-twc.xlsx` — **only 2020+ still resolve** (pre-2020 files removed from twc.texas.gov; the old `/files/news/` era is dead; Socrata `data.texas.gov/dataset/8w53-c4f6` starts 2019-01, 2,363 rows — verified 2026-06-12) | **2020** | **done 2026-06-12** (+2,166); pre-2020 → records request (warn.list@twc.texas.gov) |
-| NC | 2026 | archive hub `commerce.nc.gov/...warn-summary-report-archives` → per-year **PDF** documents with irregular slugs (`warn-report-2019/open` etc.); three layout eras — summary-count text 2014–~2017, SSRS grid ~2018–2021, live-schema grid 2022+ | **2014** | **parser done 2026-07-07** (hub discovery + three-era `parse_nc_pdf`, dispatch on detected content); gated prod run pending (floor 2026→2014) |
+| NC | ~~2026~~ **2014 ✅** | archive hub `commerce.nc.gov/...warn-summary-report-archives` → per-year **PDF** documents with irregular slugs (`warn-report-2019/open` etc.); three layout eras — summary-count text 2014–~2017, SSRS grid ~2018–2021, live-schema grid 2022+ | **2014** | **done 2026-07-07** (+864, floor 2026→2014, total 913; three-era `parse_nc_pdf`); see Progress for the ZIP-poisoning fix |
 | NJ | ~~2026~~ **2004 ✅** | cumulative `nj.gov/labor/assets/PDFs/WARN/WARN_Notice_Archive.xlsx` — one sheet per year, same 5 columns as the live PDF (23 sheets 2004–2026, 2,349 rows) | **2004** | **done 2026-07-07** (+2,203, near_miss=0; see Progress) |
 | NM | ~~2025~~ **2016 ✅** | per-year PDFs on `dws.nm.gov/Rapid-Response` (filenames vary 2016–2018 → discovered from the hub's anchors) | **2016** | **done 2026-06-12** (+109); pre-2016 → request |
 | HI | ~~2026~~ **2019 ✅** | `labor.hawaii.gov/wdc/{year}-warn-notices/`; hub `real-time-warn-updates` lists 2019–2026 | **2019** | **done 2026-06-12** (+401); pre-2019 → UIPA request |
