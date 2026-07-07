@@ -194,6 +194,41 @@ def test_nv_rows_from_words_2021_bounds() -> None:
     assert r["notification"] is None
 
 
+def test_nv_rows_from_words_straddling_tops() -> None:
+    """A row whose word tops straddle a bucket boundary stays intact.
+
+    Regression for the OCR 13/20 drop: with the old fixed-grid
+    ``round(top / _ROW_BUCKET)``, tops like 136.3 and 138.0 round to different
+    buckets (135 vs 140), so the employer split into a continuation bucket that
+    failed the date gate and the row lost its employer. Proximity clustering
+    keeps them together. The next row (top 147.4) must not merge in.
+    """
+    from warn_v2.scrapers.states.nv import _ARCHIVE_XBOUNDS, _rows_from_words
+
+    def w(text: str, x0: float, top: float) -> dict:
+        return {"text": text, "x0": x0, "top": top}
+
+    words = [
+        # Row A — date at 136.3, but count/employer/city jitter to 138.0.
+        w("1/14/2021", 74, 136.3), w("12/18/2020", 130, 136.3), w("Layoff", 187, 137.0),
+        w("4", 240, 138.0), w("Wyndham", 293, 138.0), w("Grand", 328, 138.0),
+        w("Las", 456, 138.0), w("Vegas", 468, 138.0), w("Clark", 528, 138.0),
+        # Row B — a distinct row ~9pt below; must not fold into row A.
+        w("1/26/2021", 74, 147.4), w("1/7/2021", 130, 147.4), w("Layoff", 187, 147.4),
+        w("13", 239, 147.4), w("Sykes", 293, 147.4), w("Reno", 456, 147.4),
+        w("Washoe", 528, 147.4),
+    ]
+    rows = _rows_from_words(words, _ARCHIVE_XBOUNDS[2021])
+    assert len(rows) == 2
+    a, b = rows
+    assert a["rcv_date"] == "1/14/2021"
+    assert a["count"] == "4"
+    assert a["employer"] == "Wyndham Grand"  # not dropped into a split bucket
+    assert a["city"] == "Las Vegas"
+    assert b["rcv_date"] == "1/26/2021"
+    assert b["employer"] == "Sykes"
+
+
 @pytest.fixture
 def nv_archive_2021() -> bytes:
     return (FIXTURE.parent / "archive_2021.pdf").read_bytes()
@@ -215,10 +250,36 @@ def test_nv_archive_2021_ocr(nv_archive_2021: bytes) -> None:
     from warn_v2.scrapers.states.nv import parse_nv_archive
 
     rows = parse_nv_archive(nv_archive_2021, 2021)
-    assert len(rows) >= 18  # 20 data rows; allow a little OCR slack
+    assert len(rows) == 20  # all 20 data rows recovered (proximity clustering)
     assert all(r.notice_date.year == 2021 for r in rows)
     # 2021 has no Notification column.
     assert all(r.extra.get("notification") == "" for r in rows)
+
+    def find(needle: str):
+        return next((r for r in rows if needle in (r.employer or "")), None)
+
+    food = find("Food Source")
+    assert food is not None
+    assert food.notice_date == date(2021, 1, 12)
+    assert food.layoff_count == 33
+    assert food.city == "Reno"
+    assert food.county == "Washoe"
+    assert food.closure_type == "Closure"
+
+    sykes = find("Sykes")
+    assert sykes is not None and sykes.layoff_count == 242
+
+    # Rows that the pre-fix fixed-grid bucketing dropped (employer landed in a
+    # split continuation bucket) — the clustering regression guard under real OCR.
+    for needle, count in [("Silverton", 45), ("Aerion", 99), ("West Hills", 116)]:
+        row = find(needle)
+        assert row is not None, f"expected {needle} entry"
+        assert row.layoff_count == count
+
+    hycroft = find("Hycroft")
+    assert hycroft is not None
+    assert hycroft.city == "Winnemucca"
+    assert hycroft.county == "Humboldt"
 
     food = next((r for r in rows if "Food Source" in (r.employer or "")), None)
     assert food is not None, "expected Food Source entry"
