@@ -316,18 +316,24 @@ def _propagate_siblings(session: Session, donors: dict, *, dry_run: bool = False
     if not donors:
         return 0
     count = 0
-    pending = session.scalars(select(Company).where(Company.enriched_at.is_(None)))
-    for company in pending:
-        donor = donors.get(cleaned_key(company.name))
+    # Scan plain (id, name) tuples, not ORM rows: the per-twin commit below
+    # expires every object in the session, and attribute access on expired
+    # rows would fire a refresh SELECT per remaining row of the ~20k scan.
+    pending = session.execute(
+        select(Company.id, Company.name).where(Company.enriched_at.is_(None))
+    ).all()
+    for company_id, name in pending:
+        donor = donors.get(cleaned_key(name))
         if donor is None or donor is _DONOR_CONFLICT:
             continue
-        if not match_is_consistent(company.name, donor.name):
+        if not match_is_consistent(name, donor.name):
             continue
         log.info(
             "company_id=%d name=%r: sibling enrichment from company_id=%d name=%r duns=%r",
-            company.id, company.name, donor.id, donor.name, donor.duns,
+            company_id, name, donor.id, donor.name, donor.duns,
         )
         if not dry_run:
+            company = session.get(Company, company_id)
             _persist_sibling_result(session, company, donor)
         count += 1
     return count
