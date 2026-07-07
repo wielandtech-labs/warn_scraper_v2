@@ -134,9 +134,10 @@ Ordered by recoverable rows:
   labeled form → each flattened line split at its right-column label
   (x-independent; #217 fixed one compressed-layout month, July 2003, that the
   fixed-x split #211 shipped dropped to 0 rows). `mark-superseded` was a no-op
-  (all rows net-new below the old floor, near_miss=0). Sole gap: **January 2019**
-  is an image-only scan (no text layer) — a later tesseract-OCR follow-up, same
-  path as NV 2021.
+  (all rows net-new below the old floor, near_miss=0). **January 2019** (the one
+  image-only scan — OCR mangles this gridded form's dates, `1/3/19`→`173/19`) was
+  hand-transcribed from the legible scan and ingested inline (w_homelab #647,
+  +10 rows, 1,223 workers). **IL 1999–2019 is now complete: 3,742 notices.**
 - [ ] **NC 2014+** — archive-hub discovery (irregular slugs) +
   `parse_nc_pdf`. (A+gate) — *parser done 2026-07-07* (PR #213):
   `_discover_nc_pdf_urls` (hub anchors, three slug families) + a three-era
