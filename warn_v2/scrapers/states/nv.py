@@ -52,6 +52,11 @@ _DATE_FIRST_RE = re.compile(r"\d{1,2}/\d+/\d{4}")
 
 # Vertical grouping tolerance (points)
 _ROW_BUCKET = 5
+# Max vertical distance (points) a word may sit from its row's received-date
+# anchor in the archive word-position parser. Comfortably above the observed
+# intra-row top spread (~4pt) and below the row pitch (~9-11pt), so a word is
+# kept with its own row but page headers/footnotes far from any anchor drop out.
+_ROW_MAX_OFFSET = 6
 
 
 def _parse_page_rows(page: object) -> list[dict]:
@@ -178,10 +183,13 @@ _ARCHIVE_SOURCES: dict[int, str] = {
 # Order: rcv_date, eff_date, type, count, employer, city, county; words at or
 # beyond the county bound are the Notification column (absent in 2021/2022).
 # 2021 is a scanned image with no text layer; its words come from OCR
-# (ocr_word_boxes normalizes them to points), so its bounds are measured from
-# the rendered page's column gridlines in the same point scale.
+# (ocr_word_boxes normalizes them to points). Its bounds are the *midpoints*
+# between the OCR word columns' observed x0 ranges (rcv~74, eff~130, type~187,
+# count~239, employer~292+, city~455, county~528), not the tight gridlines: the
+# OCR word x0 shifts ~1pt between rasterizers (poppler vs pdfium), and a gridline
+# bound put the count digits (x0~238.8) on the wrong side, dropping the count.
 _ARCHIVE_XBOUNDS: dict[int, tuple[int, int, int, int, int, int, int]] = {
-    2021: (129, 186, 239, 291, 454, 526, 10_000),
+    2021: (102, 158, 213, 266, 430, 498, 10_000),
     2022: (105, 157, 235, 293, 508, 585, 10_000),
     2023: (150, 200, 240, 262, 432, 502, 608),
     2024: (95, 140, 180, 200, 365, 450, 515),
@@ -286,26 +294,35 @@ def _rows_from_words(
     (``page.extract_words()``) and scanned files (``ocr_word_boxes``, normalized
     to the same point scale).
 
-    Groups words into visual rows by vertical proximity, then assigns columns
-    by x. Unlike `_parse_page_rows`'s fixed-grid `round(top / _ROW_BUCKET)`,
-    rows here are clustered on the gap to the previous word: a fixed grid splits
-    a row whose word tops straddle a bucket boundary, dropping the row's employer
-    into a continuation bucket that fails the date gate (seen with OCR word boxes,
-    whose tops jitter a few points within one row). Within a row that gap stays
-    small; between rows it exceeds `_ROW_BUCKET`.
+    Anchors each data row on its received-date word — the one word per row at
+    the far left (``x < b_rcv``) matching a date — then assigns every other word
+    to the nearest anchor by vertical position, and columns by x. This is
+    threshold-free and robust to OCR top-jitter, which defeats both a fixed grid
+    (``round(top / _ROW_BUCKET)`` straddles a bucket boundary and drops the
+    employer into a gate-failing continuation row) and gap clustering (city/county
+    words at in-between tops chain adjacent rows into one). Rows sit ~2x the
+    intra-row spread apart, so a word is always nearest its own row's date; words
+    beyond ``_ROW_MAX_OFFSET`` of every anchor (headers, footnotes) are dropped.
     """
     b_rcv, b_eff, b_type, b_count, b_emp, b_city, b_county = bounds
 
-    clusters: list[list] = []
-    for w in sorted(words, key=lambda w: w["top"]):
-        if clusters and w["top"] - clusters[-1][-1]["top"] <= _ROW_BUCKET:
-            clusters[-1].append(w)
-        else:
-            clusters.append([w])
+    anchors = sorted(
+        (w for w in words if w["x0"] < b_rcv and _DATE_FIRST_RE.match(w["text"])),
+        key=lambda w: w["top"],
+    )
+    if not anchors:
+        return []
+    anchor_tops = [a["top"] for a in anchors]
+
+    groups: list[list[dict]] = [[] for _ in anchors]
+    for w in words:
+        i = min(range(len(anchor_tops)), key=lambda k: abs(w["top"] - anchor_tops[k]))
+        if abs(w["top"] - anchor_tops[i]) <= _ROW_MAX_OFFSET:
+            groups[i].append(w)
 
     results: list[dict] = []
-    for cluster in clusters:
-        rws = sorted(cluster, key=lambda w: w["x0"])
+    for grp in groups:
+        rws = sorted(grp, key=lambda w: w["x0"])
         first = rws[0]
         if first["x0"] > b_rcv or not _DATE_FIRST_RE.match(first["text"]):
             continue

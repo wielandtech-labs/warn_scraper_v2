@@ -200,8 +200,9 @@ def test_nv_rows_from_words_straddling_tops() -> None:
     Regression for the OCR 13/20 drop: with the old fixed-grid
     ``round(top / _ROW_BUCKET)``, tops like 136.3 and 138.0 round to different
     buckets (135 vs 140), so the employer split into a continuation bucket that
-    failed the date gate and the row lost its employer. Proximity clustering
-    keeps them together. The next row (top 147.4) must not merge in.
+    failed the date gate and the row lost its employer. Anchoring on the
+    received-date word keeps them together. The next row (top 147.4) is a
+    separate anchor and must not absorb row A's words.
     """
     from warn_v2.scrapers.states.nv import _ARCHIVE_XBOUNDS, _rows_from_words
 
@@ -250,7 +251,7 @@ def test_nv_archive_2021_ocr(nv_archive_2021: bytes) -> None:
     from warn_v2.scrapers.states.nv import parse_nv_archive
 
     rows = parse_nv_archive(nv_archive_2021, 2021)
-    assert len(rows) == 20  # all 20 data rows recovered (proximity clustering)
+    assert len(rows) == 20  # all 20 data rows recovered (date-anchored rows)
     assert all(r.notice_date.year == 2021 for r in rows)
     # 2021 has no Notification column.
     assert all(r.extra.get("notification") == "" for r in rows)
@@ -269,8 +270,8 @@ def test_nv_archive_2021_ocr(nv_archive_2021: bytes) -> None:
     sykes = find("Sykes")
     assert sykes is not None and sykes.layoff_count == 242
 
-    # Rows that the pre-fix fixed-grid bucketing dropped (employer landed in a
-    # split continuation bucket) — the clustering regression guard under real OCR.
+    # Rows the pre-fix row grouping dropped (employer split off into a gate-
+    # failing continuation row) — the date-anchor regression guard under real OCR.
     for needle, count in [("Silverton", 45), ("Aerion", 99), ("West Hills", 116)]:
         row = find(needle)
         assert row is not None, f"expected {needle} entry"
@@ -281,18 +282,8 @@ def test_nv_archive_2021_ocr(nv_archive_2021: bytes) -> None:
     assert hycroft.city == "Winnemucca"
     assert hycroft.county == "Humboldt"
 
-    food = next((r for r in rows if "Food Source" in (r.employer or "")), None)
-    assert food is not None, "expected Food Source entry"
-    assert food.notice_date == date(2021, 1, 12)
-    assert food.layoff_count == 33
-    assert food.city == "Reno"
-    assert food.county == "Washoe"
-    assert food.closure_type == "Closure"
-
-    sykes = next((r for r in rows if "Sykes" in (r.employer or "")), None)
-    assert sykes is not None and sykes.layoff_count == 242
-
-    hycroft = next((r for r in rows if "Hycroft" in (r.employer or "")), None)
-    assert hycroft is not None
-    assert hycroft.city == "Winnemucca"
-    assert hycroft.county == "Humboldt"
+    # Every row carries a count, and they sum to the known total — a field-level
+    # guard against a column-boundary that puts a count-digit on the wrong side
+    # (which keeps the row but silently nulls its count, invisible to a row count).
+    assert all(r.layoff_count is not None for r in rows)
+    assert sum(r.layoff_count for r in rows) == 1198
