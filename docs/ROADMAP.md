@@ -129,7 +129,7 @@ Ordered by recoverable rows:
 - [ ] **IL PDF era 1999–2019** — `parse_il_pdf` for the monthly archive PDFs
   (xlsx era 2020+ already ingested). (A+gate)
 - [ ] **NC 2014+** — archive-hub discovery (irregular slugs) +
-  `parse_nc_pdf`. (A+gate) — *parser done 2026-07-07* (PR #TBD):
+  `parse_nc_pdf`. (A+gate) — *parser done 2026-07-07* (PR #213):
   `_discover_nc_pdf_urls` (hub anchors, three slug families) + a three-era
   `parse_nc_pdf` that dispatches on detected content — 2014–~2017
   summary-count (word-position, wrap-aware), ~2018–2021 SSRS grid (city+zip
