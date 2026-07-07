@@ -145,9 +145,17 @@ Ordered by recoverable rows:
   row).
 - [ ] **WA `__VIEWSTATE` pagination** — implement ASP.NET postback paging,
   then reassess depth (10+ pages, depth unknown). (A+gate)
-- [ ] **CA 2009–2013 probe** — EDD archive search for the interior hole
+- ~~**CA 2009–2013 probe** — EDD archive search for the interior hole
   (archive currently = 11 PDFs + 1 XLSX, FY2014–2025); fall back to the CA
-  records request. (A: spike + report)
+  records request. (A: spike + report)~~ — DONE 2026-07-07, PR #TBD:
+  **route found, no CPRA needed.** Live EDD = FY2014+ only, but Wayback holds
+  EDD's calendar-year reports 2006–2014 (`eddwarncn*.pdf`). Landed the parser
+  in the same PR (see the follow-up below), so this became spike **+ build**.
+- [ ] **CA 2006–2013 Wayback backfill** — parser done 2026-07-07
+  (`parse_ca_detail_pdf` + `_discover_ca_historical_urls`, detailed A–Z slices;
+  see [historical-sources.md](historical-sources.md) CA row). Remaining: the
+  gated prod Job (dry-run → real → re-audit) per the runbook — ~6.8K rows, the
+  largest remaining CA gap. (A+gate)
 - [ ] **NV 2021** — scanned-image year PDF; extend the archive route through
   the existing tesseract OCR fallback. (A+gate)
 - [x] ~~**MS straggler quarterlies** — 4 files with a third layout variation
@@ -160,8 +168,10 @@ Ordered by recoverable rows:
 
 - [ ] **Send the drafts** — 31 ready in [foia/](foia/), tracker in
   [foia/README.md](foia/README.md). Suggested first wave by recoverable rows:
-  NY, TX (pre-2020), MI (pre-Nov-2024), CA (pre-2008 + 2009–2013 if the probe
-  fails). **Sending is a human action.** (H)
+  NY, TX (pre-2020), MI (pre-Nov-2024). CA 2009–2013 dropped — the probe passed
+  (Wayback route, 2026-07-07); only CA **pre-2008** might warrant a request, and
+  `cn00`–`cn08` are in Wayback too, so spike that before drafting. **Sending is
+  a human action.** (H)
 - [ ] **Track + follow up** — once any are sent, agents maintain the tracker
   (sent date, statutory deadline, response), draft follow-ups/appeals. (A+gate)
 - [ ] **Ingest responses** — `warn-v2 ingest-file --state XX` per the runbook,

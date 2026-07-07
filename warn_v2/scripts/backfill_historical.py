@@ -45,7 +45,13 @@ from warn_v2.pipeline.dedup import _norm, notice_id
 from warn_v2.pipeline.storage import upsert_notices
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.registry import get_scraper
-from warn_v2.scrapers.states.ca import _discover_archive_urls, parse_ca_pdf
+from warn_v2.scrapers.states.ca import (
+    _CA_DETAIL_RE,
+    _discover_archive_urls,
+    _discover_ca_historical_urls,
+    parse_ca_detail_pdf,
+    parse_ca_pdf,
+)
 from warn_v2.scrapers.states.co import _fetch_co_year, _parse_co_year
 from warn_v2.scrapers.states.dc import _fetch_dc_year
 from warn_v2.scrapers.states.fl import _fetch_fl_year
@@ -100,9 +106,19 @@ def _joblink_fetch(scraper, year: int) -> bytes:
 # `backfill_historical._fetch_dc_year` / `._discover_archive_urls` /
 # `.parse_ca_pdf` exactly as before the registry rewrite.
 _BACKFILL: dict[str, BackfillSpec] = {
+    # CA: the live archive page (FY2014+ PDFs → parse_ca_pdf) plus the pre-FY2014
+    # detailed reports recovered from the Wayback Machine (→ parse_ca_detail_pdf,
+    # url-aware so rows carry the replay source_url). Detailed URLs are matched by
+    # filename; everything else .pdf falls to the current-year parser.
     "CA": BackfillSpec(
-        discover_urls=lambda: _discover_archive_urls(),
-        parse_for_url=lambda u: parse_ca_pdf if u.lower().endswith(".pdf") else None,
+        discover_urls=lambda: _discover_archive_urls() + _discover_ca_historical_urls(),
+        parse_for_url=lambda u: (
+            (lambda raw, _u=u: parse_ca_detail_pdf(raw, _u))
+            if _CA_DETAIL_RE.search(u)
+            else parse_ca_pdf
+            if u.lower().endswith(".pdf")
+            else None
+        ),
     ),
     "DC": BackfillSpec(year_start=2013, fetch_year=lambda s, y: _fetch_dc_year(y)),
     # CO: one Google Sheet per year, 2015+; the regular scraper reads only the
