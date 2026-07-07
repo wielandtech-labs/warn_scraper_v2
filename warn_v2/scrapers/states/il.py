@@ -170,14 +170,12 @@ def _discover_archive_xlsx_urls() -> list[str]:
 #     COMPANY NAME: Acme Corp            TYPE OF EVENT: Closing
 #     COMPANY ADDRESS: 1 Main St         WARN NOTIFIED DATE: 12/2/19
 #     CITY, STATE, ZIP: Chicago, IL ...  FIRST LAYOFF DATE: 1/31/20
-# page.extract_text() flattens the two columns onto one physical line (gluing a
-# left value to a right label), so we split words by x first: geometry is stable
-# across the whole era (page width 612) — left labels sit at x~20, right labels
-# at x~380 — so a split at x=376 cleanly separates the two label columns.
-_PDF_COL_SPLIT = 376.0
-
-# Field labels we extract (value follows the label — a colon is usual but the
-# 2005 REGION line has none, so matching is by prefix). Adding one is a one-liner.
+# page.extract_text() flattens the two columns onto one physical line, gluing a
+# left value to the following right label. Rather than split by x (the column
+# geometry shifts/compresses between files — e.g. July 2003's right labels start
+# ~8px left, bisecting them), we split each visual line at the left-most
+# right-column label: the left segment is one left field, the right segment one
+# right field. Both segments are then parsed with the same prefix matcher below.
 _PDF_FIELD_LABELS = frozenset({
     "COMPANY NAME", "COMPANY ADDRESS", "CITY, STATE, ZIP", "CITY, STATE",
     "LOCAL WORKFORCE AREA", "SUBSTATE AREA & NUMBER",
@@ -197,6 +195,16 @@ _PDF_BOUNDARY_LABELS = sorted(
     },
     key=len,
     reverse=True,
+)
+# Right-column labels, always colon-terminated in the text — the split point for
+# a flattened line. Requiring the colon avoids matching a bare "County" inside a
+# left-column value (e.g. an "Orange County" employer name). Longer variants
+# first so '# WORKERS AFFECTED' wins over 'WORKERS AFFECTED'.
+_PDF_RIGHT_LABEL_RE = re.compile(
+    r"(?:# ?WORKERS AFFECTED|WORKERS AFFECTED|TYPE OF EVENT|PERMANENT OR TEMPORARY|"
+    r"WARN NOTIFIED DATE|FIRST LAYOFF DATE|ENDING LAYOFF DATE|EVENT CAUSES|"
+    r"COMPANY SIC|COMPANY NAICS|COUNTY)\s*:",
+    re.I,
 )
 
 # A monthly report PDF's filename always contains "WARN"; the WARN Act statute
@@ -340,13 +348,14 @@ def _pdf_record_to_row(rec: dict[str, str], source_url: str | None) -> NoticeRow
 def parse_il_pdf(raw: bytes, source_url: str | None = None) -> list[NoticeRow]:
     """Parse a monthly IL WARN archive PDF (1999-2019 label-form era).
 
-    The report is a two-column labeled form repeated per notice. Words are split
-    by x-coordinate into the left/right label columns (see ``_PDF_COL_SPLIT``),
-    then each ``LABEL: value`` pair is collected into the current notice block; a
-    ``COMPANY NAME`` label starts a new block. A leading non-label line continues
-    the previous field on that side (wrapped company names / addresses / causes).
-    1999 has no per-notice county — notices sit under centered ``PRIMARY EVENT
-    COUNTY`` section headers, tracked here and applied to those blocks.
+    The report is a two-column labeled form repeated per notice. Each visual line
+    is split at the left-most right-column label (see ``_PDF_RIGHT_LABEL_RE``)
+    into a left field and a right field, and each ``LABEL: value`` pair is
+    collected into the current notice block; a ``COMPANY NAME`` label starts a new
+    block. A leading non-label segment continues the previous field on that side
+    (wrapped company names / addresses / causes). 1999 has no per-notice county —
+    notices sit under centered ``PRIMARY EVENT COUNTY`` section headers, tracked
+    here and applied to those blocks.
     """
     try:
         pdf = pdfplumber.open(io.BytesIO(raw))
@@ -362,20 +371,19 @@ def parse_il_pdf(raw: bytes, source_url: str | None = None) -> list[NoticeRow]:
         for page in pdf.pages:
             for lws in _pdf_lines(page.extract_words()):
                 full = " ".join(w["text"] for w in lws).strip()
-                # 1999 groups notices under centered county section headers; the
-                # value can sit at the split x, so match on the full line.
+                # 1999 groups notices under centered county section headers
+                # (checked before the split — the header itself ends in COUNTY:).
                 m = _PDF_COUNTY_HDR_RE.match(full)
                 if m:
                     county_hdr = m.group(1).strip()
                     continue
                 if full.startswith("STATE OF ILLINOIS") or full.startswith("MONTH "):
                     continue  # page banner
-                left = " ".join(
-                    w["text"] for w in lws if w["x0"] < _PDF_COL_SPLIT
-                ).strip()
-                right = " ".join(
-                    w["text"] for w in lws if w["x0"] >= _PDF_COL_SPLIT
-                ).strip()
+                # Split the flattened line into its left field and right field at
+                # the left-most right-column label.
+                rm = _PDF_RIGHT_LABEL_RE.search(full)
+                left = (full[: rm.start()] if rm else full).strip()
+                right = (full[rm.start():] if rm else "").strip()
                 for side, text in (("L", left), ("R", right)):
                     if not text:
                         continue
