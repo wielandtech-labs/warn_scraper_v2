@@ -16,6 +16,13 @@ Multi-line cells (Company Name, Workforce Area, etc.) are joined with a space.
 Continuation rows where col 0 is None are skipped.
 The Date of Action field occasionally uses "." instead of "/" as the separator
 (e.g. "4/3.2026"); we normalise that before parsing.
+
+Three layout eras:
+  - PY2025+ ("modern"): one label per header cell, separate City/County columns.
+  - PY2020-PY2022 ("merged"): employer and "City (County)" share one column.
+  - PY2023-PY2024 ("stacked"): merged location plus header labels stacked
+    across several rows and ghost grid columns; see
+    _parse_stacked_header_tables().
 """
 from __future__ import annotations
 
@@ -46,6 +53,7 @@ _UA = {
 
 _PDF_HREF = re.compile(r"/media/\d+/warn[^\"']*\.pdf", re.I)
 _LEADING_INT = re.compile(r"\d+")
+_DATE_CELL_RE = re.compile(r"^\d{1,2}/\d{1,2}/\d{2,4}$")
 
 
 def _discover_pdf_urls() -> list[str]:
@@ -84,6 +92,11 @@ def _normalize_date(raw: str) -> object:
 # Older quarterlies (PY2020-PY2022) merge employer and location into one
 # "Company Name, City" column whose cell ends with a "City (County)" line.
 _CITY_COUNTY_RE = re.compile(r"^(.+?)\s*\(([^)]+)\)$")
+# Narrow PY2023-PY2024 cells wrap further, leaving "(County)" on its own line
+# below the city.  Only the stacked-header parser opts into splitting these:
+# older already-ingested quarterlies wrap mid-name too ("Stein Mart Madison" /
+# "(Madison)"), and changing their parse would change existing notice_ids.
+_COUNTY_ONLY_RE = re.compile(r"^\(([^)]+)\)$")
 
 
 def _parse_pdf(raw: bytes) -> list[NoticeRow]:
@@ -93,32 +106,100 @@ def _parse_pdf(raw: bytes) -> list[NoticeRow]:
         raise ParseFailed(f"MS PDF: could not open: {e}") from e
 
     with pdf:
-        header: list[str] | None = None
-        data_rows: list[list] = []
+        tables = [t for page in pdf.pages if (t := page.extract_table())]
 
-        for page in pdf.pages:
-            t = page.extract_table()
-            if not t:
+    header: list[str] | None = None
+    data_rows: list[list] = []
+    for t in tables:
+        page_hdr = [" ".join(str(c).lower().split()) if c else "" for c in t[0]]
+        # Substring match: old quarterlies use "company name, city".
+        if not any("company name" in h for h in page_hdr) or not any(
+            "type of action" in h for h in page_hdr
+        ):
+            continue
+        if header is None:
+            header = page_hdr
+        # Skip header row, add only non-continuation rows
+        for row in t[1:]:
+            if row[0] is None:
                 continue
-            page_hdr = [" ".join(str(c).lower().split()) if c else "" for c in t[0]]
-            # Substring match: old quarterlies use "company name, city".
-            if not any("company name" in h for h in page_hdr) or not any(
-                "type of action" in h for h in page_hdr
-            ):
-                continue
-            if header is None:
-                header = page_hdr
-            # Skip header row, add only non-continuation rows
-            for row in t[1:]:
-                if row[0] is None:
-                    continue
-                data_rows.append(row)
+            data_rows.append(row)
 
+    rows = _extract_rows(header, data_rows) if header is not None else []
+    if not rows:
+        # PY2023-PY2024 quarterlies stack header labels across several rows
+        # ("Date of" / "WARN" / "Notice") and pad the grid with ghost columns,
+        # so the single-row header check above either misses them or maps the
+        # date column onto a ghost cell (0 rows). Retry with the stacked-header
+        # layout before giving up.
+        v3 = _parse_stacked_header_tables(tables)
+        if v3 is not None:
+            return v3
     if header is None:
         raise ParseFailed("MS PDF: no notice table found")
+    return rows
 
+
+def _parse_stacked_header_tables(tables: list[list[list]]) -> list[NoticeRow] | None:
+    """Parse quarterlies whose header labels stack across rows (PY2023-PY2024).
+
+    These grids pad real columns with ghost cells — an empty header label
+    over a None data cell, not always in the same column — so cells are
+    matched positionally after compaction: the Nth labelled header column
+    lines up with the Nth non-None cell of each data row.  Returns None when
+    no page carries a stacked-header notice table.
+    """
+    header: list[str] | None = None
+    data_rows: list[list] = []
+    for t in tables:
+        width = max(len(r) for r in t)
+        labels = [""] * width
+        page_data: list[list] = []
+        for row in t:
+            first = next((c for c in row if c not in (None, "")), "")
+            if not page_data and not _DATE_CELL_RE.match(_normalize_cell(first)):
+                # Still in the stacked header: merge labels column-wise.
+                for i, c in enumerate(row):
+                    if c not in (None, ""):
+                        labels[i] = f"{labels[i]} {_normalize_cell(c).lower()}".strip()
+            else:
+                page_data.append(row)
+        compact = [name for name in labels if name]
+        stripped = [name.replace(" ", "") for name in compact]
+        if not any("companyname" in s for s in stripped) or not any(
+            "typeofaction" in s for s in stripped
+        ):
+            continue  # summary/other tables
+        if header is None:
+            header = compact
+        for row in page_data:
+            cells = [c for c in row if c is not None]
+            if len(cells) == len(header):
+                data_rows.append(cells)
+    if header is None:
+        return None
+    return _extract_rows(header, data_rows, split_county_wrap=True)
+
+
+def _extract_rows(
+    header: list[str], data_rows: list[list], *, split_county_wrap: bool = False
+) -> list[NoticeRow]:
     def _find(needle: str) -> int | None:
-        return next((i for i, name in enumerate(header) if needle in name), None)
+        exact = next((i for i, name in enumerate(header) if needle in name), None)
+        if exact is not None:
+            return exact
+        # Stacked headers wrap mid-word ("Workforc e Area") or interleave
+        # tokens ("Date of WARN Notice") — match ignoring spaces, then by
+        # token subset.
+        stripped = needle.replace(" ", "")
+        for i, name in enumerate(header):
+            if stripped in name.replace(" ", ""):
+                return i
+        tokens = set(needle.split())
+        return next(
+            (i for i, name in enumerate(header) if tokens <= set(name.split())),
+            None,
+        )
 
     i_company = _find("company name")
     i_date = _find("date of notice")
@@ -126,6 +207,8 @@ def _parse_pdf(raw: bytes) -> list[NoticeRow]:
     i_count = _find("number affected")
     i_eff = _find("date of action")
     i_wda = _find("workforce area")
+    if i_company is None:
+        return []
     # In the merged old format, "city" would match the company column —
     # location is split out of the company cell instead.
     merged_location = "city" in header[i_company]
@@ -142,9 +225,17 @@ def _parse_pdf(raw: bytes) -> list[NoticeRow]:
             # Cell layout: employer line(s), then a final "City (County)" line.
             lines = [ln.strip() for ln in str(raw_row[i_company] or "").splitlines() if ln.strip()]
             m = _CITY_COUNTY_RE.match(lines[-1]) if lines else None
+            county_only = (
+                _COUNTY_ONLY_RE.match(lines[-1])
+                if split_county_wrap and len(lines) >= 3 and not m
+                else None
+            )
             if m:
                 city, county = as_str(m.group(1)), as_str(m.group(2))
                 lines = lines[:-1]
+            elif county_only:
+                city, county = as_str(lines[-2]), as_str(county_only.group(1))
+                lines = lines[:-2]
             employer = " ".join(lines)
         else:
             employer = _cell(raw_row, i_company)
