@@ -1924,6 +1924,30 @@ def test_nc_ssrs_city_zip_anchors_on_state_not_first_digits():
     assert _ssrs_city_zip("somewhere with no state") == (None, None)
 
 
+def test_nc_ssrs_city_strips_unit_letters_and_directions():
+    """A street's trailing unit letter ('Ste A') or compass direction ('Hwy 87 W')
+    must not be read as the first city word; a city ending in a suffix-like word
+    ('Indian Trail') must not be truncated."""
+    from warn_v2.scrapers.states.nc import _ssrs_city_zip
+
+    cases = {
+        "1150 Pleasant Ridge Rd Ste A Greensboro NC 27409": "Greensboro",
+        "2800 Perimeter Park Drive Suite C Morrisville NC 27560": "Morrisville",
+        "220 Dominion Dr # A Morrisville NC 27560": "Morrisville",
+        "22824 NC Hwy 87 W Fayetteville NC 28306": "Fayetteville",
+        "2004 US Highway 74 W Wadesboro NC 28170": "Wadesboro",
+        "2301 Wilco Blvd S Wilson NC 27893": "Wilson",
+        "2116 New Bern Ave # D Raleigh NC 27610": "Raleigh",
+        "600 Radiator Rd. Indian Trail NC 28079": "Indian Trail",
+        "15159 Andrew Jackson Hwy 76 W Fair Bluff NC 28439": "Fair Bluff",
+        "3990 US 311 Hwy N Pine Hall NC 27042": "Pine Hall",
+        # Spelled-out direction words in a real city name stay intact.
+        "1 Main St West Jefferson NC 28694": "West Jefferson",
+    }
+    for addr, want in cases.items():
+        assert _ssrs_city_zip(addr)[0] == want, addr
+
+
 def test_nc_parse_pdf_current_grid_era():
     """2022+ grid shares the live HTML schema and _row_from_nc_grid."""
     from warn_v2.scrapers.states.nc import parse_nc_pdf

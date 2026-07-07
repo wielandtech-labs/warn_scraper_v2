@@ -417,7 +417,13 @@ def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None
                 exact.lat, exact.lon, exact.geocode_source = result
         return exact
 
-    # 2. promote a single zip-less candidate in place
+    # 2. promote a single zip-less candidate in place — but only when it backs
+    #    at most one notice.  A city-level zip-less Location (a source that
+    #    publishes no ZIP, e.g. NC's current-era rows) is shared by many
+    #    distinct worksites; stamping one incoming ZIP onto it would corrupt the
+    #    ZIP shown for all of them (seen 2026-07-07: an NC historical row's ZIP
+    #    poisoned the shared Charlotte location across 39 notices, incl. live
+    #    ones).  Promote only the intended "same place, ZIP now known" case.
     if incoming_zip:
         zipless = session.execute(
             select(Location).where(
@@ -428,15 +434,19 @@ def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None
         ).scalars().all()
         if len(zipless) == 1:
             loc = zipless[0]
-            loc.zip = incoming_zip
-            if row.county and not loc.county:
-                loc.county = row.county
-            if loc.lat is None and loc.lon is None:
-                result = _geocode(row.address, row.city, row.state, incoming_zip, row.county)
-                if result is not None:
-                    loc.lat, loc.lon, loc.geocode_source = result
-            session.flush()
-            return loc
+            n_notices = session.scalar(
+                select(func.count()).select_from(Notice).where(Notice.location_id == loc.id)
+            )
+            if (n_notices or 0) <= 1:
+                loc.zip = incoming_zip
+                if row.county and not loc.county:
+                    loc.county = row.county
+                if loc.lat is None and loc.lon is None:
+                    result = _geocode(row.address, row.city, row.state, incoming_zip, row.county)
+                    if result is not None:
+                        loc.lat, loc.lon, loc.geocode_source = result
+                session.flush()
+                return loc
 
     # 3. fall through to insert
     lat, lon, geocode_source = (None, None, None)

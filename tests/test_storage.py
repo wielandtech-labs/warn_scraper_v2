@@ -282,6 +282,35 @@ def test_location_zip_merged_in_place(db) -> None:
     assert loc.zip == "94607"
 
 
+def test_zip_promotion_skipped_for_shared_location(db) -> None:
+    """A zip-less city location shared by multiple notices must NOT be promoted
+    when a zip'd row arrives — stamping one ZIP on it would corrupt the others."""
+    # Two distinct zip-less notices collapse onto one (CA, Oakland, NULL) location.
+    upsert_notices(db, [
+        _row(employer="Alpha", city="Oakland", zip=None, address="1 A St"),
+        _row(employer="Beta", city="Oakland", zip=None, address="2 B St",
+             notice_date=date(2026, 2, 1)),
+    ])
+    db.commit()
+    shared = db.query(Location).filter(Location.city == "Oakland").one()
+    assert shared.zip in (None, "")
+    assert db.query(Notice).filter(Notice.location_id == shared.id).count() == 2
+    shared_id = shared.id
+
+    # A third notice arrives WITH a ZIP for the same city.
+    upsert_notices(db, [
+        _row(employer="Gamma", city="Oakland", zip="94607", notice_date=date(2026, 3, 1)),
+    ])
+    db.commit()
+
+    # The shared location stays zip-less; a separate zip'd location is created.
+    shared = db.query(Location).filter(Location.id == shared_id).one()
+    assert shared.zip in (None, "")
+    assert db.query(Location).filter(
+        Location.city == "Oakland", Location.zip == "94607"
+    ).count() == 1
+
+
 def test_new_location_gets_lat_lon_from_zip(db) -> None:
     """A brand-new Location with a known ZIP should get its centroid filled in."""
     upsert_notices(db, [_row(city="Oakland", zip="94607")])
