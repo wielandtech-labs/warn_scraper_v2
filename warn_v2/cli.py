@@ -542,7 +542,7 @@ def backfill_layoff_counts_cmd(
 @click.option(
     "--state", required=True,
     help="State to backfill: AZ, CA, DC, DE, FL, HI, IL, KS, KY, MD, ME, MN, "
-         "MS, NM, OH, PA, TX, VT, WI (CO is already cumulative)",
+         "MS, NM, NY, OH, PA, TX, VT, WI (CO is already cumulative)",
 )
 @click.option("--year-start", type=int, default=None,
               help="First year to fetch (default: per-state earliest; "
@@ -550,18 +550,22 @@ def backfill_layoff_counts_cmd(
 @click.option("--year-end", type=int, default=None,
               help="Last year to fetch (default: current year)")
 @click.option("--dry-run", is_flag=True, help="Fetch and parse but do not write to DB")
+@click.option("--limit", type=int, default=None,
+              help="URL-list states only: process at most N discovered files "
+                   "(pilot runs on large archives, e.g. NY's ~4,300 pages)")
 def backfill_historical_cmd(
     state: str,
     year_start: int | None,
     year_end: int | None,
     dry_run: bool,
+    limit: int | None,
 ) -> None:
     """Ingest historical WARN data for states where the regular scraper only fetches
     the current year.
 
     \b
     Supported states: AZ, CA, CO, DC, DE, FL, HI, IL, KS, KY, MD, ME, MN, MS,
-    NM, OH, TX, VT, WI.
+    NM, NY, OH, PA, TX, VT, WI.
     Per-state earliest years and the dedup protocol: docs/historical-sources.md.
     Dry runs print a duplicate preview (already_exists / near_miss counts).
 
@@ -570,6 +574,7 @@ def backfill_historical_cmd(
       warn-v2 backfill-historical --state CA
       warn-v2 backfill-historical --state DC --dry-run
       warn-v2 backfill-historical --state VT --year-start 2003 --year-end 2010
+      warn-v2 backfill-historical --state NY --limit 100 --dry-run
     """
     from warn_v2.scripts.backfill_historical import backfill_historical
 
@@ -578,6 +583,7 @@ def backfill_historical_cmd(
         year_start=year_start,
         year_end=year_end,
         dry_run=dry_run,
+        limit=limit,
     )
     suffix = " (dry run — nothing written)" if dry_run else ""
     click.echo(

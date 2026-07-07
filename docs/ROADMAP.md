@@ -105,7 +105,14 @@ Ordered by recoverable rows:
   2026-07-06*: Wayback holds 4,294 full-field `details.asp` records
   (2001–2020, incl. counts + addresses); recommendation = parser route with
   FOIA as backstop — see the NY row in
-  [historical-sources.md](historical-sources.md). Decision pending.
+  [historical-sources.md](historical-sources.md). — *route decided +
+  parser done 2026-07-07* (PR #TBD): CDX discovery (4,293 ids deduped to
+  the latest capture each) + `parse_ny_detail` (multi-site appendix rows,
+  chrome-shell skips, `-----` → None); `--limit` added to
+  `backfill-historical` for pilot runs. Remaining: the gated Job round
+  (~4.5 h at Wayback pacing), per-id prod verification, then re-audit.
+  The 2021–2024 modern-site era and 2016–2020 year-PDF fill-in stay
+  follow-ups, decided after the post-run audit.
 - ~~**PA 2001–2022** — Wayback snapshots of the old dli.pa.gov pages;
   strict dedup (286 superseded rows already); `--year-end 2022`.
   (A+gate)~~ — DONE 2026-07-07 (parser #166 + hardening #183; Jobs

@@ -26,6 +26,7 @@ import io
 import re
 
 import httpx
+from bs4 import BeautifulSoup
 
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
@@ -160,3 +161,256 @@ def _parse_address(raw: str) -> tuple[str | None, str | None, str | None]:
 
 
 register(NYScraper())
+
+
+# ---------------------------------------------------------------------------
+# Historical backfill (2001-2020): archived details.asp records via Wayback
+# ---------------------------------------------------------------------------
+# The retired labor.ny.gov ASP portal exposed one page per notice
+# (details.asp?id=N) with full fields: date of notice, control number,
+# company + street address + "City, NY ZIP", county/WIB/region, business
+# type, Number Affected, layoff/closing dates, reason. ~4,300 unique ids
+# (3-9536, ~2001-2020) have statuscode-200 Wayback captures (probed
+# 2026-07-06, docs/historical-sources.md). Discovery is CDX-driven; ids are
+# deduped keeping the latest capture. No overlap with the live scraper (the
+# Tableau era starts 2025). Values of "-----" mean not-provided at source.
+
+_CDX_API = "https://web.archive.org/cdx/search/cdx"
+_WAYBACK_REPLAY = "https://web.archive.org/web/{ts}id_/{url}"
+_WAYBACK_DELAY = 3.0
+_WAYBACK_BACKOFF = 30.0
+
+_DETAIL_ID_RE = re.compile(r"details\.asp\?.*?\bid=(\d+)", re.I)
+_NY_DATE_RE = re.compile(r"\d{1,2}/\d{1,2}/\d{2,4}")
+# Month-name form ("June 4, 2009") — some eras spell dates out (PA lesson).
+_NY_MONTHNAME_DATE_RE = re.compile(
+    r"(?:january|february|march|april|may|june|july|august|september|october|"
+    r"november|december)\s+\d{1,2},?\s+\d{4}",
+    re.I,
+)
+# "Rochester, NY  14650" (ZIP optional on the oldest pages).
+_NY_CITY_ZIP_RE = re.compile(r"^(.+?),\s*N\.?Y\.?\s*(\d{5})?(?:-\d{4})?\s*$", re.I)
+# Trailing control-number tokens on the Company line ("... Office 2008-W287").
+_CONTROL_TOKEN_RE = re.compile(r"\s*\b\d{4}-W\d+\b.*$")
+# Appendix line: "2008-W288: Employer..., 1999 Lake Avenue, Rochester, NY 14650"
+_OTHER_SITE_RE = re.compile(
+    r"^(?P<ctl>\d{4}-W\d+)\s*:\s*(?P<body>.+,\s*N\.?Y\.?\s*\d{5}(?:-\d{4})?)\s*$",
+    re.I,
+)
+_AFFECTED_PAREN_RE = re.compile(r"^\((\d[\d,]*)\s+affected\)$", re.I)
+
+# Page labels -> canonical keys. Values may sit inline after the colon.
+_DETAIL_LABELS = {
+    "date of notice": "notice_date",
+    "control number": "control_number",
+    "reason stated for filing": "filing_reason",
+    "company": "company",
+    "county": "county",
+    "business type": "business_type",
+    "number affected": "number_affected",
+    "total employees": "total_employees",
+    "layoff date": "layoff_date",
+    "closing date": "closing_date",
+    "reason for dislocation": "dislocation_reason",
+}
+_DETAIL_LABEL_RE = re.compile(
+    r"^(" + "|".join(re.escape(k) for k in _DETAIL_LABELS) + r")\s*:\s*(.*)$",
+    re.I,
+)
+
+
+def _clean_value(v: str | None) -> str | None:
+    """Collapse whitespace; '-----' and empties mean not-provided."""
+    if v is None:
+        return None
+    v = " ".join(v.replace("\xa0", " ").split())
+    return v if v and set(v) != {"-"} else None
+
+
+def _discover_ny_detail_urls() -> list[str]:
+    """Wayback replay URL of the latest 200 capture per details.asp id."""
+    import time
+
+    for attempt in (1, 2):
+        time.sleep(_WAYBACK_DELAY)
+        try:
+            r = httpx.get(
+                _CDX_API,
+                params={
+                    "url": "labor.ny.gov/app/warn",
+                    "matchType": "prefix",
+                    "output": "json",
+                    "fl": "timestamp,original",
+                    "filter": "statuscode:200",
+                    "collapse": "urlkey",
+                    "limit": "100000",
+                },
+                headers=_UA,
+                timeout=120,
+            )
+            r.raise_for_status()
+            captures = r.json()
+            break
+        except (httpx.HTTPError, ValueError) as e:
+            if attempt == 1:
+                time.sleep(_WAYBACK_BACKOFF)
+                continue
+            raise ScrapeFailed(f"NY: CDX query for details.asp captures: {e}") from e
+    if not isinstance(captures, list):
+        return []
+    best: dict[int, tuple[str, str]] = {}
+    for cap in captures[1:]:  # row 0 is the field-name header
+        if not (isinstance(cap, list) and len(cap) == 2):
+            continue
+        ts, original = str(cap[0]), str(cap[1])
+        m = _DETAIL_ID_RE.search(original)
+        if m is None:
+            continue
+        nid = int(m.group(1))
+        # URL variants (scheme/www/&_ga junk) survive urlkey collapse - dedupe
+        # by id, keeping the latest capture (amendments accrue over time).
+        if nid not in best or ts > best[nid][0]:
+            best[nid] = (ts, original)
+    return [
+        _WAYBACK_REPLAY.format(ts=ts, url=original)
+        for _nid, (ts, original) in sorted(best.items())
+    ]
+
+
+def _first_date(raw: str | None):
+    if not raw:
+        return None
+    m = _NY_DATE_RE.search(raw) or _NY_MONTHNAME_DATE_RE.search(raw)
+    return as_date(m.group(0)) if m else None
+
+
+def _other_site_rows(lines: list[str], template: NoticeRow) -> list[NoticeRow]:
+    """Rows for the "Other site affected:" appendix.
+
+    Each site is one line - "2008-W288: Eastman Kodak, Kodak Research Labs,
+    1999 Lake Avenue, Rochester, NY 14650" - optionally followed by
+    "(8 affected)". The comma-separated body splits as [employer parts...,
+    street, city] with the state/ZIP tail on the city segment.
+    """
+    rows: list[NoticeRow] = []
+    for i, line in enumerate(lines):
+        m = _OTHER_SITE_RE.match(line)
+        if m is None:
+            continue
+        segs = [s.strip() for s in m.group("body").split(",")]
+        if len(segs) < 3:
+            continue
+        zm = re.search(r"(\d{5})(?:-\d{4})?", segs[-1])
+        city = segs[-2]
+        street_idx = len(segs) - 3
+        # The street usually starts with a number; anything before it is the
+        # employer name (which may itself contain commas).
+        while street_idx > 0 and not segs[street_idx][:1].isdigit():
+            street_idx -= 1
+        employer = _clean_value(", ".join(segs[:street_idx])) or template.employer
+        count = None
+        if i + 1 < len(lines):
+            am = _AFFECTED_PAREN_RE.match(lines[i + 1])
+            if am:
+                count = int(am.group(1).replace(",", ""))
+        rows.append(
+            NoticeRow(
+                state="NY",
+                employer=employer,
+                notice_date=template.notice_date,
+                effective_date=template.effective_date,
+                layoff_count=count,
+                city=_clean_value(city),
+                county=template.county,
+                zip=zm.group(1) if zm else None,
+                address=_clean_value(", ".join(segs[street_idx:-1])),
+                closure_type=template.closure_type,
+                source_url=template.source_url,
+                extra={**template.extra, "control_number": m.group("ctl")},
+            )
+        )
+    return rows
+
+
+def parse_ny_detail(raw: bytes, url: str) -> list[NoticeRow]:
+    """Parse one archived details.asp page into NoticeRow(s)."""
+    soup = BeautifulSoup(raw, "html.parser")
+    lines = [
+        " ".join(ln.replace("\xa0", " ").split())
+        for ln in soup.get_text("\n").splitlines()
+    ]
+    lines = [ln for ln in lines if ln]
+
+    fields: dict[str, str | None] = {}
+    addr_lines: list[str] = []
+    after_company = False
+    for line in lines:
+        m = _DETAIL_LABEL_RE.match(line)
+        if m:
+            key = _DETAIL_LABELS[m.group(1).lower()]
+            if key not in fields:  # first occurrence wins (page repeats chrome)
+                fields[key] = _clean_value(m.group(2))
+            after_company = key == "company"
+        elif after_company:
+            # Street/city lines sit between Company: and County:.
+            addr_lines.append(line)
+
+    employer = fields.get("company")
+    if employer:
+        employer = _clean_value(_CONTROL_TOKEN_RE.sub("", employer))
+    notice_date = _first_date(fields.get("notice_date"))
+    if not employer or notice_date is None:
+        return []
+
+    city = zip_code = None
+    for ln in reversed(addr_lines):
+        cm = _NY_CITY_ZIP_RE.match(ln)
+        if cm:
+            city = _clean_value(cm.group(1).split(",")[-1])
+            zip_code = cm.group(2)
+            break
+    address = _clean_value(", ".join(addr_lines)) or None
+
+    county = region = wib = None
+    if fields.get("county"):
+        parts = [p.strip() for p in fields["county"].split("|")]
+        county = _clean_value(parts[0]) or None
+        for p in parts[1:]:
+            k, _, v = p.partition(":")
+            if k.strip().upper() == "WIB":
+                wib = _clean_value(v)
+            elif k.strip().upper() == "REGION":
+                region = _clean_value(v)
+
+    extra = {
+        k: v
+        for k, v in (
+            ("control_number", fields.get("control_number")),
+            ("business_type", fields.get("business_type")),
+            ("dislocation_reason", fields.get("dislocation_reason")),
+            ("region", region),
+            ("wib", wib),
+        )
+        if v
+    }
+    # The replay URL wraps the original; keep the original as source.
+    source = re.sub(r"^https?://web\.archive\.org/web/[^/]+/", "", url)
+
+    main = NoticeRow(
+        state="NY",
+        employer=employer,
+        notice_date=notice_date,
+        effective_date=(
+            _first_date(fields.get("layoff_date"))
+            or _first_date(fields.get("closing_date"))
+        ),
+        layoff_count=as_int(fields.get("number_affected")),
+        city=city,
+        county=county,
+        zip=zip_code,
+        address=address,
+        closure_type=fields.get("filing_reason"),
+        source_url=source,
+        extra=extra,
+    )
+    return [main, *_other_site_rows(lines, main)]
