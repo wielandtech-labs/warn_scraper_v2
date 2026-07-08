@@ -1,0 +1,3 @@
+# Bundled data snapshots are binary — never apply line-ending/text normalization.
+*.gz binary
+*.gz -text
