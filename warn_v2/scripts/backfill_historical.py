@@ -77,7 +77,7 @@ from warn_v2.scrapers.states.nj import ARCHIVE_XLSX_URL as _NJ_ARCHIVE_XLSX_URL
 from warn_v2.scrapers.states.nj import parse_nj_archive_xlsx
 from warn_v2.scrapers.states.nm import _discover_archive_pdf_urls as _discover_nm_pdf_urls
 from warn_v2.scrapers.states.nv import _fetch_nv_year, parse_nv_archive
-from warn_v2.scrapers.states.ny import _discover_ny_detail_urls, parse_ny_detail
+from warn_v2.scrapers.states.ny import ny_history_csv
 from warn_v2.scrapers.states.oh import _fetch_oh_year, parse_oh_year
 from warn_v2.scrapers.states.pa import _fetch_pa_year, parse_pa_month
 from warn_v2.scrapers.states.tx import _fetch_tx_year
@@ -99,6 +99,11 @@ class BackfillSpec:
     # Mode 2 — archive-file list:
     discover_urls: Callable[[], list[str]] | None = None
     parse_for_url: Callable[[str], Callable | None] | None = None
+
+    # Mode 3 — bundled snapshot: a one-time historical export committed to the
+    # repo (e.g. NY's full Tableau crosstab). Returns raw bytes for the
+    # state's own ``scraper.parse``.
+    bundled_bytes: Callable[[], bytes] | None = None
 
 
 def _joblink_fetch(scraper, year: int) -> bytes:
@@ -228,14 +233,11 @@ _BACKFILL: dict[str, BackfillSpec] = {
         fetch_year=lambda s, y: _fetch_oh_year(y),
         parse_year=lambda b, y: parse_oh_year(b, y),
     ),
-    # NY: archived details.asp records via Wayback CDX (~4,300 ids,
-    # 2001-2020, full fields incl. counts + addresses). Empty chrome-only
-    # captures parse to 0 rows and are skipped. No live-scraper overlap
-    # (Tableau era starts 2025).
-    "NY": BackfillSpec(
-        discover_urls=lambda: _discover_ny_detail_urls(),
-        parse_for_url=lambda u: (lambda raw, _u=u: parse_ny_detail(raw, _u)),
-    ),
+    # NY: the dashboard's full crosstab export (2006-2026, ~9k rows) bundled
+    # as a gzipped snapshot; NYScraper.parse reads it (same schema as the live
+    # current-year CSV). Overlap with the live 2025-2026 rows dedupes by
+    # notice_id.
+    "NY": BackfillSpec(bundled_bytes=ny_history_csv),
     # PA: archived per-month pages via Wayback CDX (portal.state.pa.us
     # 2001-2015, SharePoint dli.pa.gov 2011-2022; same content template).
     # _fetch_pa_year hard-caps at 2022 — the AEM live era (2023+) stamps
@@ -280,7 +282,13 @@ def backfill_historical(
 
     scraper = get_scraper(state)
 
-    if spec.discover_urls is not None:
+    if spec.bundled_bytes is not None:
+        stats["years_attempted"] += 1
+        _ingest_raw(
+            scraper, spec.bundled_bytes(), label="bundled-snapshot",
+            stats=stats, dry_run=dry_run,
+        )
+    elif spec.discover_urls is not None:
         _backfill_url_list(scraper, spec, stats, dry_run=dry_run, limit=limit)
     else:
         start = year_start or spec.year_start or datetime.now().year

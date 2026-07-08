@@ -1711,124 +1711,6 @@ def test_parse_oh_pdf_line_wrapped_date_fragments():
 
 
 # ---------------------------------------------------------------------------
-# Wave 2C — NY (archived details.asp records via Wayback CDX)
-# ---------------------------------------------------------------------------
-
-def _ny_fixture(name: str) -> bytes:
-    return (
-        Path(__file__).resolve().parents[1]
-        / "warn_v2" / "scrapers" / "fixtures" / "ny" / name
-    ).read_bytes()
-
-
-@respx.mock
-def test_ny_discover_detail_urls_dedupes_by_id_latest_capture():
-    """URL variants (scheme/www/_ga junk) collapse to one replay URL per id,
-    keeping the latest timestamp; non-detail rows are ignored."""
-    from warn_v2.scrapers.states.ny import _CDX_API, _discover_ny_detail_urls
-
-    cdx = [
-        ["timestamp", "original"],
-        ["20090402165641", "http://www.labor.ny.gov/app/warn/details.asp?id=2127"],
-        ["20150306060857", "https://labor.ny.gov/app/warn/details.asp?id=2127"],
-        ["20200906172615", "https://www.labor.ny.gov/app/warn/details.asp?id=9073&_ga=2.30854839"],
-        ["20090223200406", "http://www.labor.ny.gov/app/warn/details.asp?"],  # no id
-        ["20140406215943", "http://www.labor.ny.gov/app/warn/default.asp?warnYr=2001"],
-    ]
-    respx.get(_CDX_API).mock(return_value=httpx.Response(200, json=cdx))
-
-    urls = _discover_ny_detail_urls()
-    assert urls == [
-        "https://web.archive.org/web/20150306060857id_/"
-        "https://labor.ny.gov/app/warn/details.asp?id=2127",
-        "https://web.archive.org/web/20200906172615id_/"
-        "https://www.labor.ny.gov/app/warn/details.asp?id=9073&_ga=2.30854839",
-    ]
-
-
-def test_parse_ny_detail_full_record_and_other_site():
-    """Real 2009 capture (Kodak, id=2127): full main record plus the
-    'Other site affected:' appendix as its own row."""
-    from warn_v2.scrapers.states.ny import parse_ny_detail
-
-    rows = parse_ny_detail(
-        _ny_fixture("detail_2127.html"),
-        "https://web.archive.org/web/20090402165641id_/"
-        "http://www.labor.ny.gov/app/warn/details.asp?id=2127",
-    )
-    assert len(rows) == 2
-    main, other = rows
-    assert main.employer == "Eastman Kodak Company Office"  # control token stripped
-    assert main.notice_date == date(2009, 3, 17)
-    assert main.effective_date == date(2009, 6, 4)  # "To begin between 6/4/2009 and ..."
-    assert main.layoff_count == 2
-    assert main.city == "Rochester"
-    assert main.zip == "14650"
-    assert main.county == "Monroe"
-    assert main.closure_type == "Plant Layoff"
-    assert main.extra["control_number"] == "2008-W287 & W288"
-    assert main.extra["region"] == "FINGER LAKES"
-    # Wayback prefix stripped from the stored source.
-    assert main.source_url == "http://www.labor.ny.gov/app/warn/details.asp?id=2127"
-
-    assert other.employer == "Eastman Kodak, Kodak Research Labs"
-    assert other.layoff_count == 8  # "(8 affected)"
-    assert other.city == "Rochester"
-    assert other.extra["control_number"] == "2008-W288"
-
-
-def test_parse_ny_detail_empty_shell_returns_no_rows():
-    """Some archived ids are chrome-only shells with no record body."""
-    from warn_v2.scrapers.states.ny import parse_ny_detail
-
-    html = b"<html><body><h1>WARN Details</h1><p>Contact Us</p></body></html>"
-    assert parse_ny_detail(html, "http://x/details.asp?id=3") == []
-
-
-def test_parse_ny_detail_dashes_mean_not_provided():
-    from warn_v2.scrapers.states.ny import parse_ny_detail
-
-    html = (
-        b"<html><body><p>Date of Notice: 5/1/2005</p>"
-        b"<p>Company: Acme Corp</p><p>12 Main St</p><p>Utica, NY 13501</p>"
-        b"<p>County: Oneida | WIB: ONEIDA| Region: MOHAWK VALLEY</p>"
-        b"<p>Number Affected: -----</p><p>Layoff Date: -----</p>"
-        b"<p>Closing Date: 7/1/2005</p>"
-        b"<p>Reason Stated for Filing: Plant Closing</p></body></html>"
-    )
-    (row,) = parse_ny_detail(html, "http://x/details.asp?id=500")
-    assert row.layoff_count is None
-    assert row.effective_date == date(2005, 7, 1)  # Closing Date fallback
-    assert row.closure_type == "Plant Closing"
-    assert row.city == "Utica"
-
-
-@respx.mock
-def test_backfill_historical_ny_url_list_with_limit(db) -> None:
-    """NY runs in url-list mode; --limit slices the discovered list."""
-    replay = (
-        "https://web.archive.org/web/20090402165641id_/"
-        "http://www.labor.ny.gov/app/warn/details.asp?id=2127"
-    )
-    respx.get(replay).mock(
-        return_value=httpx.Response(200, content=_ny_fixture("detail_2127.html"))
-    )
-
-    with patch(
-        "warn_v2.scripts.backfill_historical._discover_ny_detail_urls"
-    ) as mock_disc:
-        mock_disc.return_value = [replay, "https://web.archive.org/web/x/never-fetched"]
-        with patch("warn_v2.scripts.backfill_historical.session_scope") as mock_scope:
-            mock_scope.return_value.__enter__ = lambda _: db
-            mock_scope.return_value.__exit__ = MagicMock(return_value=False)
-            stats = backfill_historical("NY", limit=1)
-
-    assert stats["years_attempted"] == 1  # second URL never fetched
-    assert stats["rows_seen"] == 2  # main + other-site row
-    assert db.query(Notice).filter(Notice.state == "NY").count() == 2
-
-
-# ---------------------------------------------------------------------------
 # NC — archive-hub discovery + three-era parse_nc_pdf
 # ---------------------------------------------------------------------------
 
@@ -2034,23 +1916,38 @@ def test_backfill_historical_nc_dispatches_per_url(db) -> None:
     assert db.query(Notice).count() == 0  # dry run writes nothing
 
 
-def test_parse_ny_detail_split_label_layout():
-    """The 2010-portal-redesign pages put every value on the line AFTER its
-    label and fragment city lines ("Ballston Spa" / "," / "NY" / "12020");
-    the first full run skipped this entire era as 'parsed 0 rows'."""
-    from warn_v2.scrapers.states.ny import parse_ny_detail
+# ---------------------------------------------------------------------------
+# NY — bundled Tableau crosstab snapshot (2006-2026 full history)
+# ---------------------------------------------------------------------------
 
-    (row,) = parse_ny_detail(
-        _ny_fixture("detail_2771_split.html"),
-        "https://web.archive.org/web/20110102052247id_/"
-        "http://www.labor.ny.gov/app/warn/details.asp?id=2771",
-    )
-    assert row.employer == "Angelica Textile Services, Inc."
-    assert row.notice_date == date(2010, 6, 17)
-    assert row.layoff_count == 93
-    assert row.effective_date == date(2010, 9, 16)  # Closing Date; Layoff = -----
-    assert row.city == "Ballston Spa"
-    assert row.zip == "12020"
-    assert row.county == "Saratoga"
-    assert row.closure_type == "Plant Closing"
-    assert row.extra["control_number"] == "2009-0335"
+def test_ny_history_csv_snapshot_intact():
+    """The committed gzip snapshot decompresses and parses via the live
+    NYScraper.parse to the full multi-year history."""
+    from warn_v2.scrapers.states.ny import NYScraper, ny_history_csv
+
+    rows = NYScraper().parse(ny_history_csv())
+    assert len(rows) > 8000
+    years = {r.notice_date.year for r in rows}
+    assert min(years) <= 2006 and max(years) >= 2026
+    # Core fields populated on the vast majority (the whole point vs an
+    # index-only source).
+    assert sum(1 for r in rows if r.layoff_count is not None) > 8000
+    assert sum(1 for r in rows if r.city and r.zip) > 8000
+
+
+def test_backfill_historical_ny_bundled_ingests(db) -> None:
+    """NY runs in bundled-snapshot mode: one 'attempt', all rows ingested."""
+    with patch("warn_v2.scripts.backfill_historical.session_scope") as mock_scope:
+        mock_scope.return_value.__enter__ = lambda _: db
+        mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+        stats = backfill_historical("NY")
+
+    assert stats["years_attempted"] == 1
+    assert stats["rows_seen"] > 8000
+    assert db.query(Notice).filter(Notice.state == "NY").count() > 8000
+
+
+def test_backfill_historical_ny_bundled_dry_run_no_writes(db) -> None:
+    stats = backfill_historical("NY", dry_run=True)
+    assert stats["rows_seen"] > 8000
+    assert db.query(Notice).count() == 0
