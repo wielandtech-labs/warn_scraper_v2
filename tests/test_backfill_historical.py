@@ -2032,3 +2032,25 @@ def test_backfill_historical_nc_dispatches_per_url(db) -> None:
     assert stats["years_ok"] == 2
     assert stats["rows_seen"] > 0
     assert db.query(Notice).count() == 0  # dry run writes nothing
+
+
+def test_parse_ny_detail_split_label_layout():
+    """The 2010-portal-redesign pages put every value on the line AFTER its
+    label and fragment city lines ("Ballston Spa" / "," / "NY" / "12020");
+    the first full run skipped this entire era as 'parsed 0 rows'."""
+    from warn_v2.scrapers.states.ny import parse_ny_detail
+
+    (row,) = parse_ny_detail(
+        _ny_fixture("detail_2771_split.html"),
+        "https://web.archive.org/web/20110102052247id_/"
+        "http://www.labor.ny.gov/app/warn/details.asp?id=2771",
+    )
+    assert row.employer == "Angelica Textile Services, Inc."
+    assert row.notice_date == date(2010, 6, 17)
+    assert row.layoff_count == 93
+    assert row.effective_date == date(2010, 9, 16)  # Closing Date; Layoff = -----
+    assert row.city == "Ballston Spa"
+    assert row.zip == "12020"
+    assert row.county == "Saratoga"
+    assert row.closure_type == "Plant Closing"
+    assert row.extra["control_number"] == "2009-0335"
