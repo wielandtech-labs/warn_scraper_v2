@@ -102,20 +102,19 @@ post-merge one-off backfill Job per the runbook → re-audit. Routes and probe
 notes per state live in [historical-sources.md](historical-sources.md).
 Ordered by recoverable rows:
 
-- [ ] **NY** (~6,900 rows since 2006 — the largest gap). **Route decision
-  first (H)**: per-year PDF listings parse vs FOIA; the Tableau CSV is
-  current-year-only. Then implement. (H, then A+gate) — *spike done
-  2026-07-06*: Wayback holds 4,294 full-field `details.asp` records
-  (2001–2020, incl. counts + addresses); recommendation = parser route with
-  FOIA as backstop — see the NY row in
-  [historical-sources.md](historical-sources.md). — *route decided +
-  parser done 2026-07-07* (PR #TBD): CDX discovery (4,293 ids deduped to
-  the latest capture each) + `parse_ny_detail` (multi-site appendix rows,
-  chrome-shell skips, `-----` → None); `--limit` added to
-  `backfill-historical` for pilot runs. Remaining: the gated Job round
-  (~4.5 h at Wayback pacing), per-id prod verification, then re-audit.
-  The 2021–2024 modern-site era and 2016–2020 year-PDF fill-in stay
-  follow-ups, decided after the post-run audit.
+- [ ] **NY** (~6,900 rows since 2006 — the largest gap). *Parser done
+  2026-07-08 via the dashboard's **full crosstab export***, which the
+  Wayback detail-page work (2026-07-06/07) turned out to be the hard way
+  around. The live scraper's default Tableau CSV endpoint is current-year
+  only, **but `dol.ny.gov/warn-dashboard` → Download → Crosstab returns the
+  entire 2006–2026 history (9,006 rows, 8,812 with counts) in the same
+  column schema** — so `NYScraper.parse` ingests it with no new parser. A
+  one-time normalized snapshot is bundled (gzipped) and run via
+  `backfill-historical --state NY`; the Wayback CDX parser was removed.
+  Remaining: the gated one-off ingest Job, per-year prod verification, then
+  re-audit. Refresh cadence: re-download the crosstab + regenerate the .gz
+  when NY revises old records (the live scraper keeps current data fresh
+  daily). (A+gate)
 - ~~**PA 2001–2022** — Wayback snapshots of the old dli.pa.gov pages;
   strict dedup (286 superseded rows already); `--year-end 2022`.
   (A+gate)~~ — DONE 2026-07-07 (parser #166 + hardening #183; Jobs
