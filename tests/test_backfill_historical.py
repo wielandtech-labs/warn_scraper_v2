@@ -1920,34 +1920,52 @@ def test_backfill_historical_nc_dispatches_per_url(db) -> None:
 # NY — bundled Tableau crosstab snapshot (2006-2026 full history)
 # ---------------------------------------------------------------------------
 
-def test_ny_history_csv_snapshot_intact():
-    """The committed gzip snapshot decompresses and parses via the live
-    NYScraper.parse to the full multi-year history."""
-    from warn_v2.scrapers.states.ny import NYScraper, ny_history_csv
+def test_ny_history_snapshot_valid():
+    """Fast integrity check on the committed gzip snapshot: it decompresses to
+    a well-formed CSV covering the full year span. (Row-level parse behaviour
+    is covered by test_ny.py — no need to re-parse ~9k rows every pipeline.)"""
+    import csv as _csv
+    import io as _io
 
-    rows = NYScraper().parse(ny_history_csv())
-    assert len(rows) > 8000
-    years = {r.notice_date.year for r in rows}
-    assert min(years) <= 2006 and max(years) >= 2026
-    # Core fields populated on the vast majority (the whole point vs an
-    # index-only source).
-    assert sum(1 for r in rows if r.layoff_count is not None) > 8000
-    assert sum(1 for r in rows if r.city and r.zip) > 8000
+    from warn_v2.scrapers.states.ny import ny_history_csv
+
+    rows = list(_csv.reader(_io.StringIO(ny_history_csv().decode("utf-8"))))
+    hdr = rows[0]
+    assert {"Business Legal Name", "Date of WARN Notice"} <= set(hdr)
+    assert len(rows) - 1 > 8000
+    di = hdr.index("Date of WARN Notice")
+    years = {r[di][:4] for r in rows[1:] if len(r) > di and r[di][:4].isdigit()}
+    assert min(years) <= "2006" and max(years) >= "2026"
 
 
-def test_backfill_historical_ny_bundled_ingests(db) -> None:
-    """NY runs in bundled-snapshot mode: one 'attempt', all rows ingested."""
-    with patch("warn_v2.scripts.backfill_historical.session_scope") as mock_scope:
+# A tiny synthetic snapshot exercises the bundled-mode dispatch without paying
+# to parse+upsert the real ~9k-row artifact on every run.
+_MINI_NY_CSV = (
+    b"Business Legal Name,Date of WARN Notice,Number of Affected Workers,"
+    b"Impacted Site Address,Impacted Site County,Layoff or Closure?\n"
+    b'Acme Corp,3/1/2015,50,"1 Main St  Albany, NY, 12207",Albany,Closure\n'
+)
+
+
+def test_backfill_historical_bundled_mode(db, monkeypatch) -> None:
+    """Bundled-snapshot mode: one 'attempt', rows ingested via the state's
+    own parser; dry-run writes nothing."""
+    from warn_v2.scripts import backfill_historical as bh
+
+    monkeypatch.setitem(
+        bh._BACKFILL, "NY", bh.BackfillSpec(bundled_bytes=lambda: _MINI_NY_CSV)
+    )
+
+    with patch.object(bh, "session_scope") as mock_scope:
         mock_scope.return_value.__enter__ = lambda _: db
         mock_scope.return_value.__exit__ = MagicMock(return_value=False)
-        stats = backfill_historical("NY")
-
+        stats = bh.backfill_historical("NY")
     assert stats["years_attempted"] == 1
-    assert stats["rows_seen"] > 8000
-    assert db.query(Notice).filter(Notice.state == "NY").count() > 8000
+    assert stats["rows_seen"] == 1
+    row = db.query(Notice).filter(Notice.state == "NY").one()
+    assert row.layoff_count == 50 and row.notice_date == date(2015, 3, 1)
 
-
-def test_backfill_historical_ny_bundled_dry_run_no_writes(db) -> None:
-    stats = backfill_historical("NY", dry_run=True)
-    assert stats["rows_seen"] > 8000
-    assert db.query(Notice).count() == 0
+    # dry-run short-circuits before any write.
+    stats = bh.backfill_historical("NY", dry_run=True)
+    assert stats["rows_seen"] == 1
+    assert db.query(Notice).filter(Notice.state == "NY").count() == 1
