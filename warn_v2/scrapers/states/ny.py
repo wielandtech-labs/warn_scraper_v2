@@ -219,12 +219,38 @@ _DETAIL_LABEL_RE = re.compile(
 )
 
 
+# Unknown label lines end field collection ("Contact:", "Phone: (585) ...",
+# "Union:", "Other site affected:").
+_GENERIC_LABEL_RE = re.compile(r"^[A-Za-z#][A-Za-z .#/()]{1,40}:")
+# Split-layout city fragments: bare ",", "NY", a ZIP, or combinations.
+_ADDR_FRAGMENT_RE = re.compile(
+    r"^(?:[,.]|N\.?Y\.?|\d{5}(?:-\d{4})?|,?\s*N\.?Y\.?,?(?:\s*\d{5}(?:-\d{4})?)?)$",
+    re.I,
+)
+
+
 def _clean_value(v: str | None) -> str | None:
     """Collapse whitespace; '-----' and empties mean not-provided."""
     if v is None:
         return None
     v = " ".join(v.replace("\xa0", " ").split())
     return v if v and set(v) != {"-"} else None
+
+
+def _merge_addr_fragments(lines: list[str]) -> list[str]:
+    """Re-join split-layout city fragments onto their line.
+
+    The 2010-redesign pages emit "Ballston Spa" / "," / "NY" / "12020" as
+    separate lines; merge trailing fragments so the City-NY-ZIP regex sees
+    one line, and tidy the joined punctuation.
+    """
+    merged: list[str] = []
+    for ln in lines:
+        if merged and _ADDR_FRAGMENT_RE.match(ln):
+            merged[-1] = re.sub(r"\s+,", ",", f"{merged[-1]} {ln}")
+        else:
+            merged.append(ln)
+    return merged
 
 
 def _discover_ny_detail_urls() -> list[str]:
@@ -341,18 +367,47 @@ def parse_ny_detail(raw: bytes, url: str) -> list[NoticeRow]:
     ]
     lines = [ln for ln in lines if ln]
 
+    # Two layouts share these labels: the 2009-era portal puts values inline
+    # ("Company: Eastman Kodak ..."), the 2010-redesign puts each value on the
+    # FOLLOWING line ("Company:" / "Angelica Textile Services, Inc.") and even
+    # splits city lines into fragments ("Ballston Spa" / "," / "NY" / "12020").
     fields: dict[str, str | None] = {}
     addr_lines: list[str] = []
-    after_company = False
+    collecting_addr = False
+    pending: str | None = None  # known label whose value is on the next line
+    last_done: str | None = None
     for line in lines:
         m = _DETAIL_LABEL_RE.match(line)
         if m:
             key = _DETAIL_LABELS[m.group(1).lower()]
-            if key not in fields:  # first occurrence wins (page repeats chrome)
-                fields[key] = _clean_value(m.group(2))
-            after_company = key == "company"
-        elif after_company:
-            # Street/city lines sit between Company: and County:.
+            val = m.group(2).strip()
+            collecting_addr = False
+            pending = None
+            if val:
+                if key not in fields:  # first occurrence wins (page chrome repeats)
+                    fields[key] = _clean_value(val)
+                last_done = key
+                collecting_addr = key == "company"
+            else:
+                pending = key
+        elif line.startswith("|"):
+            # Split-layout continuation of the county line ("| WIB Name: ..."
+            # / "| Region: ..."): re-join so the pipe-split below still works.
+            if last_done == "county" and fields.get("county"):
+                fields["county"] += " " + line
+        elif pending is not None:
+            if pending not in fields:
+                fields[pending] = _clean_value(line)
+            last_done = pending
+            collecting_addr = pending == "company"
+            pending = None
+        elif _GENERIC_LABEL_RE.match(line) or line == ":":
+            # Unknown label (Contact:, Phone:, Union:, a stray colon line) —
+            # its value lines are not ours to collect.
+            collecting_addr = False
+            last_done = None
+        elif collecting_addr:
+            # Street/city lines sit between Company: and the next label.
             addr_lines.append(line)
 
     employer = fields.get("company")
@@ -362,6 +417,7 @@ def parse_ny_detail(raw: bytes, url: str) -> list[NoticeRow]:
     if not employer or notice_date is None:
         return []
 
+    addr_lines = _merge_addr_fragments(addr_lines)
     city = zip_code = None
     for ln in reversed(addr_lines):
         cm = _NY_CITY_ZIP_RE.match(ln)
@@ -377,7 +433,7 @@ def parse_ny_detail(raw: bytes, url: str) -> list[NoticeRow]:
         county = _clean_value(parts[0]) or None
         for p in parts[1:]:
             k, _, v = p.partition(":")
-            if k.strip().upper() == "WIB":
+            if k.strip().upper().startswith("WIB"):
                 wib = _clean_value(v)
             elif k.strip().upper() == "REGION":
                 region = _clean_value(v)
