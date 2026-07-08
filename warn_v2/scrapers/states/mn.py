@@ -56,6 +56,28 @@ _UA = {
 # Lookback window: last 18 months of PDFs to ensure ≥1 WARN filing found
 _LOOKBACK_MONTHS = 18
 
+# Wayback CDX returns transient 503s under load (seen repeatedly 2026-07-08);
+# a single failure otherwise aborts discovery → 0 rows. Retry with backoff.
+_CDX_BACKOFFS = (5, 20, 60)
+
+
+def _cdx_query(params: dict) -> list:
+    """Query the Wayback CDX API with retry/backoff; returns the parsed rows."""
+    import time
+
+    last: Exception | None = None
+    for backoff in (*_CDX_BACKOFFS, None):
+        try:
+            r = httpx.get(_CDX_API, params=params, headers=_UA, timeout=60)
+            r.raise_for_status()
+            return r.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            last = exc
+            if backoff is None:
+                break
+            time.sleep(backoff)
+    raise ScrapeFailed(f"MN: CDX API error after retries: {last}")
+
 # Regex: match line where a date is followed immediately by YES (= WARN Act YES)
 # Captures: [employer-city-industry prefix] [layoff_start_date] [warn_received date|"-"] [rest]
 # WARN Received in 2025 PDFs uses M/D (no year) — full date or M/D or dash accepted.
@@ -75,25 +97,17 @@ class MNScraper:
 
     def fetch(self) -> bytes:
         """Discover PDF URLs via Wayback Machine CDX API, then download PDFs."""
-        try:
-            # Step 1: get all unique mn.gov plant-closing PDF URLs from CDX
-            r = httpx.get(
-                _CDX_API,
-                params={
-                    "url": _CDX_PATTERN,
-                    "output": "json",
-                    "fl": "original,timestamp",
-                    "filter": "statuscode:200",
-                    "collapse": "urlkey",
-                    "limit": 200,
-                },
-                headers=_UA,
-                timeout=30,
-            )
-            r.raise_for_status()
-            entries = r.json()
-        except Exception as exc:
-            raise ScrapeFailed(f"MN: CDX API error: {exc}") from exc
+        # Step 1: get all unique mn.gov plant-closing PDF URLs from CDX
+        entries = _cdx_query(
+            {
+                "url": _CDX_PATTERN,
+                "output": "json",
+                "fl": "original,timestamp",
+                "filter": "statuscode:200",
+                "collapse": "urlkey",
+                "limit": 200,
+            }
+        )
 
         # Filter to PDFs published in the last _LOOKBACK_MONTHS months
         cutoff = date.today() - timedelta(days=_LOOKBACK_MONTHS * 31)
@@ -198,29 +212,21 @@ def _discover_archive_pdf_urls() -> list[str]:
     mn.gov removes old asset files, so pre-2022 originals 404 or serve an HTML
     error page while the Wayback snapshots remain intact.
     """
-    try:
-        r = httpx.get(
-            _CDX_API,
-            params={
-                "url": "mn.gov/deed/assets/*",
-                "output": "json",
-                "fl": "original,timestamp",
-                # Server-side regex filter — without it the 5000-entry limit
-                # truncates the /deed/assets/ prefix scan before our PDFs.
-                "filter": [
-                    "statuscode:200",
-                    r"original:.*(plant-closing|mass-layoff).*\.pdf",
-                ],
-                "collapse": "urlkey",
-                "limit": 5000,
-            },
-            headers=_UA,
-            timeout=60,
-        )
-        r.raise_for_status()
-        entries = r.json()
-    except Exception as exc:
-        raise ScrapeFailed(f"MN: CDX API error: {exc}") from exc
+    entries = _cdx_query(
+        {
+            "url": "mn.gov/deed/assets/*",
+            "output": "json",
+            "fl": "original,timestamp",
+            # Server-side regex filter — without it the 5000-entry limit
+            # truncates the /deed/assets/ prefix scan before our PDFs.
+            "filter": [
+                "statuscode:200",
+                r"original:.*(plant-closing|mass-layoff).*\.pdf",
+            ],
+            "collapse": "urlkey",
+            "limit": 5000,
+        }
+    )
 
     by_original: dict[str, str] = {}
     for entry in entries[1:]:  # skip header row

@@ -774,6 +774,30 @@ def test_mn_discover_archive_pdf_urls_filters_and_sorts():
     ]
 
 
+@respx.mock
+def test_mn_discover_retries_through_cdx_503(monkeypatch):
+    """A transient Wayback 503 is ridden out — a single failure otherwise
+    aborts discovery to 0 rows (seen in the 2026-07-08 real run)."""
+    from warn_v2.scrapers.states.mn import _CDX_API, _discover_archive_pdf_urls
+
+    monkeypatch.setattr("time.sleep", lambda *a: None)
+    good = [
+        ["original", "timestamp"],
+        ["https://mn.gov/deed/assets/plant-closing-april-2022_z.pdf", "20220501000000"],
+    ]
+    respx.get(_CDX_API).mock(
+        side_effect=[
+            httpx.Response(503),
+            httpx.ConnectError("refused"),
+            httpx.Response(200, json=good),
+        ]
+    )
+    assert _discover_archive_pdf_urls() == [
+        "https://web.archive.org/web/20220501000000id_/"
+        "https://mn.gov/deed/assets/plant-closing-april-2022_z.pdf"
+    ]
+
+
 def test_mn_archive_file_year():
     """Filename year detection ignores the _tcm asset token; MMYY handled."""
     from warn_v2.scrapers.states.mn import _archive_file_year
