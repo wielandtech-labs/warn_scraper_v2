@@ -49,10 +49,12 @@ sources only).
   Hilsinger / 2021-07-07 Sodexo@Suffolk). FY26 stays with the live weekly-CSV
   scraper; pre-FY22 is email-request only (eolwdpress@mass.gov). Prune PR for
   both Jobs to follow.
-- **2026-07-07 — CA 2009–2013 probe + detailed-PDF parser** (spike + parser;
-  prod run pending). The interior hole (dense only from 2014, one stray 2008
-  row) is **recoverable from the Wayback Machine — no CPRA request needed.**
-  Probe findings:
+- **2026-07-07/08 — CA 2006–2013 backfilled in prod** (spike + parser + real
+  run, w_homelab #665; prune #669): **+4,180 rows, CA 15,897 → 20,077, floor
+  2008 → 2006** (verified via the public API; 2009–2013 hole filled — 2009:425,
+  2010:96, 2011:522, 2012:102, 2013:351). 67/67 files parsed, near_miss=0, 0
+  parse failures. The interior hole is **recovered from the Wayback Machine — no
+  CPRA request needed.** Probe findings:
   - The live EDD page (`.../layoff_services_warn/`) lists **FY2014–2025 only**.
     But EDD's calendar-year listings **2006–2014** survive in web.archive.org
     under `edd.ca.gov/Jobs_and_Training/warn/eddwarncn*.pdf`.
@@ -69,12 +71,19 @@ sources only).
     captures; rejoins wrapped employer names). `_discover_ca_historical_urls`
     (Wayback CDX) + the CA `BackfillSpec` now dispatch detailed URLs to it and
     keep the live FY2014+ path on `parse_ca_pdf`.
-  - **Volume**: ~6.8K aggregator delta since 2009-01. A single filing can list
-    multiple layoff waves (distinct effective dates + counts) under one
-    received-date/address; those collapse to one `notice_id` on ingest — the
-    same accepted dedup granularity as PA, so expect `seen`>`inserted` deltas.
-  - **Remaining**: the gated prod backfill Job (dry-run → real → re-audit).
-    Pre-2008 (`cn00`–`cn08` also in Wayback) is a possible later spike.
+  - **Volume**: dry-run `would_insert=4,927` → real run inserted **4,180** —
+    the gap is cross-file in-batch dedup (one notice in overlapping year
+    captures collapses per `notice_id`; multi-wave filings likewise, same
+    accepted granularity as PA — the ~6.8K aggregator delta counts per-wave
+    line-items). The year-agnostic parser also recovered **2006–2008**
+    (`cn06`–`cn08` in Wayback), over-delivering vs the 2009–2013 scope.
+  - **Infra fixes** that rode along: `_discover_ca_historical_urls` retry
+    hardened with escalating 5/15/30/60s backoff (PR #222) after two runs
+    no-op'd on a flapping web.archive.org (`Errno 111`); the Job bumped to 4Gi
+    after a 1Gi OOM on the large COVID-era FY2019-20 PDF (pdfplumber).
+  - **Caveat / follow-up**: 2010 (96) and 2012 (102) are light vs neighbors —
+    partial-year Wayback "latest captures". A fuller-capture top-up for those
+    two years is optional. Pre-2005 has only stray boundary rows.
 - **2026-07-07 — IL PDF era 1999–2019 parser landed** (`parse_il_pdf`, PR #211
   + column-split fix follow-up): the archive's monthly PDFs are a two-column
   labeled *form*, not a table — `extract_text()` glues each left value onto the
@@ -255,7 +264,7 @@ delete Jobs after.
 
 | State | DB floor | Source / route | Available back to | Backfill route |
 |-------|----------|----------------|-------------------|----------------|
-| CA | 2014 (dense; 1 stray 2008 row) | Live EDD page publishes **FY2014–2025 only** (verified 2026-07-07). Pre-2014 calendar-year reports survive in **Wayback** at `edd.ca.gov/Jobs_and_Training/warn/eddwarncn*.pdf`. We ingest the **detailed** A–Z slices `eddwarncn{da,dbd,del,dmr,ds,dtz}{YY}.pdf` (6/year, carry notice-received date + street address; the simple `cn{YY}` consolidations lack both → dedup collisions, rejected). Rolling year-to-date snapshots → take the **latest 200 capture per file**. Records are two-column (LWIA name wraps at x0≥425) with `(cid:NN)` glyphs in 2009–2010 | **2006** (Wayback; `cn00`–`cn08` reach 2000) | **parser done 2026-07-07** (`parse_ca_detail_pdf` + `_discover_ca_historical_urls`, Wayback CDX); **gated prod Job pending**. ~6.8K aggregator delta; multi-wave filings collapse per `notice_id` (expect seen>inserted) |
+| CA | ~~2014~~ **2006 ✅** | Live EDD page publishes **FY2014–2025 only** (verified 2026-07-07). Pre-2014 calendar-year reports survive in **Wayback** at `edd.ca.gov/Jobs_and_Training/warn/eddwarncn*.pdf`. We ingest the **detailed** A–Z slices `eddwarncn{da,dbd,del,dmr,ds,dtz}{YY}.pdf` (6/year, carry notice-received date + street address; the simple `cn{YY}` consolidations lack both → dedup collisions, rejected). Rolling year-to-date snapshots → take the **latest 200 capture per file**. Records are two-column (LWIA name wraps at x0≥425) with `(cid:NN)` glyphs in 2009–2010 | **2006** (Wayback; `cn00`–`cn08` reach 2000) | **done 2026-07-08** (`parse_ca_detail_pdf` + `_discover_ca_historical_urls`, Wayback CDX; real run w_homelab #665, prune #669): **+4,180 rows, CA 15,897→20,077, floor 2008→2006**, near_miss=0, 0 parse failures (verified via public API). 2010/2012 light = partial-year captures. `rows_new` (4,180) < dry-run `would_insert` (4,927) via cross-file dedup |
 | CO | ~~2021~~ **2015 ✅** | one Google Sheet per year linked from `cdle.colorado.gov/employers/layoff-separations/layoff-warn-list` (co.py registry + link discovery; regular scraper reads only the two newest sheets) | **2015** | **done 2026-07-02** (+768, via the #110 full sweep); re-runs via year loop (`--state CO`) |
 | KS | ~~2026~~ **1999 ✅** | `kansasworks.com/search/warn_lookups?q[notice_on_gteq]=YYYY-01-01` (JobLink date-range search) | **1999** | **done 2026-06-12** (+542) |
 | ME | ~~2026~~ **2012 ✅** | `joblink.maine.gov/search/warn_lookups` (JobLink) | **2012** | **done 2026-06-12** (+76) |

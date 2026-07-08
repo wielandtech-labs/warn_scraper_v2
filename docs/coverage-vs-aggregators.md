@@ -38,7 +38,7 @@ happened yet.
 | AL | 1998-07 | 1,035 | 1998-07 | ~1,000 | — | parity |
 | AR | — | 0 | — | — | — (futile) | parity — confidential by state law (re-verified 2026-07-07) |
 | AZ | 2016-01 | 248 | 2008-01 | ~997 | pre-2016 | covered by draft — ⚠ probe AZ Job Connection (JobLink) date-range search before sending |
-| CA | 2008-09 | 15,897 | 2009-01 | ~22,700 | — | 2009–2013 hole (dense only 2014+); **route found 2026-07-07** — Wayback EDD detailed PDFs (2006–2014), parser landed, backfill Job pending (no CPRA) |
+| CA | ~~2008-09~~ **2006** | ~~15,897~~ **20,077** | 2009-01 | ~22,700 | — | 2009–2013 hole **backfilled 2026-07-08** (+4,180, floor→2006) from Wayback EDD detailed PDFs 2006–2014 (no CPRA); we count notices vs LD's per-wave line-items. 2010/2012 light (partial captures) |
 | CO | 2015-01 | 811 | 2014-10 | ~851 | — | **resolved 2026-07-02** (scraper had been frozen on the 2021 sheet; backfilled 44 → 811) — near-parity now |
 | CT | 2019-05 | 286 | 2014-01 | ~471 | pre-2019 | covered by draft |
 | DC | 2005-05 | 141 | — | — | — | ours only (LD has no DC); interior holes 2006–14, 2018–19 uncorroborated |
@@ -108,12 +108,13 @@ welcome" clause.
 
 ## Not FOIA — flagged for separate investigation
 
-1. ~~**CA 2009–2013 hole**~~ — **RESOLVED (route found) 2026-07-07**: dense
-   coverage only from 2014; LD floor 2009-01 and ~6.8K more rows overall. EDD's
+1. ~~**CA 2009–2013 hole**~~ — **RESOLVED (backfilled) 2026-07-08**: EDD's
    pre-2014 report archive survives in the **Wayback Machine** (detailed
-   `eddwarncn*{da,dbd,del,dmr,ds,dtz}.pdf`, 2006–2014) — parser landed
-   (`parse_ca_detail_pdf`), **CPRA not needed**; gated prod backfill Job pending.
-   See historical-sources.md (CA row + Progress).
+   `eddwarncn*{da,dbd,del,dmr,ds,dtz}.pdf`, 2006–2014); `parse_ca_detail_pdf`
+   ingested it (**CPRA not needed**). Real run **+4,180 rows, 15,897 → 20,077,
+   floor 2008 → 2006**. The residual gap vs LD's ~22.7K is per-wave line-item
+   granularity + light 2010/2012 (partial captures). See historical-sources.md
+   (CA row + Progress).
 2. **GA count discrepancy** — same 2023-01 floor but 264 vs ~3,200. Likely
    row-granularity (per-location?) but could be under-scraping.
 3. **DE 2024 empty** — still zero rows in calendar 2024 inside an otherwise

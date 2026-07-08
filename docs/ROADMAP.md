@@ -187,11 +187,18 @@ Ordered by recoverable rows:
   **route found, no CPRA needed.** Live EDD = FY2014+ only, but Wayback holds
   EDD's calendar-year reports 2006–2014 (`eddwarncn*.pdf`). Landed the parser
   in the same PR (see the follow-up below), so this became spike **+ build**.
-- [ ] **CA 2006–2013 Wayback backfill** — parser done 2026-07-07
+- [x] ~~**CA 2006–2013 Wayback backfill** — parser done 2026-07-07
   (`parse_ca_detail_pdf` + `_discover_ca_historical_urls`, detailed A–Z slices;
   see [historical-sources.md](historical-sources.md) CA row). Remaining: the
   gated prod Job (dry-run → real → re-audit) per the runbook — ~6.8K rows, the
-  largest remaining CA gap. (A+gate)
+  largest remaining CA gap. (A+gate)~~ — DONE 2026-07-08 (w_homelab real run
+  #665, prune #669): **+4,180 rows, CA 15,897 → 20,077, floor 2008 → 2006**
+  (verified via the public API). 67/67 files parsed, near_miss=0 (no
+  `mark-superseded` pass), 0 parse failures. Two fixes rode along: discovery
+  retry hardened against Wayback flaps (PR #222) and the Job bumped to 4Gi after
+  a 1Gi OOM on the COVID-era FY2019-20 PDF. **2010 (96) and 2012 (102) are
+  light** — partial-year Wayback "latest captures"; a fuller-capture top-up for
+  those two years is an optional follow-up.
 - [x] ~~**NV 2021** — scanned-image year PDF; extend the archive route through
   the existing tesseract OCR fallback. (A+gate)~~ — DONE 2026-07-07 (parsers
   #210/#216/#219; Jobs w_homelab #634/#641/#646 dry-runs → #648 real → #649
