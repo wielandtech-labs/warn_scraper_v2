@@ -411,6 +411,33 @@ def backfill_geo(
     )
 
 
+@main.command("backfill-county")
+@click.option("--dry-run", is_flag=True, help="Preview impact without writing")
+@click.option("--state", default=None, help="Limit to one state abbreviation, e.g. TX")
+def backfill_county_cmd(dry_run: bool, state: str | None) -> None:
+    """Fill NULL locations.county by reverse-geocoding existing coordinates.
+
+    Uses the Census geographies API (free, no key); lookups are memoized per
+    coordinate pair. Never overwrites an existing county. Locations without
+    coordinates are skipped — run backfill-geo first to minimise those.
+
+    \b
+    Examples:
+      warn-v2 backfill-county            # fill NULL counties
+      warn-v2 backfill-county --dry-run  # preview without writing
+      warn-v2 backfill-county --state TX # one state only
+    """
+    from warn_v2.scripts.backfill_county import backfill_county
+
+    stats = backfill_county(dry_run=dry_run, state_filter=state)
+    suffix = " (dry run — nothing written)" if dry_run else ""
+    click.echo(
+        f"considered={stats['considered']} filled={stats['filled']} "
+        f"no_match={stats['no_match']} "
+        f"skipped_no_coords={stats['skipped_no_coords']}{suffix}"
+    )
+
+
 @main.command("backfill-effective-dates")
 @click.option("--dry-run", is_flag=True, help="Preview count without writing")
 @click.option("--state", default=None, help="Limit to one state abbreviation, e.g. KY")

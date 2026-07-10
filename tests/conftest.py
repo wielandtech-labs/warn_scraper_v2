@@ -29,6 +29,18 @@ def _rate_limiting_off(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(ratelimit, "ENABLED", False)
 
 
+@pytest.fixture(autouse=True)
+def _no_census_county_lookup(monkeypatch: pytest.MonkeyPatch):
+    """Keep the suite offline: geocode()'s tiers reverse-look-up the county
+    via the Census API when the source didn't provide one. Stub it so no test
+    hits the network; tests exercising the lookup re-patch
+    warn_v2.geo.geocoder.county_from_coords themselves.
+    """
+    from warn_v2.geo import geocoder
+
+    monkeypatch.setattr(geocoder, "county_from_coords", lambda lat, lon, state: None)
+
+
 @pytest.fixture
 def db_engine():
     # StaticPool + check_same_thread=False lets TestClient (which runs the ASGI
