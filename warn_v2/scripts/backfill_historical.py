@@ -53,6 +53,7 @@ from warn_v2.scrapers.states.ca import (
     parse_ca_pdf,
 )
 from warn_v2.scrapers.states.co import _fetch_co_year, _parse_co_year
+from warn_v2.scrapers.states.ct import _discover_ct_archive_urls, parse_ct_archive
 from warn_v2.scrapers.states.dc import _fetch_dc_year
 from warn_v2.scrapers.states.fl import _fetch_fl_year
 from warn_v2.scrapers.states.hi import _fetch_hi_year
@@ -139,6 +140,15 @@ _BACKFILL: dict[str, BackfillSpec] = {
             if u.lower().endswith(".pdf")
             else None
         ),
+    ),
+    # CT: retired ctdol.state.ct.us HTML report pages 1998-2018 via 142 pinned
+    # Wayback captures (monthly pages 1998-2009, cumulative yearly 2010-2018);
+    # the live Azure document library only reaches back to 2019. Known source
+    # holes (all of 2013; 2009 except Aug/Sep) need FOIA. ~150 Wayback fetches
+    # at the throttled pace — budget several hours for the prod Job.
+    "CT": BackfillSpec(
+        discover_urls=lambda: _discover_ct_archive_urls(),
+        parse_for_url=lambda u: (lambda raw, _u=u: parse_ct_archive(raw, _u)),
     ),
     "DC": BackfillSpec(year_start=2013, fetch_year=lambda s, y: _fetch_dc_year(y)),
     # CO: one Google Sheet per year, 2015+; the regular scraper reads only the
