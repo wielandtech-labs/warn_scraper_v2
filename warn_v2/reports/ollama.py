@@ -80,7 +80,11 @@ class OllamaClient:
                         {"role": "system", "content": system},
                         {"role": "user", "content": prompt},
                     ],
-                    "options": {"temperature": 0.2, "num_predict": 1200},
+                    # num_predict caps thinking + content COMBINED for a
+                    # reasoning model. 1200 was exhausted by chain-of-thought
+                    # on data-heavy states (CT/KY/MI/TX 2026-07-10), returning
+                    # empty content after retries — keep generous headroom.
+                    "options": {"temperature": 0.2, "num_predict": 4000},
                 },
             )
         except httpx.TransportError as exc:
