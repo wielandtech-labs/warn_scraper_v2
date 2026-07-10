@@ -1,0 +1,179 @@
+[
+ {
+  "warn": "9507",
+  "company_name": "Coburg Facility",
+  "city": "Coburg",
+  "state": "OR",
+  "layoff_date": "2026-07-17T00:00:00.000",
+  "laid_off": "83",
+  "layoff_type": "Permanent closure",
+  "received_date": "2026-05-13T00:00:00.000"
+ },
+ {
+  "warn": "9446",
+  "company_name": "Oregon - Remote Employees",
+  "state": "OR",
+  "layoff_date": "2026-04-19T00:00:00.000",
+  "laid_off": "2",
+  "layoff_type": "Reduction",
+  "received_date": "2026-02-13T00:00:00.000"
+ },
+ {
+  "warn": "9446",
+  "company_name": "Albany/Millersburg",
+  "city": "Albany",
+  "state": "OR",
+  "layoff_date": "2026-04-19T00:00:00.000",
+  "laid_off": "1",
+  "layoff_type": "Reduction",
+  "received_date": "2026-02-13T00:00:00.000"
+ },
+ {
+  "warn": "8281",
+  "company_name": "Sulzer",
+  "city": "Portland",
+  "state": "OR",
+  "layoff_date": "2022-08-26T00:00:00.000",
+  "laid_off": "10",
+  "layoff_type": "Permanent closure",
+  "received_date": "2021-09-10T00:00:00.000"
+ },
+ {
+  "warn": "8281",
+  "company_name": "Sulzer",
+  "city": "Portland",
+  "state": "OR",
+  "layoff_date": "2022-07-01T00:00:00.000",
+  "laid_off": "16",
+  "layoff_type": "Permanent closure",
+  "received_date": "2021-09-10T00:00:00.000"
+ },
+ {
+  "warn": "8281",
+  "company_name": "Sulzer",
+  "city": "Portland",
+  "state": "OR",
+  "layoff_date": "2022-04-29T00:00:00.000",
+  "laid_off": "5",
+  "layoff_type": "Permanent closure",
+  "received_date": "2021-09-10T00:00:00.000"
+ },
+ {
+  "warn": "8281",
+  "company_name": "Sulzer",
+  "city": "Portland",
+  "state": "OR",
+  "layoff_date": "2022-04-01T00:00:00.000",
+  "laid_off": "6",
+  "layoff_type": "Permanent closure",
+  "received_date": "2021-09-10T00:00:00.000"
+ },
+ {
+  "warn": "8281",
+  "company_name": "Sulzer",
+  "city": "Portland",
+  "state": "OR",
+  "layoff_date": "2022-01-14T00:00:00.000",
+  "laid_off": "12",
+  "layoff_type": "Permanent closure",
+  "received_date": "2021-09-10T00:00:00.000"
+ },
+ {
+  "warn": "8281",
+  "company_name": "Sulzer",
+  "city": "Portland",
+  "state": "OR",
+  "layoff_date": "2021-11-12T00:00:00.000",
+  "laid_off": "14",
+  "layoff_type": "Permanent closure",
+  "received_date": "2021-09-10T00:00:00.000"
+ },
+ {
+  "warn": "4762",
+  "company_name": "Phoenix Inn Suites",
+  "city": "Salem",
+  "state": "OR",
+  "layoff_date": "2020-03-27T00:00:00.000",
+  "laid_off": "15",
+  "layoff_type": "Reduction",
+  "received_date": "2020-04-08T00:00:00.000"
+ },
+ {
+  "warn": "4762",
+  "company_name": "Phoenix Inn Suites - Lake Oswego",
+  "city": "Lake Oswego",
+  "state": "OR",
+  "layoff_date": "2020-03-27T00:00:00.000",
+  "laid_off": "12",
+  "layoff_type": "Reduction",
+  "received_date": "2020-04-08T00:00:00.000"
+ },
+ {
+  "warn": "4762",
+  "company_name": "The Grand Hotel in Salem",
+  "city": "Salem",
+  "state": "OR",
+  "layoff_date": "2020-03-27T00:00:00.000",
+  "laid_off": "26",
+  "layoff_type": "Reduction",
+  "received_date": "2020-04-08T00:00:00.000"
+ },
+ {
+  "warn": "4762",
+  "company_name": "Phoenix Inn Suites - Albany",
+  "city": "Albany",
+  "state": "OR",
+  "layoff_date": "2020-03-27T00:00:00.000",
+  "laid_off": "13",
+  "layoff_type": "Reduction",
+  "received_date": "2020-04-08T00:00:00.000"
+ },
+ {
+  "warn": "4762",
+  "company_name": "The Grand Hotel at Bridgeport",
+  "city": "Tigard",
+  "state": "OR",
+  "layoff_date": "2020-03-27T00:00:00.000",
+  "laid_off": "28",
+  "layoff_type": "Reduction",
+  "received_date": "2020-04-08T00:00:00.000"
+ },
+ {
+  "warn": "4762",
+  "company_name": "The Salem Convention Center",
+  "city": "Salem",
+  "state": "OR",
+  "layoff_date": "2020-03-27T00:00:00.000",
+  "laid_off": "72",
+  "layoff_type": "Reduction",
+  "received_date": "2020-04-08T00:00:00.000"
+ },
+ {
+  "warn": "4762",
+  "company_name": "Phoenix Inn Suites - Eugene",
+  "city": "Eugene",
+  "state": "OR",
+  "layoff_date": "2020-03-27T00:00:00.000",
+  "laid_off": "21",
+  "layoff_type": "Reduction",
+  "received_date": "2020-04-08T00:00:00.000"
+ },
+ {
+  "warn": "4762",
+  "company_name": "Bentley's Grill",
+  "city": "Salem",
+  "state": "OR",
+  "layoff_date": "2020-03-27T00:00:00.000",
+  "laid_off": "40",
+  "layoff_type": "Reduction",
+  "received_date": "2020-04-08T00:00:00.000"
+ },
+ {
+  "warn": "6692",
+  "company_name": "Happy Guests Intl. - Salty's",
+  "city": "Portland",
+  "state": "OR",
+  "layoff_type": "Temporary Layoff",
+  "received_date": "2020-05-14T00:00:00.000"
+ }
+]

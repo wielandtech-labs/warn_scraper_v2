@@ -353,7 +353,7 @@ pre-2008 may simply not exist.
 | 12 | MS quarterlies (incl. PY2023-Q4) | 2004–Jun 2010 hole-adjacent + PY2010–19 | ~400–800 | Existing MS parser eras + header-vs-filename checks |
 | 13 | WV cumulative PDF | 2011–2021 | ~350 | fitz repair for truncated capture |
 | 14 | PA pre-2001 month pages | 1998-07–2000-11 | ~300–350 | Extends existing PA month parser |
-| 15 | OR Socrata + app captures | 2009–2026 | ~500–700 | Socrata first (easy); capture-union harder |
+| 15 | ~~OR Socrata + app captures~~ **route built 2026-07-10** (336 Socrata + 461 union rows; prod run pending) | 1989–2026 | ~500–700 | Socrata first (easy); capture-union harder |
 | 16 | UT scraper fix | 2009–2026 | ~265 | Parse all year sections, not just current |
 | 17 | VA three-format captures | PY1999, PY2002–04 | ~240–260 | 🔨 BUILT (221 rows; PY2004–06 sheet refetch pending) |
 | 18 | MA FY2020 + wk-2020-08-21 | 2019-07–2020-08 | ~215 | Existing MA regional-sheet parser (FY22/23 layout) |
