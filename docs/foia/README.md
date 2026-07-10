@@ -24,7 +24,7 @@ electronically available records.
 | LA | [la.md](la.md) | HiRE@lwc.la.gov | email | pre-2025 | draft | — | — |
 | MA | [ma.md](ma.md) | eolwdpress@mass.gov | email | pre-FY2022 | draft | — | — |
 | MD | [md.md](md.md) | dllr.pio@maryland.gov ("Records Request" in subject) | email | pre-2010 | draft | — | — |
-| MI | [mi.md](mi.md) | leo-warn@michigan.gov | email | pre-Nov 2024 | **first wave** — Gmail draft staged 2026-07-09 | — | — |
+| MI | [mi.md](mi.md) | leo-warn@michigan.gov | email | pre-Nov 2024 | **on hold 2026-07-09** — 2000–2024 recoverable from milmi.org via Wayback (ROADMAP Wave 3); staged Gmail draft kept as post-backfill backstop, do not send yet | — | — |
 | MO | [mo.md](mo.md) | meghan.maskeryluecke@dhewd.mo.gov | email | pre-2019 | draft | — | — |
 | MS | [ms.md](ms.md) | communications@mdes.ms.gov | email | pre-PY2020 | draft | — | — |
 | ND | [nd.md](nd.md) | ⚠ call (701) 328-2825 first | phone→email | pre-2015 | draft | — | — |
