@@ -262,9 +262,12 @@ def occupation_mix(notice_id: str, db: Session = Depends(get_db)) -> OccupationM
         )
     pattern = oews.lookup(naics)
     if pattern is None:
-        # A malformed code (non-digit junk) counts as "no usable NAICS", not
-        # as an OEWS coverage gap.
-        usable = bool(naics and naics.strip().isdigit())
+        # A malformed code (non-digit junk) or a 99* pseudo-code (provider
+        # "unclassified establishments") counts as "no usable NAICS", not as
+        # an OEWS coverage gap.
+        usable = bool(
+            naics and naics.strip().isdigit() and not naics.strip().startswith("99")
+        )
         return OccupationMixOut(
             notice_id=notice.notice_id,
             available=False,
