@@ -87,6 +87,7 @@ from warn_v2.scrapers.states.oh import _fetch_oh_year, parse_oh_year
 from warn_v2.scrapers.states.pa import _fetch_pa_year, parse_pa_month
 from warn_v2.scrapers.states.tx import _fetch_tx_year
 from warn_v2.scrapers.states.wi import _fetch_wi_archive_year, parse_wi_archive_html
+from warn_v2.scrapers.states.wv import parse_wv_archive_pdf, wv_archive_files
 
 log = logging.getLogger(__name__)
 
@@ -265,6 +266,16 @@ _BACKFILL: dict[str, BackfillSpec] = {
     # current-year CSV). Overlap with the live 2025-2026 rows dedupes by
     # notice_id.
     "NY": BackfillSpec(bundled_bytes=ny_history_csv),
+    # WV: the workforcewv.org cumulative notice log Mar-2011 - Jun-2021 (373
+    # blocks), bundled as the raw 1 MiB-truncated Wayback capture — see the
+    # module comment on parse_wv_archive_pdf. The live scraper's rows carry
+    # employer+date only, so the log's Jan-Jun 2021 overlap rows (2) hash
+    # differently (richer city/zip) — expect near-misses at dry-run and plan
+    # a mark-superseded pass instead of filtering them.
+    "WV": BackfillSpec(
+        bundled_files=wv_archive_files,
+        parse_for_url=lambda u: parse_wv_archive_pdf,
+    ),
     # PA: archived per-month pages via Wayback CDX (portal.state.pa.us
     # 2001-2015, SharePoint dli.pa.gov 2011-2022; same content template).
     # _fetch_pa_year hard-caps at 2022 — the AEM live era (2023+) stamps
