@@ -40,6 +40,36 @@ spec:
               No company has been enriched in 13h (two enricher windows).
               Check the enricher CronJob and the D&B provider session.
 
+        # Fast failure page: two live-run failures inside 50h with no success
+        # in 26h = two consecutive daily failures — fires ~1 day after a
+        # daily-tier state breaks instead of waiting out WarnScrapeStale's 8d.
+        # A single transient flap (common: AZ/RI fetch_failed) self-clears via
+        # the next day's success and never fires. Weekly-tier states can't
+        # accumulate 2 failures in 50h, so they stay covered by
+        # WarnScrapeStale. Deliberately excluded:
+        #   - backfill_* — one-off backfill Jobs are supervised, must not page;
+        #   - validation_failed — MA legitimately fails "rows below min" for
+        #     weeks every early July (fiscal-year rollover, the new FY file
+        #     starts near-empty); row-drift breaks still page via
+        #     WarnScrapeStale and surface in the daily heal loop.
+        - alert: WarnScraperFailing
+          expr: >-
+            sum by (state) (
+              increase(warn_scrape_attempts_total{status=~"(fetch|parse|storage)_failed"}[50h])
+            ) >= 2
+            unless on (state)
+            (time() - warn_scrape_last_success_timestamp_seconds) < 26 * 3600
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "warn-v2 scraper failing for {{ "{{ $labels.state }}" }}"
+            description: >-
+              State {{ "{{ $labels.state }}" }} has failed at least twice in
+              50h with no successful scrape in 26h — a real breakage, not a
+              transient flap. Check scraper_runs for the error and run
+              /heal-scraper {{ "{{ $labels.state }}" }}.
+
         # States that never succeeded are absent from the metric (no false
         # page); a once-working state going silent for 8d (past the weekly
         # pass) is a true signal.
