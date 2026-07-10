@@ -50,7 +50,7 @@ Reachable floor = floor after running every verified route (no FOIA).
 | IA | 490 | 2021–2026 | 🔍 | 🔍 | ✉ | 2005 | Wayback: union of 4 rolling-log snapshots (PDF 2005–2015, XLSX 2011–2023) covers 2005-07→2021 (+600–800) |
 | ID | 194 | 2009–2026 | ✅ | ✅ | 🔍 | 2008 | Wayback: 2008 cumulative log PDF (+~17); log itself begins 2008-02 — older likely nonexistent |
 | IL | 3,742 | 1999–2026 | ✅ | ✅ | ✅ | 1999 | Complete (XLSX era + PDF era + Jan-2019 hand transcription) |
-| IN | 1,012 | 2008–2026 | ✅ | ✅ | 🔍 | 2000 | Wayback: DWD year pages 2000–2007 (+450–530); gaps Nov–Dec 2004, Oct–Dec 2007 |
+| IN | 1,012 | 2008–2026 | ✅ | ✅ | 🔨 | 2000 | Wayback: DWD year pages 2000–2007 **built** (+496 verified offline; prod run pending); gaps Jan–Oct 2000, Nov–Dec 2004, Oct–Dec 2007 |
 | KS | 549 | 1999–2026 | ✅ | ✅ | ✅ | 1999 | Depth done; capped-year re-backfill Job pending (+344, PR #241) |
 | KY | 427 | 2017–2026 | ✅ | 🔍 | 🔍 | 1998 | Wayback: kcc.ky.gov year-per-sheet XLSX workbooks, WARN 1998–2016 (+~780) |
 | LA | 34 | 2025–2026 | 🔍 | 🔍 | ✉ | 2007 | Wayback: `WarnNotices{2007..2024}.pdf` all captured (+1.2–1.8k); pre-2007 never published |

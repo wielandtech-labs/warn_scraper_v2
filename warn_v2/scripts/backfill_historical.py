@@ -62,6 +62,7 @@ from warn_v2.scrapers.states.id import id_archive_files, parse_id_2008_pdf
 from warn_v2.scrapers.states.il import _discover_archive_pdf_urls as _discover_il_pdf_urls
 from warn_v2.scrapers.states.il import _discover_archive_xlsx_urls as _discover_il_xlsx_urls
 from warn_v2.scrapers.states.il import parse_il_pdf
+from warn_v2.scrapers.states.in_ import _discover_in_archive_urls, parse_in_archive_html
 from warn_v2.scrapers.states.ky import ky_archive_files, parse_ky_workbook
 from warn_v2.scrapers.states.la import _fetch_la_year, parse_la_pdf
 from warn_v2.scrapers.states.la import _source_url as _la_source_url
@@ -310,6 +311,16 @@ _BACKFILL: dict[str, BackfillSpec] = {
             if u.lower().endswith(".pdf")
             else None
         ),
+    ),
+    # IN: 2000-2007 from three archived generations of the DWD listing via
+    # pinned Wayback replay URLs (per-year tables 2000-2003, rolling
+    # notices.html 2003-2004, accumulating warn_notices.html 2005-2007 — see
+    # in_._IN_ARCHIVE_CAPTURES for why some captures are excluded). Known
+    # gaps: Jan-Oct 2000, Nov-Dec 2004, Oct-Dec 2007. Prod IN data starts
+    # 2008, so there is no overlap with live rows.
+    "IN": BackfillSpec(
+        discover_urls=lambda: _discover_in_archive_urls(),
+        parse_for_url=lambda u: (lambda raw, _u=u: parse_in_archive_html(raw, _u)),
     ),
     # OH: four era formats back to 1996, mostly via Wayback replay (see
     # docs/historical-sources.md); 2025 has no known source anywhere.
