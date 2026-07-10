@@ -423,10 +423,12 @@ def test_tx_fetch_year_returns_bytes_and_updates_source_url():
 def test_tx_fetch_year_returns_none_on_404():
     from warn_v2.scrapers.states.tx import TXScraper, _fetch_tx_year
 
-    url = "https://www.twc.texas.gov/sites/default/files/oei/docs/warn-act-listings-2018-twc.xlsx"
+    # A live-era year (2020+): pre-2020 years now route to pinned Wayback
+    # captures / Socrata instead (see tests/test_tx_backfill.py).
+    url = "https://www.twc.texas.gov/sites/default/files/oei/docs/warn-act-listings-2020-twc.xlsx"
     respx.get(url).mock(return_value=httpx.Response(404))
 
-    assert _fetch_tx_year(TXScraper(), 2018) is None
+    assert _fetch_tx_year(TXScraper(), 2020) is None
 
 
 @respx.mock

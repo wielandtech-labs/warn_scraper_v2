@@ -1,0 +1,62 @@
+[
+ {
+  "notice_date": "2019-01-04T00:00:00.000",
+  "job_site_name": "Nestle USA",
+  "county_name": "Tarrant",
+  "wda_name": "Tarrant County WDA",
+  "total_layoff_number": "42",
+  "layoff_date": "2019-03-08T00:00:00.000",
+  "wfdd_received_date": "2019-01-04T00:00:00.000",
+  "city_name": "Fort Worth"
+ },
+ {
+  "notice_date": "2019-01-04T00:00:00.000",
+  "job_site_name": "Nestle USA",
+  "county_name": "Tarrant",
+  "wda_name": "Tarrant County WDA",
+  "total_layoff_number": "42",
+  "layoff_date": "2019-03-08T00:00:00.000",
+  "wfdd_received_date": "2019-01-04T00:00:00.000",
+  "city_name": "Fort Worth"
+ },
+ {
+  "notice_date": "2019-01-07T00:00:00.000",
+  "job_site_name": "Pier 1 Imports-Mansfield",
+  "county_name": "Tarrant",
+  "wda_name": "Tarrant County WDA",
+  "total_layoff_number": "65",
+  "layoff_date": "2019-03-08T00:00:00.000",
+  "wfdd_received_date": "2019-01-08T00:00:00.000",
+  "city_name": "Mansfield"
+ },
+ {
+  "notice_date": "2019-01-07T00:00:00.000",
+  "job_site_name": "Pier 1 Imports-Mansfield",
+  "county_name": "Tarrant",
+  "wda_name": "Tarrant County WDA",
+  "total_layoff_number": "65",
+  "layoff_date": "2019-03-08T00:00:00.000",
+  "wfdd_received_date": "2019-01-08T00:00:00.000",
+  "city_name": "Mansfield"
+ },
+ {
+  "notice_date": "2019-01-09T00:00:00.000",
+  "job_site_name": "R1 RCM Inc.",
+  "county_name": "Travis",
+  "wda_name": "Capital Area WDA",
+  "total_layoff_number": "65",
+  "layoff_date": "2019-04-12T00:00:00.000",
+  "wfdd_received_date": "2019-01-09T00:00:00.000",
+  "city_name": "Austin"
+ },
+ {
+  "notice_date": "2019-01-09T00:00:00.000",
+  "job_site_name": "R1 RCM Inc.",
+  "county_name": "Travis",
+  "wda_name": "Capital Area WDA",
+  "total_layoff_number": "65",
+  "layoff_date": "2019-04-12T00:00:00.000",
+  "wfdd_received_date": "2019-01-09T00:00:00.000",
+  "city_name": "Austin"
+ }
+]
