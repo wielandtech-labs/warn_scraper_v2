@@ -125,7 +125,8 @@ def _parse_effective_date(raw: str) -> date | None:
     try:
         month, day, yr = int(parts[0]), int(parts[1]), int(parts[2])
         if yr < 100:
-            yr += 2000
+            # Pivot: the 1998-2000 era writes "11/30/98" / "01/15/99".
+            yr += 1900 if yr >= 90 else 2000
         return date(yr, month, day)
     except ValueError:
         return None
@@ -272,26 +273,33 @@ register(PAScraper())
 
 
 # ---------------------------------------------------------------------------
-# Historical backfill (2001-2022): archived per-month pages via Wayback
+# Historical backfill (Jul-1998 - 2022): archived per-month pages via Wayback
 # ---------------------------------------------------------------------------
-# Two retired hosts carry the same content template (a border="2" table whose
+# Four retired hosts carry the same content template (a border="2" table whose
 # <td> cells each hold one notice: <strong>Employer</strong>, address lines,
 # COUNTY: / # AFFECTED: labels, a standalone bold closure line like
 # "PLANT CLOSING", then EFFECTIVE DATE:):
 #
+#   www.dli.state.pa.us /warn.html — ONE page holding the Jul-Nov 1998
+#                       month sections                       1998
+#   www.li.state.pa.us  /dept/warn/{mon}{yy}.html            1999-2000
 #   portal.state.pa.us  /portal/server.pt/community/{yr}/10542/
 #                       {month}_{year}_warn_notices/{id}     2001-2015
 #   www.dli.pa.gov      /Individuals/Workforce-Development/warn/notices/
 #                       Pages/{Month}-{Year}.aspx            2011-2024
 #
-# Discovery is CDX-driven (both hosts are dead/redirected live); overlapping
-# years prefer the SharePoint capture. Month pages carry no per-notice filing
+# Discovery for 2001+ is CDX-driven (both hosts are dead/redirected live);
+# overlapping years prefer the SharePoint capture. The 1998-2000 pages predate
+# any CDX-matchable URL scheme, so their captures are pinned statically in
+# _EARLY_MONTHS / _EARLY_1998 (from the 2026-07 capture inventory; Dec-2000
+# was never archived — a real gap). Month pages carry no per-notice filing
 # date, so notice_date is the page month (first-of-month) — the same
 # best-available-proxy tradeoff the live scraper makes with repo:modifyDate.
 # Hard-capped at 2022: the live AEM era (2023+) stamps notice_date from its
 # publish date, so re-parsing those months here would mint duplicate
 # notice_ids for rows the regular scraper already stores.
 
+_HIST_YEAR_START = 1998
 _HIST_YEAR_END = 2022
 _CDX_API = "https://web.archive.org/cdx/search/cdx"
 _WAYBACK_REPLAY = "https://web.archive.org/web/{ts}id_/{url}"
@@ -326,6 +334,11 @@ _CLOSURE_LINE_RE = re.compile(
 )
 # "City, PA" with no ZIP (early portal pages often omit it).
 _CITY_NO_ZIP_RE = re.compile(r"^(.+),\s*PA\.?\s*$", re.I)
+# The 1998 page usually omits the comma too: "PITTSBURGH PA 15222",
+# "MONACA PA". Letters-only before "PA" so street lines never match, and no
+# multi-site phrasing ("Various Stores in PA" is not a city).
+_CITY_NO_COMMA_RE = re.compile(r"^([A-Za-z][A-Za-z .'\-]*?)\s+PA(?:\s+\d{4,10})?\s*$")
+_NOT_A_CITY_RE = re.compile(r"\b(?:various|locations?|stores?|sites?)\b", re.I)
 # Annotation lines that are neither an employer nor a label. Update markers
 # usually carry asterisks ("*UPDATE TO 6/17/14 WARN*", caught by the "*"
 # prefix check) but sometimes not: bare "UPDATE" before the employer name
@@ -349,12 +362,19 @@ _HIST_ANNOTATION_RE = re.compile(
 # Unmatched label lines silently become bogus employer rows, so match wide.
 _HIST_LABEL_RES: tuple[tuple[re.Pattern, str], ...] = (
     (re.compile(r"^county\s*:", re.I), "COUNTY"),
+    # 1998-2000 pages sometimes leave the colon outside the bold tag
+    # ("<b>COUNTY</b>: Wayne") or drop it entirely ("EFFECTIVE DATE </b>
+    # 03/23/99"), splitting the label onto its own line. Whole-line matches
+    # only, so prose ("County Road 5") can't become a label; the value
+    # arrives on the next line via the pending mechanism.
+    (re.compile(r"^county$", re.I), "COUNTY"),
     (re.compile(r"^(?:#\s*|total\s+)affected\s*:?", re.I), "# AFFECTED"),
     # "#\nAFFECTED: 101" — the label's "#" wrapped onto its own line (2004,
     # 2008); the lone "#" is skipped as an annotation. Colon required here so
     # a plain word "affected" in prose can't become a label.
     (re.compile(r"^affected\s*:", re.I), "# AFFECTED"),
     (re.compile(r"^(?:layof{1,2}\s+)?effective\s+dates?\s*:", re.I), "EFFECTIVE DATE"),
+    (re.compile(r"^effective\s+dates?$", re.I), "EFFECTIVE DATE"),
     (re.compile(r"^layof{1,2}\s+dates?\s*:", re.I), "EFFECTIVE DATE"),
     (re.compile(r"^(?:closing|closure)\s+or\s+layoff\s*:", re.I), "CLOSURE"),
 )
@@ -436,37 +456,108 @@ def _month_snapshots() -> dict[tuple[int, int], str]:
     return snaps
 
 
-def _fetch_pa_year(year: int) -> list[bytes] | None:
-    """Fetch every archived month page for *year*; None when none exist."""
+# Pre-CDX era: pinned (month, timestamp, original URL) capture lists. The
+# 1999 temp99.html capture is a blank page template ("Month, 1999",
+# placeholder blocks) and warn99.html is the month index — neither is data.
+_EARLY_1998 = ("19991104100952", "http://www.dli.state.pa.us/warn.html")
+_EARLY_BASE = "http://www.li.state.pa.us/dept/warn/"
+_EARLY_MONTHS: dict[int, tuple[tuple[int, str, str], ...]] = {
+    1999: (
+        (1, "20010307175852", "jan99.html"),
+        (2, "20010307175912", "feb99.html"),
+        (3, "20010822191154", "mar99.html"),
+        (4, "20010307180200", "apr99.html"),
+        (5, "20010822192633", "may99.html"),
+        (6, "20010822185856", "june99.html"),
+        (7, "20001206010400", "july99.html"),
+        (8, "20010307175130", "aug99.html"),
+        (9, "20010307180606", "sep99.html"),
+        (10, "20010822191823", "oct99.html"),
+        (11, "20010822192643", "nov99.html"),
+        (12, "20010307175128", "dec99.html"),
+    ),
+    2000: (
+        (1, "20010307175701", "jan00.html"),
+        (2, "20010307180000", "feb00.html"),
+        (3, "20010822190834", "mar00.html"),
+        (4, "20010307180116", "apr00.html"),
+        (5, "20001206035500", "may00.html"),
+        (6, "20010822190417", "june00.html"),
+        (7, "20001206003000", "july00.html"),
+        (8, "20010307180156", "aug00.html"),
+        (9, "20010908002348", "sept00.html"),  # note the "sept" spelling
+        (10, "20010908002123", "oct00.html"),
+        (11, "20010908000826", "nov00.html"),
+        # Dec-2000 was never captured — a real gap.
+    ),
+}
+
+# Month-section headings on the 1998 all-months page ("NOVEMBER, 1998",
+# "SEPTEMBER 1998" — the comma is not consistent).
+_1998_SECTION_RE = re.compile(rf"({_MONTH_ALT})\s*,?\s+1998", re.I)
+
+
+def _wayback_get(url: str) -> str | None:
+    """Throttled replay GET with one backoff retry; None when both fail."""
     import time
 
-    if year > _HIST_YEAR_END:
-        return None
-    snaps = _month_snapshots()
+    for attempt in (1, 2):
+        time.sleep(_WAYBACK_DELAY)
+        try:
+            r = httpx.get(url, headers=_UA, timeout=120, follow_redirects=True)
+            r.raise_for_status()
+            return r.text
+        except httpx.HTTPError:
+            if attempt == 1:
+                time.sleep(_WAYBACK_BACKOFF)
+    return None  # page lost to throttling — the re-run picks it up
+
+
+def _split_1998_months(html: str) -> list[bytes]:
+    """Slice the all-months 1998 page at its month headings into per-month
+    envelopes, so parse_pa_month stamps each section's own first-of-month."""
+    heads = list(_1998_SECTION_RE.finditer(html))
     chunks: list[bytes] = []
-    for month in range(1, 13):
-        url = snaps.get((year, month))
-        if url is None:
-            continue
-        for attempt in (1, 2):
-            time.sleep(_WAYBACK_DELAY)
-            try:
-                r = httpx.get(url, headers=_UA, timeout=120, follow_redirects=True)
-                r.raise_for_status()
-            except httpx.HTTPError:
-                if attempt == 1:
-                    time.sleep(_WAYBACK_BACKOFF)
-                    continue
-                break  # month lost to throttling — the re-run picks it up
-            chunks.append(
-                json.dumps({"month": month, "html": r.text}).encode("utf-8")
-            )
-            break
+    for i, m in enumerate(heads):
+        end = heads[i + 1].start() if i + 1 < len(heads) else len(html)
+        chunks.append(
+            json.dumps(
+                {"month": _MONTH_NUM[m.group(1).lower()], "html": html[m.end():end]}
+            ).encode("utf-8")
+        )
+    return chunks
+
+
+def _fetch_pa_year(year: int) -> list[bytes] | None:
+    """Fetch every archived month page for *year*; None when none exist."""
+    if not _HIST_YEAR_START <= year <= _HIST_YEAR_END:
+        return None
+    if year == 1998:
+        ts, url = _EARLY_1998
+        html = _wayback_get(_WAYBACK_REPLAY.format(ts=ts, url=url))
+        return _split_1998_months(html) or None if html is not None else None
+    if year in _EARLY_MONTHS:
+        month_urls = [
+            (month, _WAYBACK_REPLAY.format(ts=ts, url=_EARLY_BASE + page))
+            for month, ts, page in _EARLY_MONTHS[year]
+        ]
+    else:
+        snaps = _month_snapshots()
+        month_urls = [
+            (month, snaps[(year, month)])
+            for month in range(1, 13)
+            if (year, month) in snaps
+        ]
+    chunks: list[bytes] = []
+    for month, url in month_urls:
+        html = _wayback_get(url)
+        if html is not None:
+            chunks.append(json.dumps({"month": month, "html": html}).encode("utf-8"))
     return chunks or None
 
 
 def _hist_city(addr_lines: list[str]) -> str | None:
-    """City from 'City, PA ZIP' or the early pages' ZIP-less 'City, PA'."""
+    """City from 'City, PA ZIP', ZIP-less 'City, PA', or comma-less 'CITY PA'."""
     city = _extract_city(addr_lines)
     if city:
         return city
@@ -474,6 +565,10 @@ def _hist_city(addr_lines: list[str]) -> str | None:
         m = _CITY_NO_ZIP_RE.match(line.strip())
         if m:
             return m.group(1).split(",")[-1].strip() or None
+    for line in reversed(addr_lines):
+        m = _CITY_NO_COMMA_RE.match(line.strip())
+        if m and not _NOT_A_CITY_RE.search(m.group(1)):
+            return m.group(1).strip() or None
     return None
 
 
@@ -516,7 +611,9 @@ def _parse_month_cell(lines: list[str], year: int, month: int) -> list[NoticeRow
             else:
                 pending = key
         elif pending is not None:
-            labels[pending] = line
+            # Strip the colon a "<b>COUNTY</b>: Wayne" split leaves on the
+            # value line.
+            labels[pending] = line.lstrip(":").strip()
             pending = None
         elif line.startswith("*") or _HIST_ANNOTATION_RE.match(line):
             # "*UPDATE TO M/D/YY WARN*" markers precede the employer name in
@@ -549,12 +646,23 @@ def parse_pa_month(raw: bytes, year: int) -> list[NoticeRow]:
     except (ValueError, KeyError, TypeError) as e:
         raise ParseFailed(f"PA archive: bad month envelope: {e}") from e
 
+    # The 1998-2000 pages sometimes write the label as a bare "AFFECTED:"
+    # (e.g. the Jan-1999 SANYO cell); 2001+ keeps the stricter "#" marker so
+    # prose footnotes ("*All employees will be affected") can't select cells.
+    marker = "AFFECTED" if year <= 2000 else "# AFFECTED"
     rows: list[NoticeRow] = []
+    parsed_ids: set[int] = set()
     for td in soup.find_all("td"):
-        if "# AFFECTED" not in td.get_text().upper():
+        if marker not in td.get_text().upper():
             continue
-        if td.find("td") is not None:  # outer cell wrapping nested layout tables
+        if td.find("table") is not None:  # outer cell wrapping nested layout tables
             continue
+        # An unclosed </td> (June-1999 Fidelity Bond cell) makes the parser
+        # nest the next notice td inside the broken one. The outer cell's
+        # text already carries both blocks, so parse only the outermost.
+        if any(id(p) in parsed_ids for p in td.parents if p.name == "td"):
+            continue
+        parsed_ids.add(id(td))
         lines = [
             _INVISIBLE_RE.sub("", ln).replace("\xa0", " ").strip()
             for ln in td.get_text(separator="\n").split("\n")
