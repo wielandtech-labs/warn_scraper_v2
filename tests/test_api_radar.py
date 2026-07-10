@@ -179,6 +179,26 @@ def test_unknown_industry_included_until_industry_filter(api_client, db):
     assert body["total"] == 1
 
 
+def test_unclassified_pseudo_code_shows_as_unknown(api_client, db):
+    # Provider pseudo-code 999990 ("unclassified establishments"): the notice
+    # appears, but with no sector and no OEWS preview — never the government
+    # staffing pattern, and never a raw code posing as an industry.
+    _notice(db, effective_date=date(2026, 8, 1), employer="Milliken", naics="999990")
+    db.commit()
+
+    body = api_client.get("/api/radar").json()
+    (row,) = body["items"]
+    assert row["naics_code"] == "999990"
+    assert row["sector"] is None
+    assert row["sector_name"] is None
+    assert row["occupation_preview"] is None
+
+    n_id = row["notice_id"]
+    mix = api_client.get(f"/api/notices/{n_id}/occupation-mix").json()
+    assert mix["available"] is False
+    assert mix["reason"] == "no_naics"
+
+
 def test_subsector_wins_over_sector(api_client, db):
     _notice(db, effective_date=date(2026, 8, 1), employer="Foods", naics="311999")
     _notice(db, effective_date=date(2026, 8, 1), employer="Gadgets", naics="339999")
@@ -285,14 +305,15 @@ def test_occupation_mix_no_naics(api_client, db):
 
 
 def test_occupation_mix_no_pattern(api_client, db):
-    # A NAICS code whose 4-digit/3-digit/sector levels all miss the data.
-    n = _notice(db, effective_date=date(2026, 8, 1), naics="999999")
+    # A valid NAICS code whose 4-digit/3-digit/sector levels all miss the
+    # seeded data (sector 54 exists but has no pattern here).
+    n = _notice(db, effective_date=date(2026, 8, 1), naics="541110")
     db.commit()
 
     body = api_client.get(f"/api/notices/{n.notice_id}/occupation-mix").json()
     assert body["available"] is False
     assert body["reason"] == "no_pattern"
-    assert body["naics_code"] == "999999"
+    assert body["naics_code"] == "541110"
 
 
 def test_occupation_mix_full_pattern(api_client, db):

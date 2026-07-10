@@ -129,6 +129,12 @@ def lookup(naics_code: str | None) -> StaffingPattern | None:
     code = naics_code.strip()
     if not code.isdigit():
         return None
+    # 99* is never a real industry on a company: OEWS 999xxx is government,
+    # and providers use 999990 for "unclassified establishments" — walking
+    # either into a staffing pattern produces nonsense (police officers on a
+    # textile closure). Belt-and-braces with the fetch script's own skip.
+    if code.startswith("99"):
+        return None
     data = _load()
     if not data:
         return None

@@ -91,6 +91,27 @@ def test_lookup_rejects_junk(seeded):
     assert oews.lookup("999999") is None  # unknown sector prefix
 
 
+def test_lookup_rejects_99_pseudo_codes(seeded):
+    # Provider "unclassified establishments" pseudo-code must never match a
+    # pattern, even if a (stale) bundle contains OEWS 999xxx government rows.
+    oews.reload_for_testing(
+        {
+            "occupations": {"33-3051": "Police and Sheriff's Patrol Officers"},
+            "levels": {
+                "sector": {},
+                "naics3": {
+                    "999": {"title": "Government", "coverage": 5.0,
+                            "occs": [["33-3051", 5.0]]}
+                },
+                "naics4": {},
+            },
+        },
+        vintage="May 2025",
+    )
+    assert oews.lookup("999990") is None
+    assert oews.lookup("999") is None
+
+
 def test_data_vintage_and_empty_cache(seeded):
     assert oews.data_vintage() == "May 2025"
     oews.reload_for_testing({}, vintage=None)
@@ -150,6 +171,9 @@ def test_parse_sheet_3digit_and_sector_keys():
     rows = [
         _HEADER,
         _row("113000", "Forestry and Logging", "detailed", "45-4022", "Logging Operators", 20.0),
+        # Government rows (999xxx) are excluded at every digit level — keeping
+        # them let provider pseudo-codes (999990) match the government pattern.
+        _row("999000", "Government", "detailed", "33-3051", "Police Officers", 5.0),
     ]
     industries, _ = _parse_sheet(iter(rows), key_len=3)
     assert set(industries) == {"113"}
