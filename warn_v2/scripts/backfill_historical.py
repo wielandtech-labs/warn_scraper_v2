@@ -261,9 +261,10 @@ _BACKFILL: dict[str, BackfillSpec] = {
         discover_urls=lambda: [_NJ_ARCHIVE_XLSX_URL],
         parse_for_url=lambda u: parse_nj_archive_xlsx,
     ),
-    # NC: per-year archive PDFs 2014+ discovered from the hub (irregular slugs).
-    # Three layout eras; parse_nc_pdf dispatches on detected content. Capture
-    # the URL so each PDF's parser records its own source_url.
+    # NC: per-year archive PDFs 2014+ discovered from the hub (irregular slugs)
+    # plus the pinned Wayback capture of the pre-hub 2013 report. Three layout
+    # eras; parse_nc_pdf dispatches on detected content. Capture the URL so
+    # each PDF's parser records its own source_url.
     "NC": BackfillSpec(
         discover_urls=lambda: _discover_nc_pdf_urls(),
         parse_for_url=lambda u: (lambda raw, _u=u: parse_nc_pdf(raw, _u)),
