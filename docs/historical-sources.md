@@ -13,6 +13,19 @@ sources only).
 
 ## Progress (update as backfills run)
 
+- **2026-07-09 — JobLink page-1 truncation found + fixed** (PR #241): the
+  platform paginates at 25 rows and `fetch()` read page 1 only, so every
+  JobLink state-year with >25 notices was silently truncated (live scrapes
+  AND the 2026-06 backfills — prod pinned at exactly 25 where the source
+  holds more). Source-vs-prod audit per year: **AZ 508 missing** (2020:
+  188 vs 25; 2010–2015 absent — the earlier "no pre-2016 data" probe result
+  was wrong, the source reaches 2010), **KS 344** (2002–2014 + 2020 capped),
+  **DE 37** (source reaches 2007, never exceeds a page), **ME 12** (2020:
+  34 vs 25), **VT 3**. `fetch()` now walks the `next_page` links; AZ
+  `year_start` 2016→2010, DE 2016→2007. **Pending: gated backfill Jobs for
+  AZ/KS/DE/ME/VT** after the fix deploys (~900 rows). Lesson: when a source
+  paginates, "prod = exactly the page size" for multiple years is the
+  truncation fingerprint — compare paginated source totals, not page-1 counts.
 - **2026-07-07 — NC 2014+ backfilled in prod** (parser #213; Jobs w_homelab
   #631 dry-run → #632 real → #650 repair): **+864 rows, floor 2026→2014, NC
   total 913** (verified per-year via `/api/stats/over-time`). Three PDF eras,
@@ -322,9 +335,9 @@ in [coverage-vs-aggregators.md](coverage-vs-aggregators.md).
 
 | State | Years sought | Recipient | Method | Statute |
 |-------|--------------|-----------|--------|---------|
-| AZ | pre-2016 — ⚠ probe AZ Job Connection (JobLink) date-range search first | GovQA `desaz.govqa.us` / PublicRecordsRequest@azdes.gov | portal or email — **must declare non-commercial purpose** | A.R.S. §39-121 et seq. |
+| AZ | pre-2010 (probe done 2026-07-09: JobLink search reaches 2010, ingested via backfill after PR #241; 2009 and older are empty at source) | GovQA `desaz.govqa.us` / PublicRecordsRequest@azdes.gov | portal or email — **must declare non-commercial purpose** | A.R.S. §39-121 et seq. |
 | CT | pre-2019 | CT DOL Records Center | **GovQA portal** (`dolct.govqa.us`) | CT FOIA |
-| DE | pre-2016 — ⚠ probe Delaware JobLink date-range search first | dol.foia@delaware.gov (FOIA Coordinator) | email (state web form alt.) — "any citizen" caveat | 29 Del. C. ch. 100 |
+| DE | pre-2007 (probe done 2026-07-09: JobLink search reaches 2007, ingested via backfill after PR #241; 2006 and older are empty at source) | dol.foia@delaware.gov (FOIA Coordinator) | email (state web form alt.) — "any citizen" caveat | 29 Del. C. ch. 100 |
 | FL | pre-2020 | PRRequest@commerce.fl.gov | email (JustFOIA portal alt.) | Ch. 119, F.S. |
 | GA | pre-2023 | GDOL via `dol.georgia.gov/email-us` | **web form** (no records email published) | O.C.G.A. §50-18-70 |
 | HI | pre-2019 | dlir.director@hawaii.gov | email | UIPA (HRS ch. 92F) |
