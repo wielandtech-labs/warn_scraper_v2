@@ -77,7 +77,9 @@ def staffing():
         vintage="May 2025",
     )
     yield
-    oews.reload_for_testing({}, vintage=None)
+    # None resets to the real bundled file (empty dict would leak "no
+    # patterns" into every later test in the session).
+    oews.reload_for_testing(None)
 
 
 def _notice(

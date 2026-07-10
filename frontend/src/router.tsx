@@ -131,9 +131,11 @@ const radarRoute = createRoute({
     closure_category: (search.closure_category as string) || undefined,
     industry: (search.industry as string) || undefined,
     subsector: (search.subsector as string) || undefined,
-    min_layoffs: search.min_layoffs ? Number(search.min_layoffs) : undefined,
-    days: search.days ? Number(search.days) : undefined,
-    page: search.page ? Number(search.page) : undefined,
+    // numParam (not Number()): junk like ?days=abc must become undefined, not
+    // NaN — NaN survives ?? defaults and reaches the API as literal "NaN".
+    min_layoffs: numParam(search.min_layoffs),
+    days: numParam(search.days),
+    page: numParam(search.page),
   }),
   component: RadarPage,
 });

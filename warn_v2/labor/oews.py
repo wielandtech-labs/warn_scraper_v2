@@ -154,15 +154,22 @@ def data_vintage() -> str | None:
     return _vintage
 
 
-def reload_for_testing(data: dict, vintage: str | None = None) -> None:
+def reload_for_testing(data: dict | None, vintage: str | None = None) -> None:
     """Replace the in-memory cache (tests only).
 
     ``data`` uses the on-disk shape: ``{"occupations": {...}, "levels":
-    {"sector": {...}, "naics3": {...}, "naics4": {...}}}``. Pass an empty
-    dict to clear.
+    {"sector": {...}, "naics3": {...}, "naics4": {...}}}``. An empty dict
+    means "no patterns" (lookups return None); ``None`` resets the cache so
+    the next lookup loads the real bundled file again — use that in fixture
+    teardowns, or the empty seed leaks into every later test in the session.
     """
     global _cache, _occupations, _vintage
     with _lock:
+        if data is None:
+            _cache = None
+            _occupations = {}
+            _vintage = None
+            return
         _occupations = dict(data.get("occupations", {}))
         levels = data.get("levels", {})
         _cache = {

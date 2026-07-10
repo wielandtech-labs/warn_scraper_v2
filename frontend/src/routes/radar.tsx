@@ -44,10 +44,12 @@ export function RadarPage() {
   useDocumentTitle("Upcoming layoffs radar — WARN Tracker");
   const navigate = useNavigate({ from: "/radar" });
   const search = useSearch({ from: "/radar" });
-  const page = search.page ?? 1;
+  // Clamp URL-supplied numbers into the API's accepted ranges so a mangled
+  // link degrades to a sane view instead of a permanent 422 error banner.
+  const page = Math.max(1, search.page ?? 1);
   const offset = (page - 1) * PAGE_SIZE;
-  const days = search.days ?? DEFAULT_DAYS;
-  const minLayoffs = search.min_layoffs ?? 0;
+  const days = Math.min(730, Math.max(1, search.days ?? DEFAULT_DAYS));
+  const minLayoffs = Math.max(0, search.min_layoffs ?? 0);
 
   const apiParams = {
     state: search.state,
@@ -83,11 +85,15 @@ export function RadarPage() {
     });
   };
 
+  // Sorting disabled on every column: the radar's one meaningful order is
+  // soonest-effective-first (server-side); client sorting would silently
+  // reshuffle only the fetched page.
   const columns = useMemo<ColumnDef<RadarNoticeOut, unknown>[]>(
     () => [
       {
         header: "Effective",
         accessorKey: "effective_date",
+        enableSorting: false,
         cell: (info) => {
           const row = info.row.original;
           return (
@@ -107,6 +113,7 @@ export function RadarPage() {
       {
         header: "Employer",
         accessorKey: "employer",
+        enableSorting: false,
         cell: (info) => {
           const row = info.row.original;
           if (row.company_id == null)
@@ -131,15 +138,17 @@ export function RadarPage() {
           return [row.city, row.county].filter(Boolean).join(", ") || row.state;
         },
       },
-      { header: "State", accessorKey: "state" },
+      { header: "State", accessorKey: "state", enableSorting: false },
       {
         header: "Workers",
         accessorKey: "layoff_count",
+        enableSorting: false,
         cell: (info) => fmtNum(info.getValue() as number | null),
       },
       {
         header: "Type",
         accessorKey: "closure_category",
+        enableSorting: false,
         cell: (info) => (info.getValue() as string | null) ?? "—",
       },
       {

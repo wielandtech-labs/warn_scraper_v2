@@ -18,9 +18,11 @@ Notes on the source data:
 - The sector workbook keys industries by the same range-form sector ids as
   ``warn_v2/companies/naics.py`` ("31-33", "44-45", "48-49"); the 3-/4-digit
   workbooks zero-pad NAICS codes to 6 chars ("311900" = industry group 3119).
-- A few OEWS rows aggregate several NAICS industries under one combo code;
-  keying by the leading digits treats them as their leading industry — an
-  acceptable approximation for a statistical prior.
+- A few OEWS rows aggregate several NAICS industries under one combo code.
+  Purely numeric aggregates are keyed by their leading digits (treated as
+  the leading industry — acceptable for a statistical prior); alphanumeric
+  combo codes are skipped, so their industries resolve at the 3-digit or
+  sector level instead.
 - Suppressed estimates appear as the string ``"**"`` and are skipped.
 
 Output format::

@@ -46,7 +46,9 @@ _SEED = {
 def seeded():
     oews.reload_for_testing(_SEED, vintage="May 2025")
     yield
-    oews.reload_for_testing({}, vintage=None)
+    # None (not {}) resets to the real bundled file — an empty-dict teardown
+    # would pin every later test in the session to "no patterns".
+    oews.reload_for_testing(None)
 
 
 def test_lookup_prefers_most_specific_level(seeded):
@@ -94,6 +96,17 @@ def test_data_vintage_and_empty_cache(seeded):
     oews.reload_for_testing({}, vintage=None)
     assert oews.lookup("311999") is None
     assert oews.data_vintage() is None
+
+
+def test_reload_none_resets_to_bundled_file():
+    # After a None reset the next lookup loads the real committed bundle —
+    # this also guards that the data file actually ships with the package.
+    oews.reload_for_testing({}, vintage=None)
+    oews.reload_for_testing(None)
+    pattern = oews.lookup("311999")
+    assert pattern is not None
+    assert pattern.level in ("4-digit", "3-digit", "sector")
+    assert oews.data_vintage() is not None
 
 
 # ---------------------------------------------------------------------------
