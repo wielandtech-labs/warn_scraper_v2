@@ -128,9 +128,48 @@ class Notice(Base):
 
     company: Mapped[Company | None] = relationship("Company")
     location: Mapped[Location | None] = relationship("Location")
+    occupations: Mapped[list[NoticeOccupation]] = relationship(
+        "NoticeOccupation",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="NoticeOccupation.count.desc()",
+    )
 
     __table_args__ = (
         Index("ix_notices_state_notice_date", "state", "notice_date"),
+    )
+
+
+class NoticeOccupation(Base):
+    """One employer-filed job title + count from a notice's WARN letter.
+
+    Parsed from the "Position Titles / Number Impacted" table many letter
+    PDFs carry (see ``warn_v2.pdf_extract.extract_occupations``) — the
+    actual eliminated roles, unlike the OEWS industry prior the API
+    otherwise estimates from. Rows for a notice are written as a set
+    (replace-on-re-extract), titles pre-merged so the unique constraint
+    holds.
+    """
+
+    __tablename__ = "notice_occupations"
+
+    id: Mapped[int] = mapped_column(BigIntPK, primary_key=True, autoincrement=True)
+    notice_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("notices.notice_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    job_title: Mapped[str] = mapped_column(Text, nullable=False)
+    count: Mapped[int] = mapped_column(Integer, nullable=False)
+    extracted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "notice_id", "job_title", name="uq_notice_occupations_notice_title"
+        ),
     )
 
 

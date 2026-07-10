@@ -131,7 +131,8 @@ def extract_warn_fields(pdf_bytes: bytes, state: str | None = None) -> dict:
 
     Returns a dict with any subset of:
       layoff_count (int), effective_date (date),
-      address (str), city (str), zip (str)
+      address (str), city (str), zip (str),
+      occupations (list[tuple[str, int]] — see :func:`extract_occupations`)
 
     *state* (the notice's 2-letter state) biases city/ZIP selection toward an
     in-state worksite, avoiding the state-official recipient block (e.g. the
@@ -344,6 +345,11 @@ def _parse_text(text: str, state: str | None = None) -> dict:
         if zips:
             result["zip"] = zips[-1]
 
+    # --- occupations ("Position Titles / Number Impacted" table) ---
+    occupations = extract_occupations(text)
+    if occupations:
+        result["occupations"] = occupations
+
     return result
 
 
@@ -484,7 +490,7 @@ _COUNT_ROW_DATE = (
     rf"(?:\d{{1,2}}[/-]\d{{1,2}}[/-]\d{{2,4}}|{_COUNT_MONTHS}\s+\d{{1,2}},?\s+\d{{4}})"
 )
 _COUNT_TABLE_ROW_RE = re.compile(
-    rf"^.*?[A-Za-z]{{2,}}.*?\s(\d{{1,4}})(?:\s+{_COUNT_ROW_DATE})?\s*$", re.I
+    rf"^(.*?[A-Za-z]{{2,}}.*?)\s(\d{{1,4}})(?:\s+{_COUNT_ROW_DATE})?\s*$", re.I
 )
 # A trailing small integer even where the full row shape fails (wrapped row
 # continuations like "I 1") — any such line outside the parsed run poisons
@@ -589,11 +595,15 @@ def _is_table_header(line: str) -> bool:
     )
 
 
-def _scan_table(lines: list[str], start: int) -> tuple[int | None, int]:
-    """Scan one table run from its header line; returns (count, rows_seen).
+def _scan_table(
+    lines: list[str], start: int
+) -> tuple[int | None, list[tuple[str, int]]]:
+    """Scan one table run from its header line; returns (count, rows).
 
-    Blank lines and page footers are transparent. Any count-shaped line that
-    can't be trusted as a data row — a four-digit value (year/ZIP leak), a
+    Rows are the parsed ``(title, count)`` data rows — the title column is
+    whatever precedes the trailing count on each row line. Blank lines and
+    page footers are transparent. Any count-shaped line that can't be
+    trusted as a data row — a four-digit value (year/ZIP leak), a
     contact/address sentence ("... at Building 3 Room 312"), a wrapped-row
     fragment ("I 1") — poisons the whole table (None) rather than skewing
     the sum. A benign non-count line ends the run; count-shaped lines found
@@ -601,7 +611,7 @@ def _scan_table(lines: list[str], start: int) -> tuple[int | None, int]:
     letter's nationwide pages) also poison it — a partial sum is a wrong
     answer, not a conservative one.
     """
-    rows: list[int] = []
+    rows: list[tuple[str, int]] = []
     saw_subtotal = False
     grace = 3  # substantive non-row lines tolerated before the first row
     resume_at = len(lines)
@@ -614,24 +624,24 @@ def _scan_table(lines: list[str], start: int) -> tuple[int | None, int]:
         if gm:
             value = int(gm.group(1))
             if 1 <= value <= 9999 and not 1900 <= value <= 2099:
-                return value, len(rows)
+                return value, rows
             continue
         if _COUNT_TABLE_ROW_RE.match(line) and _COUNT_TOTAL_WORD_RE.search(line):
             saw_subtotal = True  # "Assembly Total 57" / "Subtotal 57"
             continue
         m = _COUNT_TABLE_ROW_RE.match(line)
         if m:
-            value = int(m.group(1))
+            value = int(m.group(2))
             if not 1 <= value <= 999 or _COUNT_ROW_VETO_RE.search(line):
-                return None, len(rows)
-            rows.append(value)
+                return None, rows
+            rows.append((m.group(1), value))
             continue
         if _COUNT_TRAILING_INT_RE.search(line):
-            return None, len(rows)  # count-shaped but not a parseable row
+            return None, rows  # count-shaped but not a parseable row
         if not rows:
             grace -= 1
             if grace < 0:
-                return None, 0
+                return None, []
             continue
         resume_at = i  # benign line — the table run ended here
         break
@@ -640,18 +650,18 @@ def _scan_table(lines: list[str], start: int) -> tuple[int | None, int]:
         if _COUNT_PAGE_LINE_RE.search(line):
             continue
         if _COUNT_TRAILING_INT_RE.search(line.strip()):
-            return None, len(rows)  # more count-shaped lines past the break
+            return None, rows  # more count-shaped lines past the break
 
     # A single-row "table" is as likely a stray numbered sentence as a real
     # one-position table; require corroboration.
     if saw_subtotal or len(rows) < 2:
-        return None, len(rows)
-    total = sum(rows)
-    return (total if total <= 9999 else None), len(rows)
+        return None, rows
+    total = sum(v for _, v in rows)
+    return (total if total <= 9999 else None), rows
 
 
-def _count_from_table(lines: list[str]) -> int | None:
-    """Count from a positions table: Grand Total row, else the column sum.
+def _scan_best_table(lines: list[str]) -> tuple[int | None, list[tuple[str, int]]]:
+    """Count + data rows from a positions table: Grand Total row, else the sum.
 
     Tries each header-looking line in turn: a candidate that yields no data
     rows at all (a prose line that resembled a header) falls through to the
@@ -662,12 +672,16 @@ def _count_from_table(lines: list[str]) -> int | None:
     for start, line in enumerate(lines):
         if not _is_table_header(line):
             continue
-        result, rows_seen = _scan_table(lines, start)
+        result, rows = _scan_table(lines, start)
         if result is not None:
-            return result
-        if rows_seen:
-            return None
-    return None
+            return result, rows
+        if rows:
+            return None, []
+    return None, []
+
+
+def _count_from_table(lines: list[str]) -> int | None:
+    return _scan_best_table(lines)[0]
 
 
 def extract_layoff_count(text: str) -> int | None:
@@ -713,3 +727,46 @@ def extract_layoff_count(text: str) -> int | None:
         return values.pop() if len(values) == 1 else None
 
     return _count_from_table(text.splitlines())
+
+
+# Leading row enumeration ("1. Machinist 12") and stray separator characters
+# around a title. The enumeration trim requires the dot/paren so "3D Printer
+# Operator" keeps its "3D".
+_TITLE_ENUM_RE = re.compile(r"^\d{1,3}[.)]\s+")
+# Hyphen, en/em dash (U+2013/U+2014), bullet (U+2022), and column separators.
+_TITLE_SEP_CLASS = r"[\s\-*:|" + chr(0x2013) + chr(0x2014) + chr(0x2022) + "]+"
+_TITLE_EDGE_RE = re.compile(rf"^{_TITLE_SEP_CLASS}|{_TITLE_SEP_CLASS}$")
+
+
+def _clean_row_title(raw: str) -> str:
+    title = _TITLE_ENUM_RE.sub("", raw)
+    return re.sub(r"\s+", " ", _TITLE_EDGE_RE.sub("", title)).strip()
+
+
+def extract_occupations(text: str) -> list[tuple[str, int]]:
+    """Employer-filed ``(job_title, count)`` rows from a positions table.
+
+    The per-row sibling of tier 4 in :func:`extract_layoff_count`: many WARN
+    letters carry a "Position Titles / Number Impacted" table naming the
+    actual eliminated roles. Rows are trusted only when the same table scan
+    yields a valid count AND the rows sum to it — a Grand Total that doesn't
+    match the parsed rows means rows were missed (wrapped lines, a second
+    page), so per-row data can't be trusted even though the stated total
+    can. Duplicate titles (multi-site letters) are merged by summing counts,
+    first-seen order preserved. Returns ``[]`` whenever the table is absent,
+    poisoned, or inconsistent.
+    """
+    count, rows = _scan_best_table(text.splitlines())
+    if count is None or not rows:
+        return []
+    if sum(v for _, v in rows) != count:
+        return []
+    merged: dict[str, tuple[str, int]] = {}  # casefolded title → (display, sum)
+    for raw_title, value in rows:
+        title = _clean_row_title(raw_title)
+        if not title:
+            return []  # a row we can't name can't be represented faithfully
+        key = title.casefold()
+        display, prev = merged.get(key, (title, 0))
+        merged[key] = (display, prev + value)
+    return list(merged.values())
