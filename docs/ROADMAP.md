@@ -240,8 +240,16 @@ Ordered by recoverable rows:
   Backfill from Socrata; keep the HECC scraper for freshness; consider a
   recurring top-up (the dataset lags ~2 months). Watch cross-source dedup —
   `company_name` is sometimes a facility name. (A+gate)
-- [ ] **MI 2000–2024 milmi.org Wayback** (~1,500 rows — the biggest Wave-3
-  prize) — MI's history never lived on michigan.gov's search alone: the
+- [x] ~~**MI 2000–2024 milmi.org Wayback** (~1,500 rows — the biggest Wave-3
+  prize)~~ — DONE 2026-07-10 (parsers #247; dry-run w_homelab #695, real run
+  merged via #696): **+2,063 rows, MI 105 → 2,168, floor 2024-11 → 2000**
+  (verified per-year via the public API — every PDF year matches its file's
+  ingested count exactly; 23 parsed rows collapsed by in-batch hash dedup,
+  same-employer/city/date worksites). Dry-run was exact (17/17 files,
+  would_insert = local parse, near_miss=0, already_exists=0) and the
+  2024-Q4 overlap review found **zero** duplicates against live rows —
+  michigan.gov purged pre-2025 *filings*, so every live card is a 2025+
+  filing. Original route notes: — MI's history never lived on michigan.gov's search alone: the
   Labor Market Information site `milmi.org` published it, and Wayback holds
   it all (live milmi.org/warn now redirects to the pruned LEO page; files
   404 live). Same 5-column schema both eras (Company | City | Date Received
@@ -255,7 +263,12 @@ Ordered by recoverable rows:
   and one archived Sitecore search-API capture (2025-04-30) shows the index
   held **Count=559** before the mid-2025 purge (103 live today). No FOIA
   needed — the mi.md draft stays as a post-backfill completeness backstop.
-  (A+gate)
+  (A+gate) — *parser done 2026-07-09* (`parse_mi_archive_html` +
+  `parse_mi_archive_pdf`, 2,086 rows parsed locally, per-year sums verified
+  against each report's printed "Total Layoffs"). **Remaining: the gated
+  prod run** — the dry-run review must hand-check the 2024-Q4 overlap
+  (archive notice_date = filing date, live = layoff date → no hash dedup,
+  no near-miss visibility; see historical-sources.md MI row).
 - [ ] **TN 2018–2024 Wayback** — the live reports page holds 2025+ only.
   2024 (~60 rows): late-2024/early-2025 captures of reports.html carry the
   live-schema table — easy. 2018–2023: only as **534 per-notice WARN letter

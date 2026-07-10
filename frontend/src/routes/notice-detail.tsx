@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 
 import { api, ApiError } from "../api/client";
+import { OccupationMix } from "../components/OccupationMix";
 import { QueryError } from "../components/QueryError";
 import { SkeletonBlock } from "../components/Skeleton";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
@@ -174,6 +175,10 @@ export function NoticeDetail() {
           </dl>
         </div>
       )}
+
+      {/* Only fetch the mix when a NAICS code exists (~16% of notices);
+          the component also renders nothing when OEWS has no pattern. */}
+      {n.company?.naics_code && <OccupationMix noticeId={n.notice_id} />}
 
       {n.location && (
         <div className="card">

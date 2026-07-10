@@ -16,8 +16,10 @@ import type {
   IndustryStat,
   MonthStat,
   NoticeOut,
+  OccupationMixOut,
   Page,
   ParentGroupStat,
+  RadarNoticeOut,
   PeriodStat,
   ScraperRunOut,
   SearchResults,
@@ -106,6 +108,17 @@ export interface NoticesQuery {
   offset?: number;
 }
 
+export interface RadarQuery {
+  state?: string;
+  closure_category?: string;
+  industry?: string;
+  subsector?: string;
+  min_layoffs?: number;
+  days?: number;
+  limit?: number;
+  offset?: number;
+}
+
 /** Lightweight pin object returned by /api/map-pins. */
 export interface MapPin {
   notice_id: string;
@@ -157,6 +170,15 @@ export const api = {
     get<Page<NoticeOut>>("/api/notices" + qs(q as Record<string, string | number | undefined>)),
   getNotice: (id: string) =>
     get<NoticeOut>(`/api/notices/${encodeURIComponent(id)}`),
+
+  // ---------- Radar (upcoming layoffs by effective date) ----------
+  listRadar: (q: RadarQuery = {}) =>
+    get<Page<RadarNoticeOut>>(
+      "/api/radar" + qs(q as Record<string, string | number | undefined>),
+    ),
+  /** Full estimated occupation mix for one notice (list rows carry the top 3). */
+  getOccupationMix: (id: string) =>
+    get<OccupationMixOut>(`/api/notices/${encodeURIComponent(id)}/occupation-mix`),
 
   /** Geocoded notices for the map — lightweight DTO, viewport-scoped, up to 50 000 per fetch. */
   listMapPins: (q: MapPinQuery = {}) =>

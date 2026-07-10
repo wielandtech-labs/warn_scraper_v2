@@ -414,7 +414,17 @@ def backfill_geo(
 @main.command("backfill-county")
 @click.option("--dry-run", is_flag=True, help="Preview impact without writing")
 @click.option("--state", default=None, help="Limit to one state abbreviation, e.g. TX")
-def backfill_county_cmd(dry_run: bool, state: str | None) -> None:
+@click.option(
+    "--repair-names",
+    is_flag=True,
+    help=(
+        "Instead of filling NULLs: rewrite counties stored as bare Census "
+        "BASENAMEs to the full NAME (\"Baltimore\" → \"Baltimore city\", "
+        "\"Capitol\" → \"Capitol Planning Region\") where the employment key "
+        "actually changes"
+    ),
+)
+def backfill_county_cmd(dry_run: bool, state: str | None, repair_names: bool) -> None:
     """Fill NULL locations.county by reverse-geocoding existing coordinates.
 
     Uses the Census geographies API (free, no key); lookups are memoized per
@@ -423,10 +433,22 @@ def backfill_county_cmd(dry_run: bool, state: str | None) -> None:
 
     \b
     Examples:
-      warn-v2 backfill-county            # fill NULL counties
-      warn-v2 backfill-county --dry-run  # preview without writing
-      warn-v2 backfill-county --state TX # one state only
+      warn-v2 backfill-county                 # fill NULL counties
+      warn-v2 backfill-county --dry-run       # preview without writing
+      warn-v2 backfill-county --state TX      # one state only
+      warn-v2 backfill-county --repair-names  # fix bare-BASENAME counties
     """
+    if repair_names:
+        from warn_v2.scripts.backfill_county import repair_county_names
+
+        stats = repair_county_names(dry_run=dry_run, state_filter=state)
+        suffix = " (dry run — nothing written)" if dry_run else ""
+        click.echo(
+            f"considered={stats['considered']} repaired={stats['repaired']} "
+            f"unchanged={stats['unchanged']} no_match={stats['no_match']}{suffix}"
+        )
+        return
+
     from warn_v2.scripts.backfill_county import backfill_county
 
     stats = backfill_county(dry_run=dry_run, state_filter=state)

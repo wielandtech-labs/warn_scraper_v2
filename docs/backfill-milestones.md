@@ -10,8 +10,8 @@ below was verified by fetching an actual capture and reading WARN rows in it).
 
 Ranges are the **verified prod floors as of 2026-07-10** — the 2026-07-07
 STATE_AUDIT.md table is stale for CA (2006, 20,077 rows), NY (2006, 8,708),
-MN (2012, 482), WA (2004, ~1,480); those use the post-run numbers recorded in
-historical-sources.md Progress.
+MN (2012, 482), WA (2004, ~1,480), MI (2000, 2,168); those use the post-run
+numbers recorded in historical-sources.md Progress.
 
 **Route legend:** ✅ done · 🔨 build item (route verified, code/Job pending) ·
 🔍 sweep verdict 2026-07-10 (recoverable, needs a parser build) ·
@@ -22,9 +22,9 @@ exists) · 🚫 blocked by state law.
 
 | Milestone | After the 🔨/🔍 builds below, what still blocks it |
 |---|---|
-| **Global 2020** | Only **GA 2013–2021** (✉ — the old GDOL search app was never archived) and **MA Sep 2020–Mar 2021** (✉ — weekly files not crawled; agency invites email). Everything else is recoverable: UT→2009, SC→2009, LA→2007, IA→2005, WV→2011, NE→2010, TN→2018 🔨, MI→2000 🔨 (other session). |
+| **Global 2020** | Only **GA 2013–2021** (✉ — the old GDOL search app was never archived) and **MA Sep 2020–Mar 2021** (✉ — weekly files not crawled; agency invites email). Everything else is recoverable: UT→2009, SC→2009, LA→2007, IA→2005, WV→2011, NE→2010, TN→2018 🔨; MI→2000 ✅ (done 2026-07-10). |
 | **Global 2010** | Adds ✉-only: **HI, NV, NM, CO, ND, MT** (probes confirm those states never published pre-floor lists) + partial holes: MO pre-Jul-2012, MS Jul-2007–Jun-2010, NC pre-Oct-2012, CT 2013 + most of 2009, OR pre-2009. ⛔ source floors: ME (2012), MN (2012). AZ reaches 2010 once the JobLink Job runs. |
-| **Global 2000** | Big sweep wins get 12 states to ~2000: FL/CT/KY→1998, WI→1996, PA→1998-07, MD/IN→2000, SD→1997, CA→2000 🔨, MI→2000 🔨, plus existing OH/AL/IL/KS. Rest are ✉ (TX pre-2004, NY pre-2006, NJ pre-2004, DC, RI, OK pre-2001…) or ⛔ (VT, WA, AK, DE, AZ). |
+| **Global 2000** | Big sweep wins get 12 states to ~2000: FL/CT/KY→1998, WI→1996, PA→1998-07, MD/IN→2000, SD→1997, CA→2000 🔨, MI→2000 ✅, plus existing OH/AL/IL/KS. Rest are ✉ (TX pre-2004, NY pre-2006, NJ pre-2004, DC, RI, OK pre-2001…) or ⛔ (VT, WA, AK, DE, AZ). |
 
 Estimated recoverable volume from the sweep, **no FOIA needed: ~15–20k rows**
 (vs ~38k currently in prod).
@@ -57,7 +57,7 @@ Reachable floor = floor after running every verified route (no FOIA).
 | MA | 373 | 2021–2026 | 🔍 | ✉ | ✉ | 2019-07 | Wayback: FY2020 XLS + FY2021-through-Aug-2020 XLSX (+~215); **Sep 2020–Mar 2021 + pre-FY2020 → email** (eolwdpress@mass.gov) |
 | MD | 1,333 | 2010–2026 | ✅ | ✅ | 🔍 | 2000 | Wayback: `warn{2000..2009}.shtml` — same page family the scraper already parses (+400–600). The old "no archive pre-2010" note was wrong |
 | ME | 80 | 2012–2026 | ✅ | ⛔ | ⛔ | 2012 | JobLink source floor; capped-year Job pending (+12) |
-| MI | 105 | 2024–2026 | 🔨 | 🔨 | 🔨 | 2000 | **In flight (other session)**: milmi.org via Wayback — HTML 2016–2024 + annual PDFs 2000–2015 |
+| MI | 2,168 | 2000–2026 | ✅ | ✅ | ✅ | 2000 | milmi.org via Wayback — **done 2026-07-10** (+2,063, floor 2024-11→2000; parsers #247) |
 | MN | 482 | 2012–2026 | ✅ | ⛔ | ⛔ | 2012 | Wayback backfill done 2026-07-10; 2012 = earliest filing in DEED annuals |
 | MO | 322 | 2019–2026 | ✅ | 🔍 | ✉ | 2012-07 | Wayback: consolidated log PDF Jul-2012–Jul-2015 + PY2015–PY2018 pages (+550–650); pre-Jul-2012 → ✉ |
 | MS | 139 | 2013–2026 | ✅ | 🔍 | ✉ | 2004 | Wayback: all 40 quarterlies PY2010–PY2019 + 2004–2006 era + the missing PY2023-Q4 (+400–800); **Jul 2007–Jun 2010 never archived** → ✉ |
@@ -347,8 +347,8 @@ pre-2008 may simply not exist.
 | 23 | ID 2008 log | 2008 | ~17 | Single file |
 
 Already queued before this sweep: JobLink re-backfill Jobs AZ/KS/DE/ME/VT
-(~900), TN 2018–2024 (~500+), MI 2000–2024 (other session, ~1,500+),
-CA 2000–2005 (Wayback HTML slices), OH gap-year re-run 2007–2024.
+(~900), TN 2018–2024 (~500+), CA 2000–2005 (Wayback HTML slices), OH gap-year
+re-run 2007–2024. MI 2000–2024 shipped mid-sweep (**done 2026-07-10**, +2,063).
 
 ## Cross-cutting lessons from the sweep
 
