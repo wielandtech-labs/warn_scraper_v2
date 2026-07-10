@@ -81,10 +81,13 @@ class OllamaClient:
                         {"role": "user", "content": prompt},
                     ],
                     # num_predict caps thinking + content COMBINED for a
-                    # reasoning model. 1200 was exhausted by chain-of-thought
-                    # on data-heavy states (CT/KY/MI/TX 2026-07-10), returning
-                    # empty content after retries — keep generous headroom.
-                    "options": {"temperature": 0.2, "num_predict": 4000},
+                    # reasoning model, and thinking grows with payload size:
+                    # 1200 was exhausted on data-heavy states (CT/KY/MI/TX,
+                    # 2026-07-10) and 4000 on the US payload once BLS context
+                    # was added (same day) — empty content after retries both
+                    # times. Keep generous headroom; generation stops at the
+                    # natural end, so the cap only binds on runaway drafts.
+                    "options": {"temperature": 0.2, "num_predict": 8000},
                 },
             )
         except httpx.TransportError as exc:

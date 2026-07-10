@@ -29,8 +29,9 @@ def test_narrate_returns_content_and_ignores_thinking():
     assert b'"stream": false' in body or b'"stream":false' in body
     assert b"gpt-oss:20b" in body
     # num_predict caps thinking + content combined on a reasoning model; 1200
-    # was exhausted by chain-of-thought on data-heavy states (empty content).
-    assert b'"num_predict": 4000' in body or b'"num_predict":4000' in body
+    # and then 4000 were exhausted by chain-of-thought on the biggest payloads
+    # (empty content after retries).
+    assert b'"num_predict": 8000' in body or b'"num_predict":8000' in body
 
 
 @respx.mock
