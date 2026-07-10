@@ -158,7 +158,9 @@ _BACKFILL: dict[str, BackfillSpec] = {
     "ME": BackfillSpec(year_start=2012, fetch_year=_joblink_fetch),
     "VT": BackfillSpec(year_start=2003, fetch_year=_joblink_fetch),
     # Year-URL sources, earliest years verified by 2026-06-12 probes.
-    "TX": BackfillSpec(year_start=2020, fetch_year=_fetch_tx_year),
+    # TX: live per-year XLSX 2020+; 2004-2018 via pinned Wayback captures of
+    # the removed twc files (.xls through 2013); 2019 via Socrata (see tx.py).
+    "TX": BackfillSpec(year_start=2004, fetch_year=_fetch_tx_year),
     "FL": BackfillSpec(year_start=2020, fetch_year=_fetch_fl_year),
     "HI": BackfillSpec(year_start=2019, fetch_year=lambda s, y: _fetch_hi_year(y)),
     # KY: bundled Wayback capture (20161222125836) of kcc.ky.gov's
