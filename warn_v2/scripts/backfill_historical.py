@@ -415,13 +415,15 @@ _BACKFILL: dict[str, BackfillSpec] = {
         bundled_files=wv_archive_files,
         parse_for_url=lambda u: parse_wv_archive_pdf,
     ),
-    # PA: archived per-month pages via Wayback CDX (portal.state.pa.us
-    # 2001-2015, SharePoint dli.pa.gov 2011-2022; same content template).
-    # _fetch_pa_year hard-caps at 2022 — the AEM live era (2023+) stamps
-    # notice_date from its publish date, so re-parsing those months would
-    # mint duplicates of rows the regular scraper already stores.
+    # PA: archived per-month pages via Wayback — pinned pre-CDX captures for
+    # Jul-1998 - Nov-2000 (dli/li.state.pa.us; Dec-2000 never archived), then
+    # CDX discovery (portal.state.pa.us 2001-2015, SharePoint dli.pa.gov
+    # 2011-2022; same content template throughout). _fetch_pa_year hard-caps
+    # at 2022 — the AEM live era (2023+) stamps notice_date from its publish
+    # date, so re-parsing those months would mint duplicates of rows the
+    # regular scraper already stores.
     "PA": BackfillSpec(
-        year_start=2001,
+        year_start=1998,
         fetch_year=lambda s, y: _fetch_pa_year(y),
         parse_year=lambda b, y: parse_pa_month(b, y),
     ),
