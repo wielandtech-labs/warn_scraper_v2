@@ -255,7 +255,12 @@ Ordered by recoverable rows:
   and one archived Sitecore search-API capture (2025-04-30) shows the index
   held **Count=559** before the mid-2025 purge (103 live today). No FOIA
   needed — the mi.md draft stays as a post-backfill completeness backstop.
-  (A+gate)
+  (A+gate) — *parser done 2026-07-09* (`parse_mi_archive_html` +
+  `parse_mi_archive_pdf`, 2,086 rows parsed locally, per-year sums verified
+  against each report's printed "Total Layoffs"). **Remaining: the gated
+  prod run** — the dry-run review must hand-check the 2024-Q4 overlap
+  (archive notice_date = filing date, live = layoff date → no hash dedup,
+  no near-miss visibility; see historical-sources.md MI row).
 - [ ] **TN 2018–2024 Wayback** — the live reports page holds 2025+ only.
   2024 (~60 rows): late-2024/early-2025 captures of reports.html carry the
   live-schema table — easy. 2018–2023: only as **534 per-notice WARN letter
