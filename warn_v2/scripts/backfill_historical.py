@@ -97,7 +97,7 @@ from warn_v2.scrapers.states.oh import _fetch_oh_year, parse_oh_year
 from warn_v2.scrapers.states.pa import _fetch_pa_year, parse_pa_month
 from warn_v2.scrapers.states.sd import parse_sd_archive_pdf, sd_archive_files
 from warn_v2.scrapers.states.tx import _fetch_tx_year
-from warn_v2.scrapers.states.wi import _fetch_wi_archive_year, parse_wi_archive_html
+from warn_v2.scrapers.states.wi import _discover_wi_pcml_urls, parse_wi_pcml_xls
 from warn_v2.scrapers.states.wv import parse_wv_archive_pdf, wv_archive_files
 
 log = logging.getLogger(__name__)
@@ -287,12 +287,19 @@ _BACKFILL: dict[str, BackfillSpec] = {
             else (lambda raw, _u=u: parse_mi_archive_html(raw, _u))
         ),
     ),
-    # WI: static per-year pages exist only 2016-2019; the cumulative Google
-    # Sheet covers 2020+ via the regular scraper.
+    # WI: per-year PCML .xls logs 1996-2015 via pinned Wayback captures (the
+    # worknet.wisconsin.gov host is dead). The 2016 PCML file is excluded —
+    # DWD stopped maintaining the log in Feb 2016 (13 rows) and prod already
+    # holds full-year 2016 from the earlier static-page route. That route
+    # (2016-2019, already run in prod) was this entry before 2026-07-10;
+    # restore it to re-run those years:
+    #   BackfillSpec(year_start=2016,
+    #                fetch_year=lambda s, y: _fetch_wi_archive_year(y),
+    #                parse_year=lambda b, y: parse_wi_archive_html(b, y))
+    # The cumulative Google Sheet covers 2020+ via the regular scraper.
     "WI": BackfillSpec(
-        year_start=2016,
-        fetch_year=lambda s, y: _fetch_wi_archive_year(y),
-        parse_year=lambda b, y: parse_wi_archive_html(b, y),
+        discover_urls=lambda: _discover_wi_pcml_urls(),
+        parse_for_url=lambda u: (lambda raw, _u=u: parse_wi_pcml_xls(raw, _u)),
     ),
     # MN: DEED PDFs discovered via Wayback CDX (monthlies 2015-16 and 2022+,
     # annual summaries 2018-2021, cumulative yearly reports). MNScraper.parse
