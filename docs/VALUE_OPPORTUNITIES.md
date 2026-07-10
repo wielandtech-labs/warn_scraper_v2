@@ -66,6 +66,15 @@ data about the actual affected roles.
   patterns (`warn_v2/labor/oews.py`; sector/3-digit/4-digit walk-up, top 12
   detailed occupations per industry). Public/free for now to validate demand.
   Still open: digest email integration, A2 ad-spec export, paid-tier gating.
+- **Shipped (second cut — real roles):** many letter PDFs carry a literal
+  "Position Titles / Number Impacted" table (sampled 2026-07-09: most of
+  OH/FL/WI/CT/NE/AK stored PDFs, some GA/IN). The tier-4 table parser now
+  also captures per-title rows (`warn_v2.pdf_extract.extract_occupations`,
+  conservative: rows kept only when they sum to the accepted total), stored
+  in `notice_occupations`, persisted on download-pdfs/re-extract/enrich-ga
+  and backfillable over stored PVC PDFs via `warn-v2 backfill-occupations`.
+  Both endpoints flag the source (`employer_filing` vs `oews_estimate`);
+  filed rows win over the OEWS prior in the radar preview and detail panel.
 
 **A2 add-on — LinkedIn ad-targeting-spec export.** The one officially
 sanctioned LinkedIn integration that fits (see §3): per notice cohort, generate

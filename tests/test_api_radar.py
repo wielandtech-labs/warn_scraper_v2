@@ -6,7 +6,7 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 
-from warn_v2.db.models import Company, Location, Notice
+from warn_v2.db.models import Company, Location, Notice, NoticeOccupation
 from warn_v2.labor import oews
 
 _TODAY = date(2026, 7, 1)
@@ -332,3 +332,90 @@ def test_occupation_mix_works_for_past_notices(api_client, db):
     db.commit()
 
     assert api_client.get(f"/api/notices/{n.notice_id}/occupation-mix").json()["available"] is True
+
+
+def test_occupation_mix_oews_branch_is_labeled(api_client, db):
+    n = _notice(db, effective_date=date(2026, 8, 1), naics="311999")
+    db.commit()
+
+    body = api_client.get(f"/api/notices/{n.notice_id}/occupation-mix").json()
+    assert body["source"] == "oews_estimate"
+
+    unavailable = _notice(db, effective_date=date(2026, 8, 2), employer="NoNaics")
+    db.commit()
+    body = api_client.get(f"/api/notices/{unavailable.notice_id}/occupation-mix").json()
+    assert body["source"] is None
+
+
+# ---------------------------------------------------------------------------
+# employer-filed occupations (notice_occupations rows win over the OEWS prior)
+# ---------------------------------------------------------------------------
+
+def _file_occupations(db, notice: Notice, rows: list[tuple[str, int]]) -> None:
+    notice.occupations = [
+        NoticeOccupation(job_title=title, count=count) for title, count in rows
+    ]
+    db.flush()
+
+
+def test_occupation_mix_filed_rows_win_over_oews(api_client, db):
+    n = _notice(db, effective_date=date(2026, 8, 1), naics="311999", layoff_count=40)
+    _file_occupations(db, n, [("Machinist", 30), ("Welder", 10)])
+    db.commit()
+
+    body = api_client.get(f"/api/notices/{n.notice_id}/occupation-mix").json()
+    assert body["available"] is True
+    assert body["source"] == "employer_filing"
+    # Actual filed rows, largest first; pct is the share of the filing's total.
+    assert [(o["title"], o["estimate"], o["pct"]) for o in body["occupations"]] == [
+        ("Machinist", 30, 75.0), ("Welder", 10, 25.0),
+    ]
+    assert all(o["soc_code"] is None for o in body["occupations"])
+    # OEWS-prior fields don't apply to a filing (the NAICS itself still shows).
+    assert body["naics_code"] == "311999"
+    assert body["matched_naics"] is None
+    assert body["match_level"] is None
+    assert body["coverage_pct"] is None
+    assert body["oews_vintage"] is None
+
+
+def test_occupation_mix_filed_rows_without_naics(api_client, db):
+    # A filing makes the mix available even where OEWS could offer nothing.
+    n = _notice(db, effective_date=date(2026, 8, 1))
+    _file_occupations(db, n, [("Cook", 6), ("Server", 2)])
+    db.commit()
+
+    body = api_client.get(f"/api/notices/{n.notice_id}/occupation-mix").json()
+    assert body["available"] is True
+    assert body["source"] == "employer_filing"
+    assert [(o["title"], o["estimate"]) for o in body["occupations"]] == [
+        ("Cook", 6), ("Server", 2),
+    ]
+
+
+def test_radar_preview_prefers_filed_rows(api_client, db):
+    filed = _notice(db, effective_date=date(2026, 8, 1), employer="Filed",
+                    naics="311999", layoff_count=100)
+    _file_occupations(
+        db, filed,
+        [("Cook", 50), ("Server", 30), ("Dishwasher", 15), ("Host", 5)],
+    )
+    _notice(db, effective_date=date(2026, 8, 2), employer="Estimated",
+            naics="311999", layoff_count=100)
+    db.commit()
+
+    body = api_client.get("/api/radar").json()
+    filed_row, estimated_row = body["items"]
+
+    assert filed_row["occupation_source"] == "employer_filing"
+    assert filed_row["oews_vintage"] is None
+    # Top 3 of the 4 filed rows, largest count first, exact counts.
+    assert [(o["title"], o["estimate"]) for o in filed_row["occupation_preview"]] == [
+        ("Cook", 50), ("Server", 30), ("Dishwasher", 15),
+    ]
+
+    assert estimated_row["occupation_source"] == "oews_estimate"
+    assert estimated_row["oews_vintage"] == "May 2025"
+    assert [o["soc_code"] for o in estimated_row["occupation_preview"]] == [
+        "51-4041", "51-1011", "53-7062",
+    ]

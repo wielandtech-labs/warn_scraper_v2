@@ -196,6 +196,52 @@ def test_enrichment_overwrites_60day_effective_date(db, tmp_path):
 
 
 @respx.mock
+def test_enrichment_fills_occupations(db, tmp_path):
+    notice = _insert_notice(db)
+    db.commit()
+
+    respx.get(_PDF_URL).mock(return_value=httpx.Response(200, content=_FAKE_PDF))
+    extracted = {"occupations": [("Machinist", 12), ("Welder", 3)]}
+
+    with patch("warn_v2.scripts.download_pdfs.session_scope") as mock_scope:
+        mock_scope.return_value.__enter__ = lambda _: db
+        mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+        with patch("warn_v2.scripts.download_pdfs.extract_warn_fields", return_value=extracted):
+            stats = download_pdfs("AK", pdf_dir=tmp_path)
+
+    db.refresh(notice)
+    assert [(o.job_title, o.count) for o in notice.occupations] == [
+        ("Machinist", 12), ("Welder", 3),
+    ]
+    assert stats["enriched"] == 1
+
+
+def test_apply_fields_occupations_replace_but_never_clear(db):
+    from warn_v2.db.models import NoticeOccupation
+    from warn_v2.scripts.download_pdfs import _apply_fields
+
+    notice = _insert_notice(db)
+    notice.occupations = [NoticeOccupation(job_title="Old Role", count=5)]
+    db.flush()
+
+    # An extraction miss must not clear rows a previous parse found.
+    assert _apply_fields(db, notice, {"layoff_count": 5}, dry_run=False) is True
+    assert [(o.job_title, o.count) for o in notice.occupations] == [("Old Role", 5)]
+
+    # An identical re-extract is a no-op, not a churned rewrite.
+    same = {"occupations": [("Old Role", 5)]}
+    assert _apply_fields(db, notice, same, dry_run=False) is False
+
+    # A different parse replaces the set (the PDF is authoritative).
+    new = {"occupations": [("New Role", 7), ("Old Role", 2)]}
+    assert _apply_fields(db, notice, new, dry_run=False) is True
+    db.flush()
+    assert sorted((o.job_title, o.count) for o in notice.occupations) == [
+        ("New Role", 7), ("Old Role", 2),
+    ]
+
+
+@respx.mock
 def test_enrichment_does_not_overwrite_existing_address(db, tmp_path):
     """Existing address is not overwritten by PDF-extracted address."""
     notice = _insert_notice(db, address="123 Real St, Juneau, AK 99801")
