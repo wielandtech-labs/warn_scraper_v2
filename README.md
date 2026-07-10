@@ -70,6 +70,7 @@ install WSL2 (`wsl --install`), or build and `docker run` the image.
 | `warn_v2/scrapers/fixtures/{state}/` | Golden samples + expected counts |
 | `warn_v2/pipeline/` | runner, validate, dedup, storage |
 | `warn_v2/enrichment/` | Claude-driven company enrichment |
+| `warn_v2/reports/` | Weekly sentiment reports + industry scorecards (see below) |
 | `.claude/commands/heal-scraper.md` | Claude Code op that repairs a broken scraper |
 | `warn_v2/api/` | FastAPI read-only API |
 | `warn_v2/db/` | SQLAlchemy models + Alembic |
@@ -100,7 +101,7 @@ The scraper runs in a K3s homelab cluster managed by Flux GitOps (see
   app uses `postgres-cluster-rw.database.svc.cluster.local:5432/warn_v2`
 - **Alembic**: initial migration (`revision a1b2c3d4e5f6`) ran 2026-05-26;
   all four tables live (`locations`, `companies`, `notices`, `scraper_runs`)
-- **CronJobs**: `warn-v2-warn-v2-scraper` runs daily at 07:17 (`scrape-all`); `warn-v2-warn-v2-enricher` runs every 6 h at `:23` (`enrich`, 50 companies/run, 30 s between companies); `warn-v2-warn-v2-cross-check` (opt-in via `crossCheck.enabled`) runs daily at 09:17 (`cross-check`), re-fetching each state's live WARN page and recording drift vs. stored notices to `cross_check_runs`
+- **CronJobs**: `warn-v2-warn-v2-scraper` runs daily at 07:17 (`scrape-all`); `warn-v2-warn-v2-enricher` runs every 6 h at `:23` (`enrich`, 50 companies/run, 30 s between companies); `warn-v2-warn-v2-cross-check` (opt-in via `crossCheck.enabled`) runs daily at 09:17 (`cross-check`), re-fetching each state's live WARN page and recording drift vs. stored notices to `cross_check_runs`; `warn-v2-warn-v2-sentiment-report` runs weekly Mon 02:07 (`sentiment-report`, see [Sentiment reports](#sentiment-reports--industry-scorecards))
 - **Snapshots PVC**: `synostorage-iscsi-retain`, 10 Gi, mounted at `/var/snapshots`
 
 **Secrets in `warn-v2` namespace** (all SealedSecrets, reconciled by Flux):
@@ -219,3 +220,46 @@ cluster access (reproduction is live), so it runs fine off the dev machine.
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `SNAPSHOT_DIR` | `./snapshots` | Where the runner writes raw failure snapshots (replay material) |
+
+## Sentiment reports & industry scorecards
+
+`warn_v2/reports/` generates weekly markdown reports — one per state, a national
+roll-up (`US.md`), and a scorecard per NAICS sector — served at `/api/reports/*`
+and rendered on the SPA's state pages (below the hardest-hit counties) and
+`/reports` page.
+
+**Pipeline** (`sentiment-report` CLI; CronJob Mon 02:07 UTC):
+
+1. **Deterministic aggregates** (`aggregate.py`, `industry.py`) — every number in
+   a report comes from SQL over non-superseded notices. Time axes: current 90
+   days vs the prior 90 (momentum), the same 90-day window one year earlier
+   (seasonal baseline), trailing 12 months vs the 12 before (long run), and a
+   12-month monthly series where each month carries the same month a year
+   earlier. Percent changes are pre-computed into the LLM payload; the sector
+   scorecards add a 0-100 score + grade from a documented formula.
+2. **BLS macro context** (`bls.py`) — official CES payroll month-over-month
+   changes (total nonfarm + closest supersector per sector) and the unemployment
+   rate, aligned to the same months, injected as `bls_context` into the national
+   and industry payloads. Strictly fail-open: any API problem and the reports
+   render without it. `BLS_API_KEY` optional.
+3. **LLM narrative** (`ollama.py`, `generate.py`) — gpt-oss:20b on the cluster's
+   shared Ollama writes the Sentiment section from the JSON payload only.
+   Self-healing: one fresh attempt after a client failure, up to two corrective
+   retries for banned growth vocabulary ("added/grew/gained" is banned — every
+   figure is workers losing jobs) or truncation-length drafts. `num_predict`
+   must budget thinking + content combined for a reasoning model, and thinking
+   scales with payload size — 8000 as of 2026-07-10; if the biggest payloads
+   grow again, "empty narrative content" failures on the US report are the
+   symptom.
+4. **Render + publish** (`render.py`) — narrative is sanitized (heading demotion,
+   HTML escape, sentence-boundary length cap) and embedded between deterministic
+   tables; files are atomically written to the reports PVC (`/var/reports`).
+   A failed narrative degrades that report to figures-only; the next weekly run
+   self-heals.
+
+```powershell
+uv run warn-v2 sentiment-report --state CA          # one state
+uv run warn-v2 sentiment-report --national          # US roll-up only
+uv run warn-v2 sentiment-report --industry 31-33    # one sector scorecard
+uv run warn-v2 sentiment-report --skip-llm --dry-run  # offline smoke test
+```
