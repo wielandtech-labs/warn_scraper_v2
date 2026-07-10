@@ -32,13 +32,14 @@ def _rate_limiting_off(monkeypatch: pytest.MonkeyPatch):
 @pytest.fixture(autouse=True)
 def _no_census_county_lookup(monkeypatch: pytest.MonkeyPatch):
     """Keep the suite offline: geocode()'s tiers reverse-look-up the county
-    via the Census API when the source didn't provide one. Stub it so no test
-    hits the network; tests exercising the lookup re-patch
-    warn_v2.geo.geocoder.county_from_coords themselves.
+    via the Census API when the source didn't provide one. Stub the network
+    layer (_names_from_coords — county_from_coords delegates to it) so no
+    test hits the network; tests exercising the lookup re-patch either name
+    on warn_v2.geo.geocoder themselves.
     """
     from warn_v2.geo import geocoder
 
-    monkeypatch.setattr(geocoder, "county_from_coords", lambda lat, lon, state: None)
+    monkeypatch.setattr(geocoder, "_names_from_coords", lambda lat, lon, state: None)
 
 
 @pytest.fixture
