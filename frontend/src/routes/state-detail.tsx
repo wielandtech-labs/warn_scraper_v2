@@ -276,6 +276,16 @@ export function StateDetailPage() {
         )}
       </div>
 
+      <div className="card">
+        <h2 className="mb-3 text-lg font-semibold">Layoffs across {name}</h2>
+        <NoticeMap state={code} after={after} />
+      </div>
+
+      <CountyImpact
+        title={`Hardest-hit counties in ${name}`}
+        query={{ state: code, after, limit: 10 }}
+      />
+
       {!reportMissing && (
         <div className="card">
           <h2 className="mb-3 text-lg font-semibold">Economic outlook</h2>
@@ -295,16 +305,6 @@ export function StateDetailPage() {
           ) : null}
         </div>
       )}
-
-      <div className="card">
-        <h2 className="mb-3 text-lg font-semibold">Layoffs across {name}</h2>
-        <NoticeMap state={code} after={after} />
-      </div>
-
-      <CountyImpact
-        title={`Hardest-hit counties in ${name}`}
-        query={{ state: code, after, limit: 10 }}
-      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section>
