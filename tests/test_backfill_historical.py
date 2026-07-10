@@ -737,16 +737,28 @@ def test_parse_wi_archive_html_extracts_rows():
 
 
 @respx.mock
-def test_backfill_historical_wi_year_routes_archive_parser(db) -> None:
-    """WI registry entry wires _fetch_wi_archive_year + parse_wi_archive_html."""
-    respx.get("https://dwd.wisconsin.gov/dislocatedworker/warn/2018/default.htm").mock(
-        return_value=httpx.Response(200, content=_WI_ARCHIVE_HTML)
-    )
+def test_backfill_historical_wi_routes_pcml_parser(db) -> None:
+    """WI registry entry wires _discover_wi_pcml_urls + parse_wi_pcml_xls.
 
-    stats = backfill_historical("WI", year_start=2018, year_end=2018, dry_run=True)
+    (The previous year-loop entry — _fetch_wi_archive_year +
+    parse_wi_archive_html, 2016-2019 static pages — already ran in prod and
+    was replaced by the 1996-2015 PCML Wayback route on 2026-07-10.)
+    """
+    from pathlib import Path
+
+    fixture = (
+        Path(__file__).resolve().parent.parent
+        / "warn_v2" / "scrapers" / "fixtures" / "wi" / "1997pcml_log.xls"
+    )
+    respx.get(
+        "https://web.archive.org/web/20170125232617id_/"
+        "http://worknet.wisconsin.gov/worknet_info/downloads/PCML/1996pcml_log.xls"
+    ).mock(return_value=httpx.Response(200, content=fixture.read_bytes()))
+
+    stats = backfill_historical("WI", dry_run=True, limit=1)
 
     assert stats["years_ok"] == 1
-    assert stats["rows_seen"] == 1
+    assert stats["rows_seen"] == 86
     assert db.query(Notice).count() == 0
 
 
