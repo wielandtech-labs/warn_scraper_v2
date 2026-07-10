@@ -12,10 +12,17 @@ Location cells contain a multi-line address like:
     Frederick, MD
     21704
 We extract city and ZIP from the "City, MD ZIP" trailing portion.
+
+Historical year pages (warn2000.shtml-warn2009.shtml) survive only in the
+Wayback Machine; they wrap the data table in banner/legend tables, put a bare
+city name in Location, use numeric Type Codes (1 = Plant Closure, 2 = Mass
+Layoff per the on-page legend), and carry 4-digit SIC codes in the "NAICS
+Code" column through ~2005.
 """
 from __future__ import annotations
 
 import re
+import time
 
 import httpx
 from bs4 import BeautifulSoup
@@ -60,9 +67,18 @@ class MDScraper:
 
     def parse(self, raw: bytes) -> list[NoticeRow]:
         soup = BeautifulSoup(raw, "html.parser")
-        table = soup.find("table")
+        # 2000-2009 archive pages wrap the data table in banner/legend tables,
+        # so pick the first table whose header row mentions "company".
+        table = None
+        for candidate in soup.find_all("table"):
+            tr = candidate.find("tr")
+            if tr and any(
+                "company" in _text(c).lower() for c in tr.find_all(["td", "th"])
+            ):
+                table = candidate
+                break
         if table is None:
-            raise ParseFailed("no <table> found on MD WARN page")
+            raise ParseFailed("no WARN data <table> found on MD page")
 
         all_trs = table.find_all("tr")
         if not all_trs:
@@ -105,12 +121,23 @@ class MDScraper:
             employer = as_str(_cell(i_company))
             if not employer:
                 continue
-            notice_date = as_date(_cell(i_notice))
+            notice_date = _md_date(_cell(i_notice))
             if notice_date is None:
                 continue
 
             location_text = _cell(i_location)
             city, zip_code = _city_zip(location_text)
+
+            industry_code = as_str(_cell(i_naics)) or ""
+            # Through mid-2005 the "NAICS Code" column actually held 4-digit
+            # SIC codes; from 2006 a 4-digit value is a NAICS industry group.
+            extra = (
+                {"sic_code": industry_code}
+                if industry_code.isdigit()
+                and len(industry_code) == 4
+                and notice_date.year <= 2005
+                else {"naics": industry_code}
+            )
 
             rows.append(
                 NoticeRow(
@@ -119,38 +146,98 @@ class MDScraper:
                     notice_date=notice_date,
                     effective_date=as_date(_cell(i_effective)),
                     layoff_count=as_int(_cell(i_count)),
-                    closure_type=as_str(_cell(i_type)),
+                    closure_type=_closure_type(_cell(i_type)),
                     city=city,
                     county=as_str(_cell(i_area)),
                     zip=zip_code,
                     address=as_str(location_text),
                     source_url=SOURCE_URL,
-                    extra={"naics": as_str(_cell(i_naics)) or ""},
+                    extra=extra,
                 )
             )
         return rows
 
 
+# 2000-2009 pages were pruned from dllr.state.md.us; these are the latest
+# complete Wayback captures per year (verified 2026-07-10, all post-year).
+_MD_WAYBACK_TS = {
+    2000: "20160825213318",
+    2001: "20160825213317",
+    2002: "20160825213316",
+    2003: "20160825213315",
+    2004: "20160825213314",
+    2005: "20160825192616",
+    2006: "20160825192615",
+    2007: "20160825192614",
+    2008: "20160825192613",
+    2009: "20160825192612",
+}
+_MD_WAYBACK_DELAY = 3  # seconds between Wayback fetches
+_MD_WAYBACK_BACKOFF = 30
+
+
+def _md_year_url(year: int) -> str:
+    """Live URL for 2010+; pinned Wayback `id_` replay URL for 2000-2009."""
+    live = f"https://www.dllr.state.md.us/employment/warn{year}.shtml"
+    ts = _MD_WAYBACK_TS.get(year)
+    if ts is None:
+        return live
+    return f"https://web.archive.org/web/{ts}id_/{live}"
+
+
 def _fetch_md_year(year: int) -> bytes | None:
     """Fetch one archived per-year MD WARN page; None when the year has no page.
 
-    Archive pages live at warn{year}.shtml (verified back to 2010); the
-    current year is warn.shtml and is covered by the regular scraper.
+    2010+ pages live at warn{year}.shtml on dllr.state.md.us; 2000-2009 were
+    pruned and come from pinned Wayback captures instead. The current year is
+    warn.shtml and is covered by the regular scraper.
     """
-    url = f"https://www.dllr.state.md.us/employment/warn{year}.shtml"
-    try:
-        r = httpx.get(url, headers=_UA, timeout=60, follow_redirects=True)
-        if r.status_code == 404:
-            return None
-        r.raise_for_status()
-        return r.content
-    except httpx.HTTPError as e:
-        raise ScrapeFailed(f"GET {url}: {e}") from e
+    url = _md_year_url(year)
+    wayback = "web.archive.org" in url
+    for attempt in (1, 2):
+        if wayback:
+            time.sleep(_MD_WAYBACK_DELAY)
+        try:
+            r = httpx.get(url, headers=_UA, timeout=120, follow_redirects=True)
+            if r.status_code == 404:
+                return None
+            r.raise_for_status()
+            return r.content
+        except httpx.HTTPError as e:
+            if wayback and attempt == 1:
+                time.sleep(_MD_WAYBACK_BACKOFF)
+                continue
+            raise ScrapeFailed(f"GET {url}: {e}") from e
+    return None  # unreachable; keeps type-checkers happy
 
 
 def _text(cell) -> str:
     """Collapse multi-line cell text into single-spaced text."""
     return " ".join(cell.get_text(" ", strip=True).split())
+
+
+def _md_date(cell_text: str):
+    """as_date plus a repair for the archive pages' 3-digit-year typos
+    (e.g. '11/26/003' for 11/26/2003)."""
+    d = as_date(cell_text)
+    if d is not None:
+        return d
+    m = re.fullmatch(r"(\d{1,2})/(\d{1,2})/0*(\d{2})", cell_text.strip())
+    if m:
+        return as_date(f"{m.group(1)}/{m.group(2)}/{m.group(3)}")
+    return None
+
+
+# On-page legend of the 2000-2009 archive pages: "Type Code: 1 - Plant
+# Closure, 2 - Mass Layoff". Later pages spell the type out.
+_MD_TYPE_CODES = {"1": "Plant Closure", "2": "Mass Layoff"}
+
+
+def _closure_type(cell_text: str) -> str | None:
+    text = as_str(cell_text)
+    if not text:
+        return None
+    return _MD_TYPE_CODES.get(text.strip().rstrip("*"), text)
 
 
 def _city_zip(location: str) -> tuple[str | None, str | None]:
@@ -171,6 +258,11 @@ def _city_zip(location: str) -> tuple[str | None, str | None]:
     # address tokens.
     md_idx = location.lower().find(", md")
     if md_idx == -1:
+        # 2000-2009 archive pages put a bare city name in Location
+        # (e.g. "ELDERSBURG", "Havre de Grace") — no street, state, or ZIP.
+        stripped = location.strip()
+        if stripped and not any(ch.isdigit() for ch in stripped) and "," not in stripped:
+            return stripped, zip_code
         return None, zip_code
     prefix = location[:md_idx]
     # Prefer the chunk after the last comma (street, city, MD ZIP).
