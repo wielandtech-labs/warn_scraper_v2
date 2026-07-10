@@ -19,9 +19,11 @@ Schema (2026 clean format confirmed, May 2026):
   WARN Act | WARN Received | Layoff Type | Layoff Status | Federal Impact | Affected Workers
 
 Historical backfill covers the 2015-2024 archive eras (monthlies 2015-16 and
-2022-24, annual summaries 2018-2021, cumulative yearly reports) via a
-word-position parser that derives column bounds from the header words — see
-_parse_archive_words.
+2022-24, annual summaries 2018-2021) via a word-position parser that derives
+column bounds from the header words — see _parse_archive_words. The 2022-2024
+year-end cumulative roll-ups are skipped in discovery: they re-list every
+monthly filing with glued employer cells and doubled counts (see
+_drop_cumulative_reports).
 """
 from __future__ import annotations
 
@@ -171,12 +173,20 @@ class MNScraper:
 
 
 def _parse_pdf(pdf_bytes: bytes, url: str) -> list[NoticeRow]:
-    """Parse one DEED monthly PDF. Returns only WARN Act=YES rows."""
+    """Parse one DEED monthly PDF. Returns only WARN Act=YES rows.
+
+    DEED suffixes the report year onto some Layoff Name cells
+    ("Zeco Systems Inc 2025"); strip it so live-scraped rows hash identically
+    to backfilled ones (the archive-word parser strips the same suffix).
+    """
     try:
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-            return _parse_clean_table(pdf, url) or _parse_text_lines(pdf, url)
+            rows = _parse_clean_table(pdf, url) or _parse_text_lines(pdf, url)
     except Exception:
         return []
+    for row in rows:
+        row.employer = _TRAILING_YEAR_RE.sub("", row.employer)
+    return rows
 
 
 # ---------------------------------------------------------------------------
@@ -186,10 +196,11 @@ def _parse_pdf(pdf_bytes: bytes, url: str) -> list[NoticeRow]:
 # "plant-closing-*" (2022) or "plant-closing-mass-layoff-warn-*" (2023+);
 # 2018-2021 published one annual summary each ("mass-layoff-summary-2018",
 # "2019-mass-layoffs", "2020-mass-layoff-report",
-# "plant-closing-mass-layoff-2021"), and 2022-2024 also have cumulative yearly
-# reports overlapping the monthlies (identical rows dedupe by notice_id). One
-# broad CDX query catches all eras; non-report PDFs parse to 0 rows and are
-# skipped.
+# "plant-closing-mass-layoff-2021"), and 2022-2024 also publish a cumulative
+# year-end roll-up alongside the monthlies — but that roll-up glues the
+# employer cell and doubles counts, so _drop_cumulative_reports skips it (the
+# monthlies are the clean source). One broad CDX query catches all eras;
+# non-report PDFs parse to 0 rows and are skipped.
 #
 # Pre-2025 files (all eras) are parsed by the word-position parser below —
 # pdfplumber's table extraction sees only ghost grids in them, and plain text
@@ -198,6 +209,14 @@ def _parse_pdf(pdf_bytes: bytes, url: str) -> list[NoticeRow]:
 # ---------------------------------------------------------------------------
 
 _ARCHIVE_NAME_RE = re.compile(r"(plant-closing|mass-layoff)", re.I)
+# A filename carries a month component if it names a month (full or 3-letter)
+# or an MMYY token (2015-16 style, matched by _FILE_MMYY_RE below). Cumulative
+# year-end roll-ups have neither — just a bare YYYY.
+_MONTH_SUBSTR_RE = re.compile(
+    r"jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|jun(e)?|jul(y)?"
+    r"|aug(ust)?|sep(tember)?|oct(ober)?|nov(ember)?|dec(ember)?",
+    re.I,
+)
 # Era-era PDFs glue the report year onto the employer cell
 # ("National Recoveries 2021", "Fool Me Once bar, 2024.") — strip it so rows
 # hash like monthly-era rows.
@@ -236,7 +255,42 @@ def _discover_archive_pdf_urls() -> list[str]:
         if not url.endswith(".pdf") or not _ARCHIVE_NAME_RE.search(url) or url in by_original:
             continue
         by_original[url] = f"https://web.archive.org/web/{ts}id_/{url}"
-    return [by_original[u] for u in sorted(by_original)]
+    return _drop_cumulative_reports(by_original)
+
+
+def _archive_file_name(url: str) -> str:
+    """Filename stem without the trailing ``_tcm1045-NNNNNN`` asset token."""
+    return url.rsplit("/", 1)[-1].split("_tcm")[0]
+
+
+def _has_month_component(name: str) -> bool:
+    """True if the report filename names a specific month (vs a bare year)."""
+    return bool(_MONTH_SUBSTR_RE.search(name) or _FILE_MMYY_RE.search(name))
+
+
+def _drop_cumulative_reports(by_original: dict[str, str]) -> list[str]:
+    """Drop cumulative year-end roll-up PDFs when the year also has monthlies.
+
+    2022-2024 publish a year-end roll-up (``plant-closing-mass-layoff-2022``,
+    ``...-warn-report-2024``) — a bare YYYY, no month component — alongside the
+    monthlies. It re-lists every filing with glued employer cells and doubled
+    counts, so ingesting it duplicates the monthly rows. Years whose only files
+    are monthless (the 2018-2021 annual summaries) are kept — those are the
+    sole source for their year.
+    """
+    years_with_month = {
+        _archive_file_year(u)
+        for u in by_original
+        if _has_month_component(_archive_file_name(u))
+    }
+    kept: list[str] = []
+    for u in sorted(by_original):
+        year = _archive_file_year(u)
+        if year in years_with_month and not _has_month_component(_archive_file_name(u)):
+            log.info("MN: skipping cumulative roll-up %s", _archive_file_name(u))
+            continue
+        kept.append(by_original[u])
+    return kept
 
 
 # Report year from the filename (the trailing "_tcm1045-NNNNNN" asset token is
@@ -269,10 +323,9 @@ def _parse_archive_pdf(pdf_bytes: bytes, url: str) -> list[NoticeRow]:
                 return _parse_archive_words(pdf, url)
         except Exception:
             return []
-    rows = _parse_pdf(pdf_bytes, url)
-    for row in rows:
-        row.employer = _TRAILING_YEAR_RE.sub("", row.employer)
-    return rows
+    # 2025+ files use the live parser chain (identical hashing with live rows);
+    # _parse_pdf already strips the DEED trailing report year.
+    return _parse_pdf(pdf_bytes, url)
 
 
 # ---------------------------------------------------------------------------
@@ -288,6 +341,7 @@ def _parse_archive_pdf(pdf_bytes: bytes, url: str) -> list[NoticeRow]:
 _RR_SECTION_RE = re.compile(r"RR Start Date:\s*([A-Za-z]+)\s+(20\d{2})", re.I)
 _MD_ONLY_RE = re.compile(r"^\d{1,2}/\d{1,2}$")
 _DATE_TOKEN_RE = re.compile(r"^\d{1,2}/\d{1,2}(/\d{2,4})?$")
+_INT_TOKEN_RE = re.compile(r"^\d[\d,]*$")
 _MONTH_NUM = {name.lower(): i for i, name in enumerate(calendar.month_name) if name}
 # Max vertical distance (pt) between stacked header lines, and max horizontal
 # gap (pt) between words of one header label. Lines carrying any numeric token
@@ -402,6 +456,27 @@ def _header_columns(lines: list[list[dict]], anchor_idx: int) -> list[tuple[floa
     return sorted(cols)
 
 
+def _recover_count(rec: dict[int, list[str]], roles: dict[str, int]) -> None:
+    """Recover a right-aligned Affected-Workers count that mis-bucketed left.
+
+    The count column is right-aligned, so a small value can sit a few points
+    left of its header x-start and fall into the preceding (TAA) column,
+    leaving the count cell empty. When that happens, move a trailing integer
+    from the nearest non-empty column left of count into it. In-place; a no-op
+    when the count already parsed or no integer is adjacent.
+    """
+    if "count" not in roles or rec.get(roles["count"]):
+        return
+    for i in range(roles["count"] - 1, -1, -1):
+        toks = rec.get(i)
+        if not toks:
+            continue
+        if _INT_TOKEN_RE.match(toks[-1]):
+            rec[roles["count"]] = [toks[-1]]
+            rec[i] = toks[:-1]
+        break  # only inspect the nearest non-empty column
+
+
 def _parse_archive_words(pdf: pdfplumber.PDF, url: str) -> list[NoticeRow]:  # type: ignore[name-defined]
     """Parse a 2015-2024 era report by assigning words to header columns."""
     starts: list[float] = []
@@ -432,6 +507,7 @@ def _parse_archive_words(pdf: pdfplumber.PDF, url: str) -> list[NoticeRow]:  # t
                 if "type" in roles:
                     rec.setdefault(roles["type"], [])[:0] = toks[keep:]
                 rec[roles["received"]] = toks[:keep]
+        _recover_count(rec, roles)
         employer = as_str(_ARCHIVE_TRAILING_YEAR_RE.sub("", cell("name") or ""))
         if not employer:
             return
