@@ -37,6 +37,9 @@ export interface FilterBarProps {
    *  used for debounced typing so Back doesn't walk through keystrokes. */
   onChange: (next: FilterValues, opts?: { replace?: boolean }) => void;
   showEmployer?: boolean;
+  /** Hide the After/Before inputs and quick presets — for pages where the
+   *  date dimension isn't the notice date (e.g. the radar's horizon). */
+  showDates?: boolean;
   /** When provided, render an Industry (NAICS sector) dropdown of these options. */
   industries?: IndustryStat[];
 }
@@ -52,6 +55,7 @@ export function FilterBar({
   values,
   onChange,
   showEmployer = true,
+  showDates = true,
   industries,
 }: FilterBarProps) {
   const update = (patch: Partial<FilterValues>, opts?: { replace?: boolean }) => {
@@ -196,6 +200,7 @@ export function FilterBar({
 
       {/* After + Before share one grid cell so the date range never splits
           across rows (it wraps as a pair when the row overflows). */}
+      {showDates && (
       <div className="grid grid-cols-2 gap-3 sm:col-span-2 lg:col-span-2">
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -221,9 +226,13 @@ export function FilterBar({
           />
         </label>
       </div>
+      )}
 
       {/* Quick date presets */}
+      {(showDates || hasAnyFilter) && (
       <div className="col-span-full flex items-center gap-1.5">
+        {showDates && (
+          <>
         <span className="text-xs text-slate-400 dark:text-slate-500">Quick:</span>
         {PRESETS.map(({ label, days }) => {
           const active =
@@ -250,6 +259,8 @@ export function FilterBar({
             </button>
           );
         })}
+          </>
+        )}
         {hasAnyFilter && (
           <button
             type="button"
@@ -260,6 +271,7 @@ export function FilterBar({
           </button>
         )}
       </div>
+      )}
     </div>
   );
 }
