@@ -166,10 +166,12 @@ _BACKFILL: dict[str, BackfillSpec] = {
         discover_urls=lambda: _discover_ky_workbook_urls(),
         parse_for_url=lambda u: parse_ky_workbook,
     ),
-    # LA: per-year PDFs; laworks.net prunes old files, only 2025+ resolve
-    # (fetch returns None for pruned years). Pre-2025 → records request.
+    # LA: per-year PDFs; laworks.net prunes old files (only 2025+ resolve
+    # live), so 2007-2024 come from pinned Wayback captures of the same URLs
+    # (la._WAYBACK_TS; rows carry the replay source_url). 2024 capture ends
+    # Aug 12; pre-2007 → records request.
     "LA": BackfillSpec(
-        year_start=2025,
+        year_start=2007,
         fetch_year=lambda s, y: _fetch_la_year(y),
         parse_year=lambda b, y: parse_la_pdf(b, _la_source_url(y)),
     ),
