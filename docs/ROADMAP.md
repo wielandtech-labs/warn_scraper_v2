@@ -240,8 +240,16 @@ Ordered by recoverable rows:
   Backfill from Socrata; keep the HECC scraper for freshness; consider a
   recurring top-up (the dataset lags ~2 months). Watch cross-source dedup —
   `company_name` is sometimes a facility name. (A+gate)
-- [ ] **MI 2000–2024 milmi.org Wayback** (~1,500 rows — the biggest Wave-3
-  prize) — MI's history never lived on michigan.gov's search alone: the
+- [x] ~~**MI 2000–2024 milmi.org Wayback** (~1,500 rows — the biggest Wave-3
+  prize)~~ — DONE 2026-07-10 (parsers #247; dry-run w_homelab #695, real run
+  merged via #696): **+2,063 rows, MI 105 → 2,168, floor 2024-11 → 2000**
+  (verified per-year via the public API — every PDF year matches its file's
+  ingested count exactly; 23 parsed rows collapsed by in-batch hash dedup,
+  same-employer/city/date worksites). Dry-run was exact (17/17 files,
+  would_insert = local parse, near_miss=0, already_exists=0) and the
+  2024-Q4 overlap review found **zero** duplicates against live rows —
+  michigan.gov purged pre-2025 *filings*, so every live card is a 2025+
+  filing. Original route notes: — MI's history never lived on michigan.gov's search alone: the
   Labor Market Information site `milmi.org` published it, and Wayback holds
   it all (live milmi.org/warn now redirects to the pruned LEO page; files
   404 live). Same 5-column schema both eras (Company | City | Date Received
