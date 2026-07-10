@@ -23,6 +23,14 @@ Three layout eras:
   - PY2023-PY2024 ("stacked"): merged location plus header labels stacked
     across several rows and ghost grid columns; see
     _parse_stacked_header_tables().
+
+Historical backfill (Wayback replay, see _discover_ms_archive_urls) adds a
+fourth family, dispatched on the title's "PROGRAM YEAR <= 2019":
+  - 2004-2006 + PY2010-PY2019 ("archive"): "# Affected" stacked under
+    "Type of Action" with the count on its own continuation grid row, an
+    "Impact Date"/"Date of Action" column, SIC+NAICS descriptions (2004-06),
+    and a Reason/Comments column that flags non-WARN Rapid Response events
+    ("Non-WARN ..."), which are filtered out; see _parse_archive_tables().
 """
 from __future__ import annotations
 
@@ -74,6 +82,85 @@ def _discover_pdf_urls() -> list[str]:
         return [_FALLBACK_URL]
 
 
+# Historical quarterlies the live hub no longer links, pinned to the Wayback
+# captures verified offline on 2026-07-10 (docs/backfill-milestones.md "MS").
+# One URL per distinct quarter: content-duplicate captures (the 6A/CH mirror
+# pairs of 2004-06, the mislabeled py2014_q2/py2015_q3 re-uploads and the
+# py2019_q2-named copy of PY2020-Q2) are collapsed, `_map.pdf` companions and
+# PY2020+ quarters prod already has are excluded.  PY2023-Q4 is included:
+# the hub run predates its publication.  Wayback redirects a near-miss
+# timestamp to the closest capture, so replay follows redirects.
+_WAYBACK_REPLAY = "https://web.archive.org/web/{ts}id_/{url}"
+_ARCHIVE_CAPTURES: tuple[tuple[str, str], ...] = (
+    # --- 2004-2006 era (filename year/quarter is unreliable; the in-PDF
+    #     header carries the real period) ---
+    ("20060929145342", "http://www.mdes.ms.gov/wps/PA_1_0_6A/docs/Employer/Warn2004Q1.pdf"),
+    ("20060929145408", "http://www.mdes.ms.gov/wps/PA_1_0_6A/docs/Employer/Warn2004Q2.pdf"),
+    ("20060929145304", "http://www.mdes.ms.gov/wps/PA_1_0_6A/docs/Employer/Warn2004Q3.pdf"),
+    ("20060929145352", "http://www.mdes.ms.gov/wps/PA_1_0_6A/docs/Employer/Warn2004Q4.pdf"),
+    ("20060929145333", "http://www.mdes.ms.gov/wps/PA_1_0_6A/docs/Employer/Warn2005Q1.pdf"),
+    ("20060929145429", "http://www.mdes.ms.gov/wps/PA_1_0_6A/docs/Employer/WARN2005Q2.pdf"),
+    ("20070509014836", "http://mdes.ms.gov:80/wps/PA_1_0_CH/docs/Employer/WARN2005Q3.pdf"),
+    ("20070509014037", "http://mdes.ms.gov:80/wps/PA_1_0_CH/docs/Employer/WARN2005Q4.pdf"),
+    ("20070509014344", "http://mdes.ms.gov:80/wps/PA_1_0_CH/docs/Employer/WARN2006Q1.pdf"),
+    ("20070509015608", "http://mdes.ms.gov:80/wps/PA_1_0_CH/docs/Employer/WARN2006Q2.pdf"),
+    ("20070509015301", "http://mdes.ms.gov:80/wps/PA_1_0_CH/docs/Employer/WARN2006Q3.pdf"),
+    # --- PY2010-PY2019 quarterlies ---
+    ("20260614000218", "https://mdes.ms.gov/media/26881/PY2010_Q1_WARN_Jul2010_Sep2010.pdf"),
+    ("20250613034721", "https://mdes.ms.gov/media/26884/PY2010_Q2_WARN_Oct2010_Dec2010.pdf"),
+    ("20161221092424", "http://mdes.ms.gov/media/26887/PY2010_Q3_WARN_Jan2011_Mar2011.pdf"),
+    ("20250613034726", "https://mdes.ms.gov/media/26890/PY2010_Q4_WARN_Apr2011_Jun2011.pdf"),
+    ("20250613034655", "https://mdes.ms.gov/media/26893/PY2011_Q1_WARN_July2011_Sep2011.pdf"),
+    ("20260430183654", "https://mdes.ms.gov/media/26896/PY2011_Q2_WARN_Oct2011_Dec2011.pdf"),
+    ("20260418060411", "https://mdes.ms.gov/media/26899/PY2011_Q3_WARN_Jan2012_Mar2012.pdf"),
+    ("20250613034712", "https://mdes.ms.gov/media/26958/PY2011_Q4_WARN_Apr2012_Jun2012.pdf"),
+    ("20250613034638", "https://mdes.ms.gov/media/26905/PY2012_Q1_WARN_Jul2012_Sep2012.pdf"),
+    ("20260424102333", "https://mdes.ms.gov/media/26908/PY2012_Q2_WARN_Oct2012_Dec2012.pdf"),
+    ("20250613034648", "https://mdes.ms.gov/media/26911/PY2012_Q3_WARN__Jan2013_Mar2013.pdf"),
+    ("20260529141758", "https://mdes.ms.gov/media/29948/PY2012_Q4_WARN_Apr2013_Jun2013.pdf"),
+    ("20250613034630", "https://mdes.ms.gov/media/30968/PY2013_Q1_WARN_Jul2013_Sep2013.pdf"),
+    ("20250613034626", "https://mdes.ms.gov/media/31723/PY2013_Q2__WARN_Oct2013_Dec2013.pdf"),
+    ("20250613034615", "https://mdes.ms.gov/media/33167/PY2013_Q3__WARN_Jan2014_Mar2014.pdf"),
+    ("20260512203953", "https://mdes.ms.gov/media/35197/PY2013_Q4__WARN_Apr2014_Jun2014.pdf"),
+    ("20260611074053", "https://mdes.ms.gov/media/36303/PY2014_Q1_WARN_Jul2014_Sep2014.pdf"),
+    ("20260416220432", "https://mdes.ms.gov/media/37211/PY2014_Q2_WARN__Oct2014_Dec2014.pdf"),
+    ("20260626125038", "https://mdes.ms.gov/media/67606/py2014_q3_warn__jan2015_mar2015.pdf"),
+    ("20260512224436", "https://mdes.ms.gov/media/42390/py2014_q4__warn_apr2015_jun2015.pdf"),
+    ("20250613034516", "https://mdes.ms.gov/media/50387/py2015_q1_warn_jul2015_sep2015.pdf"),
+    ("20250613034507", "https://mdes.ms.gov/media/61193/py2015_q2_warn___oct2015_dec2015.pdf"),
+    ("20250613034504", "https://mdes.ms.gov/media/73382/py2015_q3_warn__jan2016_mar2016.pdf"),
+    ("20250613034456", "https://mdes.ms.gov/media/73387/py2015_q4_warn_apr2016_jun2016.pdf"),
+    ("20250613034450", "https://mdes.ms.gov/media/77287/py2016_q1_warn_july2016_sept2016.pdf"),
+    ("20250613034435", "https://mdes.ms.gov/media/85903/py2016_q2_warn_oct2016_dec2016.pdf"),
+    ("20250613034426", "https://mdes.ms.gov/media/91268/py2016_q3_warn_jan2017_mar2017.pdf"),
+    ("20250613034420", "https://mdes.ms.gov/media/96181/py2016_q4_warn_apr2017_jun2017.pdf"),
+    ("20250613034414", "https://mdes.ms.gov/media/100974/py2017_q1_warn_july2017_sept2017.pdf"),
+    ("20251024013145", "https://mdes.ms.gov/media/109393/py2017_q2_warn_oct2017_dec2017.pdf"),
+    ("20260429054050", "https://mdes.ms.gov/media/118119/py2017_q3_warn_jan2018_mar2018.pdf"),
+    ("20260602100558", "https://mdes.ms.gov/media/123921/py2017_q4_warn_apr2018_jun2018.pdf"),
+    ("20260708134141", "https://mdes.ms.gov/media/128907/py2018_q1_warn_july2018_sept2018.pdf"),
+    ("20250613034336", "https://mdes.ms.gov/media/141119/py2018_q2_warn_oct2018_dec2018.pdf"),
+    ("20250613034327", "https://mdes.ms.gov/media/144111/py2018_q3_warn_jan2019_mar2019.pdf"),
+    ("20250613034320", "https://mdes.ms.gov/media/152801/py2018_q4_warn_apr2019_jun2019.pdf"),
+    ("20260413154539", "https://mdes.ms.gov/media/160518/py2019_q1_warn_july2019_sept2019.pdf"),
+    ("20260609072807", "https://mdes.ms.gov/media/165147/py2019_q2_warn_oct2019_dec2019.pdf"),
+    ("20250613034258", "https://mdes.ms.gov/media/180956/py2019_q3_warn_jan2020_mar2020.pdf"),
+    ("20260622081811", "https://mdes.ms.gov/media/204780/py2019_q4_warn_apr2020_jun2020.pdf"),
+    # --- PY2023-Q4 (Apr-Jun 2024) — the one PY2020+ quarter prod lacks ---
+    ("20260418134650", "https://mdes.ms.gov/media/440515/py2023-q4-warn-apr2024-jun2024.pdf"),
+)
+
+
+def _discover_ms_archive_urls() -> list[str]:
+    """Static Wayback replay list for the quarters the live hub no longer links."""
+    return [_WAYBACK_REPLAY.format(ts=ts, url=url) for ts, url in _ARCHIVE_CAPTURES]
+
+
+def parse_ms_archive_pdf(raw: bytes, url: str) -> list[NoticeRow]:
+    """URL-aware entry point for the backfill: archive rows carry the replay URL."""
+    return _parse_pdf(raw, source_url=url)
+
+
 def _normalize_cell(value: object) -> str:
     """Join multi-line cell values with a space; return empty string for None."""
     if value is None:
@@ -99,14 +186,25 @@ _CITY_COUNTY_RE = re.compile(r"^(.+?)\s*\(([^)]+)\)$")
 _COUNTY_ONLY_RE = re.compile(r"^\(([^)]+)\)$")
 
 
-def _parse_pdf(raw: bytes) -> list[NoticeRow]:
+def _parse_pdf(raw: bytes, source_url: str | None = None) -> list[NoticeRow]:
     try:
         pdf = pdfplumber.open(io.BytesIO(raw))
     except Exception as e:
         raise ParseFailed(f"MS PDF: could not open: {e}") from e
 
     with pdf:
+        first_text = pdf.pages[0].extract_text() or "" if pdf.pages else ""
         tables = [t for page in pdf.pages if (t := page.extract_table())]
+
+    # PY2019-and-earlier quarterlies (Wayback backfill) share header text with
+    # the PY2020-22 era but put the "# Affected" count on continuation grid
+    # rows the newer parsers drop — dispatch on the title's program year so
+    # the archive parser handles them (and only them). Some 2004-06 titles
+    # omit the year ("THIRD QUARTER PROGRAM YEAR"); their SIC CODE column is
+    # an equally reliable pre-2007 marker.
+    m = re.search(r"PROGRAM\s+YEAR\s+(\d{4})", first_text, re.I)
+    if (m and int(m.group(1)) <= 2019) or re.search(r"SIC\s+CODE", first_text, re.I):
+        return _parse_archive_tables(tables, source_url or _LANDING_URL)
 
     header: list[str] | None = None
     data_rows: list[list] = []
@@ -179,6 +277,281 @@ def _parse_stacked_header_tables(tables: list[list[list]]) -> list[NoticeRow] | 
     if header is None:
         return None
     return _extract_rows(header, data_rows, split_county_wrap=True)
+
+
+# ---------------------------------------------------------------------------
+# Archive era (2004-2006 + PY2010-PY2019) — Wayback backfill only
+# ---------------------------------------------------------------------------
+
+# One line of a cell: the Type of Action ("Layoff", "Closure", sometimes with
+# stray trailing punctuation), a standalone "# Affected" count, or a date-ish
+# value ("12/31/10", "6/2013", "8/5&6/15").
+_ARCHIVE_ACTION_RE = re.compile(r"^(layoff|closure|closing)s?\b[\s\W]*$", re.I)
+_ARCHIVE_INT_RE = re.compile(r"^(?:\d{1,3}(?:,\d{3})+|\d{1,5})$")
+_ARCHIVE_DATEISH_RE = re.compile(r"^[\d/&.\- ]*\d/[\d/&.\- ]*$")
+# "June 30, 2006"-style Date of Action (2004-06 era); the year can wrap onto
+# its own line, so this is matched against the whole cell.
+_ARCHIVE_MONTH_DATE_RE = re.compile(
+    r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}",
+    re.I,
+)
+# "Non-WARN ..." in all its punctuation variants (incl. one "Non. WARM" typo),
+# plus the 2004-06 "Existing Business & Industry Listing" phrasing that some
+# quarters use for the same class of event without the NON-WARN prefix.
+_NON_WARN_RE = re.compile(
+    r"^\s*(?:non\s*\W?\s*war[nm]|existing\s+business\s*&\s*industry\s+listing)", re.I
+)
+_ZIP_RE = re.compile(r"\b(\d{5})(?:-\d{4})?\b")
+_PAREN_GROUP_RE = re.compile(r"\(([^()]*)\)?")  # tolerates unclosed "(38652"
+# A plausible city/county name: title-case-ish, no digits ("MDOC" and zips fail).
+_PLACE_RE = re.compile(r"[A-Z][a-z][A-Za-z .'\-]*")
+_NAICS6_RE = re.compile(r"\b(\d{6})\b")
+_HEADER_HINT_RE = re.compile(
+    r"company name|date of|reason|workforce|naics|nacis|sic code|affected|notice|type of",
+    re.I,
+)
+_NOT_A_PLACE = {"unknown", "tbd", "n/a"}
+
+
+def _cell_lines(cell: object) -> list[str]:
+    if cell is None:
+        return []
+    return [" ".join(ln.split()) for ln in str(cell).splitlines() if ln.strip()]
+
+
+def _row_starts_record(row: list) -> bool:
+    lines = _cell_lines(row[0]) if row else []
+    return bool(lines) and _DATE_CELL_RE.match(lines[0]) is not None
+
+
+def _parse_archive_tables(
+    tables: list[list[list]], source_url: str, *, include_non_warn: bool = False
+) -> list[NoticeRow]:
+    """Parse 2004-2006 / PY2010-PY2019 quarterlies.
+
+    These grids stack "# Affected" under "Type of Action" and print the count
+    on a continuation row, pad with ghost columns whose position varies per
+    page, and (2004-06) add SIC+NAICS description lines.  Cells are therefore
+    read semantically per record: rows are grouped by the date in column 0,
+    merged column-wise, and the fields between the company cell and the
+    trailing Reason/Comments cell are classified by content (action word /
+    standalone count / date).  Reason/Comments flags non-WARN Rapid Response
+    events, which are dropped unless ``include_non_warn`` (debug/tests) —
+    those rows then carry ``extra["non_warn"] = "1"``.
+    """
+    records: list[list[list]] = []
+    for t in tables:
+        start = next((i for i, r in enumerate(t) if _row_starts_record(r)), None)
+        if start is None:
+            continue  # summary/totals table
+        pre = t[:start]
+        header_text = " ".join(
+            " ".join(str(c).lower().split()) for row in pre for c in row if c
+        )
+        if "company name" not in header_text:
+            continue
+        # A record can spill onto the next page: rows above that page's
+        # repeated header belong to the previous record. Stop at the first
+        # label row — anything below it is stacked-header continuation
+        # fragments ("Type of" / "Action #"), not data.
+        for row in pre:
+            cells = [str(c) for c in row if c not in (None, "")]
+            if not cells:
+                continue
+            if any(_HEADER_HINT_RE.search(c) for c in cells):
+                break
+            if records:
+                records[-1].append(row)
+        for row in t[start:]:
+            if _row_starts_record(row):
+                records.append([row])
+            elif records:
+                records[-1].append(row)
+
+    rows: list[NoticeRow] = []
+    for rec in records:
+        row = _archive_record_to_row(rec, source_url, include_non_warn=include_non_warn)
+        if row is not None:
+            rows.append(row)
+    return rows
+
+
+def _archive_record_to_row(
+    rec: list[list], source_url: str, *, include_non_warn: bool
+) -> NoticeRow | None:
+    # Merge the record's rows column-wise into lists of lines.
+    cols: dict[int, list[str]] = {}
+    for row in rec:
+        for i, cell in enumerate(row):
+            lines = _cell_lines(cell)
+            if lines:
+                cols.setdefault(i, []).extend(lines)
+
+    idxs = sorted(cols)
+    if not idxs or idxs[0] != 0:
+        return None
+    notice_date = _normalize_date(cols[0][0])
+    if notice_date is None:
+        return None
+
+    body = idxs[1:]
+    if not body:
+        return None
+    company_i = body[0]
+    rest = body[1:]
+
+    # Reason/Comments = last populated cell, unless the row has no comment and
+    # the last cell is really a date/count/action value.
+    reason_i = None
+    if rest:
+        last_lines = cols[rest[-1]]
+        if re.search(r"[A-Za-z]{3}", " ".join(last_lines)) and not all(
+            _ARCHIVE_ACTION_RE.match(ln) for ln in last_lines
+        ):
+            reason_i = rest[-1]
+    reason = " ".join(cols[reason_i]) if reason_i is not None else ""
+    non_warn = _NON_WARN_RE.match(reason) is not None
+    if non_warn and not include_non_warn:
+        return None
+
+    closure_type: str | None = None
+    counts: list[int] = []
+    eff_lines: list[str] = []
+    wda: str | None = None
+    naics: str | None = None
+    for i in rest:
+        if i == reason_i:
+            continue
+        lines = cols[i]
+        cell_text = " ".join(lines)
+        if wda is None and not any(ch.isdigit() for ch in cell_text):
+            place_lines = [
+                ln
+                for ln in lines
+                if not _ARCHIVE_ACTION_RE.match(ln) and ln.lower() not in _NOT_A_PLACE
+            ]
+            if place_lines and len(cell_text) <= 40:
+                wda = " ".join(place_lines)
+        for ln in lines:
+            bare = ln.strip("()")  # estimated counts print as "(250)"
+            bare = re.sub(r",\s+(?=\d{3}\b)", ",", bare)  # "1, 451" -> "1,451"
+            if _ARCHIVE_ACTION_RE.match(ln):
+                if closure_type is None:
+                    closure_type = re.match(
+                        r"(layoff|closure|closing)", ln, re.I
+                    ).group(1).title()
+            elif _ARCHIVE_INT_RE.match(bare):
+                n = int(bare.replace(",", ""))
+                if not 1990 <= n <= 2059:  # a wrapped year line, not a count
+                    counts.append(n)
+            elif _ARCHIVE_DATEISH_RE.match(ln):
+                eff_lines.append(ln)
+        m = _ARCHIVE_MONTH_DATE_RE.search(cell_text)
+        if m:
+            eff_lines.append(m.group())
+        if naics is None:
+            m = _NAICS6_RE.search(cell_text)
+            if m:
+                naics = m.group(1)
+
+    employer, city, county, zip_code = _split_archive_company(cols[company_i])
+    if not employer or _ARCHIVE_ACTION_RE.match(employer):
+        # A record whose company cell fell outside the detected table grid
+        # leaves only the action word behind (seen once, PY2010-Q2) — drop it.
+        return None
+
+    effective_date = _normalize_date(eff_lines[-1]) if eff_lines else None
+    extra: dict[str, str] = {}
+    if wda:
+        extra["wda"] = wda
+    if include_non_warn:  # debug/tests only — never set on ingested rows
+        if non_warn:
+            extra["non_warn"] = "1"
+        extra["reason"] = reason
+    return NoticeRow(
+        state="MS",
+        employer=employer,
+        notice_date=notice_date,
+        effective_date=effective_date,
+        layoff_count=counts[-1] if counts else None,
+        closure_type=closure_type,
+        city=city,
+        county=county,
+        zip=zip_code,
+        naics_code=naics,
+        source_url=source_url,
+        extra=extra,
+    )
+
+
+def _split_archive_company(
+    lines: list[str],
+) -> tuple[str, str | None, str | None, str | None]:
+    """Split the merged company cell into (employer, city, county, zip).
+
+    2004-06 puts city, county and zip each in parens ("(Walls) (Desoto)
+    (38680)"); PY2010-PY2019 uses "City (County) 38924" with the city often
+    wrapped onto the county's line or the line above ("Tyson Foods, Vicksburg"
+    / "(Warren) 39183").
+    """
+    zips: list[str] = []
+    cleaned: list[str] = []
+    for ln in lines:
+        stripped = _ZIP_RE.sub(lambda m: zips.append(m.group(1)) or "", ln)
+        stripped = " ".join(stripped.split())
+        if stripped:
+            cleaned.append(stripped)
+    zip_code = zips[-1] if zips else None
+
+    joined = " ".join(cleaned)
+    places = [
+        (m.start(), m.group(1).strip())
+        for m in _PAREN_GROUP_RE.finditer(joined)
+        if _PLACE_RE.fullmatch(m.group(1).strip())
+    ]
+
+    city = county = None
+    if len(places) >= 2:  # 2004-06: "(City) (County)"
+        city, county = places[0][1], places[1][1]
+        employer = joined[: places[0][0]]
+    elif len(places) == 1:  # PY2010+: "City (County)"
+        county = places[0][1]
+        # Locate the line holding the county's "(" (offset into the joined
+        # string — the paren can sit anywhere, even split from its name).
+        paren_at = places[0][0]
+        pos = 0
+        li = 0
+        for i, ln in enumerate(cleaned):
+            if pos <= paren_at < pos + len(ln):
+                li = i
+                break
+            pos += len(ln) + 1  # +1 for the joining space
+        pre = joined[pos:paren_at].strip(" ,")
+        emp_lines = cleaned[:li]
+        if not pre and emp_lines:
+            pre = emp_lines.pop()
+        remnant, _, candidate = pre.rpartition(",")
+        candidate = candidate.strip()
+        if candidate and not emp_lines and not remnant.strip() and " " in candidate:
+            # Single-line cell ("Foo Inc Jackson (Hinds)"): keep the last word
+            # as the city so the employer is not swallowed.
+            words = candidate.split()
+            emp_lines.append(" ".join(words[:-1]))
+            candidate = words[-1]
+        if candidate.split() and candidate.split()[-1] in ("MS", "Ms") and len(
+            candidate.split()
+        ) > 1:
+            candidate = candidate.rsplit(None, 1)[0]
+        if candidate:
+            city = candidate
+        if remnant.strip():
+            emp_lines.append(remnant.strip())
+        employer = " ".join(emp_lines)
+    else:
+        employer = joined
+
+    employer = " ".join(employer.replace("(", " ").replace(")", " ").split())
+    return employer.strip(" ,-"), city, county, zip_code
 
 
 def _extract_rows(
