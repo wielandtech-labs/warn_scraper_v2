@@ -813,11 +813,12 @@ def test_mn_archive_file_year():
 
 
 def test_mn_parse_archive_pdf_routes_2025_plus_to_live_chain():
-    """2025+ files keep the live parser chain (identical hashing with live rows)."""
+    """2025+ files delegate to the live parser chain (_parse_pdf), which now
+    owns the trailing-year strip — so _parse_archive_pdf passes rows through."""
     from warn_v2.scrapers.states import mn
 
     fake = [
-        NoticeRow(state="MN", employer="National Recoveries 2025", notice_date=date(2025, 10, 15)),
+        NoticeRow(state="MN", employer="National Recoveries", notice_date=date(2025, 10, 15)),
         NoticeRow(state="MN", employer="Coleman", notice_date=date(2025, 8, 31)),
     ]
     with patch.object(mn, "_parse_pdf", return_value=fake) as parse_pdf:
@@ -825,6 +826,74 @@ def test_mn_parse_archive_pdf_routes_2025_plus_to_live_chain():
 
     parse_pdf.assert_called_once()
     assert [r.employer for r in rows] == ["National Recoveries", "Coleman"]
+
+
+@respx.mock
+def test_mn_discover_drops_cumulative_roll_ups():
+    """2022-2024 year-end roll-ups (bare-YYYY, no month) are dropped when the
+    year also has monthlies; standalone 2018-2021 annual summaries are kept."""
+    from warn_v2.scrapers.states.mn import _CDX_API, _discover_archive_pdf_urls
+
+    base = "https://mn.gov/deed/assets"
+    cdx = [
+        ["original", "timestamp"],
+        [f"{base}/plant-closing-mass-layoff-warn-september-2024_a.pdf", "20241001000000"],
+        [f"{base}/plant-closing-mass-layoff-warn-report-2024_b.pdf", "20250101000000"],  # roll-up
+        [f"{base}/plant-closing-april-2022_c.pdf", "20220501000000"],
+        [f"{base}/plant-closing-mass-layoff-2022_d.pdf", "20230101000000"],  # roll-up
+        [f"{base}/plant-closing-mass-layoff-2021_e.pdf", "20220101000000"],  # annual, no monthly
+        [f"{base}/mass-layoff-summary-2018_f.pdf", "20190101000000"],  # annual, no monthly
+        [f"{base}/mass-layoff-summary0416_g.pdf", "20160501000000"],  # MMYY monthly
+    ]
+    respx.get(_CDX_API).mock(return_value=httpx.Response(200, json=cdx))
+
+    kept = {u.rsplit("/", 1)[-1] for u in _discover_archive_pdf_urls()}
+    assert kept == {
+        "plant-closing-mass-layoff-warn-september-2024_a.pdf",
+        "plant-closing-april-2022_c.pdf",
+        "plant-closing-mass-layoff-2021_e.pdf",
+        "mass-layoff-summary-2018_f.pdf",
+        "mass-layoff-summary0416_g.pdf",
+    }
+
+
+def test_mn_parse_pdf_strips_trailing_report_year():
+    """The live chain strips DEED's trailing report year ("Zeco Systems Inc
+    2025") so live-scraped rows hash identically to backfilled ones."""
+    from warn_v2.scrapers.states import mn
+
+    fake = [
+        NoticeRow(
+            state="MN", employer="Zeco Systems Inc 2025",
+            notice_date=date(2025, 8, 21), city="Los Angeles",
+        )
+    ]
+    with patch.object(mn.pdfplumber, "open"), \
+            patch.object(mn, "_parse_clean_table", return_value=fake):
+        rows = mn._parse_pdf(b"%PDF-1.4", "https://mn.gov/x-august-2025.pdf")
+    assert [r.employer for r in rows] == ["Zeco Systems Inc"]
+
+
+def test_mn_recover_count_from_adjacent_column():
+    """A right-aligned count that bucketed into the TAA column is recovered."""
+    from warn_v2.scrapers.states.mn import _recover_count
+
+    rec = {0: ["Yelloh!"], 8: ["NO", "30"], 9: []}
+    _recover_count(rec, {"name": 0, "count": 9})
+    assert rec[9] == ["30"] and rec[8] == ["NO"]
+
+
+def test_mn_recover_count_noop_when_present_or_non_integer():
+    """Recovery leaves an already-parsed count alone and pulls no non-integer."""
+    from warn_v2.scrapers.states.mn import _recover_count
+
+    present = {8: ["NO"], 9: ["56"]}
+    _recover_count(present, {"count": 9})
+    assert present[9] == ["56"]
+
+    non_int = {8: ["Services"], 9: []}
+    _recover_count(non_int, {"count": 9})
+    assert not non_int.get(9)
 
 
 _MN_FIXTURES = Path(__file__).resolve().parents[1] / "warn_v2" / "scrapers" / "fixtures" / "mn"
