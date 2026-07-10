@@ -192,11 +192,25 @@ def test_sector_monthly_series(db):
     _notice(db, notice_date=date(2026, 5, 1), layoff_count=10, naics="311999")
     _notice(db, notice_date=date(2026, 6, 1), layoff_count=20, naics="332000")
     _notice(db, notice_date=date(2026, 6, 2), layoff_count=99)  # un-enriched: excluded
+    _notice(db, notice_date=date(2025, 6, 1), layoff_count=7, naics="311999")  # year earlier
     db.commit()
 
     agg = compute_sector_aggregates(db, "31-33", as_of=AS_OF)
-    assert ("2026-05", 1, 10) in agg.monthly
-    assert ("2026-06", 1, 20) in agg.monthly
+    assert ("2026-05", 1, 10, 0) in agg.monthly
+    assert ("2026-06", 1, 20, 7) in agg.monthly
+    assert all(m >= "2025-08" for m, _, _, _ in agg.monthly)  # 12-month display
+
+
+def test_sector_seasonal_totals(db):
+    _notice(db, notice_date=date(2026, 5, 1), layoff_count=10, naics="311999")  # current
+    _notice(db, notice_date=date(2025, 5, 1), layoff_count=30, naics="332000")  # seasonal
+    _notice(db, notice_date=date(2025, 5, 2), layoff_count=99)  # un-enriched: excluded
+    db.commit()
+
+    agg = compute_sector_aggregates(db, "31-33", as_of=AS_OF)
+    assert (agg.season_start, agg.season_end) == (date(2025, 4, 3), date(2025, 7, 1))
+    assert (agg.season_notices, agg.season_layoffs) == (1, 30)
+    assert (agg.cur_notices, agg.cur_layoffs) == (1, 10)
 
 
 def test_sector_insufficient_data_has_no_score(db):
@@ -221,7 +235,20 @@ def test_sector_payload_shape(db):
     assert payload["score"] == agg.score
     assert payload["grade"] == agg.grade
     assert payload["top_states"][0]["name"] == "California"
+    assert payload["top_states"][0]["pct_change"] is None  # nothing in prior window
     assert payload["top_subsectors"][0]["name"] == "Food Manufacturing"
+    assert payload["same_window_last_year"] == {
+        "start": "2025-04-03",
+        "end": "2025-07-01",
+        "notices": 0,
+        "layoffs": 0,
+    }
+    assert set(payload["pct_change"]) == {
+        "layoffs_vs_prior_window",
+        "layoffs_vs_same_window_last_year",
+        "layoffs_trailing_12mo_vs_prior_12mo",
+        "note",
+    }
     assert "coverage_note" in payload
 
 

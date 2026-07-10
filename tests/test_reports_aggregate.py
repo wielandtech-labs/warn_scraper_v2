@@ -11,12 +11,15 @@ from warn_v2.reports.aggregate import (
 )
 
 # Fixed clock for every test. Windows (90d, inclusive):
-#   current: 2026-04-03 .. 2026-07-01
-#   prior:   2026-01-03 .. 2026-04-02
+#   current:  2026-04-03 .. 2026-07-01
+#   prior:    2026-01-03 .. 2026-04-02
+#   seasonal: 2025-04-03 .. 2025-07-01 (current window shifted back 365 days)
 AS_OF = date(2026, 7, 1)
 CUR_START = date(2026, 4, 3)
 PRIOR_END = date(2026, 4, 2)
 PRIOR_START = date(2026, 1, 3)
+SEASON_START = date(2025, 4, 3)
+SEASON_END = date(2025, 7, 1)
 
 _seq = 0
 
@@ -75,6 +78,22 @@ def test_window_boundaries_inclusive(db):
     assert (agg.prior_notices, agg.prior_layoffs) == (2, 12)
     # The 2026-01-03 notice still counts toward the trailing-12mo figures.
     assert agg.yoy_cur_layoffs == 31
+
+
+def test_seasonal_window_boundaries_inclusive(db):
+    _notice(db, notice_date=SEASON_START, layoff_count=1)  # first day of seasonal
+    _notice(db, notice_date=SEASON_END, layoff_count=2)  # last day of seasonal
+    _notice(db, notice_date=date(2025, 4, 2), layoff_count=4)  # before seasonal
+    _notice(db, notice_date=date(2025, 7, 2), layoff_count=8)  # after seasonal
+    db.commit()
+
+    agg = compute_state_aggregates(db, "CA", as_of=AS_OF)
+    assert (agg.season_start, agg.season_end) == (SEASON_START, SEASON_END)
+    assert (agg.season_notices, agg.season_layoffs) == (2, 3)
+    # The day after the seasonal window is the start of the trailing 12 months.
+    assert agg.yoy_cur_layoffs == 8
+    # Seasonal figures never gate the narrative.
+    assert not agg.sufficient
 
 
 def test_superseded_and_other_state_excluded(db):
@@ -139,11 +158,16 @@ def test_zero_notice_state_returns_empty_aggregates(db):
     assert agg.state == "WY"
     assert agg.state_name == "Wyoming"
     assert agg.cur_notices == 0
+    assert agg.season_notices == 0
     assert agg.counties == []
     assert agg.sectors == []
     assert agg.monthly == []
     assert agg.naics_coverage_pct == 0.0
     assert not agg.sufficient
+    pcts = agg.to_prompt_payload()["pct_change"]
+    assert pcts["layoffs_vs_prior_window"] is None
+    assert pcts["layoffs_vs_same_window_last_year"] is None
+    assert pcts["layoffs_trailing_12mo_vs_prior_12mo"] is None
 
 
 def test_monthly_series_and_closure_split(db):
@@ -154,9 +178,11 @@ def test_monthly_series_and_closure_split(db):
     db.commit()
 
     agg = compute_state_aggregates(db, "CA", as_of=AS_OF)
-    assert ("2026-05", 2, 30) in agg.monthly
-    assert ("2026-06", 1, 30) in agg.monthly
-    assert all(m >= "2025-08" for m, _, _ in agg.monthly)  # 12-month lookback
+    assert ("2026-05", 2, 30, 0) in agg.monthly
+    # The 2025-06 notice is outside the 12 display months but supplies the
+    # year-earlier figure for 2026-06.
+    assert ("2026-06", 1, 30, 99) in agg.monthly
+    assert all(m >= "2025-08" for m, _, _, _ in agg.monthly)  # 12-month display
     assert agg.closure_split == {"Layoff": 1, "Closure": 1, "Unspecified": 1}
 
 
@@ -180,8 +206,36 @@ def test_prompt_payload_shape(db):
         "notices_prior",
         "layoffs_prior",
         "delta_layoffs",
+        "pct_change",
     }
+    assert payload["same_window_last_year"] == {
+        "start": "2025-04-03",
+        "end": "2025-07-01",
+        "notices": 0,
+        "layoffs": 0,
+    }
+    assert "note" in payload["pct_change"]
+    monthly_row = payload["monthly"][0]
+    assert set(monthly_row) == {"month", "notices", "layoffs", "layoffs_year_earlier"}
     assert "top_states" not in payload  # national-only key
+
+
+def test_payload_pct_change_values(db):
+    # current 120; prior window empty → null; seasonal 90 → +33.3;
+    # trailing 12mo 120 vs prior 12mo 90+70=160 → -25.0.
+    for i in range(12):
+        _notice(db, notice_date=date(2026, 5, 1), layoff_count=10, county=f"County{i:02d}")
+    _notice(db, notice_date=date(2025, 5, 1), layoff_count=90)  # seasonal window
+    _notice(db, notice_date=date(2024, 8, 1), layoff_count=70)  # prior 12mo only
+    db.commit()
+
+    payload = compute_state_aggregates(db, "CA", as_of=AS_OF).to_prompt_payload()
+    pcts = payload["pct_change"]
+    assert pcts["layoffs_vs_prior_window"] is None  # prior window empty
+    assert pcts["layoffs_vs_same_window_last_year"] == 33.3
+    assert pcts["layoffs_trailing_12mo_vs_prior_12mo"] == -25.0
+    # Per-row pct: County00 had nothing in the prior window.
+    assert payload["top_counties"][0]["pct_change"] is None
 
 
 def test_national_totals_sum_across_states(db):
