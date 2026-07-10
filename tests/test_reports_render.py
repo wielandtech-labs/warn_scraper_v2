@@ -125,6 +125,18 @@ def test_sanitize_collapses_blank_runs_and_truncates():
     assert len(sanitize_narrative(long)) <= MAX_NARRATIVE_CHARS + 1  # + ellipsis
 
 
+def test_sanitize_truncates_at_sentence_boundary():
+    # An overlong narrative is cut at the last full sentence, not mid-thought.
+    sentence = "Job losses rose sharply in the county. "
+    long = sentence * (MAX_NARRATIVE_CHARS // len(sentence) + 5)
+    out = sanitize_narrative(long)
+    assert len(out) <= MAX_NARRATIVE_CHARS
+    assert out.endswith("in the county.")
+    # No sentence boundary in the first half → fall back to the ellipsis cut.
+    unbroken = "x" * (MAX_NARRATIVE_CHARS + 500) + "."
+    assert sanitize_narrative(unbroken).endswith("…")
+
+
 # ---------------------------------------------------------------------------
 # render_report
 # ---------------------------------------------------------------------------

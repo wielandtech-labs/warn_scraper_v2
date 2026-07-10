@@ -26,7 +26,14 @@ def sanitize_narrative(text: str) -> str:
     text = text.replace("<", "&lt;").replace(">", "&gt;")
     text = re.sub(r"\n{3,}", "\n\n", text).strip()
     if len(text) > MAX_NARRATIVE_CHARS:
-        text = text[:MAX_NARRATIVE_CHARS].rstrip() + "…"
+        cut = text[:MAX_NARRATIVE_CHARS]
+        # Prefer ending at a sentence boundary over a mid-sentence "…"
+        # (seen in prod 2026-07-10: the US narrative stopped at "fell 1 414 to").
+        last_period = cut.rfind(".")
+        if last_period >= MAX_NARRATIVE_CHARS // 2:
+            text = cut[: last_period + 1]
+        else:
+            text = cut.rstrip() + "…"
     return text
 
 

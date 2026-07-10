@@ -10,6 +10,7 @@ from click.testing import CliRunner
 from warn_v2 import cli
 from warn_v2.db.models import Company, Notice
 from warn_v2.reports import ollama as ollama_mod
+from warn_v2.reports.generate import _BANNED_RETRY_NOTE, _narrate_checked
 from warn_v2.reports.ollama import OllamaUnavailable
 
 
@@ -57,6 +58,44 @@ def fake_client(monkeypatch: pytest.MonkeyPatch) -> FakeNarrativeClient:
     fake = FakeNarrativeClient()
     monkeypatch.setattr(ollama_mod, "build_ollama_client", lambda: fake)
     return fake
+
+
+class ScriptedClient:
+    """Returns queued narratives in order, recording each system prompt."""
+
+    model = "fake-model"
+
+    def __init__(self, outputs: list[str]):
+        self.outputs = list(outputs)
+        self.systems: list[str] = []
+
+    def narrate(self, *, system: str, prompt: str) -> str:
+        self.systems.append(system)
+        return self.outputs.pop(0)
+
+
+def test_narrate_checked_clean_output_no_retry():
+    client = ScriptedClient(["Job losses rose to 20 from 10."])
+    out = _narrate_checked(client, "sys", "{}")
+    assert out == "Job losses rose to 20 from 10."
+    assert len(client.systems) == 1
+
+
+def test_narrate_checked_banned_word_retries_once_with_note():
+    client = ScriptedClient(
+        ["Florida added 5,504 more jobs.", "Job losses in Florida rose by 5,504."]
+    )
+    out = _narrate_checked(client, "sys", "{}")
+    assert out == "Job losses in Florida rose by 5,504."
+    assert client.systems == ["sys", "sys" + _BANNED_RETRY_NOTE]
+
+
+def test_narrate_checked_persistent_banned_word_ships_anyway(caplog):
+    client = ScriptedClient(["Manufacturing grew 2.4%.", "Losses gained ground."])
+    with caplog.at_level("WARNING"):
+        out = _narrate_checked(client, "sys", "{}")
+    assert out == "Losses gained ground."  # shipped, not degraded to figures-only
+    assert "persisted after retry" in caplog.text
 
 
 def test_single_state_with_narrative(db, fake_client, tmp_path):
