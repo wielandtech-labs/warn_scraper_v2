@@ -240,6 +240,22 @@ Ordered by recoverable rows:
   Backfill from Socrata; keep the HECC scraper for freshness; consider a
   recurring top-up (the dataset lags ~2 months). Watch cross-source dedup —
   `company_name` is sometimes a facility name. (A+gate)
+- [ ] **MI 2000–2024 milmi.org Wayback** (~1,500 rows — the biggest Wave-3
+  prize) — MI's history never lived on michigan.gov's search alone: the
+  Labor Market Information site `milmi.org` published it, and Wayback holds
+  it all (live milmi.org/warn now redirects to the pruned LEO page; files
+  404 live). Same 5-column schema both eras (Company | City | Date Received
+  | Incident Type | Number of Layoffs): **2016–2024** as per-year HTML
+  tables in the `milmi.org/warn/archive` capture 2025-06-21 (685 rows;
+  2020 = 253), **2000–2015** as 16 annual PDFs
+  (`.../_docs/publications/warn/warn{2000..2015}.pdf`, captures 2021-07-15
+  and 2016-10-15 Portals-era; clean text tables, 2001-era uses numeric
+  Incident-Type codes). Bonus corroboration: 193 per-notice letter PDFs
+  archived under michigan.gov `WD-DATA_PUBLIC_WARN_NOTICES4/{2014..2021}/`,
+  and one archived Sitecore search-API capture (2025-04-30) shows the index
+  held **Count=559** before the mid-2025 purge (103 live today). No FOIA
+  needed — the mi.md draft stays as a post-backfill completeness backstop.
+  (A+gate)
 - [ ] **TN 2018–2024 Wayback** — the live reports page holds 2025+ only.
   2024 (~60 rows): late-2024/early-2025 captures of reports.html carry the
   live-schema table — easy. 2018–2023: only as **534 per-notice WARN letter
@@ -250,13 +266,15 @@ Ordered by recoverable rows:
 ## Track 4 — Records-request (FOIA) pipeline
 
 - [ ] **Send the drafts** — tracker in [foia/README.md](foia/README.md).
-  First wave by recoverable rows (refreshed 2026-07-09): **MI (pre-Nov-2024)**,
+  First wave by recoverable rows (refreshed 2026-07-09, MI dropped same day):
   **TX (pre-2020)**, **FL (pre-2020)**, **GA (pre-2023, web form)**. Gmail
-  drafts for the three email requests staged 2026-07-09 — review + hit send.
-  Dropped from the wave: NY (closed via crosstab), CA (2000–2005 Wayback HTML
-  found; pre-2000 archived nowhere), AZ/DE (JobLink reaches 2010/2007, #241);
-  TN deferred while the Wayback letter route is evaluated. **Sending is
-  a human action.** (H)
+  drafts for TX/FL staged 2026-07-09 — review + hit send; the staged MI draft
+  is **on hold** (see the Wave-3 milmi route — send only as a completeness
+  backstop after that backfill verifies). Dropped from the wave: NY (closed
+  via crosstab), CA (2000–2005 Wayback HTML found; pre-2000 archived
+  nowhere), AZ/DE (JobLink reaches 2010/2007, #241), **MI (2000–2024 on
+  milmi.org via Wayback — re-probe 2026-07-09)**; TN deferred while the
+  Wayback letter route is evaluated. **Sending is a human action.** (H)
 - [ ] **Track + follow up** — once any are sent, agents maintain the tracker
   (sent date, statutory deadline, response), draft follow-ups/appeals. (A+gate)
 - [ ] **Ingest responses** — `warn-v2 ingest-file --state XX` per the runbook,
