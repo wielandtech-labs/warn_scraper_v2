@@ -84,6 +84,7 @@ from warn_v2.scrapers.states.mo import (
 )
 from warn_v2.scrapers.states.ms import _discover_pdf_urls as _discover_ms_pdf_urls
 from warn_v2.scrapers.states.nc import _discover_nc_pdf_urls, parse_nc_pdf
+from warn_v2.scrapers.states.ne import ne_archive_files, parse_ne_archive
 from warn_v2.scrapers.states.nj import ARCHIVE_XLSX_URL as _NJ_ARCHIVE_XLSX_URL
 from warn_v2.scrapers.states.nj import parse_nj_archive_xlsx
 from warn_v2.scrapers.states.nm import _discover_archive_pdf_urls as _discover_nm_pdf_urls
@@ -303,6 +304,15 @@ _BACKFILL: dict[str, BackfillSpec] = {
         year_start=1996,
         fetch_year=lambda s, y: _fetch_oh_year(y),
         parse_year=lambda b, y: parse_oh_year(b, y),
+    ),
+    # NE: the legacy per-year report endpoint (?year=2010..2020) still serves
+    # frozen HTML fragments; snapshotted 2026-07-10 and bundled as a tar.gz
+    # (see states/ne.py). parse_ne_archive stamps each member's per-year
+    # source URL. Prod floor is 2023 — no overlap. 2021-2022 rows exist only
+    # in Wayback captures of the rolling live page — follow-up, not bundled.
+    "NE": BackfillSpec(
+        bundled_files=ne_archive_files,
+        parse_for_url=lambda u: (lambda raw, _u=u: parse_ne_archive(raw, _u)),
     ),
     # SD: the frozen "WARN Notices Received" cumulative PDF (Jul-1997 →
     # Dec-2005, 60 notices) bundled from its Wayback capture; the live scraper
