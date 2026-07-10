@@ -142,7 +142,14 @@ def upsert_notices(session: Session, rows: Iterable[NoticeRow]) -> tuple[int, in
             "effective_date": row.effective_date,
             "layoff_count": row.layoff_count,
             "closure_type": row.closure_type,
-            "closure_category": normalize_closure_category(row.closure_type),
+            # Non-WARN Rapid Response events (flagged by the parser, currently
+            # MS-only) get their own category so aggregate stats can exclude
+            # them from statutory-WARN counts.
+            "closure_category": (
+                "Non-WARN"
+                if row.extra.get("non_warn")
+                else normalize_closure_category(row.closure_type)
+            ),
             "address": row.address,
             "source_url": row.source_url,
             "raw_notice_url": row.raw_notice_url,

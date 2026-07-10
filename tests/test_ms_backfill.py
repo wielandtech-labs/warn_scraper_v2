@@ -6,17 +6,14 @@ dispatch that keeps PY2020+ files on the existing parser paths.
 """
 from __future__ import annotations
 
-import io
 from datetime import date
 from pathlib import Path
 
-import pdfplumber
 import pytest
 
 from warn_v2.scrapers.states.ms import (
     _ARCHIVE_CAPTURES,
     _discover_ms_archive_urls,
-    _parse_archive_tables,
     _parse_pdf,
     parse_ms_archive_pdf,
 )
@@ -29,51 +26,37 @@ def _fixture(name: str) -> bytes:
     return (_FIXTURES / name).read_bytes()
 
 
-def _tables(raw: bytes) -> list:
-    with pdfplumber.open(io.BytesIO(raw)) as pdf:
-        return [t for page in pdf.pages if (t := page.extract_table())]
-
-
 # ---------------------------------------------------------------------------
 # 2004-2006 era ("(City) (County) (Zip)" all in parens, SIC + NAICS lines)
 # ---------------------------------------------------------------------------
 
-def test_ms_parse_archive_2004_era_filters_non_warn():
+def test_ms_parse_archive_2004_era_tags_non_warn():
     rows = parse_ms_archive_pdf(_fixture("sample_archive_2004.pdf"), _REPLAY)
 
-    # Page 1 holds 11 events; only two are WARN (the rest are flagged
-    # "NON-WARN ..." / "NON-WARN Existing Business & Industry Listing ...").
-    assert [r.employer for r in rows] == ["Sacred Heart League", "Falcon Companies"]
+    # Page 1 holds 11 events; only two are WARN — the rest are flagged
+    # "NON-WARN ..." / "NON-WARN Existing Business & Industry Listing ..."
+    # and kept with extra["non_warn"] (→ closure_category "Non-WARN").
+    assert len(rows) == 11
     assert all(r.state == "MS" and r.source_url == _REPLAY for r in rows)
+    warn = [r for r in rows if not r.extra.get("non_warn")]
+    assert [r.employer for r in warn] == ["Sacred Heart League", "Falcon Companies"]
+    bucksnort = next(r for r in rows if "Bucksnort" in r.employer)
+    assert bucksnort.extra["non_warn"] == "1"
+    assert bucksnort.extra["reason"].startswith("NON-WARN")
 
-    shl = rows[0]
+    shl = warn[0]
     assert shl.notice_date == date(2004, 7, 1)
     assert shl.effective_date == date(2004, 7, 30)
     assert (shl.city, shl.county, shl.zip) == ("Walls", "Desoto", "38680")
     assert shl.layoff_count == 23
     assert shl.closure_type == "Layoff"
     assert shl.naics_code == "511130"  # NAICS line wins over the 4-digit SIC
-    assert shl.extra == {"wda": "Mississippi Partnership"}
+    assert shl.extra.get("wda") == "Mississippi Partnership"
+    assert "non_warn" not in shl.extra
 
-    falcon = rows[1]
+    falcon = warn[1]
     assert falcon.layoff_count == 235
     assert falcon.closure_type == "Closure"
-
-
-def test_ms_parse_archive_2004_era_debug_keeps_flagged_rows():
-    """include_non_warn=True (debug/tests) returns every event, flagged."""
-    raw = _fixture("sample_archive_2004.pdf")
-    rows = _parse_archive_tables(_tables(raw), _REPLAY, include_non_warn=True)
-
-    assert len(rows) == 11
-    flagged = [r for r in rows if r.extra.get("non_warn")]
-    assert len(flagged) == 9
-    bucksnort = next(r for r in rows if "Bucksnort" in r.employer)
-    assert bucksnort.extra["non_warn"] == "1"
-    assert bucksnort.extra["reason"].startswith("NON-WARN")
-    # Production rows never carry the debug keys.
-    prod = parse_ms_archive_pdf(raw, _REPLAY)
-    assert all("non_warn" not in r.extra and "reason" not in r.extra for r in prod)
 
 
 # ---------------------------------------------------------------------------
@@ -83,25 +66,35 @@ def test_ms_parse_archive_2004_era_debug_keeps_flagged_rows():
 def test_ms_parse_archive_py2010_era():
     rows = parse_ms_archive_pdf(_fixture("sample_archive_py2010.pdf"), _REPLAY)
 
-    assert [r.employer for r in rows] == [
+    # 7 events; 4 are "Non-WARN. Rapid Response ..." and tagged, not dropped.
+    assert [r.employer for r in rows if r.extra.get("non_warn")] == [
+        "Georgia Pacific",
+        "Northrop Grumman",
+        "North MS State Hospital",
+        "Winn Dixie",
+    ]
+    warn = [r for r in rows if not r.extra.get("non_warn")]
+    assert [r.employer for r in warn] == [
         "Simpson Dura-Vent",
         "Butler America, LLC Shelton, CT",
         "CDI Engineering Solutions",
     ]
+    # "WARN. Rapid Response activities offered." must NOT trip the tag.
+    assert warn[0].extra["reason"].startswith("WARN.")
 
-    simpson = rows[0]  # count "6" sits on its own continuation row
+    simpson = warn[0]  # count "6" sits on its own continuation row
     assert simpson.notice_date == date(2010, 7, 6)
     assert simpson.layoff_count == 6
     assert (simpson.city, simpson.county, simpson.zip) == ("Vicksburg", "Warren", "39180")
     assert simpson.closure_type == "Layoff"
-    assert simpson.extra == {"wda": "South Central"}
+    assert simpson.extra.get("wda") == "South Central"
 
-    butler = rows[1]  # out-of-state HQ address: no "City (County)" to split
+    butler = warn[1]  # out-of-state HQ address: no "City (County)" to split
     assert (butler.city, butler.county) == (None, None)
     assert butler.zip == "06484"
     assert butler.layoff_count == 50
 
-    cdi = rows[2]  # effective date lands on a continuation row too
+    cdi = warn[2]  # effective date lands on a continuation row too
     assert cdi.effective_date == date(2010, 12, 31)
     assert cdi.layoff_count == 73
     assert cdi.naics_code == "541330"

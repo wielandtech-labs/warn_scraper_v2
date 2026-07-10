@@ -42,7 +42,7 @@ WHERE snapshot_date = "2026-07-01" AND state = "CA" AND NOT is_superseded
 | `effective_date` | DATE | Layoff/closure effective date (60-day WARN default when the source omits it). |
 | `layoff_count` | INTEGER | Workers affected; summed across worksites of one filing. |
 | `closure_type` | STRING | Raw source wording (e.g. "Layoff Permanent"). |
-| `closure_category` | STRING | Normalized bucket: `Closure` \| `Layoff` \| NULL. |
+| `closure_category` | STRING | Normalized bucket: `Closure` \| `Layoff` \| `Non-WARN` (MS Rapid Response events, not statutory notices) \| NULL. |
 | `address` | STRING | Worksite street address as filed. |
 | `city`, `county`, `zip` | STRING | Worksite locality. |
 | `lat`, `lon` | FLOAT | Worksite coordinates (see `geocode_source`). |

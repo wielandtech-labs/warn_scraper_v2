@@ -116,6 +116,10 @@ def _apply_date_filters(stmt, after: date | None, before: date | None):
 def _apply_closure_filter(stmt, closure_category: str | None):
     if closure_category:
         stmt = stmt.where(Notice.closure_category == closure_category)
+    else:
+        # Non-WARN Rapid Response events (MS) are not statutory WARN notices —
+        # keep them out of aggregate stats unless explicitly requested.
+        stmt = stmt.where(Notice.closure_category.is_distinct_from("Non-WARN"))
     return stmt
 
 
@@ -159,7 +163,7 @@ def _apply_industry_filter(stmt, industry, subsector, *, joined: bool = False):
 @router.get("/by-state", response_model=list[StateStat])
 def by_state(
     closure_category: str | None = Query(
-        None, description="Normalized closure type: Closure | Layoff"
+        None, description="Closure | Layoff | Non-WARN (default: all but Non-WARN)"
     ),
     industry: str | None = Query(None, description="NAICS sector id (e.g. 31-33)"),
     subsector: str | None = Query(None, description="3-digit NAICS subsector (e.g. 311)"),
@@ -278,7 +282,7 @@ def _pace_projection(
 def by_month(
     state: str | None = Query(None, description="Restrict to one state"),
     closure_category: str | None = Query(
-        None, description="Normalized closure type: Closure | Layoff"
+        None, description="Closure | Layoff | Non-WARN (default: all but Non-WARN)"
     ),
     industry: str | None = Query(None, description="NAICS sector id (e.g. 31-33)"),
     subsector: str | None = Query(None, description="3-digit NAICS subsector (e.g. 311)"),
@@ -308,7 +312,7 @@ def over_time(
     bucket: str = Query("month", description="Time bucket: day | month | year"),
     state: str | None = Query(None, description="Restrict to one state"),
     closure_category: str | None = Query(
-        None, description="Normalized closure type: Closure | Layoff"
+        None, description="Closure | Layoff | Non-WARN (default: all but Non-WARN)"
     ),
     industry: str | None = Query(None, description="NAICS sector id (e.g. 31-33)"),
     subsector: str | None = Query(None, description="3-digit NAICS subsector (e.g. 311)"),
@@ -344,7 +348,7 @@ def top_employers(
     limit: int = Query(10, ge=1, le=100),
     state: str | None = Query(None),
     closure_category: str | None = Query(
-        None, description="Normalized closure type: Closure | Layoff"
+        None, description="Closure | Layoff | Non-WARN (default: all but Non-WARN)"
     ),
     industry: str | None = Query(None, description="NAICS sector id (e.g. 31-33)"),
     subsector: str | None = Query(None, description="3-digit NAICS subsector (e.g. 311)"),
@@ -401,7 +405,7 @@ def top_employers(
 def industries(
     state: str | None = Query(None, description="Restrict to one state"),
     closure_category: str | None = Query(
-        None, description="Normalized closure type: Closure | Layoff"
+        None, description="Closure | Layoff | Non-WARN (default: all but Non-WARN)"
     ),
     after: date | None = Query(None, description="Only notices on or after this date"),
     before: date | None = Query(None, description="Only notices on or before this date"),
@@ -545,7 +549,7 @@ def county_impact(
     ),
     state: str | None = Query(None),
     closure_category: str | None = Query(
-        None, description="Normalized closure type: Closure | Layoff"
+        None, description="Closure | Layoff | Non-WARN (default: all but Non-WARN)"
     ),
     industry: str | None = Query(None, description="NAICS sector id (e.g. 31-33)"),
     subsector: str | None = Query(None, description="3-digit NAICS subsector (e.g. 311)"),

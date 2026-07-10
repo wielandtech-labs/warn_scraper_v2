@@ -73,6 +73,21 @@ def test_ms_closure_type_populated(ms_sample_pdf: bytes) -> None:
     assert all(r.closure_type in ("Closure", "Layoff") for r in with_type)
 
 
+def test_ms_non_warn_rows_tagged(ms_sample_pdf: bytes) -> None:
+    """Reason/Comments "Non-WARN ..." rows are kept but tagged, so the storage
+    upsert can bucket them as closure_category "Non-WARN"; "WARN ..." reasons
+    must not trip the tag."""
+    scraper = get_scraper("MS")
+    rows = scraper.parse(ms_sample_pdf)
+    flagged = [r for r in rows if r.extra.get("non_warn")]
+    assert [r.employer for r in flagged] == ["NOV Energy Products Services"]
+    assert flagged[0].extra["non_warn"] == "1"
+    assert flagged[0].extra["reason"].startswith("Non-WARN")
+    regency = next(r for r in rows if "Regency" in r.employer)
+    assert regency.extra["reason"].startswith("WARN")
+    assert "non_warn" not in regency.extra
+
+
 def test_ms_validation_passes(ms_sample_pdf: bytes) -> None:
     scraper = get_scraper("MS")
     rows = scraper.parse(ms_sample_pdf)

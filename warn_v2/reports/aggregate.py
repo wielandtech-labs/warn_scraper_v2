@@ -179,6 +179,9 @@ def _in_window(stmt, state: str | None, start: date, end: date):
     """state=None means national: no per-state filter."""
     stmt = stmt.where(
         Notice.is_superseded.is_(False),
+        # Non-WARN Rapid Response events (MS) would skew YoY comparisons —
+        # reports count statutory WARN notices only.
+        Notice.closure_category.is_distinct_from("Non-WARN"),
         Notice.notice_date.is_not(None),
         Notice.notice_date >= start,
         Notice.notice_date <= end,
@@ -277,6 +280,7 @@ def _monthly_series(
         )
         .where(
             Notice.is_superseded.is_(False),
+            Notice.closure_category.is_distinct_from("Non-WARN"),
             Notice.notice_date.is_not(None),
             Notice.notice_date >= start,
         )

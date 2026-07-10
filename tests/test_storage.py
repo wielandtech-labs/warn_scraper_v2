@@ -53,6 +53,22 @@ def test_upsert_derives_closure_category(db) -> None:
     assert by_employer["None Co"].closure_category is None
 
 
+def test_upsert_non_warn_flag_wins_closure_category(db) -> None:
+    """Parser-flagged Rapid Response rows (extra["non_warn"]) get their own
+    category regardless of the Type of Action text, so aggregate stats can
+    exclude them from statutory-WARN counts."""
+    upsert_notices(db, [
+        _row(employer="RR Co", closure_type="Closure", extra={"non_warn": "1"}),
+        _row(employer="Statutory Co", closure_type="Closure",
+             notice_date=date(2026, 2, 1)),
+    ])
+    db.commit()
+
+    by_employer = {n.employer: n for n in db.query(Notice).all()}
+    assert by_employer["RR Co"].closure_category == "Non-WARN"
+    assert by_employer["Statutory Co"].closure_category == "Closure"
+
+
 def test_reupsert_fills_in_null_closure_category(db) -> None:
     """A re-scrape that adds closure_type backfills the normalized category."""
     upsert_notices(db, [_row(closure_type=None)])

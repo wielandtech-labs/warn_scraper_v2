@@ -792,5 +792,30 @@ def test_top_employers_closure_category_filter(api_client, db):
             ] == ["Closing Co"]
 
 
+def test_aggregates_exclude_non_warn_by_default(api_client, db):
+    """Non-WARN Rapid Response rows (MS) stay out of aggregate stats unless
+    explicitly requested — uncategorized (NULL) rows still count."""
+    _notice(db, state="MS", employer="Statutory Co", notice_date=date(2026, 1, 1),
+            layoff_count=100, closure_category="Closure")
+    _notice(db, state="MS", employer="Uncategorized Co", notice_date=date(2026, 1, 2),
+            layoff_count=30)
+    _notice(db, state="MS", employer="Rapid Response Co", notice_date=date(2026, 1, 3),
+            layoff_count=200, closure_category="Non-WARN")
+    db.commit()
+
+    body = api_client.get("/api/stats/by-state").json()
+    assert len(body) == 1
+    assert body[0]["notice_count"] == 2
+    assert body[0]["layoff_total"] == 130
+
+    months = api_client.get("/api/stats/by-month").json()
+    assert months[0]["notice_count"] == 2
+    assert months[0]["layoff_total"] == 130
+
+    explicit = api_client.get("/api/stats/by-state?closure_category=Non-WARN").json()
+    assert explicit[0]["notice_count"] == 1
+    assert explicit[0]["layoff_total"] == 200
+
+
 # Ensure unused imports don't break ruff
 _ = (UTC, datetime, Decimal)
