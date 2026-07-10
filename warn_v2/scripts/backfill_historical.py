@@ -99,6 +99,7 @@ from warn_v2.scrapers.states.pa import _fetch_pa_year, parse_pa_month
 from warn_v2.scrapers.states.sc import _discover_sc_archive_urls, parse_sc_archive_pdf
 from warn_v2.scrapers.states.sd import parse_sd_archive_pdf, sd_archive_files
 from warn_v2.scrapers.states.tx import _fetch_tx_year
+from warn_v2.scrapers.states.va import parse_va_archive_member, va_archive_files
 from warn_v2.scrapers.states.wi import _discover_wi_pcml_urls, parse_wi_pcml_xls
 from warn_v2.scrapers.states.wv import parse_wv_archive_pdf, wv_archive_files
 
@@ -392,6 +393,15 @@ _BACKFILL: dict[str, BackfillSpec] = {
     "ID": BackfillSpec(
         bundled_files=id_archive_files,
         parse_for_url=lambda u: parse_id_2008_pdf,
+    ),
+    # VA: Wayback captures of the three pre-2010 legacy formats bundled as a
+    # tar.gz (PY1999 xls, PY2002 pdf, PY2003 statewide Excel-HTML sheet — VA
+    # publishes July-June program years). PY2000-01 were never captured and
+    # the PY2004-06 workbook data sheets are not bundled; prod floor is 2010,
+    # so there is no overlap with live rows.
+    "VA": BackfillSpec(
+        bundled_files=va_archive_files,
+        parse_for_url=parse_va_archive_member,
     ),
     # NY: the dashboard's full crosstab export (2006-2026, ~9k rows) bundled
     # as a gzipped snapshot; NYScraper.parse reads it (same schema as the live
