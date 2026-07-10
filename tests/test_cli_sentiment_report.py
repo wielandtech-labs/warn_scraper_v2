@@ -61,17 +61,20 @@ def fake_client(monkeypatch: pytest.MonkeyPatch) -> FakeNarrativeClient:
 
 
 class ScriptedClient:
-    """Returns queued narratives in order, recording each system prompt."""
+    """Returns (or raises) queued outputs in order, recording each system prompt."""
 
     model = "fake-model"
 
-    def __init__(self, outputs: list[str]):
+    def __init__(self, outputs: list[str | Exception]):
         self.outputs = list(outputs)
         self.systems: list[str] = []
 
     def narrate(self, *, system: str, prompt: str) -> str:
         self.systems.append(system)
-        return self.outputs.pop(0)
+        out = self.outputs.pop(0)
+        if isinstance(out, Exception):
+            raise out
+        return out
 
 
 def test_narrate_checked_clean_output_no_retry():
@@ -96,6 +99,35 @@ def test_narrate_checked_persistent_banned_word_ships_anyway(caplog):
         out = _narrate_checked(client, "sys", "{}")
     assert out == "Losses gained ground."  # shipped, not degraded to figures-only
     assert "persisted after retry" in caplog.text
+
+
+def test_narrate_checked_unavailable_once_gets_fresh_attempt():
+    client = ScriptedClient([OllamaUnavailable("empty narrative content"), "Job losses eased."])
+    out = _narrate_checked(client, "sys", "{}")
+    assert out == "Job losses eased."
+    assert client.systems == ["sys", "sys"]  # plain retry, no corrective note
+
+
+def test_narrate_checked_unavailable_twice_propagates():
+    client = ScriptedClient([OllamaUnavailable("down"), OllamaUnavailable("down")])
+    with pytest.raises(OllamaUnavailable):
+        _narrate_checked(client, "sys", "{}")
+
+
+def test_narrate_checked_overlong_draft_retried_with_length_note():
+    from warn_v2.reports.generate import _LENGTH_RETRY_NOTE, _RETRY_LENGTH_CHARS
+
+    long_draft = "Job losses rose. " * (_RETRY_LENGTH_CHARS // 17 + 2)
+    client = ScriptedClient([long_draft, "Job losses rose, briefly."])
+    out = _narrate_checked(client, "sys", "{}")
+    assert out == "Job losses rose, briefly."
+    assert client.systems[1] == "sys" + _LENGTH_RETRY_NOTE
+
+
+def test_narrate_checked_failed_corrective_retry_keeps_first_draft():
+    client = ScriptedClient(["Manufacturing grew 2.4%.", OllamaUnavailable("down")])
+    out = _narrate_checked(client, "sys", "{}")
+    assert out == "Manufacturing grew 2.4%."  # flawed draft beats figures-only
 
 
 def test_single_state_with_narrative(db, fake_client, tmp_path):

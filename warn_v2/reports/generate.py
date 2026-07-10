@@ -189,19 +189,47 @@ are workers losing their jobs — never describe them as something added,
 grown, or gained.
 """
 
+# ~250 words is ~1,700 chars; only re-ask when the draft would visibly
+# truncate at render time (MAX_NARRATIVE_CHARS is 4,000).
+_RETRY_LENGTH_CHARS = 2600
+_LENGTH_RETRY_NOTE = """
+
+IMPORTANT: your previous draft was far too long and would be cut off.
+Rewrite the section in no more than 250 words, covering only the biggest
+movers.
+"""
+
 
 def _narrate_checked(client: NarrativeClient, system: str, payload: str) -> str:
-    """Narrate, then retry once with a corrective note if banned growth
-    vocabulary slipped through."""
-    narrative = client.narrate(system=system, prompt=payload)
-    match = _BANNED_RE.search(narrative)
-    if match:
-        log.warning("banned word %r in narrative; retrying once", match.group())
-        narrative = client.narrate(system=system + _BANNED_RETRY_NOTE, prompt=payload)
-        match = _BANNED_RE.search(narrative)
-        if match:
-            log.warning("banned word %r persisted after retry", match.group())
-    return narrative
+    """Narrate with one self-heal attempt per failure mode: a client failure
+    (transport dead, or empty content after its own retries) gets one fresh
+    attempt; a draft with banned growth vocabulary or visible-truncation
+    length gets one corrective retry. A failed corrective retry keeps the
+    flawed first draft — better than degrading to figures-only."""
+    try:
+        narrative = client.narrate(system=system, prompt=payload)
+    except OllamaUnavailable as exc:
+        log.warning("narrative attempt failed (%s); retrying once", exc)
+        narrative = client.narrate(system=system, prompt=payload)
+    notes = []
+    banned = _BANNED_RE.search(narrative)
+    if banned:
+        log.warning("banned word %r in narrative; retrying once", banned.group())
+        notes.append(_BANNED_RETRY_NOTE)
+    if len(narrative) > _RETRY_LENGTH_CHARS:
+        log.warning("narrative too long (%d chars); retrying once", len(narrative))
+        notes.append(_LENGTH_RETRY_NOTE)
+    if not notes:
+        return narrative
+    try:
+        redo = client.narrate(system=system + "".join(notes), prompt=payload)
+    except OllamaUnavailable as exc:
+        log.warning("corrective retry failed (%s); keeping first draft", exc)
+        return narrative
+    banned = _BANNED_RE.search(redo)
+    if banned:
+        log.warning("banned word %r persisted after retry", banned.group())
+    return redo
 
 
 def _atomic_write(reports_dir: Path, filename: str, content: str) -> Path:
