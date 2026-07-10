@@ -94,6 +94,7 @@ from warn_v2.scrapers.states.nv import _fetch_nv_year, parse_nv_archive
 from warn_v2.scrapers.states.ny import ny_history_csv
 from warn_v2.scrapers.states.oh import _fetch_oh_year, parse_oh_year
 from warn_v2.scrapers.states.pa import _fetch_pa_year, parse_pa_month
+from warn_v2.scrapers.states.sc import _discover_sc_archive_urls, parse_sc_archive_pdf
 from warn_v2.scrapers.states.sd import parse_sd_archive_pdf, sd_archive_files
 from warn_v2.scrapers.states.tx import _fetch_tx_year
 from warn_v2.scrapers.states.wi import _fetch_wi_archive_year, parse_wi_archive_html
@@ -360,6 +361,14 @@ _BACKFILL: dict[str, BackfillSpec] = {
     # current-year CSV). Overlap with the live 2025-2026 rows dedupes by
     # notice_id.
     "NY": BackfillSpec(bundled_bytes=ny_history_csv),
+    # SC: one pinned rolling-report edition per year 2009-2025 (Wayback
+    # scworks.org replays for 2009-2019, still-live unlinked dew.sc.gov/
+    # scworks.org URLs for 2020-2025). parse_sc_archive_pdf dispatches on the
+    # three layout eras; 2026 stays with the regular scraper.
+    "SC": BackfillSpec(
+        discover_urls=lambda: _discover_sc_archive_urls(),
+        parse_for_url=lambda u: (lambda raw, _u=u: parse_sc_archive_pdf(raw, _u)),
+    ),
     # WV: the workforcewv.org cumulative notice log Mar-2011 - Jun-2021 (373
     # blocks), bundled as the raw 1 MiB-truncated Wayback capture — see the
     # module comment on parse_wv_archive_pdf. The live scraper's rows carry
