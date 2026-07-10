@@ -391,7 +391,7 @@ def test_backfill_historical_ca_upserts_rows_xlsx(db) -> None:
 @pytest.mark.parametrize(
     "state",
     [
-        "CA", "DC", "AZ", "DE", "KS", "ME", "VT", "TX", "FL", "HI", "KY", "NM",
+        "CA", "DC", "AZ", "DE", "KS", "ME", "VT", "TX", "FL", "HI", "NM",
         "MA", "MD", "WI", "MN", "MS", "IL", "OH", "LA", "NV",
     ],
 )

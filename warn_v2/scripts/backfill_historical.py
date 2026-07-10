@@ -60,8 +60,7 @@ from warn_v2.scrapers.states.id import id_archive_files, parse_id_2008_pdf
 from warn_v2.scrapers.states.il import _discover_archive_pdf_urls as _discover_il_pdf_urls
 from warn_v2.scrapers.states.il import _discover_archive_xlsx_urls as _discover_il_xlsx_urls
 from warn_v2.scrapers.states.il import parse_il_pdf
-from warn_v2.scrapers.states.ky import _discover_workbook_urls as _discover_ky_workbook_urls
-from warn_v2.scrapers.states.ky import parse_ky_workbook
+from warn_v2.scrapers.states.ky import ky_archive_files, parse_ky_workbook
 from warn_v2.scrapers.states.la import _fetch_la_year, parse_la_pdf
 from warn_v2.scrapers.states.la import _source_url as _la_source_url
 from warn_v2.scrapers.states.ma import _fetch_ma_fy, parse_ma_xlsx
@@ -162,10 +161,15 @@ _BACKFILL: dict[str, BackfillSpec] = {
     "TX": BackfillSpec(year_start=2020, fetch_year=_fetch_tx_year),
     "FL": BackfillSpec(year_start=2020, fetch_year=_fetch_fl_year),
     "HI": BackfillSpec(year_start=2019, fetch_year=lambda s, y: _fetch_hi_year(y)),
-    # KY: one recent .xlsx workbook holds every year back to 2017 as its own
-    # sheet (the per-year CSVs only exist for 2025+ — see parse_ky_workbook).
+    # KY: bundled Wayback capture (20161222125836) of kcc.ky.gov's
+    # 'WARN Report 2016.xlsx' — one sheet per year, WARN 1998-WARN 2016
+    # (~780 rows); the pre-2017 history is gone from the live SharePoint
+    # library. 2017-2024 is already in prod from the old live-workbook Mode-2
+    # entry (run 2026-07-02); to re-run those years, restore it:
+    #   BackfillSpec(discover_urls=lambda: ky._discover_workbook_urls(),
+    #                parse_for_url=lambda u: parse_ky_workbook)
     "KY": BackfillSpec(
-        discover_urls=lambda: _discover_ky_workbook_urls(),
+        bundled_files=ky_archive_files,
         parse_for_url=lambda u: parse_ky_workbook,
     ),
     # LA: per-year PDFs; laworks.net prunes old files, only 2025+ resolve
