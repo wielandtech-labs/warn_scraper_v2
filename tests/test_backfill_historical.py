@@ -1108,6 +1108,9 @@ def test_backfill_historical_ms_ingests_all_discovered_pdfs(db) -> None:
 
     with patch(
         "warn_v2.scripts.backfill_historical._discover_ms_pdf_urls", return_value=urls
+    ), patch(
+        "warn_v2.scripts.backfill_historical._discover_ms_archive_urls",
+        return_value=[],
     ):
         stats = backfill_historical("MS", dry_run=True)
 

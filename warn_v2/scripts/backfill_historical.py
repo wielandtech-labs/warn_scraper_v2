@@ -84,6 +84,7 @@ from warn_v2.scrapers.states.mo import (
     parse_mo_archive_html,
     parse_mo_log_pdf,
 )
+from warn_v2.scrapers.states.ms import _discover_ms_archive_urls, parse_ms_archive_pdf
 from warn_v2.scrapers.states.ms import _discover_pdf_urls as _discover_ms_pdf_urls
 from warn_v2.scrapers.states.nc import _discover_nc_pdf_urls, parse_nc_pdf
 from warn_v2.scrapers.states.ne import ne_archive_files, parse_ne_archive
@@ -301,9 +302,18 @@ _BACKFILL: dict[str, BackfillSpec] = {
             else (lambda raw, _u=u: parse_mo_archive_html(raw, _u))
         ),
     ),
-    # MS: the landing page lists every quarterly PDF back to PY2020; the
-    # regular scraper ingests only the most recent one.
-    "MS": BackfillSpec(discover_urls=lambda: _discover_ms_pdf_urls()),
+    # MS: the landing page lists every quarterly PDF back to PY2020 (the
+    # regular scraper ingests only the most recent one), plus a static Wayback
+    # list for 2004-2006, PY2010-PY2019 and the delisted PY2023-Q4. Archive
+    # rows carry their replay URL; hub PDFs keep the plain scraper.parse path.
+    "MS": BackfillSpec(
+        discover_urls=lambda: _discover_ms_pdf_urls() + _discover_ms_archive_urls(),
+        parse_for_url=lambda u: (
+            (lambda raw, _u=u: parse_ms_archive_pdf(raw, _u))
+            if "web.archive.org" in u
+            else None
+        ),
+    ),
     # IL: monthly Excel files 2020+ plus the monthly PDF era 1999-2019 (a
     # labeled two-column form → parse_il_pdf; XLSX re-ingest is idempotent).
     "IL": BackfillSpec(
