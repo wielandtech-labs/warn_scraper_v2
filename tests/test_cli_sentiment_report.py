@@ -53,6 +53,14 @@ def _seed_state(db, state: str, n: int = 6, naics: str | None = None) -> None:
     db.commit()
 
 
+@pytest.fixture(autouse=True)
+def _no_bls_network(monkeypatch: pytest.MonkeyPatch):
+    """CLI runs with a live client fetch BLS context — never from tests."""
+    from warn_v2.reports import bls as bls_mod
+
+    monkeypatch.setattr(bls_mod, "fetch_bls_context", lambda *a, **k: None)
+
+
 @pytest.fixture
 def fake_client(monkeypatch: pytest.MonkeyPatch) -> FakeNarrativeClient:
     fake = FakeNarrativeClient()
@@ -128,6 +136,71 @@ def test_narrate_checked_failed_corrective_retry_keeps_first_draft():
     client = ScriptedClient(["Manufacturing grew 2.4%.", OllamaUnavailable("down")])
     out = _narrate_checked(client, "sys", "{}")
     assert out == "Manufacturing grew 2.4%."  # flawed draft beats figures-only
+
+
+class PromptCapturingClient:
+    """Succeeds once, keeping the user prompt for payload assertions."""
+
+    model = "fake-model"
+
+    def __init__(self):
+        self.prompts: list[str] = []
+
+    def narrate(self, *, system: str, prompt: str) -> str:
+        self.prompts.append(prompt)
+        return "Job losses eased."
+
+
+def _bls_fixture() -> dict:
+    return {
+        "national": {
+            "industry": "Total nonfarm",
+            "payroll_change_thousands_by_month": {"2026-06": 84.0},
+            "unemployment_rate": {"month": "2026-06", "value": 4.2},
+        },
+        "sectors": {
+            "31-33": {
+                "industry": "Manufacturing",
+                "payroll_change_thousands_by_month": {"2026-06": -2.0},
+            }
+        },
+    }
+
+
+def test_national_payload_carries_bls_context(db):
+    import json
+
+    from warn_v2.reports.generate import generate_national_report
+
+    _seed_state(db, "CA")
+    client = PromptCapturingClient()
+    _, status = generate_national_report(db, client, bls=_bls_fixture())
+    assert status == "ok"
+    payload = json.loads(client.prompts[0])
+    assert payload["bls_context"]["industry"] == "Total nonfarm"
+    assert payload["bls_context"]["unemployment_rate"]["value"] == 4.2
+
+    # Without BLS data the payload is unchanged.
+    _, _ = generate_national_report(db, client, bls=None)
+    assert "bls_context" not in json.loads(client.prompts[1])
+
+
+def test_industry_payload_carries_sector_bls_context(db):
+    import json
+
+    from warn_v2.reports.generate import generate_industry_report
+
+    _seed_state(db, "CA", naics="311999")
+    client = PromptCapturingClient()
+    _, status, _ = generate_industry_report(db, client, "31-33", bls=_bls_fixture())
+    assert status == "ok"
+    payload = json.loads(client.prompts[0])
+    assert payload["bls_context"]["industry"] == "Manufacturing"
+
+    # A sector missing from the BLS blocks gets no bls_context key.
+    _seed_state(db, "TX", naics="111000")
+    _, _, _ = generate_industry_report(db, client, "11", bls=_bls_fixture())
+    assert "bls_context" not in json.loads(client.prompts[1])
 
 
 def test_single_state_with_narrative(db, fake_client, tmp_path):

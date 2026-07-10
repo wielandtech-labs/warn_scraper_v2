@@ -98,6 +98,9 @@ The user message is a JSON object of pre-computed figures:
 - monthly: the last 12 months; layoffs_year_earlier is the same calendar
   month one year before.
 - naics_coverage_pct.
+- bls_context (optional): official BLS month-over-month changes in total
+  nonfarm payroll employment (thousands, seasonally adjusted) and the latest
+  unemployment rate, for the same months.
 
 Structure the prose in three short movements:
 1. Headline: national current-window job losses with BOTH comparisons — vs
@@ -106,11 +109,17 @@ Structure the prose in three short movements:
    use the trailing-12-month totals for the long-run picture.
 2. Industry: which NAICS sectors are being hit hardest and which are easing.
 3. Geography: which states account for the biggest shifts.
+If bls_context is present, close with ONE sentence of macro context
+attributed to BLS ("BLS reports...") — whether overall payrolls rose or fell
+while these WARN losses occurred, and the unemployment rate. If it is absent,
+do not mention BLS.
 
 Hard rules:
 - Use ONLY numbers present in the JSON. Never compute, extrapolate, or invent
   figures, states, industries, companies, or causes. Cite percentages only
   from the pct_change fields.
+- Never combine, net, or arithmetically compare BLS payroll figures with WARN
+  figures — they measure different things at different scales.
 - HARD LIMIT: 250 words. Cover only the biggest movers - at most three
   geographic areas and three industry rows. Plain prose; no headings, no
   bullet lists, no tables.
@@ -144,6 +153,9 @@ The user message is a JSON object of pre-computed figures for that sector:
   delta_layoffs and pct_change (null = nothing in the prior window).
 - monthly: the last 12 months; layoffs_year_earlier is the same calendar
   month one year before.
+- bls_context (optional): official BLS month-over-month payroll changes
+  (thousands, seasonally adjusted) for the closest matching BLS industry —
+  see its industry field; it can be broader than this NAICS sector.
 
 Structure the prose in three short movements:
 1. Headline: whether layoff pressure in this sector is rising or easing,
@@ -153,11 +165,17 @@ Structure the prose in three short movements:
    given — do not recompute or reinterpret them.
 2. Geography: which states drive the pressure.
 3. Subsectors: which 3-digit subsectors drive it.
+If bls_context is present, close with ONE sentence of macro context
+attributed to BLS ("BLS reports...") — whether payrolls in that BLS industry
+rose or fell over these months, naming the BLS industry as given. If it is
+absent, do not mention BLS.
 
 Hard rules:
 - Use ONLY numbers present in the JSON. Never compute, extrapolate, or invent
   figures, states, subsectors, companies, or causes. Cite percentages only
   from the pct_change fields.
+- Never combine, net, or arithmetically compare BLS payroll figures with WARN
+  figures — they measure different things at different scales.
 - HARD LIMIT: 250 words. Cover only the biggest movers - at most three
   geographic areas and three industry rows. Plain prose; no headings, no
   bullet lists, no tables.
@@ -281,8 +299,11 @@ def generate_national_report(
     client: NarrativeClient | None,
     *,
     as_of: date | None = None,
+    bls: dict | None = None,
 ) -> tuple[str, str]:
-    """Build the US-wide report. Same return shape as generate_state_report."""
+    """Build the US-wide report. Same return shape as generate_state_report.
+    `bls` is an optional fetch_bls_context() result; its national block is
+    added to the LLM payload as macro context (never to the tables)."""
     agg = compute_national_aggregates(session, as_of=as_of)
     narrative: str | None = None
     if not agg.sufficient:
@@ -290,9 +311,12 @@ def generate_national_report(
     elif client is None:
         status = "skipped"
     else:
+        payload = agg.to_prompt_payload()
+        if bls and bls.get("national"):
+            payload["bls_context"] = bls["national"]
         try:
             narrative = _narrate_checked(
-                client, NATIONAL_SYSTEM_PROMPT, json.dumps(agg.to_prompt_payload())
+                client, NATIONAL_SYSTEM_PROMPT, json.dumps(payload)
             )
             status = "ok"
         except OllamaUnavailable as exc:
@@ -310,9 +334,12 @@ def generate_industry_report(
     sector: str,
     *,
     as_of: date | None = None,
+    bls: dict | None = None,
 ) -> tuple[str, str, SectorAggregates]:
     """Build one sector's scorecard. Returns (markdown, narrative_status,
-    aggregates) — the aggregates feed the industries.json summary."""
+    aggregates) — the aggregates feed the industries.json summary. `bls` is
+    an optional fetch_bls_context() result; this sector's block (if the
+    sector has CES coverage) is added to the LLM payload."""
     agg = compute_sector_aggregates(session, sector, as_of=as_of)
     narrative: str | None = None
     if not agg.sufficient:
@@ -320,9 +347,12 @@ def generate_industry_report(
     elif client is None:
         status = "skipped"
     else:
+        payload = agg.to_prompt_payload()
+        if bls and bls.get("sectors", {}).get(sector):
+            payload["bls_context"] = bls["sectors"][sector]
         try:
             narrative = _narrate_checked(
-                client, INDUSTRY_SYSTEM_PROMPT, json.dumps(agg.to_prompt_payload())
+                client, INDUSTRY_SYSTEM_PROMPT, json.dumps(payload)
             )
             status = "ok"
         except OllamaUnavailable as exc:
@@ -379,6 +409,7 @@ def generate_industry_reports(
     sectors: list[str] | None = None,
     dry_run: bool = False,
     as_of: date | None = None,
+    bls: dict | None = None,
     progress: Callable[[str], None] | None = None,
 ) -> dict[str, int]:
     """Generate scorecards for `sectors` (default: every NAICS sector). The
@@ -395,7 +426,7 @@ def generate_industry_reports(
     aggs: list[SectorAggregates] = []
     for sector in targets:
         content, status, agg = generate_industry_report(
-            session, client, sector, as_of=as_of
+            session, client, sector, as_of=as_of, bls=bls
         )
         aggs.append(agg)
         if status == "insufficient_data":
