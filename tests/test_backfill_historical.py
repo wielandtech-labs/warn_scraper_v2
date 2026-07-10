@@ -666,12 +666,14 @@ def test_md_fetch_year_200_and_404():
     respx.get("https://www.dllr.state.md.us/employment/warn2010.shtml").mock(
         return_value=httpx.Response(200, content=_MD_ARCHIVE_HTML)
     )
-    respx.get("https://www.dllr.state.md.us/employment/warn2005.shtml").mock(
+    # 2011 stands in for a live-era year whose page is gone; 2000-2009 route
+    # to Wayback instead (see tests/test_md_backfill.py).
+    respx.get("https://www.dllr.state.md.us/employment/warn2011.shtml").mock(
         return_value=httpx.Response(404)
     )
 
     assert _fetch_md_year(2010) == _MD_ARCHIVE_HTML
-    assert _fetch_md_year(2005) is None
+    assert _fetch_md_year(2011) is None
 
 
 def test_md_parse_handles_archive_header_aliases():

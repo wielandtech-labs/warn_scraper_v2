@@ -201,9 +201,10 @@ _BACKFILL: dict[str, BackfillSpec] = {
     ),
     # NM: yearly PDFs back to 2016 with irregular filenames — discover from hub.
     "NM": BackfillSpec(discover_urls=lambda: _discover_nm_pdf_urls()),
-    # MD: archived per-year pages warn{year}.shtml verified back to 2010; old
-    # pages use 'WIA Code'/'Type Code' headers, which MDScraper.parse aliases.
-    "MD": BackfillSpec(year_start=2010, fetch_year=lambda s, y: _fetch_md_year(y)),
+    # MD: archived per-year pages warn{year}.shtml — 2010+ still live on
+    # dllr.state.md.us; 2000-2009 were pruned and fetch from pinned Wayback
+    # captures instead (numeric Type Codes + SIC-era codes handled in parse).
+    "MD": BackfillSpec(year_start=2000, fetch_year=lambda s, y: _fetch_md_year(y)),
     # MI: milmi.org history via Wayback (michigan.gov purged pre-2025 from the
     # Sitecore index mid-2025; milmi.org/warn now redirects there and the
     # files 404 live). One archived HTML page carries the 2016-2024 year
