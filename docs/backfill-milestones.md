@@ -41,7 +41,7 @@ Reachable floor = floor after running every verified route (no FOIA).
 | AZ | 248 | 2016–2026 | ✅ | 🔨 | ⛔ | 2010 | JobLink reaches 2010 (PR #241); re-backfill Job pending (+508); 2009- empty at source |
 | CA | 20,077 | 2006–2026 | ✅ | ✅ | 🔨 | 2000 | Wayback `cn00`–`cn08` HTML slices (verified 2026-07-09) |
 | CO | 811 | 2015–2026 | ✅ | ✉ | ✉ | 2015 | Sweep: 2015 was CO's first published year — nothing older anywhere |
-| CT | 286 | 2019–2026 | ✅ | 🔍 | 🔍 | 1998 | Wayback: monthly pages 1998–2008 + yearly `warn{Y}.htm` 2010–2018 (~0.9–1.4k rows); **holes: all of 2013, Jan–Jul + Oct–Dec 2009** → ✉ |
+| CT | 286 | 2019–2026 | ✅ | 🔨 | 🔨 | 1998 | Wayback: monthly pages 1998–2009 + yearly `warn{Y}.htm` 2010–2018 **built** (`backfill-historical --state CT`, 142 pinned captures, 1,342 rows offline); prod Job pending; **holes: all of 2013, Jan–Jul + Oct–Dec 2009** → ✉ |
 | DC | 141 | 2005–2026 | ✅ | ✅ | ✉ | 2005 | Sweep: nothing pre-2005 in any archive (legacy domains checked) |
 | DE | 42 | 2016–2026 | ✅ | 🔨 | ⛔ | 2007 | JobLink reaches 2007 (PR #241); Job pending (+37); 2006- empty at source |
 | FL | 2,334 | 2020–2026 | ✅ | 🔍 | 🔍 | 1998 | Wayback: `react/warn.asp?year=Y` HTML 1998–2018 + reactwarn 2019 (~2.2–3k rows) |
@@ -137,7 +137,13 @@ doubles as a cross-check of our existing 2016.
 (10 pp, ~119 rows). Caveats: cumulative-within-year → latest capture per year;
 company cells wrap with embedded multi-line addresses. Pre-2007: nothing.
 
-### CT — Wayback 1998–2018, two eras (~900–1,400 rows)
+### CT — Wayback 1998–2018, two eras (~900–1,400 rows) — 🔨 BUILT 2026-07-10
+
+Built as `backfill-historical --state CT` (142 pinned captures in
+`warn_v2/scrapers/states/ct.py`; 1,342 rows parsed offline across 1998–2018,
+zero unparseable). Prod Job pending — ~150 sequential Wayback fetches at the
+throttled pace, budget several hours.
+
 1998–2008: monthly pages under
 `ctdol.state.ct.us/progsupt/bussrvce/warnreports/{Y}%20Warn%20Reports/warnreports{Y}-{M}.htm`
 (1998–2000 use variant names `warn-0198.htm` / `warn-99-01.htm` /
@@ -327,7 +333,7 @@ pre-2008 may simply not exist.
 | 3 | SC year PDFs (Wayback + live-unlinked) | 2009–2025 | ~1,500–3,000 | Multiple editions per year; live 2020–2025 files also fix current-era depth |
 | 4 | WI PCML XLS logs | 1996–2016 | ~1,500–2,500 | Multi-row records; xlrd |
 | 5 | LA WarnNotices PDFs | 2007–2024 | ~1,200–1,800 | Existing LA parser is layout-tolerant — may extend |
-| 6 | CT monthly+yearly HTML | 1998–2018 | ~900–1,400 | Two eras; messy cells; 2013/2009 holes |
+| 6 | CT monthly+yearly HTML | 1998–2018 | ~900–1,400 | 🔨 built (1,342 rows offline; Job pending); two eras; 2013/2009 holes |
 | 7 | KY workbook captures | 1998–2016 | ~780 | Already-parsed format family (openpyxl) |
 | 8 | IA snapshot union | 2005–2021 | ~600–800 | 4 files; heavy dedup |
 | 9 | MO logs + PY pages | 2012-07–2019 | ~550–650 | PDF + HTML; program years |
