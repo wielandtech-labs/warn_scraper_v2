@@ -1,6 +1,7 @@
-"""Per-state economic sentiment reports.
+"""Economic sentiment reports: per-state, national, and per-NAICS-sector.
 
-Deterministic aggregation (aggregate) feeds a template renderer (render) and
-an optional LLM narrative written by the cluster's Ollama service (ollama);
-generate orchestrates the per-state pipeline and file output.
+Deterministic aggregation (aggregate, industry) feeds a template renderer
+(render) and an optional LLM narrative written by the cluster's Ollama
+service (ollama), with official BLS payroll context on the national and
+sector payloads (bls); generate orchestrates the pipeline and file output.
 """
