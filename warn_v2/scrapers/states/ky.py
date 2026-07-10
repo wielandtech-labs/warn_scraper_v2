@@ -22,12 +22,14 @@ from __future__ import annotations
 import csv
 import io
 import re
+from datetime import date, datetime
 
 import httpx
 from bs4 import BeautifulSoup
 
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
+from warn_v2.scrapers.bundled import DATA_DIR, load_archive
 from warn_v2.scrapers.registry import register
 
 _LANDING_URL = (
@@ -90,8 +92,6 @@ def _discover_workbook_urls() -> list[str]:
     Only 2021-and-earlier folders hold .xls (pre-xml) files; those same years
     appear as sheets in the newer .xlsx workbooks, so xlrd is not needed.
     """
-    from datetime import date
-
     year = date.today().year
     for y in (year, year - 1):
         api_url = _SP_API.format(year=y) + "?$select=Name,TimeLastModified"
@@ -115,10 +115,23 @@ def _discover_workbook_urls() -> list[str]:
     return []
 
 
+# The bundled 1998-2016 archive workbook uses older column titles than the
+# 2017+ sheets of the live workbooks; map them onto the names the row loop
+# reads.
+_HEADER_ALIASES = {
+    "closure/layoff": "closure or layoff?",
+    "projected dates": "projected date",
+    "workforce area": "region",
+    "local area": "region",
+}
+
+
 def parse_ky_workbook(raw: bytes) -> list[NoticeRow]:
     """Parse the per-year sheets of a KY WARN workbook (pre-CSV-era years only).
 
-    Sheet names are years; columns (2024-era, older sheets vary slightly):
+    Sheet names are years — plain ("2017") in the live workbooks, prefixed
+    ("WARN 1998") in the bundled 1998-2016 archive. Columns (2024-era; older
+    sheets vary, see _HEADER_ALIASES):
       Date Received | Region | County | Company Name | NAICS Code | Employees |
       Closure or Layoff? | Projected Date | Trade | Notice URL | Notice Link
     """
@@ -131,8 +144,11 @@ def parse_ky_workbook(raw: bytes) -> list[NoticeRow]:
 
     rows: list[NoticeRow] = []
     for ws in wb.worksheets:
+        title = str(ws.title).strip()
+        if title.lower().startswith("warn "):
+            title = title[5:].strip()
         try:
-            sheet_year = int(str(ws.title).strip())
+            sheet_year = int(title)
         except ValueError:
             continue
         if sheet_year >= _CSV_ERA_START:
@@ -142,12 +158,14 @@ def parse_ky_workbook(raw: bytes) -> list[NoticeRow]:
         for values in ws.iter_rows(values_only=True):
             if not col:
                 header = [_normalize_header(str(c)) if c is not None else "" for c in values]
-                # Old sheets title the county column "County: Local  Name".
-                col = {
-                    ("county" if h.startswith("county") else h): i
-                    for i, h in enumerate(header)
-                    if h
-                }
+                for i, h in enumerate(header):
+                    if not h:
+                        continue
+                    # Old sheets title the county column "County: Local  Name"
+                    # or "County/Counties".
+                    if h.startswith("county"):
+                        h = "county"
+                    col[_HEADER_ALIASES.get(h, h)] = i
                 if "company name" not in col or "date received" not in col:
                     raise ParseFailed(
                         f"KY workbook sheet {ws.title!r}: unexpected header {header}"
@@ -162,6 +180,8 @@ def parse_ky_workbook(raw: bytes) -> list[NoticeRow]:
             if not employer:
                 continue
             notice_date = as_date(_get("date received"))
+            if notice_date is None:
+                notice_date = _repair_year_typo(_get("date received"), sheet_year)
             if notice_date is None:
                 continue
             rows.append(
@@ -192,6 +212,41 @@ def _normalize_header(h: str) -> str:
     return key
 
 
+def _repair_year_typo(value: object, sheet_year: int) -> date | None:
+    """Repair a date cell whose year is a digit-transposition of the sheet year.
+
+    as_date() rejects implausible years, so the '2106-07-06' cell on the
+    archive workbook's 2016 sheet ('2016' typed with its middle digits
+    swapped) would silently drop its row. When the raw cell is a datetime
+    whose year is spelled with exactly the sheet year's digits, the year is a
+    source typo — return the date with the sheet's year instead.
+    """
+    if (
+        isinstance(value, datetime)
+        and value.year != sheet_year
+        and sorted(str(value.year)) == sorted(str(sheet_year))
+    ):
+        return date(sheet_year, value.month, value.day)
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Historical backfill: bundled 1998-2016 archive workbook (Mode 3b)
+# ---------------------------------------------------------------------------
+# The live SharePoint library's workbooks carry per-year sheets back to 2017
+# only; the older history lived in 'WARN Report 2016.xlsx', which is gone
+# from the live library. A Wayback capture (20161222125836) of that workbook
+# is committed as ky_archive.tar.gz so prod backfill Jobs never touch the
+# Wayback Machine. Its sheets are titled 'WARN 1998' ... 'WARN 2016';
+# parse_ky_workbook reads both title styles. The capture predates year-end,
+# so the final week of Dec 2016 may be missing.
+
+
+def ky_archive_files() -> list[tuple[str, bytes]]:
+    """Members of the bundled KY 1998-2016 archive (backfill Mode 3b)."""
+    return load_archive(DATA_DIR / "ky_archive.tar.gz")
+
+
 class KYScraper:
     state = "KY"
     source_url = _LANDING_URL
@@ -199,8 +254,6 @@ class KYScraper:
     required_fields = frozenset({"employer", "notice_date"})
 
     def fetch(self) -> bytes:
-        from datetime import date
-
         for year in (date.today().year, date.today().year - 1):
             csv_url = _discover_csv_url(year)
             if csv_url:
