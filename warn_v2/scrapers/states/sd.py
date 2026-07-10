@@ -14,14 +14,17 @@ extract only the leading integer.
 """
 from __future__ import annotations
 
+import io
 import re
 import time
 
 import httpx
+import pdfplumber
 from bs4 import BeautifulSoup
 
-from warn_v2.scrapers._helpers import as_date, as_str
+from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
+from warn_v2.scrapers.bundled import DATA_DIR, load_archive
 from warn_v2.scrapers.registry import register
 
 SOURCE_URL = "https://dlr.sd.gov/workforce_services/businesses/warn_notices.aspx"
@@ -123,3 +126,80 @@ def _text(cell) -> str:
 
 
 register(SDScraper())
+
+
+# ---------------------------------------------------------------------------
+# Historical backfill: 1997-2005 frozen cumulative PDF (Mode 3b bundled)
+# ---------------------------------------------------------------------------
+# state.sd.us froze "WARN Notices Received.pdf" at PY-05 (Jul-1997 → Dec-2005,
+# 60 notices / 8,232 workers across three program-year sections); the file is
+# bundled from its Wayback capture. The gap 2006 → Apr-2007 is real — the
+# successor page (today's live scraper) starts at 05/2007. Rows are keyed by
+# their own date, NOT their section/position: one 2004 notice is filed among
+# the 2002 rows.
+
+_ARCHIVE_SOURCE_URL = (
+    "https://web.archive.org/web/20070114121809/"
+    "http://www.state.sd.us/dol/WIA/WIA%20Handbook/WARN%20Notices%20Received.pdf"
+)
+
+
+def sd_archive_files() -> list[tuple[str, bytes]]:
+    """Members of the bundled SD historical archive (one frozen PDF)."""
+    return load_archive(DATA_DIR / "sd_archive.tar.gz")
+
+
+def parse_sd_archive_pdf(raw: bytes) -> list[NoticeRow]:
+    """Parse the frozen 1997-2005 cumulative PDF.
+
+    Grid columns: Date | Company | Location | # Workers | Action. Section
+    headers, repeated column-label rows, blank spacers, and per-section
+    "Total" rows are skipped — a data row is any row whose first cell parses
+    as a date. The trailing "combined total" row (notice count + worker sum)
+    is checked against what we parsed so a silent extraction drift fails loud.
+    """
+    try:
+        pdf = pdfplumber.open(io.BytesIO(raw))
+    except Exception as e:
+        raise ParseFailed(f"SD archive PDF: could not open: {e}") from e
+
+    rows: list[NoticeRow] = []
+    expected: tuple[int, int] | None = None  # (notices, workers) from "combined total"
+    with pdf:
+        for page in pdf.pages:
+            for cells in page.extract_table() or []:
+                cells = [(" ".join(str(c).split()) if c else "") for c in cells]
+                if len(cells) < 5:
+                    continue
+                if cells[0].lower() == "combined total":
+                    expected = (as_int(cells[1]), as_int(cells[3]))
+                    continue
+                notice_date = as_date(cells[0])
+                if notice_date is None:
+                    continue  # section header / column labels / Total / spacer
+                employer = as_str(cells[1])
+                if not employer:
+                    continue
+                action = as_str(cells[4])
+                rows.append(
+                    NoticeRow(
+                        state="SD",
+                        employer=employer,
+                        notice_date=notice_date,
+                        layoff_count=as_int(cells[3]),
+                        closure_type=action.capitalize() if action else None,
+                        city=as_str(cells[2].split(",")[0]),
+                        source_url=_ARCHIVE_SOURCE_URL,
+                    )
+                )
+
+    if not rows:
+        raise ParseFailed("SD archive PDF: no data rows found")
+    if expected is not None:
+        got = (len(rows), sum(r.layoff_count or 0 for r in rows))
+        if got != expected:
+            raise ParseFailed(
+                f"SD archive PDF: parsed {got[0]} notices / {got[1]} workers, "
+                f"but the PDF's combined-total row says {expected[0]} / {expected[1]}"
+            )
+    return rows

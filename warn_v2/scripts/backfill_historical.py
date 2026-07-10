@@ -56,6 +56,7 @@ from warn_v2.scrapers.states.co import _fetch_co_year, _parse_co_year
 from warn_v2.scrapers.states.dc import _fetch_dc_year
 from warn_v2.scrapers.states.fl import _fetch_fl_year
 from warn_v2.scrapers.states.hi import _fetch_hi_year
+from warn_v2.scrapers.states.id import id_archive_files, parse_id_2008_pdf
 from warn_v2.scrapers.states.il import _discover_archive_pdf_urls as _discover_il_pdf_urls
 from warn_v2.scrapers.states.il import _discover_archive_xlsx_urls as _discover_il_xlsx_urls
 from warn_v2.scrapers.states.il import parse_il_pdf
@@ -85,6 +86,7 @@ from warn_v2.scrapers.states.nv import _fetch_nv_year, parse_nv_archive
 from warn_v2.scrapers.states.ny import ny_history_csv
 from warn_v2.scrapers.states.oh import _fetch_oh_year, parse_oh_year
 from warn_v2.scrapers.states.pa import _fetch_pa_year, parse_pa_month
+from warn_v2.scrapers.states.sd import parse_sd_archive_pdf, sd_archive_files
 from warn_v2.scrapers.states.tx import _fetch_tx_year
 from warn_v2.scrapers.states.wi import _fetch_wi_archive_year, parse_wi_archive_html
 
@@ -259,6 +261,21 @@ _BACKFILL: dict[str, BackfillSpec] = {
         year_start=1996,
         fetch_year=lambda s, y: _fetch_oh_year(y),
         parse_year=lambda b, y: parse_oh_year(b, y),
+    ),
+    # SD: the frozen "WARN Notices Received" cumulative PDF (Jul-1997 →
+    # Dec-2005, 60 notices) bundled from its Wayback capture; the live scraper
+    # is HTML, so members route to the archive PDF parser. The 2006 → Apr-2007
+    # gap is real (the successor page starts 05/2007).
+    "SD": BackfillSpec(
+        bundled_files=sd_archive_files,
+        parse_for_url=lambda u: parse_sd_archive_pdf,
+    ),
+    # ID: the 2008-era cumulative log PDF (Wayback capture, bundled) whose
+    # 2008 rows were dropped from today's live log; its early-2009 rows are
+    # filtered inside the parser to avoid near-duplicating live-log rows.
+    "ID": BackfillSpec(
+        bundled_files=id_archive_files,
+        parse_for_url=lambda u: parse_id_2008_pdf,
     ),
     # NY: the dashboard's full crosstab export (2006-2026, ~9k rows) bundled
     # as a gzipped snapshot; NYScraper.parse reads it (same schema as the live
