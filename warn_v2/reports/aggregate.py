@@ -63,10 +63,14 @@ class StateAggregates:
     cur_end: date
     prior_start: date
     prior_end: date
+    season_start: date  # same window one year earlier (seasonal baseline)
+    season_end: date
     cur_notices: int
     cur_layoffs: int
     prior_notices: int
     prior_layoffs: int
+    season_notices: int
+    season_layoffs: int
     yoy_cur_notices: int
     yoy_cur_layoffs: int
     yoy_prior_notices: int
@@ -74,7 +78,8 @@ class StateAggregates:
     closure_split: dict[str, int]  # current-window notice counts by closure_category
     counties: list[DeltaRow]  # sorted by cur_layoffs desc (empty for national)
     sectors: list[DeltaRow]  # sorted by cur_layoffs desc
-    monthly: list[tuple[str, int, int]]  # ("YYYY-MM", notices, layoffs), oldest first
+    # ("YYYY-MM", notices, layoffs, layoffs same month a year earlier), oldest first
+    monthly: list[tuple[str, int, int, int]]
     naics_coverage_pct: float  # % of current-window notices with an enriched NAICS
     states: list[DeltaRow] = field(default_factory=list)  # national only: per-state deltas
 
@@ -95,6 +100,9 @@ class StateAggregates:
                     "notices_prior": r.prior_notices,
                     "layoffs_prior": r.prior_layoffs,
                     "delta_layoffs": r.delta_layoffs,
+                    "pct_change": (
+                        round(r.pct_change, 1) if r.pct_change is not None else None
+                    ),
                 }
                 for r in items[:10]
             ]
@@ -110,6 +118,12 @@ class StateAggregates:
                 "start": self.prior_start.isoformat(),
                 "end": self.prior_end.isoformat(),
             },
+            "same_window_last_year": {
+                "start": self.season_start.isoformat(),
+                "end": self.season_end.isoformat(),
+                "notices": self.season_notices,
+                "layoffs": self.season_layoffs,
+            },
             "totals": {
                 "notices_current": self.cur_notices,
                 "layoffs_current": self.cur_layoffs,
@@ -122,11 +136,24 @@ class StateAggregates:
                 "notices_prior_12mo": self.yoy_prior_notices,
                 "layoffs_prior_12mo": self.yoy_prior_layoffs,
             },
+            "pct_change": {
+                "layoffs_vs_prior_window": _pct(self.cur_layoffs, self.prior_layoffs),
+                "layoffs_vs_same_window_last_year": _pct(
+                    self.cur_layoffs, self.season_layoffs
+                ),
+                "layoffs_trailing_12mo_vs_prior_12mo": _pct(
+                    self.yoy_cur_layoffs, self.yoy_prior_layoffs
+                ),
+                "note": (
+                    "null means the earlier figure was 0, so no percentage is defined"
+                ),
+            },
             "top_counties": rows(self.counties),
             "top_sectors": rows(self.sectors),
             **({"top_states": rows(self.states)} if self.states else {}),
             "monthly": [
-                {"month": m, "notices": n, "layoffs": lt} for m, n, lt in self.monthly
+                {"month": m, "notices": n, "layoffs": lt, "layoffs_year_earlier": ly}
+                for m, n, lt, ly in self.monthly
             ],
             "naics_coverage_pct": round(self.naics_coverage_pct, 1),
         }
@@ -138,6 +165,14 @@ def _int(value) -> int:
     if isinstance(value, Decimal):
         return int(value)
     return int(value)
+
+
+def _pct(cur: int, earlier: int) -> float | None:
+    """Percent change vs an earlier figure, rounded to 1dp; None when the
+    earlier figure is 0 (a percentage against zero is meaningless)."""
+    if earlier == 0:
+        return None
+    return round((cur - earlier) / earlier * 100.0, 1)
 
 
 def _in_window(stmt, state: str | None, start: date, end: date):
@@ -293,6 +328,21 @@ def _month_start_back(as_of: date, months_back: int) -> date:
     return date(total // 12, total % 12 + 1, 1)
 
 
+def _zip_year_earlier(
+    raw: list[tuple[str, int, int]], cutoff_month: str
+) -> list[tuple[str, int, int, int]]:
+    """Pair each month at/after `cutoff_month` with the same calendar month one
+    year earlier from `raw` (a series reaching back at least that far). A month
+    absent from the series contributed no notices, so its year-earlier figure
+    is 0 — same sum-over-no-rows semantics as the rest of the report."""
+    layoffs_by_month = {m: lt for m, _, lt in raw}
+    return [
+        (m, n, lt, layoffs_by_month.get(f"{int(m[:4]) - 1}{m[4:]}", 0))
+        for m, n, lt in raw
+        if m >= cutoff_month
+    ]
+
+
 def compute_state_aggregates(
     session: Session,
     state: str,
@@ -304,7 +354,9 @@ def compute_state_aggregates(
 
     `as_of` is explicit (defaulting to today) so tests are deterministic.
     Windows are inclusive: current = [as_of-89d, as_of], prior = the 90 days
-    before that; YoY compares the trailing 365 days with the 365 before.
+    before that, seasonal = the current window shifted back a fixed 365 days
+    (drifts one calendar day across a Feb 29 — same convention as the YoY
+    offsets); YoY compares the trailing 365 days with the 365 before.
     """
     return _compute_aggregates(session, state.upper(), as_of=as_of, window_days=window_days)
 
@@ -331,12 +383,15 @@ def _compute_aggregates(
     cur_start = as_of - timedelta(days=window_days - 1)
     prior_start = as_of - timedelta(days=2 * window_days - 1)
     prior_end = as_of - timedelta(days=window_days)
+    season_start = cur_start - timedelta(days=365)
+    season_end = as_of - timedelta(days=365)
     yoy_cur_start = as_of - timedelta(days=364)
     yoy_prior_start = as_of - timedelta(days=729)
     yoy_prior_end = as_of - timedelta(days=365)
 
     cur_n, cur_l = _window_totals(session, code, cur_start, as_of)
     prior_n, prior_l = _window_totals(session, code, prior_start, prior_end)
+    season_n, season_l = _window_totals(session, code, season_start, season_end)
     yoy_cur_n, yoy_cur_l = _window_totals(session, code, yoy_cur_start, as_of)
     yoy_prior_n, yoy_prior_l = _window_totals(session, code, yoy_prior_start, yoy_prior_end)
 
@@ -370,10 +425,14 @@ def _compute_aggregates(
         cur_end=as_of,
         prior_start=prior_start,
         prior_end=prior_end,
+        season_start=season_start,
+        season_end=season_end,
         cur_notices=cur_n,
         cur_layoffs=cur_l,
         prior_notices=prior_n,
         prior_layoffs=prior_l,
+        season_notices=season_n,
+        season_layoffs=season_l,
         yoy_cur_notices=yoy_cur_n,
         yoy_cur_layoffs=yoy_cur_l,
         yoy_prior_notices=yoy_prior_n,
@@ -381,7 +440,10 @@ def _compute_aggregates(
         closure_split=_closure_split(session, code, cur_start, as_of),
         counties=counties,
         sectors=sectors,
-        monthly=_monthly_series(session, code, _month_start_back(as_of, 11)),
+        monthly=_zip_year_earlier(
+            _monthly_series(session, code, _month_start_back(as_of, 23)),
+            _month_start_back(as_of, 11).isoformat()[:7],
+        ),
         naics_coverage_pct=(covered / cur_n * 100.0) if cur_n else 0.0,
         states=states,
     )

@@ -37,6 +37,8 @@ from warn_v2.reports.aggregate import (
     _int,
     _merge_deltas,
     _month_start_back,
+    _pct,
+    _zip_year_earlier,
 )
 from warn_v2.states import STATE_NAMES
 
@@ -95,17 +97,22 @@ class SectorAggregates:
     cur_end: date
     prior_start: date
     prior_end: date
+    season_start: date  # same window one year earlier (seasonal baseline)
+    season_end: date
     cur_notices: int
     cur_layoffs: int
     prior_notices: int
     prior_layoffs: int
+    season_notices: int
+    season_layoffs: int
     yoy_cur_notices: int
     yoy_cur_layoffs: int
     yoy_prior_notices: int
     yoy_prior_layoffs: int
     states: list[DeltaRow]  # sorted by cur_layoffs desc
     subsectors: list[DeltaRow]  # 3-digit NAICS, sorted by cur_layoffs desc
-    monthly: list[tuple[str, int, int]]  # ("YYYY-MM", notices, layoffs), oldest first
+    # ("YYYY-MM", notices, layoffs, layoffs same month a year earlier), oldest first
+    monthly: list[tuple[str, int, int, int]]
     total_cur_notices: int  # ALL current-window notices nationally (coverage caveat)
 
     @property
@@ -141,6 +148,9 @@ class SectorAggregates:
                     "notices_prior": r.prior_notices,
                     "layoffs_prior": r.prior_layoffs,
                     "delta_layoffs": r.delta_layoffs,
+                    "pct_change": (
+                        round(r.pct_change, 1) if r.pct_change is not None else None
+                    ),
                 }
                 for r in items[:10]
             ]
@@ -156,6 +166,12 @@ class SectorAggregates:
                 "start": self.prior_start.isoformat(),
                 "end": self.prior_end.isoformat(),
             },
+            "same_window_last_year": {
+                "start": self.season_start.isoformat(),
+                "end": self.season_end.isoformat(),
+                "notices": self.season_notices,
+                "layoffs": self.season_layoffs,
+            },
             "totals": {
                 "notices_current": self.cur_notices,
                 "layoffs_current": self.cur_layoffs,
@@ -168,12 +184,25 @@ class SectorAggregates:
                 "notices_prior_12mo": self.yoy_prior_notices,
                 "layoffs_prior_12mo": self.yoy_prior_layoffs,
             },
+            "pct_change": {
+                "layoffs_vs_prior_window": _pct(self.cur_layoffs, self.prior_layoffs),
+                "layoffs_vs_same_window_last_year": _pct(
+                    self.cur_layoffs, self.season_layoffs
+                ),
+                "layoffs_trailing_12mo_vs_prior_12mo": _pct(
+                    self.yoy_cur_layoffs, self.yoy_prior_layoffs
+                ),
+                "note": (
+                    "null means the earlier figure was 0, so no percentage is defined"
+                ),
+            },
             "score": self.score,
             "grade": self.grade,
             "top_states": rows(self.states),
             "top_subsectors": rows(self.subsectors),
             "monthly": [
-                {"month": m, "notices": n, "layoffs": lt} for m, n, lt in self.monthly
+                {"month": m, "notices": n, "layoffs": lt, "layoffs_year_earlier": ly}
+                for m, n, lt, ly in self.monthly
             ],
             "coverage_note": (
                 "Figures cover only notices whose company has an enriched NAICS "
@@ -279,12 +308,15 @@ def compute_sector_aggregates(
     cur_start = as_of - timedelta(days=window_days - 1)
     prior_start = as_of - timedelta(days=2 * window_days - 1)
     prior_end = as_of - timedelta(days=window_days)
+    season_start = cur_start - timedelta(days=365)
+    season_end = as_of - timedelta(days=365)
     yoy_cur_start = as_of - timedelta(days=364)
     yoy_prior_start = as_of - timedelta(days=729)
     yoy_prior_end = as_of - timedelta(days=365)
 
     cur_n, cur_l = _sector_totals(session, sector, cur_start, as_of)
     prior_n, prior_l = _sector_totals(session, sector, prior_start, prior_end)
+    season_n, season_l = _sector_totals(session, sector, season_start, season_end)
     yoy_cur_n, yoy_cur_l = _sector_totals(session, sector, yoy_cur_start, as_of)
     yoy_prior_n, yoy_prior_l = _sector_totals(
         session, sector, yoy_prior_start, yoy_prior_end
@@ -309,17 +341,24 @@ def compute_sector_aggregates(
         cur_end=as_of,
         prior_start=prior_start,
         prior_end=prior_end,
+        season_start=season_start,
+        season_end=season_end,
         cur_notices=cur_n,
         cur_layoffs=cur_l,
         prior_notices=prior_n,
         prior_layoffs=prior_l,
+        season_notices=season_n,
+        season_layoffs=season_l,
         yoy_cur_notices=yoy_cur_n,
         yoy_cur_layoffs=yoy_cur_l,
         yoy_prior_notices=yoy_prior_n,
         yoy_prior_layoffs=yoy_prior_l,
         states=states,
         subsectors=subsectors,
-        monthly=_sector_monthly(session, sector, _month_start_back(as_of, 11)),
+        monthly=_zip_year_earlier(
+            _sector_monthly(session, sector, _month_start_back(as_of, 23)),
+            _month_start_back(as_of, 11).isoformat()[:7],
+        ),
         total_cur_notices=_total_notices(session, cur_start, as_of),
     )
 

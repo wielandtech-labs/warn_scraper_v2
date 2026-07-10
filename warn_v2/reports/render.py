@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 
-from warn_v2.reports.aggregate import NATIONAL_CODE, DeltaRow, StateAggregates
+from warn_v2.reports.aggregate import NATIONAL_CODE, DeltaRow, StateAggregates, _pct
 from warn_v2.reports.industry import GRADE_LABEL, SectorAggregates
 
 MAX_NARRATIVE_CHARS = 4000
@@ -47,6 +47,14 @@ def _pct_cell(row: DeltaRow) -> str:
     return "new" if row.cur_layoffs else "—"
 
 
+def _season_pct_cell(cur: int, season: int) -> str:
+    """Current vs same-window-last-year, with _pct_cell's "new"/"—" conventions."""
+    pct = _pct(cur, season)
+    if pct is not None:
+        return f"{pct:+.0f}%"
+    return "new" if cur else "—"
+
+
 def _delta_table(rows: list[DeltaRow], label: str, limit: int = 15) -> str:
     if not rows:
         return "_No notices in either window._"
@@ -62,11 +70,14 @@ def _delta_table(rows: list[DeltaRow], label: str, limit: int = 15) -> str:
     return "\n".join(lines)
 
 
-def _monthly_table(monthly: list[tuple[str, int, int]]) -> str:
+def _monthly_table(monthly: list[tuple[str, int, int, int]]) -> str:
     if not monthly:
         return "_No notices in the last 12 months._"
-    lines = ["| Month | Notices | Workers affected |", "|---|---:|---:|"]
-    lines += [f"| {m} | {n} | {lt} |" for m, n, lt in monthly]
+    lines = [
+        "| Month | Notices | Workers affected | Workers affected (yr ago) |",
+        "|---|---:|---:|---:|",
+    ]
+    lines += [f"| {m} | {n} | {lt} | {ly} |" for m, n, lt, ly in monthly]
     return "\n".join(lines)
 
 
@@ -117,11 +128,13 @@ def render_report(
     notices_row = (
         f"| Notices | {agg.cur_notices} | {agg.prior_notices} "
         f"| {_signed(agg.cur_notices - agg.prior_notices)} "
+        f"| {agg.season_notices} | {_season_pct_cell(agg.cur_notices, agg.season_notices)} "
         f"| {agg.yoy_cur_notices} | {agg.yoy_prior_notices} |"
     )
     layoffs_row = (
         f"| Workers affected | {agg.cur_layoffs} | {agg.prior_layoffs} "
         f"| {_signed(agg.cur_layoffs - agg.prior_layoffs)} "
+        f"| {agg.season_layoffs} | {_season_pct_cell(agg.cur_layoffs, agg.season_layoffs)} "
         f"| {agg.yoy_cur_layoffs} | {agg.yoy_prior_layoffs} |"
     )
     if agg.state == NATIONAL_CODE:
@@ -135,12 +148,14 @@ def render_report(
     return f"""# {agg.state_name} ({agg.state}) — WARN Layoff Trends
 
 _Generated {agg.as_of.isoformat()} · Current window {agg.cur_start.isoformat()} → \
-{agg.cur_end.isoformat()} vs prior {agg.prior_start.isoformat()} → {agg.prior_end.isoformat()}_
+{agg.cur_end.isoformat()} vs prior {agg.prior_start.isoformat()} → {agg.prior_end.isoformat()} \
+· same window last year {agg.season_start.isoformat()} → {agg.season_end.isoformat()}_
 
 ## Summary
 
-| Metric | Current {days}d | Prior {days}d | Δ | Trailing 12mo | Prior 12mo |
-|---|---:|---:|---:|---:|---:|
+| Metric | Current {days}d | Prior {days}d | Δ | Same {days}d last yr \
+| YoY Δ% | Trailing 12mo | Prior 12mo |
+|---|---:|---:|---:|---:|---:|---:|---:|
 {notices_row}
 {layoffs_row}
 {_closure_line(agg.closure_split)}
@@ -215,17 +230,20 @@ def render_industry_report(
     notices_row = (
         f"| Notices | {agg.cur_notices} | {agg.prior_notices} "
         f"| {_signed(agg.cur_notices - agg.prior_notices)} "
+        f"| {agg.season_notices} | {_season_pct_cell(agg.cur_notices, agg.season_notices)} "
         f"| {agg.yoy_cur_notices} | {agg.yoy_prior_notices} |"
     )
     layoffs_row = (
         f"| Workers affected | {agg.cur_layoffs} | {agg.prior_layoffs} "
         f"| {_signed(agg.cur_layoffs - agg.prior_layoffs)} "
+        f"| {agg.season_layoffs} | {_season_pct_cell(agg.cur_layoffs, agg.season_layoffs)} "
         f"| {agg.yoy_cur_layoffs} | {agg.yoy_prior_layoffs} |"
     )
     return f"""# {agg.sector_name} (NAICS {agg.sector}) — Industry Scorecard
 
 _Generated {agg.as_of.isoformat()} · Current window {agg.cur_start.isoformat()} → \
-{agg.cur_end.isoformat()} vs prior {agg.prior_start.isoformat()} → {agg.prior_end.isoformat()}_
+{agg.cur_end.isoformat()} vs prior {agg.prior_start.isoformat()} → {agg.prior_end.isoformat()} \
+· same window last year {agg.season_start.isoformat()} → {agg.season_end.isoformat()}_
 
 ## Scorecard
 
@@ -242,8 +260,9 @@ figures are an undercount; treat the score as directional.
 
 ## Summary
 
-| Metric | Current {days}d | Prior {days}d | Δ | Trailing 12mo | Prior 12mo |
-|---|---:|---:|---:|---:|---:|
+| Metric | Current {days}d | Prior {days}d | Δ | Same {days}d last yr \
+| YoY Δ% | Trailing 12mo | Prior 12mo |
+|---|---:|---:|---:|---:|---:|---:|---:|
 {notices_row}
 {layoffs_row}
 

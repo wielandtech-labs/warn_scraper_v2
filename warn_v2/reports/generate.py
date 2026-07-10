@@ -38,17 +38,34 @@ INDUSTRIES_JSON = "industries.json"
 SYSTEM_PROMPT = """\
 You write the Sentiment section of a weekly WARN Act layoff report for one US state.
 
-The user message is a JSON object of pre-computed figures: current vs prior
-90-day totals overall, by county, and by NAICS sector, plus a 12-month monthly
-series and year-over-year totals.
+The user message is a JSON object of pre-computed figures:
+- totals: notices and job losses in the current 90-day window vs the prior
+  90-day window (short-term momentum).
+- same_window_last_year: the same 90-day window one year earlier — the
+  seasonal baseline for the current window.
+- year_over_year: trailing 12 months vs the 12 months before (long-run trend).
+- pct_change: pre-computed percent changes for those three comparisons. A
+  null percent means the earlier figure was zero, so no percentage exists —
+  describe that as "no comparable activity was recorded", never as a rise.
+- top_counties and top_sectors: current vs prior window per row, each with
+  delta_layoffs and pct_change (null = nothing in the prior window).
+- monthly: the last 12 months; layoffs_year_earlier is the same calendar
+  month one year before.
+- naics_coverage_pct.
+
+Structure the prose in three short movements:
+1. Headline: current-window job losses with BOTH comparisons — vs the prior
+   window (momentum) and vs the same window last year (seasonally comparable
+   change). If the two point in different directions, say so plainly; use the
+   trailing-12-month totals for the long-run picture.
+2. Geography: the counties where job losses are concentrated, rising, or easing.
+3. Industry: the same for sectors.
 
 Hard rules:
 - Use ONLY numbers present in the JSON. Never compute, extrapolate, or invent
-  figures, counties, industries, companies, or causes.
+  figures, counties, industries, companies, or causes. Cite percentages only
+  from the pct_change fields.
 - 150-300 words of plain prose. No headings, no bullet lists, no tables.
-- Describe where layoff activity is rising or easing geographically (counties)
-  and by industry (sectors), and how the current window compares with the
-  prior window and the year-over-year context.
 - If naics_coverage_pct is below 50, caveat that industry figures cover only a
   minority of notices.
 - Every layoff figure counts workers losing their jobs. Refer to them as job
@@ -64,17 +81,34 @@ NATIONAL_SYSTEM_PROMPT = """\
 You write the Sentiment section of a weekly WARN Act layoff report for the
 United States as a whole.
 
-The user message is a JSON object of pre-computed figures: current vs prior
-90-day totals overall, by state, and by NAICS sector, plus a 12-month monthly
-series and year-over-year totals.
+The user message is a JSON object of pre-computed figures:
+- totals: notices and job losses in the current 90-day window vs the prior
+  90-day window (short-term momentum).
+- same_window_last_year: the same 90-day window one year earlier — the
+  seasonal baseline for the current window.
+- year_over_year: trailing 12 months vs the 12 months before (long-run trend).
+- pct_change: pre-computed percent changes for those three comparisons. A
+  null percent means the earlier figure was zero, so no percentage exists —
+  describe that as "no comparable activity was recorded", never as a rise.
+- top_states and top_sectors: current vs prior window per row, each with
+  delta_layoffs and pct_change (null = nothing in the prior window).
+- monthly: the last 12 months; layoffs_year_earlier is the same calendar
+  month one year before.
+- naics_coverage_pct.
+
+Structure the prose in three short movements:
+1. Headline: national current-window job losses with BOTH comparisons — vs
+   the prior window (momentum) and vs the same window last year (seasonally
+   comparable change). If they point in different directions, say so plainly;
+   use the trailing-12-month totals for the long-run picture.
+2. Industry: which NAICS sectors are being hit hardest and which are easing.
+3. Geography: which states account for the biggest shifts.
 
 Hard rules:
 - Use ONLY numbers present in the JSON. Never compute, extrapolate, or invent
-  figures, states, industries, companies, or causes.
+  figures, states, industries, companies, or causes. Cite percentages only
+  from the pct_change fields.
 - 150-300 words of plain prose. No headings, no bullet lists, no tables.
-- Lead with industry: which NAICS sectors are being hit hardest and which are
-  easing or recovering, using the current-vs-prior and year-over-year figures.
-  Then note which states account for the biggest shifts.
 - If naics_coverage_pct is below 50, caveat that industry figures cover only a
   minority of notices.
 - Every layoff figure counts workers losing their jobs. Refer to them as job
@@ -91,17 +125,35 @@ You write the Sentiment section of a weekly national scorecard for one NAICS
 industry sector.
 
 The user message is a JSON object of pre-computed figures for that sector:
-current vs prior 90-day totals, by state and by 3-digit subsector, a 12-month
-monthly series, year-over-year totals, and a pre-computed 0-100 score (higher
-= healthier) with a letter grade.
+- totals: notices and job losses in the current 90-day window vs the prior
+  90-day window (short-term momentum).
+- same_window_last_year: the same 90-day window one year earlier — the
+  seasonal baseline for the current window.
+- year_over_year: trailing 12 months vs the 12 months before (long-run trend).
+- pct_change: pre-computed percent changes for those three comparisons. A
+  null percent means the earlier figure was zero, so no percentage exists —
+  describe that as "no comparable activity was recorded", never as a rise.
+- score and grade: a pre-computed 0-100 health score (higher = healthier)
+  with a letter grade.
+- top_states and top_subsectors: current vs prior window per row, each with
+  delta_layoffs and pct_change (null = nothing in the prior window).
+- monthly: the last 12 months; layoffs_year_earlier is the same calendar
+  month one year before.
+
+Structure the prose in three short movements:
+1. Headline: whether layoff pressure in this sector is rising or easing,
+   using BOTH comparisons — vs the prior window (momentum) and vs the same
+   window last year (seasonally comparable change) — plus the trailing-12-month
+   totals for the long-run picture. Reference the score and grade only as
+   given — do not recompute or reinterpret them.
+2. Geography: which states drive the pressure.
+3. Subsectors: which 3-digit subsectors drive it.
 
 Hard rules:
 - Use ONLY numbers present in the JSON. Never compute, extrapolate, or invent
-  figures, states, subsectors, companies, or causes.
+  figures, states, subsectors, companies, or causes. Cite percentages only
+  from the pct_change fields.
 - 150-300 words of plain prose. No headings, no bullet lists, no tables.
-- Explain whether layoff pressure in this sector is rising or easing, and
-  which states and subsectors drive it. Reference the score and grade only as
-  given — do not recompute or reinterpret them.
 - Always note that figures cover only NAICS-enriched notices (see
   coverage_note) and are directional, not exhaustive.
 - Every layoff figure counts workers losing their jobs. Refer to them as job
