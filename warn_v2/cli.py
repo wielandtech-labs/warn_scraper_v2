@@ -1413,9 +1413,10 @@ def sentiment_report_cmd(
       warn-v2 sentiment-report --national            # US roll-up only
       warn-v2 sentiment-report --skip-llm --dry-run  # offline smoke test
     """
-    from warn_v2.companies.naics import SECTOR_NAME
+    from warn_v2.companies.naics import NAICS_SECTORS, SECTOR_NAME
     from warn_v2.db.session import session_scope
     from warn_v2.reports.aggregate import NATIONAL_CODE
+    from warn_v2.reports.bls import fetch_bls_context
     from warn_v2.reports.generate import (
         generate_industry_reports,
         generate_national_report,
@@ -1439,6 +1440,13 @@ def sentiment_report_cmd(
         sys.exit(1)
 
     client = None if skip_llm else build_ollama_client()
+    # BLS macro context feeds only the national + industry narratives; skip
+    # the fetch when no narrative will be written. Fail-open: None is fine.
+    bls = None
+    if client is not None and state is None:
+        target_sectors = [industry] if industry else [sid for sid, _, _ in NAICS_SECTORS]
+        bls = fetch_bls_context(target_sectors)
+        click.echo(f"bls_context={'ok' if bls else 'unavailable'}")
     stats = {
         "generated": 0,
         "insufficient": 0,
@@ -1464,7 +1472,7 @@ def sentiment_report_cmd(
                 )
             )
         if state is None and industry is None:
-            content, status = generate_national_report(session, client)
+            content, status = generate_national_report(session, client, bls=bls)
             if not dry_run:
                 write_report(reports_dir, NATIONAL_CODE, content)
             key = {
@@ -1485,6 +1493,7 @@ def sentiment_report_cmd(
                     reports_dir=reports_dir,
                     sectors=[industry] if industry else None,
                     dry_run=dry_run,
+                    bls=bls,
                     progress=click.echo,
                 )
             )
