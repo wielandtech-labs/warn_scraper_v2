@@ -161,13 +161,17 @@ Ordered by recoverable rows:
   near_miss=0 / already_exists=0 (FY23 80→79 by in-batch hash dedup);
   `mark-superseded` was a no-op. FY26 stays with the live scraper; pre-FY22 →
   email request.
-- [ ] **MN multi-era parser** — 2015–16 monthlies, 2018–21 annuals, 2022–24
-  wide format; Wayback discovery already implemented. (A+gate) — *parser
-  done 2026-07-07* (#202: one word-position parser for all eras, reaches
-  2014 via the Dec-2016 cumulative). **Remaining: the gated prod run** —
-  after the NY Job finishes (Wayback pacing); dry-run review plans the
-  purge of the glued-employer 2023+ live rows (historical-sources.md MN
-  row).
+- ~~**MN multi-era parser** — 2015–16 monthlies, 2018–21 annuals, 2022–24
+  wide format; Wayback discovery already implemented. (A+gate)~~ — DONE
+  2026-07-10. Parser #202 (one word-position parser for all eras, reaches
+  2014 via the Dec-2016 cumulative); prod backfill ran (w_homelab #679).
+  Data-quality follow-up #237 fixed three 2023–25 bugs — the year-end
+  cumulative roll-ups were ingested alongside monthlies (glued employers +
+  2× counts), right-aligned Affected-Workers counts were dropped into the TAA
+  column, and the live chain didn't strip DEED's trailing report year. Purge +
+  clean re-ingest via w_homelab #685 (Jobs pruned #686), verified in prod:
+  **541→482 rows** (59 glued/roll-up strays purged), **2023–25 glued dupes → 0**,
+  **missing counts 66→4**, floor 2012.
 - ~~**WA `__VIEWSTATE` pagination** — implement ASP.NET postback paging,
   then reassess depth (10+ pages, depth unknown). (A+gate)~~ — DONE 2026-07-07
   (PR #209): `fetch()` now replays the `Page$N` GridView postback for each
