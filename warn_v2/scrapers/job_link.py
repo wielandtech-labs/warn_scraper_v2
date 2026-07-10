@@ -60,6 +60,19 @@ _UA = {
     )
 }
 
+# Runaway guard for the pagination walk. The deepest year observed is AZ 2020
+# at 8 pages (188 rows / 25 per page); 40 leaves ample headroom.
+_MAX_SEARCH_PAGES = 40
+
+
+def _next_page_url(host: str, soup: BeautifulSoup) -> str | None:
+    """Next-page link from will_paginate markup (absent/`span` on last page)."""
+    a = soup.select_one(".pagination a.next_page[href]")
+    if a is None:
+        return None
+    href: str = a["href"]
+    return f"https://{host}{href}" if href.startswith("/") else href
+
 
 class JobLinkScraper:
     """Base class for JobLink-platform state WARN scrapers."""
@@ -90,42 +103,58 @@ class JobLinkScraper:
         self._skip_detail_urls = set(urls)
 
     def fetch(self, year: int | None = None) -> bytes:
-        """Fetch search results page + all linked detail pages.
+        """Fetch every search results page + all linked detail pages.
 
-        Returns a JSON bundle: ``{"search_html": "...", "details": {...}}``.
+        The platform paginates results at 25 per page (will_paginate); the
+        walk follows the "Next" link until it disappears, so spike years
+        (e.g. AZ 2020: 188 rows / 8 pages) are no longer truncated to page 1.
+        A failed later page raises too — a silently partial year is exactly
+        the bug this pagination walk fixes.
+
+        Returns a JSON bundle:
+        ``{"search_html": "...", "more_search_html": [...], "details": {...}}``.
         Detail keys are the full detail-page URL; values are the page HTML.
         Missing or errored detail pages are silently omitted — the notice
         will still be stored, just without address / employee count.
 
         Pass ``year`` to fetch a specific calendar year instead of the current one.
         """
-        url = _build_url(self.host, year=year) if year else self.source_url
-        try:
-            r = httpx.get(
-                url,
-                timeout=60,
-                follow_redirects=True,
-                headers=_UA,
-            )
-            r.raise_for_status()
-        except httpx.HTTPError as e:
-            raise ScrapeFailed(f"GET {url}: {e}") from e
-
-        # Discover detail URLs from the search results table.
-        soup = BeautifulSoup(r.content, "html.parser")
+        url: str | None = _build_url(self.host, year=year) if year else self.source_url
+        search_pages: list[str] = []
         detail_urls: list[str] = []
-        table = soup.find("table")
-        if table:
-            for a in table.find_all("a", href=True):
-                href: str = a["href"]
-                if "/warn_lookups/" in href:
-                    full = (
-                        f"https://{self.host}{href}"
-                        if href.startswith("/")
-                        else href
-                    )
-                    if full not in detail_urls:
-                        detail_urls.append(full)
+        seen_pages: set[str] = set()
+        while url and url not in seen_pages and len(search_pages) < _MAX_SEARCH_PAGES:
+            seen_pages.add(url)
+            try:
+                r = httpx.get(
+                    url,
+                    timeout=60,
+                    follow_redirects=True,
+                    headers=_UA,
+                )
+                r.raise_for_status()
+            except httpx.HTTPError as e:
+                raise ScrapeFailed(f"GET {url}: {e}") from e
+            search_pages.append(r.text)
+
+            # Discover detail URLs from this page's results table.
+            soup = BeautifulSoup(r.content, "html.parser")
+            table = soup.find("table")
+            if table:
+                for a in table.find_all("a", href=True):
+                    href: str = a["href"]
+                    if "/warn_lookups/" in href:
+                        full = (
+                            f"https://{self.host}{href}"
+                            if href.startswith("/")
+                            else href
+                        )
+                        if full not in detail_urls:
+                            detail_urls.append(full)
+
+            url = _next_page_url(self.host, soup)
+            if url:
+                time.sleep(1.5)  # same 429-avoidance pacing as detail fetches
 
         # Detail pages only add address + layoff_count; once those are stored
         # the page never needs re-fetching (the runner passes those URLs in).
@@ -152,28 +181,53 @@ class JobLinkScraper:
                 log.warning("%s: detail fetch failed: %s", url, exc)
             time.sleep(1.5)
 
-        return json.dumps({"search_html": r.text, "details": details}).encode()
+        return json.dumps(
+            {
+                "search_html": search_pages[0],
+                "more_search_html": search_pages[1:],
+                "details": details,
+            }
+        ).encode()
 
     def parse(self, raw: bytes) -> list[NoticeRow]:
         """Parse notice rows from a bundle or a raw search-results HTML page."""
         # Detect format: JSON bundle (new fetch()) vs raw HTML (old snapshots).
+        # Bundles carry follow-on pages in "more_search_html" (absent in
+        # snapshots that pre-date the pagination walk).
         details: dict[str, str] = {}
-        search_bytes: bytes
+        search_pages: list[bytes]
         if raw.lstrip()[:1] == b"{":
             try:
                 bundle = json.loads(raw)
-                search_bytes = bundle["search_html"].encode()
+                search_pages = [
+                    page.encode()
+                    for page in [
+                        bundle["search_html"],
+                        *bundle.get("more_search_html", []),
+                    ]
+                ]
                 details = bundle.get("details", {})
             except (json.JSONDecodeError, KeyError):
-                search_bytes = raw
+                search_pages = [raw]
         else:
-            search_bytes = raw
+            search_pages = [raw]
 
-        soup = BeautifulSoup(search_bytes, "html.parser")
-        table = soup.find("table")
-        if table is None:
+        rows: list[NoticeRow] = []
+        tables_found = 0
+        for search_bytes in search_pages:
+            soup = BeautifulSoup(search_bytes, "html.parser")
+            table = soup.find("table")
+            if table is None:
+                continue
+            tables_found += 1
+            rows.extend(self._parse_search_table(table, details))
+        if tables_found == 0:
             raise ParseFailed("no results table found")
+        return rows
 
+    def _parse_search_table(
+        self, table, details: dict[str, str]
+    ) -> list[NoticeRow]:
         tbody = table.find("tbody") or table
         trs = tbody.find_all("tr")
         rows: list[NoticeRow] = []

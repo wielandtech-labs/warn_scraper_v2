@@ -137,10 +137,11 @@ _BACKFILL: dict[str, BackfillSpec] = {
         fetch_year=lambda s, y: _fetch_co_year(y),
         parse_year=lambda b, y: _parse_co_year(b, y),
     ),
-    "AZ": BackfillSpec(year_start=2016, fetch_year=_joblink_fetch),
-    "DE": BackfillSpec(year_start=2016, fetch_year=_joblink_fetch),
-    # JobLink platforms verified searchable to these years (2026-06-12 probes,
-    # see docs/historical-sources.md).
+    # JobLink platforms verified searchable to these years (2026-06-12 probes;
+    # AZ/DE floors re-probed 2026-07-09 — pre-2016 data exists after all; see
+    # docs/historical-sources.md).
+    "AZ": BackfillSpec(year_start=2010, fetch_year=_joblink_fetch),
+    "DE": BackfillSpec(year_start=2007, fetch_year=_joblink_fetch),
     "KS": BackfillSpec(year_start=1999, fetch_year=_joblink_fetch),
     "ME": BackfillSpec(year_start=2012, fetch_year=_joblink_fetch),
     "VT": BackfillSpec(year_start=2003, fetch_year=_joblink_fetch),
