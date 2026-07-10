@@ -159,13 +159,15 @@ export function RadarPage() {
         header: "Industry",
         cell: (info) => {
           const row = info.row.original;
-          if (!row.naics_code)
+          // No sector name also covers pseudo-codes like 999990
+          // ("unclassified") — never show a raw NAICS code here.
+          if (!row.naics_code || !row.sector_name)
             return (
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                 Industry unknown
               </span>
             );
-          return row.sector_name ?? row.naics_code;
+          return row.sector_name;
         },
       },
       {

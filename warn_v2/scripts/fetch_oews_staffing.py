@@ -96,12 +96,15 @@ def _industry_key(naics: object, key_len: int | None) -> str | None:
 
     Sector workbook (``key_len is None``): the value must be a known sector
     id (this drops the "99" government row and any odd aggregates). Digit
-    workbooks: the zero-padded code's leading ``key_len`` digits.
+    workbooks: the zero-padded code's leading ``key_len`` digits, except the
+    999xxx government rows — 99 isn't one of our sectors, and keeping them
+    let provider pseudo-codes (999990 "unclassified") walk into the
+    government staffing pattern.
     """
     code = str(naics).strip() if naics is not None else ""
     if key_len is None:
         return code if code in SECTOR_NAME else None
-    if not code.isdigit() or len(code) < key_len:
+    if not code.isdigit() or len(code) < key_len or code.startswith("99"):
         return None
     return code[:key_len]
 
