@@ -55,6 +55,7 @@ from warn_v2.scrapers.states.ca import (
 from warn_v2.scrapers.states.co import _fetch_co_year, _parse_co_year
 from warn_v2.scrapers.states.dc import _fetch_dc_year
 from warn_v2.scrapers.states.fl import _fetch_fl_year
+from warn_v2.scrapers.states.ga import ga_archive_files, parse_ga_entry_page
 from warn_v2.scrapers.states.hi import _fetch_hi_year
 from warn_v2.scrapers.states.id import id_archive_files, parse_id_2008_pdf
 from warn_v2.scrapers.states.il import _discover_archive_pdf_urls as _discover_il_pdf_urls
@@ -163,6 +164,17 @@ _BACKFILL: dict[str, BackfillSpec] = {
     "TX": BackfillSpec(year_start=2004, fetch_year=_fetch_tx_year),
     "FL": BackfillSpec(year_start=2020, fetch_year=_fetch_fl_year),
     "HI": BackfillSpec(year_start=2019, fetch_year=lambda s, y: _fetch_hi_year(y)),
+    # GA: the 31 GA2022* TCSG entry detail pages still served live 2026-07-10
+    # (ids 071-103; 083/097 pruned at the source), bundled with the listing
+    # JSON. These notices are already in prod at listing granularity
+    # (employer + submitted date + count); the entry pages add county, street
+    # address, closure type, and the first separation date. The parser keys
+    # notice_date to the bundled listing so notice_id matches the stored rows
+    # — expect ~31 COALESCE fills, ~0 inserts.
+    "GA": BackfillSpec(
+        bundled_files=ga_archive_files,
+        parse_for_url=lambda u: parse_ga_entry_page,
+    ),
     # KY: bundled Wayback capture (20161222125836) of kcc.ky.gov's
     # 'WARN Report 2016.xlsx' — one sheet per year, WARN 1998-WARN 2016
     # (~780 rows); the pre-2017 history is gone from the live SharePoint
