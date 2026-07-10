@@ -76,6 +76,11 @@ from warn_v2.scrapers.states.mn import (
 from warn_v2.scrapers.states.mn import (
     _parse_archive_pdf as _parse_mn_archive_pdf,
 )
+from warn_v2.scrapers.states.mo import (
+    _discover_mo_archive_urls,
+    parse_mo_archive_html,
+    parse_mo_log_pdf,
+)
 from warn_v2.scrapers.states.ms import _discover_pdf_urls as _discover_ms_pdf_urls
 from warn_v2.scrapers.states.nc import _discover_nc_pdf_urls, parse_nc_pdf
 from warn_v2.scrapers.states.nj import ARCHIVE_XLSX_URL as _NJ_ARCHIVE_XLSX_URL
@@ -239,6 +244,24 @@ _BACKFILL: dict[str, BackfillSpec] = {
     "MN": BackfillSpec(
         discover_urls=lambda: _discover_mn_pdf_urls(),
         parse_for_url=lambda u: (lambda raw, _u=u: _parse_mn_archive_pdf(raw, _u)),
+    ),
+    # MO: jobs.mo.gov purged its pre-2019 program-year pages (MO publishes by
+    # Program Year, Jul-Jun); five static pinned Wayback captures hold a
+    # consolidated Jul2012-Jun2015 log PDF, the PY2015 log PDF, and the
+    # PY2016-PY2018 HTML pages — no runtime CDX. The regular scraper crawls
+    # 2019-present every run and that data is complete, and the PY2018 page
+    # runs into early 2019, so both archive parsers drop rows dated >= 2019-01-01.
+    # Mid-PY captures leave gaps (Sep 2015-Jun 2016, May-Jun 2017,
+    # Jan-Jun 2018 — see mo._ARCHIVE_CAPTURES); the Hostess Nov-2012 mass
+    # closing lists several worksites per city, which collapse to one row per
+    # (employer, date, city) under the notice_id hash.
+    "MO": BackfillSpec(
+        discover_urls=lambda: _discover_mo_archive_urls(),
+        parse_for_url=lambda u: (
+            (lambda raw, _u=u: parse_mo_log_pdf(raw, _u))
+            if u.lower().endswith(".pdf")
+            else (lambda raw, _u=u: parse_mo_archive_html(raw, _u))
+        ),
     ),
     # MS: the landing page lists every quarterly PDF back to PY2020; the
     # regular scraper ingests only the most recent one.
