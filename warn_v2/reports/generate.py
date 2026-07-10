@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
@@ -65,7 +66,9 @@ Hard rules:
 - Use ONLY numbers present in the JSON. Never compute, extrapolate, or invent
   figures, counties, industries, companies, or causes. Cite percentages only
   from the pct_change fields.
-- 150-300 words of plain prose. No headings, no bullet lists, no tables.
+- HARD LIMIT: 250 words. Cover only the biggest movers - at most three
+  geographic areas and three industry rows. Plain prose; no headings, no
+  bullet lists, no tables.
 - If naics_coverage_pct is below 50, caveat that industry figures cover only a
   minority of notices.
 - Every layoff figure counts workers losing their jobs. Refer to them as job
@@ -108,7 +111,9 @@ Hard rules:
 - Use ONLY numbers present in the JSON. Never compute, extrapolate, or invent
   figures, states, industries, companies, or causes. Cite percentages only
   from the pct_change fields.
-- 150-300 words of plain prose. No headings, no bullet lists, no tables.
+- HARD LIMIT: 250 words. Cover only the biggest movers - at most three
+  geographic areas and three industry rows. Plain prose; no headings, no
+  bullet lists, no tables.
 - If naics_coverage_pct is below 50, caveat that industry figures cover only a
   minority of notices.
 - Every layoff figure counts workers losing their jobs. Refer to them as job
@@ -153,7 +158,9 @@ Hard rules:
 - Use ONLY numbers present in the JSON. Never compute, extrapolate, or invent
   figures, states, subsectors, companies, or causes. Cite percentages only
   from the pct_change fields.
-- 150-300 words of plain prose. No headings, no bullet lists, no tables.
+- HARD LIMIT: 250 words. Cover only the biggest movers - at most three
+  geographic areas and three industry rows. Plain prose; no headings, no
+  bullet lists, no tables.
 - Always note that figures cover only NAICS-enriched notices (see
   coverage_note) and are directional, not exhaustive.
 - Every layoff figure counts workers losing their jobs. Refer to them as job
@@ -164,6 +171,65 @@ Hard rules:
   114"); for a fall write "eased", "declined", "fell", or "improved".
 - Neutral, analytical tone — an economic bulletin, not news copy.
 """
+
+
+# The prompts ban growth vocabulary for job losses (they read as good news);
+# the 20b model still slips occasionally (US report 2026-07-10: "Florida added
+# 5,504 more jobs", "Manufacturing grew"). One corrective retry fixes most
+# slips; a persistent one is logged and shipped rather than degrading the
+# report to figures-only over a word choice.
+_BANNED_RE = re.compile(
+    r"\b(add(?:s|ed|ing)?|grow(?:s|ing|n)?|grew|gain(?:s|ed|ing)?)\b", re.IGNORECASE
+)
+_BANNED_RETRY_NOTE = """
+
+IMPORTANT: your previous draft used a banned word (a form of add/grow/gain).
+Rewrite the section now with none of those words in any form. These figures
+are workers losing their jobs — never describe them as something added,
+grown, or gained.
+"""
+
+# ~250 words is ~1,700 chars; only re-ask when the draft would visibly
+# truncate at render time (MAX_NARRATIVE_CHARS is 4,000).
+_RETRY_LENGTH_CHARS = 2600
+_LENGTH_RETRY_NOTE = """
+
+IMPORTANT: your previous draft was far too long and would be cut off.
+Rewrite the section in no more than 250 words, covering only the biggest
+movers.
+"""
+
+
+def _narrate_checked(client: NarrativeClient, system: str, payload: str) -> str:
+    """Narrate with one self-heal attempt per failure mode: a client failure
+    (transport dead, or empty content after its own retries) gets one fresh
+    attempt; a draft with banned growth vocabulary or visible-truncation
+    length gets one corrective retry. A failed corrective retry keeps the
+    flawed first draft — better than degrading to figures-only."""
+    try:
+        narrative = client.narrate(system=system, prompt=payload)
+    except OllamaUnavailable as exc:
+        log.warning("narrative attempt failed (%s); retrying once", exc)
+        narrative = client.narrate(system=system, prompt=payload)
+    notes = []
+    banned = _BANNED_RE.search(narrative)
+    if banned:
+        log.warning("banned word %r in narrative; retrying once", banned.group())
+        notes.append(_BANNED_RETRY_NOTE)
+    if len(narrative) > _RETRY_LENGTH_CHARS:
+        log.warning("narrative too long (%d chars); retrying once", len(narrative))
+        notes.append(_LENGTH_RETRY_NOTE)
+    if not notes:
+        return narrative
+    try:
+        redo = client.narrate(system=system + "".join(notes), prompt=payload)
+    except OllamaUnavailable as exc:
+        log.warning("corrective retry failed (%s); keeping first draft", exc)
+        return narrative
+    banned = _BANNED_RE.search(redo)
+    if banned:
+        log.warning("banned word %r persisted after retry", banned.group())
+    return redo
 
 
 def _atomic_write(reports_dir: Path, filename: str, content: str) -> Path:
@@ -197,8 +263,8 @@ def generate_state_report(
         status = "skipped"
     else:
         try:
-            narrative = client.narrate(
-                system=SYSTEM_PROMPT, prompt=json.dumps(agg.to_prompt_payload())
+            narrative = _narrate_checked(
+                client, SYSTEM_PROMPT, json.dumps(agg.to_prompt_payload())
             )
             status = "ok"
         except OllamaUnavailable as exc:
@@ -225,8 +291,8 @@ def generate_national_report(
         status = "skipped"
     else:
         try:
-            narrative = client.narrate(
-                system=NATIONAL_SYSTEM_PROMPT, prompt=json.dumps(agg.to_prompt_payload())
+            narrative = _narrate_checked(
+                client, NATIONAL_SYSTEM_PROMPT, json.dumps(agg.to_prompt_payload())
             )
             status = "ok"
         except OllamaUnavailable as exc:
@@ -255,8 +321,8 @@ def generate_industry_report(
         status = "skipped"
     else:
         try:
-            narrative = client.narrate(
-                system=INDUSTRY_SYSTEM_PROMPT, prompt=json.dumps(agg.to_prompt_payload())
+            narrative = _narrate_checked(
+                client, INDUSTRY_SYSTEM_PROMPT, json.dumps(agg.to_prompt_payload())
             )
             status = "ok"
         except OllamaUnavailable as exc:
