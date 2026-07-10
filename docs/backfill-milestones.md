@@ -80,7 +80,7 @@ Reachable floor = floor after running every verified route (no FOIA).
 | TN | 90 | 2025–2026 | 🔨 | ✉ | ✉ | 2018 | 2018–2024 verified in Wayback (reports-page captures + 534 letter PDFs); pre-2018 ✉ (TPRA citizens-only caveat) |
 | TX | 2,238 | 2020–2026 | ✅ | 🔍 | ✉ | 2004 | Wayback: `warn-act-listings-{Y}.xls(x)` 2004–2018 across two hosts (+2.5–3.5k) + Socrata `8w53-c4f6` 2019+ (fills our missing 2019, 153 rows); pre-2004 → ✉ |
 | UT | 9 | 2026 | 🔍 | 🔍 | ✉ | 2009 | **The live page already holds 2009–2026** (~275 rows, per-year sections) — scraper fix, no external recovery; pre-2009 never published |
-| VA | 1,116 | 2010–2026 | ✅ | ✅ | 🔍 | 1999-07 (partial) | Wayback: PY1999 XLS + PY2002 PDF + PY2003/PY2004 Excel-HTML sheets (+240–260); **PY2000–01 and Jul-2005–Dec-2009 unrecoverable** → ✉ |
+| VA | 1,116 | 2010–2026 | ✅ | ✅ | 🔍 | 1999-07 (partial) | 🔨 BUILT (Mode 3b bundle: PY1999+PY2002+PY2003, 221 unique rows); PY2004–06 data sheets ARE in Wayback (refetch follow-up); **PY2000–01 and Jul-2006–Dec-2009 unrecoverable** → ✉ |
 | VT | 97 | 2003–2026 | ✅ | ✅ | ⛔ | 2003 | JobLink source floor; capped-year Job pending (+3) |
 | WA | 1,480 | 2004–2026 | ✅ | ✅ | ⛔ | 2004 | Pagination reaches source floor 2004-01 |
 | WI | 944 | 2016–2026 | ✅ | 🔍 | 🔍 | 1996 | Wayback: `worknet.wisconsin.gov` per-year PCML XLS logs **1996–2016**, every year captured (+1.5–2.5k) |
@@ -254,16 +254,20 @@ Caveats: sloppy old dates (`05/2009`, `01/07//09`); no county/NAICS; pre-2009
 never published.
 
 ### VA — Wayback PY1999 + PY2002–PY2004 (+240–260, partial)
-PY1999: `vec.state.va.us/docs/xls/warnnot99.xls` (capture 20030426225501; 59
-notices, multi-row address blocks). PY2002: `vec.state.va.us/pdf/warnlog03.pdf`
-(capture 20050510175855; 11 pp). PY2003/PY2004: Excel-HTML framesets whose
-`_files/sheet001–005.htm` data sheets ARE captured
-(`vec.virginia.gov/vecportal/employer/docs/xls/warnlog/warnnot04_files/sheet001.htm`
-capture 20050914003027; `docs/xls/warnlog/WARNLOGPY04.htm` + sheets capture
-20220324101727). **Unrecoverable: PY2000–01 (never captured), PY2005/PY2006
-(framesets archived but data sheets missing), Jul-2006→Dec-2009** → FOIA.
-Caveats: three formats; program years Jul–Jun; regional tabs duplicate the
-statewide sheet — dedupe.
+**BUILT 2026-07-10** (Mode 3b `warn_v2/scrapers/data/va_archive.tar.gz`):
+PY1999 `vec.state.va.us/docs/xls/warnnot99.xls` (capture 20030426225501; 59
+notices, multi-row address blocks) + PY2002 `vec.state.va.us/pdf/warnlog03.pdf`
+(capture 20050510175855; 87 rows, one row printed twice in the source) +
+PY2003 `warnnot04_files/sheet001.htm` statewide Excel-HTML sheet (76 rows) —
+222 rows, 221 unique. Regional-tab dedupe verified: the four regional sheets'
+union is a subset of Statewide (modulo one amended notice date), so only the
+statewide sheet is bundled. **Follow-up:** the PY2004 (`WARNLOGPY04_files`),
+PY2005 and PY2006 workbook data sheets ARE captured in Wayback — fetches
+succeeded during the 2026-07-10 sweep but the local cache's fixed filenames
+let later generations overwrite them (only the last-fetched warnnot04 sheets
+survived); refetch per-workbook and extend the bundle. **Unrecoverable:
+PY2000–01 (never captured), Jul-2006→Dec-2009** → FOIA. Caveats: three
+formats; program years Jul–Jun.
 
 ### MA — Wayback FY2020 + early FY2021 (+~215)
 `mass.gov/doc/warn-report-for-fy-2020/download` (capture 20200828043125;
@@ -325,7 +329,7 @@ pre-2008 may simply not exist.
 | CT | 2013 + most of 2009 | year page never captured (2013); only Aug/Sep monthlies exist (2009) |
 | TX | pre-2004 | no earlier files on either TWC host (domain + /news/ sweeps) |
 | MS | Jul 2007–Jun 2010 | quarterlies exist in CDX only as 404 captures from 2013 |
-| VA | PY2000–01, Jul 2005–Dec 2009 | never captured / framesets without data sheets |
+| VA | PY2000–01, Jul 2006–Dec 2009 | never captured (PY2004–06 data sheets ARE in Wayback — refetch follow-up) |
 | MO | pre-Jul-2012 | ded.mo.gov, dolir.mo.gov, missourieconomy.org all negative |
 | MA | Sep 2020–Mar 2021, pre-FY2020 | zero WARN doc captures 2020-08-28→2021-11-30; weekly docs never crawled |
 
@@ -349,7 +353,7 @@ pre-2008 may simply not exist.
 | 14 | PA pre-2001 month pages | 1998-07–2000-11 | ~300–350 | Extends existing PA month parser |
 | 15 | OR Socrata + app captures | 2009–2026 | ~500–700 | Socrata first (easy); capture-union harder |
 | 16 | UT scraper fix | 2009–2026 | ~265 | Parse all year sections, not just current |
-| 17 | VA three-format captures | PY1999, PY2002–04 | ~240–260 | XLS + PDF + Excel-HTML |
+| 17 | VA three-format captures | PY1999, PY2002–04 | ~240–260 | 🔨 BUILT (221 rows; PY2004–06 sheet refetch pending) |
 | 18 | MA FY2020 + wk-2020-08-21 | 2019-07–2020-08 | ~215 | Existing MA regional-sheet parser (FY22/23 layout) |
 | 19 | NC 2013 + Q4-2012 | 2012-10–2013 | ~140 | Existing NC PDF dispatch + de-spacing |
 | 20 | NE frozen endpoint + captures | 2010–2022 | ~130 | Trivial HTML; **snapshot soon** |
