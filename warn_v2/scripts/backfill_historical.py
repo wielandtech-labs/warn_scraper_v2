@@ -110,6 +110,12 @@ class BackfillSpec:
     # state's own ``scraper.parse``.
     bundled_bytes: Callable[[], bytes] | None = None
 
+    # Mode 3b — bundled multi-file snapshot: raw source files committed as a
+    # tar.gz under warn_v2/scrapers/data/ (see warn_v2.scrapers.bundled).
+    # Returns (member_name, bytes) pairs; each member is parsed via
+    # ``parse_for_url(member_name)`` when set, else ``scraper.parse``.
+    bundled_files: Callable[[], list[tuple[str, bytes]]] | None = None
+
 
 def _joblink_fetch(scraper, year: int) -> bytes:
     """JobLink platform: the base class supports fetch(year=Y) directly."""
@@ -309,6 +315,17 @@ def backfill_historical(
             scraper, spec.bundled_bytes(), label="bundled-snapshot",
             stats=stats, dry_run=dry_run,
         )
+    elif spec.bundled_files is not None:
+        members = spec.bundled_files()
+        if limit is not None:
+            members = members[:limit]
+        for name, raw in members:
+            stats["years_attempted"] += 1
+            parse_fn = spec.parse_for_url(name) if spec.parse_for_url else None
+            _ingest_raw(
+                scraper, raw, label=f"bundled:{name}",
+                stats=stats, dry_run=dry_run, parse_fn=parse_fn,
+            )
     elif spec.discover_urls is not None:
         _backfill_url_list(scraper, spec, stats, dry_run=dry_run, limit=limit)
     else:
