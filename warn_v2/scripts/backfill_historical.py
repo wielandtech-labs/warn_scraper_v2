@@ -65,6 +65,11 @@ from warn_v2.scrapers.states.la import _fetch_la_year, parse_la_pdf
 from warn_v2.scrapers.states.la import _source_url as _la_source_url
 from warn_v2.scrapers.states.ma import _fetch_ma_fy, parse_ma_xlsx
 from warn_v2.scrapers.states.md import _fetch_md_year
+from warn_v2.scrapers.states.mi import (
+    _discover_mi_archive_urls,
+    parse_mi_archive_html,
+    parse_mi_archive_pdf,
+)
 from warn_v2.scrapers.states.mn import (
     _discover_archive_pdf_urls as _discover_mn_pdf_urls,
 )
@@ -199,6 +204,21 @@ _BACKFILL: dict[str, BackfillSpec] = {
     # MD: archived per-year pages warn{year}.shtml verified back to 2010; old
     # pages use 'WIA Code'/'Type Code' headers, which MDScraper.parse aliases.
     "MD": BackfillSpec(year_start=2010, fetch_year=lambda s, y: _fetch_md_year(y)),
+    # MI: milmi.org history via Wayback (michigan.gov purged pre-2025 from the
+    # Sitecore index mid-2025; milmi.org/warn now redirects there and the
+    # files 404 live). One archived HTML page carries the 2016-2024 year
+    # tables; 16 annual PDFs cover 2000-2015. Static URL list — no discovery.
+    # Archive rows carry the real filing date as notice_date, unlike the live
+    # cards (layoff date), so the 2024-Q4 overlap with live rows will NOT
+    # hash-dedupe — review it at dry-run time.
+    "MI": BackfillSpec(
+        discover_urls=lambda: _discover_mi_archive_urls(),
+        parse_for_url=lambda u: (
+            (lambda raw, _u=u: parse_mi_archive_pdf(raw, _u))
+            if u.lower().endswith(".pdf")
+            else (lambda raw, _u=u: parse_mi_archive_html(raw, _u))
+        ),
+    ),
     # WI: static per-year pages exist only 2016-2019; the cumulative Google
     # Sheet covers 2020+ via the regular scraper.
     "WI": BackfillSpec(
