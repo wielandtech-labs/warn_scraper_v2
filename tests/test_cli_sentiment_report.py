@@ -101,12 +101,29 @@ def test_narrate_checked_banned_word_retries_once_with_note():
     assert client.systems == ["sys", "sys" + _BANNED_RETRY_NOTE]
 
 
+def test_narrate_checked_second_retry_fixes_persistent_banned_word():
+    client = ScriptedClient(
+        [
+            "Manufacturing grew 2.4%.",
+            "Publishing added 2,136 job losses.",
+            "Job losses in Publishing rose by 2,136.",
+        ]
+    )
+    out = _narrate_checked(client, "sys", "{}")
+    assert out == "Job losses in Publishing rose by 2,136."
+    assert len(client.systems) == 3
+    assert client.systems[2] == "sys" + _BANNED_RETRY_NOTE
+
+
 def test_narrate_checked_persistent_banned_word_ships_anyway(caplog):
-    client = ScriptedClient(["Manufacturing grew 2.4%.", "Losses gained ground."])
+    client = ScriptedClient(
+        ["Manufacturing grew 2.4%.", "Losses gained ground.", "It added up."]
+    )
     with caplog.at_level("WARNING"):
         out = _narrate_checked(client, "sys", "{}")
-    assert out == "Losses gained ground."  # shipped, not degraded to figures-only
-    assert "persisted after retry" in caplog.text
+    assert out == "It added up."  # shipped after 2 retries, not degraded
+    assert len(client.systems) == 3
+    assert "persisted after retries" in caplog.text
 
 
 def test_narrate_checked_unavailable_once_gets_fresh_attempt():
