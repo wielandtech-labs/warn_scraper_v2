@@ -3,7 +3,8 @@
 For each notice with a ``raw_notice_url`` and no ``pdf_path``:
   1. Fetch the PDF.
   2. Save it under ``pdf_dir/{state}/{notice_id}.pdf``.
-  3. Extract available fields (layoff_count, effective_date, address, city, zip).
+  3. Extract available fields (layoff_count, effective_date, address, city, zip,
+     occupations).
   4. Apply extracted data back to the notice using fill-in / update semantics.
 
 Usage::
@@ -22,7 +23,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from warn_v2.db.models import Notice
+from warn_v2.db.models import Notice, NoticeOccupation
 from warn_v2.db.session import session_scope
 from warn_v2.pdf_extract import extract_warn_fields
 from warn_v2.pipeline.storage import enrich_notice_location
@@ -401,6 +402,24 @@ def _apply_fields(
         if loc_changed:
             changed = True
 
+    # occupations: replace-on-re-extract (the PDF is authoritative), but an
+    # extraction miss never clears rows a previous parse found.
+    new_occs = fields.get("occupations")
+    if new_occs:
+        existing = {(o.job_title, o.count) for o in notice.occupations}
+        if existing != set(new_occs):
+            if notice.occupations:
+                # Delete-then-flush: a title kept across a re-extract would
+                # otherwise INSERT before the orphaned row's DELETE and trip
+                # the (notice_id, job_title) unique constraint.
+                notice.occupations.clear()
+                session.flush()
+            notice.occupations = [
+                NoticeOccupation(job_title=title, count=count)
+                for title, count in new_occs
+            ]
+            changed = True
+
     return changed
 
 
@@ -414,4 +433,6 @@ def _format_enriched(fields: dict) -> str:
         parts.append("address=<set>")
     if "zip" in fields:
         parts.append(f"zip={fields['zip']}")
+    if "occupations" in fields:
+        parts.append(f"occupations={len(fields['occupations'])}")
     return " [" + ", ".join(parts) + "]" if parts else ""

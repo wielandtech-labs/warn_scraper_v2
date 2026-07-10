@@ -88,15 +88,20 @@ export interface NoticeOut {
   location: LocationOut | null;
 }
 
-// One estimated occupation in a layoff cohort (national OEWS staffing
-// pattern applied to the notice's layoff count — a statistical prior, not
-// data about the actual affected roles).
+// One occupation in a layoff cohort. Two sources (see the parent's
+// source/occupation_source field): "employer_filing" rows are actual job
+// titles + counts parsed from the WARN letter's positions table;
+// "oews_estimate" rows apply the national OEWS staffing pattern to the
+// notice's layoff count — a statistical prior, not data about the actual
+// affected roles.
 export interface OccupationEstimate {
-  soc_code: string;
+  soc_code: string | null; // null for employer_filing rows (free-text titles)
   title: string;
-  pct: number; // percent of the industry's employment
-  estimate: number | null; // ~workers; null when the notice has no count
+  pct: number; // share of industry employment (OEWS) or of the filing's total
+  estimate: number | null; // workers; exact for employer_filing rows
 }
+
+export type OccupationSource = "employer_filing" | "oews_estimate";
 
 // /radar — an upcoming layoff cohort (effective_date is today or later).
 export interface RadarNoticeOut {
@@ -114,15 +119,17 @@ export interface RadarNoticeOut {
   naics_code: string | null; // null → "industry unknown"
   sector: string | null;
   sector_name: string | null;
-  occupation_preview: OccupationEstimate[] | null; // top 3; null without a pattern
+  occupation_preview: OccupationEstimate[] | null; // top 3; null without data
+  occupation_source: OccupationSource | null; // null when no preview
   oews_vintage: string | null;
 }
 
-// /notices/{id}/occupation-mix — the full estimated occupation mix.
+// /notices/{id}/occupation-mix — the full occupation mix (filed or estimated).
 export interface OccupationMixOut {
   notice_id: string;
   available: boolean;
   reason: "no_naics" | "no_pattern" | null;
+  source: OccupationSource | null; // null when unavailable
   naics_code: string | null;
   matched_naics: string | null;
   match_level: "4-digit" | "3-digit" | "sector" | null;

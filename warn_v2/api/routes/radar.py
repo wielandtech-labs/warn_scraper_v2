@@ -6,11 +6,19 @@ actually hits the labor market. Every other view is retrospective on
 ``notice_date``; the radar lists notices whose effective date is still
 ahead, soonest first.
 
-The occupation mix applies the national BLS OEWS staffing pattern for the
-company's NAICS industry to the notice's ``layoff_count`` (see
-``warn_v2.labor.oews``). It is a statistical prior from the industry's
-employment mix — not information about the actual affected roles — and both
-endpoints' consumers must present it as such.
+The occupation mix has two sources, flagged per response by ``source``:
+
+- ``employer_filing`` — actual (job title, count) rows parsed from the
+  notice's WARN letter PDF ("Position Titles / Number Impacted" table, see
+  ``warn_v2.pdf_extract.extract_occupations``), stored in
+  ``notice_occupations``. Real data about the affected roles.
+- ``oews_estimate`` — the national BLS OEWS staffing pattern for the
+  company's NAICS industry applied to the notice's ``layoff_count`` (see
+  ``warn_v2.labor.oews``). A statistical prior from the industry's
+  employment mix — not information about the actual affected roles — and
+  consumers must present it as such.
+
+Filed rows win whenever they exist; the OEWS prior is the fallback.
 """
 from __future__ import annotations
 
@@ -19,13 +27,13 @@ from datetime import UTC, date, datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from warn_v2.api.deps import PaginationParams, get_db
 from warn_v2.api.filters import apply_notice_filters
 from warn_v2.api.schemas import Page
 from warn_v2.companies.naics import SECTOR_NAME, sector_for_code
-from warn_v2.db.models import Notice
+from warn_v2.db.models import Notice, NoticeOccupation
 from warn_v2.labor import oews
 
 router = APIRouter(tags=["radar"])
@@ -36,10 +44,13 @@ _PREVIEW_OCCUPATIONS = 3
 
 
 class OccupationEstimate(BaseModel):
-    soc_code: str
+    soc_code: str | None  # None for employer_filing rows (titles are free text)
     title: str
-    pct: float  # percent of the industry's employment (OEWS PCT_TOTAL)
-    # round(layoff_count * pct / 100); None when the notice has no count.
+    # oews_estimate: percent of the industry's employment (OEWS PCT_TOTAL);
+    # employer_filing: the row's share of the filing's summed counts.
+    pct: float
+    # oews_estimate: round(layoff_count * pct / 100), None when the notice has
+    # no count; employer_filing: the actual filed count.
     estimate: int | None
 
 
@@ -58,7 +69,9 @@ class RadarNoticeOut(BaseModel):
     naics_code: str | None  # None → "industry unknown" in the UI
     sector: str | None
     sector_name: str | None
-    occupation_preview: list[OccupationEstimate] | None  # None when no pattern
+    occupation_preview: list[OccupationEstimate] | None  # None when no data
+    # "employer_filing" | "oews_estimate"; None when occupation_preview is None.
+    occupation_source: str | None
     oews_vintage: str | None
 
 
@@ -66,6 +79,7 @@ class OccupationMixOut(BaseModel):
     notice_id: str
     available: bool
     reason: str | None  # "no_naics" | "no_pattern" when unavailable
+    source: str | None  # "employer_filing" | "oews_estimate"; None if unavailable
     naics_code: str | None
     matched_naics: str | None  # the OEWS key that matched, e.g. "3119"
     match_level: str | None  # "4-digit" | "3-digit" | "sector"
@@ -95,15 +109,35 @@ def _estimates(
     ]
 
 
+def _filing_estimates(rows: list[NoticeOccupation]) -> list[OccupationEstimate]:
+    """Employer-filed rows as estimates; pct is each row's share of the filing."""
+    total = sum(r.count for r in rows)
+    return [
+        OccupationEstimate(
+            soc_code=None,
+            title=r.job_title,
+            pct=round(100 * r.count / total, 1),
+            estimate=r.count,
+        )
+        for r in rows
+    ]
+
+
 def _radar_row(notice: Notice, today: date) -> RadarNoticeOut:
     naics = notice.company.naics_code if notice.company else None
     sector = sector_for_code(naics)
     preview: list[OccupationEstimate] | None = None
-    pattern = oews.lookup(naics)
-    if pattern:
-        preview = _estimates(
-            pattern.occupations[:_PREVIEW_OCCUPATIONS], notice.layoff_count
-        )
+    source: str | None = None
+    if notice.occupations:
+        preview = _filing_estimates(notice.occupations)[:_PREVIEW_OCCUPATIONS]
+        source = "employer_filing"
+    else:
+        pattern = oews.lookup(naics)
+        if pattern:
+            preview = _estimates(
+                pattern.occupations[:_PREVIEW_OCCUPATIONS], notice.layoff_count
+            )
+            source = "oews_estimate"
     return RadarNoticeOut(
         notice_id=notice.notice_id,
         employer=notice.employer,
@@ -120,7 +154,8 @@ def _radar_row(notice: Notice, today: date) -> RadarNoticeOut:
         sector=sector,
         sector_name=SECTOR_NAME.get(sector) if sector else None,
         occupation_preview=preview,
-        oews_vintage=oews.data_vintage() if preview else None,
+        occupation_source=source,
+        oews_vintage=oews.data_vintage() if source == "oews_estimate" else None,
     )
 
 
@@ -150,7 +185,11 @@ def radar(
     today = _today()
     stmt = (
         select(Notice)
-        .options(joinedload(Notice.company), joinedload(Notice.location))
+        .options(
+            joinedload(Notice.company),
+            joinedload(Notice.location),
+            selectinload(Notice.occupations),
+        )
         .order_by(
             Notice.effective_date.asc(),
             Notice.layoff_count.desc().nullslast(),
@@ -192,16 +231,35 @@ def radar(
 
 @router.get("/notices/{notice_id}/occupation-mix", response_model=OccupationMixOut)
 def occupation_mix(notice_id: str, db: Session = Depends(get_db)) -> OccupationMixOut:
-    """The full estimated occupation mix for one notice (radar preview = top 3)."""
+    """The full occupation mix for one notice (radar preview = top 3).
+
+    Employer-filed rows (``source="employer_filing"``) whenever the letter's
+    positions table was parsed; the OEWS industry prior otherwise.
+    """
     notice = db.scalar(
         select(Notice)
-        .options(joinedload(Notice.company))
+        .options(joinedload(Notice.company), selectinload(Notice.occupations))
         .where(Notice.notice_id == notice_id)
     )
     if notice is None:
         raise HTTPException(status_code=404, detail="Notice not found")
 
     naics = notice.company.naics_code if notice.company else None
+    if notice.occupations:
+        return OccupationMixOut(
+            notice_id=notice.notice_id,
+            available=True,
+            reason=None,
+            source="employer_filing",
+            naics_code=naics,
+            matched_naics=None,
+            match_level=None,
+            industry_title=None,
+            coverage_pct=None,
+            layoff_count=notice.layoff_count,
+            oews_vintage=None,
+            occupations=_filing_estimates(notice.occupations),
+        )
     pattern = oews.lookup(naics)
     if pattern is None:
         # A malformed code (non-digit junk) counts as "no usable NAICS", not
@@ -211,6 +269,7 @@ def occupation_mix(notice_id: str, db: Session = Depends(get_db)) -> OccupationM
             notice_id=notice.notice_id,
             available=False,
             reason="no_pattern" if usable else "no_naics",
+            source=None,
             naics_code=naics,
             matched_naics=None,
             match_level=None,
@@ -224,6 +283,7 @@ def occupation_mix(notice_id: str, db: Session = Depends(get_db)) -> OccupationM
         notice_id=notice.notice_id,
         available=True,
         reason=None,
+        source="oews_estimate",
         naics_code=naics,
         matched_naics=pattern.naics_key,
         match_level=pattern.level,

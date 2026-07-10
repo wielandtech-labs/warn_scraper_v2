@@ -34,9 +34,11 @@ const MIN_COHORTS = [
   { label: "500+ workers", value: 500 },
 ] as const;
 
-/** "~40 Machinists" when a count estimate exists, else "12% Machinists". */
-function occupationChip(o: OccupationEstimate): string {
-  if (o.estimate != null && o.estimate >= 1) return `~${fmtNum(o.estimate)} ${o.title}`;
+/** "~40 Machinists" when a count estimate exists, else "12% Machinists".
+ *  Employer-filed counts are exact, so they drop the "~". */
+function occupationChip(o: OccupationEstimate, filed: boolean): string {
+  if (o.estimate != null && o.estimate >= 1)
+    return `${filed ? "" : "~"}${fmtNum(o.estimate)} ${o.title}`;
   return `${o.pct}% ${o.title}`;
 }
 
@@ -173,9 +175,10 @@ export function RadarPage() {
         cell: (info) => {
           const preview = info.row.original.occupation_preview;
           if (!preview || preview.length === 0) return "—";
+          const filed = info.row.original.occupation_source === "employer_filing";
           return (
             <span className="text-xs text-slate-600 dark:text-slate-400">
-              {preview.map(occupationChip).join(" · ")}
+              {preview.map((o) => occupationChip(o, filed)).join(" · ")}
             </span>
           );
         },

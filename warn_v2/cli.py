@@ -589,6 +589,51 @@ def backfill_layoff_counts_cmd(
     )
 
 
+@main.command("backfill-occupations")
+@click.option("--dry-run", is_flag=True, help="Preview rows without writing")
+@click.option(
+    "--state", default=None,
+    help="Limit to one state abbreviation (default: every state with stored PDFs)",
+)
+@click.option("--limit", type=int, default=None, help="Max notices to process")
+@click.option(
+    "--pdf-dir",
+    default="/var/pdfs",
+    show_default=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Root directory of stored PDFs",
+)
+def backfill_occupations_cmd(
+    dry_run: bool, state: str | None, limit: int | None, pdf_dir: Path
+) -> None:
+    """Fill notice_occupations from stored per-notice PDFs.
+
+    Many WARN letters carry a "Position Titles / Number Impacted" table
+    naming the actual eliminated roles. download-pdfs persists these for
+    newly fetched PDFs; this backfill sweeps the already-stored PDFs through
+    the same conservative table parser (rows kept only when they sum to the
+    table's total). Fill-only — notices that already have occupation rows
+    are skipped, so re-runs are idempotent.
+
+    \b
+    Examples:
+      warn-v2 backfill-occupations --dry-run        # preview impact
+      warn-v2 backfill-occupations                  # all stored PDFs
+      warn-v2 backfill-occupations --state OH       # one state only
+    """
+    from warn_v2.scripts.backfill_occupations import backfill_occupations
+
+    stats = backfill_occupations(
+        state, limit=limit, dry_run=dry_run, pdf_dir=pdf_dir
+    )
+    suffix = " (dry run — nothing written)" if dry_run else ""
+    click.echo(
+        f"considered={stats['considered']} filled={stats['filled']} "
+        f"no_table={stats['no_table']} no_text={stats['no_text']} "
+        f"missing={stats['missing']} errors={stats['errors']}{suffix}"
+    )
+
+
 @main.command("backfill-historical")
 @click.option(
     "--state", required=True,
