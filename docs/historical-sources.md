@@ -310,10 +310,17 @@ delete Jobs after.
   page (`jobs.alaska.gov/rr/WARN_notices.htm`, 2006–present) lists zero notices for
   those years. No backfill possible or needed; optional confirmation in the OR/AK
   inquiry drafts.
-- **MI** — michigan.gov **removed pre-2025 notices** from the public search; the LEO
-  FAQ directs historical requests to FOIA (`leo-warn@michigan.gov`). The Sitecore
-  API the scraper uses 403s externally and its index only carries recent items →
-  records request (draft in foia/mi.md).
+- **MI** — michigan.gov **removed pre-2025 notices** from the public search (the
+  Sitecore index held Count=559 in the 2025-04-30 Wayback API capture vs 103
+  live — purged mid-2025), but the history survives on **milmi.org** in Wayback
+  (re-probed 2026-07-09; live milmi.org/warn redirects to the pruned LEO page):
+  `milmi.org/warn/archive` capture 2025-06-21 carries per-year HTML tables
+  **2016–2024** (685 rows, 5-col schema), and annual PDFs
+  `.../_docs/publications/warn/warn{2000..2015}.pdf` (captures 2021-07-15 /
+  2016-10-15) cover **2000–2015** with clean text tables. 193 per-notice letter
+  PDFs are also archived under michigan.gov `WD-DATA_PUBLIC_WARN_NOTICES4/`.
+  → scraper backfill (ROADMAP Wave 3); foia/mi.md stays as a completeness
+  backstop only.
 - **LA** — only `WarnNotices2025.pdf`+ resolve; 2020–2023 return 404 (despite earlier
   reports of 2024 existing — the agency appears to prune old files). 2025 is now
   ingestable (Tier 1); pre-2025 → records request.
@@ -345,7 +352,7 @@ in [coverage-vs-aggregators.md](coverage-vs-aggregators.md).
 | LA | pre-2025 | HiRE@lwc.la.gov | email (online system alt.) | La. R.S. 44:1 et seq. |
 | MA | pre-FY2022 | eolwdpress@mass.gov | email — **agency invites this** | M.G.L. c. 66 |
 | MD | pre-2010 (published log starts 2010) | dllr.pio@maryland.gov — "Records Request" in subject | email | MPIA (GP §4-101 et seq.) |
-| MI | pre-Nov 2024 (site pruned all pre-2025; widened 2026-07-02) | leo-warn@michigan.gov | email | MI FOIA (Act 442 of 1976) |
+| MI | ~~pre-Nov 2024~~ **dropped 2026-07-09** — 2000–2024 recoverable from milmi.org via Wayback (see Tier 2 MI note); request = post-backfill completeness backstop only | leo-warn@michigan.gov | email | MI FOIA (Act 442 of 1976) |
 | MO | pre-2019 | meghan.maskeryluecke@dhewd.mo.gov (General Counsel), cc info@dhewd.mo.gov | email | Sunshine Law (§610 RSMo) |
 | MS | pre-PY2020 | communications@mdes.ms.gov | email | Miss. Code §25-61 |
 | ND | pre-2015 | ⚠ no records email published — call (701) 328-2825 for address | phone→email | NDCC ch. 44-04 |
