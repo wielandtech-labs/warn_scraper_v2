@@ -24,6 +24,7 @@ import io
 import json
 import logging
 import re
+from collections.abc import Callable
 from datetime import date, datetime
 
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
@@ -181,12 +182,17 @@ def _match_columns(norm_header: list[str]) -> dict[str, int | None]:
 
 
 def _clean_employer(value: object) -> str | None:
-    """Coerce to a name, stripping "*Updated*"/"*UDATED*" amendment markers."""
+    """Coerce to a name, stripping "*Updated*"/"*UDATED*" amendment markers
+    (and the colon-form "UPDATED:"/"Update:" the FY2020-era reports used)."""
     employer = as_str(value)
     if not employer:
         return None
     if employer.startswith("*"):
         employer = re.sub(r"^\*[^*]+\*\s*", "", employer).strip() or employer
+    employer = (
+        re.sub(r"^UPDATED?\s*:\s*", "", employer, flags=re.IGNORECASE).strip()
+        or employer
+    )
     return employer
 
 
@@ -421,7 +427,13 @@ def _row_positional(row: tuple, url: str, region: str | None) -> NoticeRow | Non
 
 
 def _parse_ma_sheet(ws, url: str) -> list[NoticeRow]:
-    data = list(ws.iter_rows(values_only=True))
+    return _parse_ma_rows(as_str(ws.title), list(ws.iter_rows(values_only=True)), url)
+
+
+def _parse_ma_rows(title: str | None, data: list[tuple], url: str) -> list[NoticeRow]:
+    """Shared sheet-parsing core: ``data`` is the cell grid (dates already
+    coerced to datetime), ``title`` the sheet name (= region in the FY22/FY23/
+    FY2020 regional layout)."""
     header_idx: int | None = None
     layout: str | None = None
     col: dict[str, int | None] | None = None
@@ -439,7 +451,7 @@ def _parse_ma_sheet(ws, url: str) -> list[NoticeRow]:
     if header_idx is None:
         return []
 
-    region = as_str(ws.title) if layout == "positional" else None
+    region = title if layout == "positional" else None
     out: list[NoticeRow] = []
     for row in data[header_idx + 1:]:
         built = (
@@ -454,6 +466,10 @@ def _parse_ma_sheet(ws, url: str) -> list[NoticeRow]:
 
 def parse_ma_xlsx(raw: bytes, year: int) -> list[NoticeRow]:
     """Parse a mass.gov FY WARN XLSX report (all region/year sheets)."""
+    return _parse_ma_workbook(raw, _FY_REPORT_URL.format(yy=year % 100))
+
+
+def _parse_ma_workbook(raw: bytes, url: str) -> list[NoticeRow]:
     import openpyxl
 
     try:
@@ -461,13 +477,83 @@ def parse_ma_xlsx(raw: bytes, year: int) -> list[NoticeRow]:
     except Exception as e:
         raise ParseFailed(f"MA xlsx: could not open workbook: {e}") from e
 
-    url = _FY_REPORT_URL.format(yy=year % 100)
     rows: list[NoticeRow] = []
     for ws in wb.worksheets:
         rows.extend(_parse_ma_sheet(ws, url))
     if not rows:
         raise ParseFailed("MA xlsx: no data rows parsed from any sheet")
     return rows
+
+
+def parse_ma_xls(raw: bytes, url: str) -> list[NoticeRow]:
+    """Parse a legacy .xls FY report (the FY2020 Wayback capture) — same
+    six-regional-sheet layout as FY22/FY23, read via xlrd. Date cells arrive
+    as Excel serials; coerce them to datetime so the shared core sees the
+    same values openpyxl would produce."""
+    import xlrd
+
+    try:
+        wb = xlrd.open_workbook(file_contents=raw)
+    except Exception as e:
+        raise ParseFailed(f"MA xls: could not open workbook: {e}") from e
+
+    def cell(ws, r: int, c: int) -> object:
+        value = ws.cell_value(r, c)
+        if ws.cell_type(r, c) == xlrd.XL_CELL_DATE:
+            try:
+                return xlrd.xldate_as_datetime(value, wb.datemode)
+            except Exception:
+                return value
+        return value
+
+    rows: list[NoticeRow] = []
+    for ws in wb.sheets():
+        data = [
+            tuple(cell(ws, r, c) for c in range(ws.ncols)) for r in range(ws.nrows)
+        ]
+        rows.extend(_parse_ma_rows(as_str(ws.name), data, url))
+    if not rows:
+        raise ParseFailed("MA xls: no data rows parsed from any sheet")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Bundled backfill — FY2020 + early-FY2021 Wayback captures (Mode 3b)
+#
+# mass.gov's "Previous WARN reports" section starts at FY22; the only archived
+# older documents are one Wayback capture of the FY2020 report (legacy .xls,
+# Jul 2019 - Jun 2020) and one of the FY2021 weekly cumulative through
+# 2020-08-21 (.xlsx, same regional layout). Zero WARN docs were crawled
+# between 2020-08-28 and 2021-11-30, so Sep 2020 - Mar 2021 and pre-FY2020
+# remain email-request only (see docs/backfill-milestones.md).
+# ---------------------------------------------------------------------------
+
+_MA_ARCHIVE_URLS = {
+    "warn-report-fy2020.xls": (
+        "https://web.archive.org/web/20200828043125/"
+        "https://www.mass.gov/doc/warn-report-for-fy-2020/download"
+    ),
+    "warn-report-week-ending-08-21-20.xlsx": (
+        "https://web.archive.org/web/20200828041524/"
+        "https://www.mass.gov/doc/warn-report-for-week-ending-08-21-20/download"
+    ),
+}
+
+
+def ma_archive_files() -> list[tuple[str, bytes]]:
+    """Members of the bundled MA snapshot (warn_v2/scrapers/data/ma_archive.tar.gz)."""
+    from warn_v2.scrapers.bundled import DATA_DIR, load_archive
+
+    return load_archive(DATA_DIR / "ma_archive.tar.gz")
+
+
+def parse_ma_archive_member(name: str) -> Callable[[bytes], list[NoticeRow]]:
+    """Parser for one bundled member: xlrd for the legacy .xls, openpyxl
+    otherwise. Rows carry the Wayback replay URL as source_url."""
+    url = _MA_ARCHIVE_URLS.get(name, SOURCE_URL)
+    if name.lower().endswith(".xls"):
+        return lambda raw: parse_ma_xls(raw, url)
+    return lambda raw: _parse_ma_workbook(raw, url)
 
 
 def _download_file(page, url: str) -> bytes | None:
