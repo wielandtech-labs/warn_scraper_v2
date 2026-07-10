@@ -58,6 +58,7 @@ from warn_v2.scrapers.states.dc import _fetch_dc_year
 from warn_v2.scrapers.states.fl import _fetch_fl_year
 from warn_v2.scrapers.states.ga import ga_archive_files, parse_ga_entry_page
 from warn_v2.scrapers.states.hi import _fetch_hi_year
+from warn_v2.scrapers.states.ia import ia_archive_files, parse_ia_archive_pdf
 from warn_v2.scrapers.states.id import id_archive_files, parse_id_2008_pdf
 from warn_v2.scrapers.states.il import _discover_archive_pdf_urls as _discover_il_pdf_urls
 from warn_v2.scrapers.states.il import _discover_archive_xlsx_urls as _discover_il_xlsx_urls
@@ -192,6 +193,16 @@ _BACKFILL: dict[str, BackfillSpec] = {
     "GA": BackfillSpec(
         bundled_files=ga_archive_files,
         parse_for_url=lambda u: parse_ga_entry_page,
+    ),
+    # IA: Iowa prunes old rows from its single cumulative log, so four archived
+    # snapshots (2005-07..2023-08 union, no interior gaps) are bundled as a
+    # tar.gz — the PDF-era member routes to parse_ia_archive_pdf, the XLSX
+    # members reuse IAScraper.parse (legacy header labels are aliased there).
+    "IA": BackfillSpec(
+        bundled_files=ia_archive_files,
+        parse_for_url=lambda name: (
+            parse_ia_archive_pdf if name.lower().endswith(".pdf") else None
+        ),
     ),
     # KY: bundled Wayback capture (20161222125836) of kcc.ky.gov's
     # 'WARN Report 2016.xlsx' — one sheet per year, WARN 1998-WARN 2016

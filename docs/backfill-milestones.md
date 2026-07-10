@@ -335,7 +335,7 @@ pre-2008 may simply not exist.
 | 5 | LA WarnNotices PDFs | 2007–2024 | ~1,200–1,800 | Existing LA parser is layout-tolerant — may extend |
 | 6 | CT monthly+yearly HTML | 1998–2018 | ~900–1,400 | 🔨 built (1,342 rows offline; Job pending); two eras; 2013/2009 holes |
 | 7 | KY workbook captures | 1998–2016 | ~780 | Already-parsed format family (openpyxl) |
-| 8 | IA snapshot union | 2005–2021 | ~600–800 | 4 files; heavy dedup |
+| 8 | IA snapshot union | 2005–2021 | ~600–800 | 4 files; heavy dedup — **built 2026-07-10** (bundled Mode 3b, 770 pre-2021 rows after dedup) |
 | 9 | MO logs + PY pages | 2012-07–2019 | ~550–650 | PDF + HTML; program years |
 | 10 | MD warn{Y}.shtml 2000–2009 | 2000–2009 | ~400–600 | **Easiest big win — existing parser family** |
 | 11 | IN DWD pages | 2000–2007 | ~450–530 | 3 page generations |

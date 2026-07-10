@@ -36,8 +36,9 @@ from datetime import date, datetime
 import httpx
 import openpyxl
 
-from warn_v2.scrapers._helpers import as_int, as_str
+from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
+from warn_v2.scrapers.bundled import DATA_DIR, load_archive
 from warn_v2.scrapers.registry import register
 
 _SOURCE_URL = "https://workforce.iowa.gov/employers/resources/warn/notices"
@@ -59,8 +60,6 @@ def _as_date(val: object) -> date | None:
         return val.date()
     if isinstance(val, date):
         return val
-    from warn_v2.scrapers._helpers import as_date
-
     return as_date(str(val))
 
 
@@ -190,6 +189,109 @@ def _dedup_zip_variance(rows: list[NoticeRow]) -> list[NoticeRow]:
             # All have ZIPs (different sites) or none have ZIPs — keep all.
             out.extend(group)
     return out
+
+
+# ---------------------------------------------------------------------------
+# Historical backfill (Mode 3b): bundled snapshots of the rolling WARN log
+# ---------------------------------------------------------------------------
+# Iowa publishes ONE cumulative log and prunes old rows from it over time, so
+# no live URL carries the full history. Four archived snapshots of that log
+# (captured via the Wayback Machine) are bundled as a tar.gz; their union
+# covers 2005-07 through the live scraper's 2021+ floor with no interior gap:
+#
+#   WARN_20150722.pdf   2005-07 .. 2015-07  (PDF era -> parse_ia_archive_pdf)
+#   WARN_20171219.xlsx  2011    .. 2017-12  (legacy labels; IAScraper.parse)
+#   WARN_20210105.xlsx  2015-08 .. 2021-01  (legacy labels; IAScraper.parse)
+#   WARN_20230823.xlsx  2018-09 .. 2023-08  (legacy labels; IAScraper.parse)
+#
+# The snapshots overlap heavily by design (each pair shares 2-6 years);
+# identical rows collapse by notice_id at upsert. "Amendment" rows are kept
+# as-is: the live cumulative log carries the same Notice Type value and prod
+# already stores them (closure_type="Amendment"); superseded originals are a
+# post-ingest `mark-superseded --state IA` concern, not a parse-time one.
+
+_ARCHIVE_TGZ = DATA_DIR / "ia_archive.tar.gz"
+
+
+def ia_archive_files() -> list[tuple[str, bytes]]:
+    """(member_name, bytes) for every snapshot in the bundled archive."""
+    return load_archive(_ARCHIVE_TGZ)
+
+
+def parse_ia_archive_pdf(raw: bytes) -> list[NoticeRow]:
+    """Parse the PDF-era snapshot of Iowa's cumulative WARN log.
+
+    Layout: one landscape table per page with the same 10 columns as the
+    XLSX era (Company | Address | City | County | State | ZIP |
+    Type of Notice | Employees Affected | Notice Date | Layoff Date); the
+    header row repeats on every page. Dates are m/d/yyyy strings; the known
+    source typo "10/20/1969" (Gleason Corp layoff date) is rejected by
+    ``as_date``'s year floor and stored as None.
+    """
+    import pdfplumber
+
+    def _cell(row: list, header: dict[str, int], name: str) -> str | None:
+        idx = header.get(name, -1)
+        if not (0 <= idx < len(row)) or row[idx] is None:
+            return None
+        # Cells wrap long values onto multiple lines — collapse whitespace.
+        # The PDF font also renders hyphens as U+2010 (unicode HYPHEN,
+        # "McGraw-Hill") where the XLSX-era snapshots use ASCII "-";
+        # normalize so overlapping rows hash-collide by notice_id instead
+        # of duplicating.
+        s = " ".join(str(row[idx]).split()).replace("\u2010", "-")
+        return s or None
+
+    rows: list[NoticeRow] = []
+    try:
+        with pdfplumber.open(io.BytesIO(raw)) as pdf:
+            for page in pdf.pages:
+                for table in page.extract_tables():
+                    header: dict[str, int] = {}
+                    for raw_row in table:
+                        labels = {
+                            " ".join(str(v).split()).upper(): i
+                            for i, v in enumerate(raw_row)
+                            if v is not None
+                        }
+                        if "COMPANY" in labels and "NOTICE DATE" in labels:
+                            header = labels
+                            continue
+                        if not header:
+                            continue
+                        employer = _cell(raw_row, header, "COMPANY")
+                        if not employer:
+                            continue
+                        notice_date = as_date(_cell(raw_row, header, "NOTICE DATE"))
+                        if notice_date is None:
+                            continue
+                        rows.append(
+                            NoticeRow(
+                                state="IA",
+                                employer=employer,
+                                notice_date=notice_date,
+                                effective_date=as_date(
+                                    _cell(raw_row, header, "LAYOFF DATE")
+                                ),
+                                layoff_count=as_int(
+                                    _cell(raw_row, header, "EMPLOYEES AFFECTED")
+                                ),
+                                city=_cell(raw_row, header, "CITY"),
+                                county=_cell(raw_row, header, "COUNTY"),
+                                zip=_cell(raw_row, header, "ZIP"),
+                                address=_cell(raw_row, header, "ADDRESS"),
+                                closure_type=_cell(raw_row, header, "TYPE OF NOTICE"),
+                                source_url=_SOURCE_URL,
+                            )
+                        )
+    except Exception as e:
+        raise ParseFailed(f"IA archive PDF: {e}") from e
+
+    if not rows:
+        raise ParseFailed("IA archive PDF: no data rows found")
+    # Same ZIP-variance quirk as the XLSX log (early filing without a ZIP,
+    # completed record with one) — collapse those pairs here too.
+    return _dedup_zip_variance(rows)
 
 
 register(IAScraper())
