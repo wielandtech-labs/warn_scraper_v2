@@ -1853,12 +1853,15 @@ def test_nc_discover_pdf_urls_dedupes_years_and_absolutizes():
     )
     respx.get(_ARCHIVE_HUB).mock(return_value=httpx.Response(200, content=html))
 
+    from warn_v2.scrapers.states.nc import _WARN_2013_PDF_URL
+
     urls = _discover_nc_pdf_urls()
     assert urls == [
         "https://www.commerce.nc.gov/.../report-workforce-warn-listings-2025/open",
         "https://www.commerce.nc.gov/worker-adjustment-and-retraining-notification-warn-report-2021/open",
         "https://www.commerce.nc.gov/warn-report-2019/open",
         "https://www.commerce.nc.gov/warn-report-2014-0/open",
+        _WARN_2013_PDF_URL,  # pinned Wayback capture, appended after hub years
     ]
 
 
@@ -1969,14 +1972,23 @@ def test_nc_ssrs_city_strips_unit_letters_and_directions():
 
 
 def test_nc_summary_join_city_collapses_letter_spacing():
-    """Some 2014 summary cells render the city letter-spaced (pdfplumber returns
-    one word per char); those collapse, real multi-word cities keep their space."""
+    """Some 2013/2014 summary cells render the city letter-spaced (pdfplumber
+    returns one word per glyph run, fragments touching); those collapse, real
+    multi-word cities (gap >=2.4pt) keep their space. Gap-based joining lives
+    in _join_city; the 2013-specific cases are in test_nc_backfill.py."""
     from warn_v2.scrapers.states.nc import _join_city
 
-    assert _join_city(["S", "a", "l", "i", "s", "b", "u", "r", "y"]) == "Salisbury"
-    assert _join_city(["G", "o", "l", "d", "sboro"]) == "Goldsboro"
-    assert _join_city(["Rocky", "Mount"]) == "Rocky Mount"
-    assert _join_city(["Charlotte"]) == "Charlotte"
+    def spaced(*texts: str, x: float = 335.0, gap: float = 0.0) -> list:
+        parts = []
+        for t in texts:
+            parts.append((x, x + 5.0 * len(t), t))
+            x = parts[-1][1] + gap
+        return parts
+
+    assert _join_city(spaced("S", "a", "l", "i", "s", "b", "u", "r", "y")) == "Salisbury"
+    assert _join_city(spaced("G", "o", "l", "d", "sboro")) == "Goldsboro"
+    assert _join_city(spaced("Rocky", "Mount", gap=2.5)) == "Rocky Mount"
+    assert _join_city(spaced("Charlotte")) == "Charlotte"
 
 
 def test_nc_parse_pdf_current_grid_era():

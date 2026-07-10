@@ -10,13 +10,15 @@ Schema (live as of May 2026):
 The page URL embeds the year. Falls back to prior year when current year 404s.
 
 Historical backfill (``backfill-historical --state NC``) reads the per-year
-archive PDFs linked from the ``warn-summary-report-archives`` hub, back to 2014.
+archive PDFs linked from the ``warn-summary-report-archives`` hub, back to
+2014, plus a pinned Wayback capture of the pre-hub 2013 report.
 Three PDF layout eras exist (probed 2026-07-07); ``parse_nc_pdf`` dispatches on
 detected content, not the year, so an unseen middle year still lands in the
 right sub-parser:
 
-* **2014-~2017** — "WARN Notice - Summary Count": flowing text with monthly
+* **2013-~2017** — "WARN Notice - Summary Count": flowing text with monthly
   subtotal lines, no table grid. Word-position parsing like ``nv.py``.
+  (2013 survives only as a Wayback capture of the old nccommerce.com PDF.)
 * **~2018-2021** — SSRS "WarnReportByCountyParish" grid: no separate City
   column (city+state+zip glued into the Address cell); one WARN number can
   repeat across several address lines carrying the same total count, so rows
@@ -39,6 +41,7 @@ from bs4 import BeautifulSoup
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.registry import register
+from warn_v2.scrapers.wayback import replay_url
 
 _URL = (
     "https://www.commerce.nc.gov/data-tools-reports/labor-market-data-tools"
@@ -180,9 +183,19 @@ _ARCHIVE_HUB = (
 #   /...report-workforce-warn-listings-2025/open
 _ARCHIVE_HREF_RE = re.compile(r"warn[\w-]*?(20(?:1[4-9]|2[0-5]))[\w-]*/open/?$", re.I)
 
+# Calendar-2013 predates the archive hub (its per-year links stop at 2014). The
+# old nccommerce.com site published the same summary-count report as a per-year
+# PDF; this pinned Wayback capture is the only surviving copy, so discovery
+# appends it statically — no CDX query needed. Same layout as 2014-2017, so it
+# lands in _parse_nc_summary_count.
+_WARN_2013_PDF_URL = replay_url(
+    "20150327025758", "http://www.nccommerce.com/Portals/11/WARN/Warn-2013.pdf"
+)
+
 
 def _discover_nc_pdf_urls() -> list[str]:
-    """Return one absolute /open PDF URL per archive year (2014+), newest first."""
+    """Return one absolute PDF URL per archive year, newest first: the hub's
+    /open links (2014+) plus the pinned Wayback 2013 capture."""
     try:
         r = httpx.get(_ARCHIVE_HUB, headers=_UA, timeout=60, follow_redirects=True)
         r.raise_for_status()
@@ -198,7 +211,7 @@ def _discover_nc_pdf_urls() -> list[str]:
         year = int(m.group(1))
         url = href if href.startswith("http") else _BASE_URL + href
         by_year.setdefault(year, url)  # first (page lists newest first)
-    return [by_year[y] for y in sorted(by_year, reverse=True)]
+    return [by_year[y] for y in sorted(by_year, reverse=True)] + [_WARN_2013_PDF_URL]
 
 
 def parse_nc_pdf(raw: bytes, source_url: str) -> list[NoticeRow]:
@@ -373,7 +386,8 @@ _SUM_DATE_RE = re.compile(r"^\d{1,2}/\d{1,2}/\d{4}$")
 _ROW_BUCKET = 4
 
 
-def _assign_summary_word(cur: dict, x: float, text: str, *, cont: bool) -> None:
+def _assign_summary_word(cur: dict, w: dict, *, cont: bool) -> None:
+    x, text = w["x0"], w["text"]
     if x < 90:
         if not cont:
             cur["notice"] = text
@@ -383,29 +397,41 @@ def _assign_summary_word(cur: dict, x: float, text: str, *, cont: bool) -> None:
     elif x < 308:
         cur["emp"].append(text)
     elif x < 396:
-        cur["city"].append(text)
+        cur["city"].append((w["x0"], w["x1"], text))
     elif x < 465:
         if not cont:
             cur["count"] = (cur["count"] or "") + text
-    elif not cont and cur["ctype"] is None:
-        cur["ctype"] = text
+    elif not cont:
+        # Concatenate without a space: the value is one slash-joined token that
+        # occasionally renders split ("Layoff/ Permanent" -> Layoff/Permanent).
+        cur["ctype"] = (cur["ctype"] or "") + text
 
 
-def _join_city(parts: list[str]) -> str:
-    """Join city tokens, collapsing letter-spaced runs.
+def _join_city(parts: list[tuple[float, float, str]]) -> str:
+    """Join city (x0, x1, text) tokens, collapsing letter-spaced runs by gap.
 
-    A few 2014 cells render the city with wide tracking, so pdfplumber returns
-    one word per character ("S a l i s b u r y"). When any token is a single
-    letter the whole cell is letter-spaced → join with no separator; otherwise
-    join real multi-word cities ("Rocky Mount") with a space.
+    2013/2014-era cells render some cities with wide tracking, so pdfplumber
+    returns one "word" per glyph run ("M o u nt Airy"). Token shape alone
+    cannot rebuild the words ("ford" continues "O x" but "Airy" does not
+    continue "M o u nt"), so use x-positions: letter-spaced fragments touch
+    (|gap| ≤ 0.1pt) while real word gaps are ≥ 2.4pt (measured on the 2013 and
+    2016 PDFs). A wrapped second line ("Winston" / "Salem") restarts far to
+    the left of the previous token's end, so its gap never lands in the glue
+    window either — it correctly joins with a space.
     """
-    if any(len(p.strip(".,")) == 1 for p in parts):
-        return "".join(parts)
-    return " ".join(parts)
+    out: list[str] = []
+    prev_x1: float | None = None
+    for x0, x1, text in parts:
+        if out and prev_x1 is not None and abs(x0 - prev_x1) < 1:
+            out[-1] += text
+        else:
+            out.append(text)
+        prev_x1 = x1
+    return " ".join(out)
 
 
 def _parse_nc_summary_count(pdf, source_url: str) -> list[NoticeRow]:
-    """2014-~2017 flowing-text report; word-position columns, wrap-aware.
+    """2013-~2017 flowing-text report; word-position columns, wrap-aware.
 
     A visual row beginning with a date at x<90 starts a record; a dateless row
     whose first word sits in the Company column (x>=155) is a wrapped
@@ -449,10 +475,18 @@ def _parse_nc_summary_count(pdf, source_url: str) -> list[NoticeRow]:
                     "count": None, "ctype": None,
                 }
                 for w in words:
-                    _assign_summary_word(cur, w["x0"], w["text"], cont=False)
-            elif cur is not None and first["x0"] >= 155:
+                    _assign_summary_word(cur, w, cont=False)
+            elif (
+                cur is not None
+                and first["x0"] >= 155
+                # A monthly subtotal value can render a few pt off its label
+                # line and land in a bucket of its own inside the city column
+                # (2013: "Sum of # Employees Affected: 1420"). An all-digit
+                # row is such a stray subtotal, never a wrapped city/company.
+                and not all(w["text"].isdigit() for w in words)
+            ):
                 for w in words:
-                    _assign_summary_word(cur, w["x0"], w["text"], cont=True)
+                    _assign_summary_word(cur, w, cont=True)
             else:
                 flush()
     flush()

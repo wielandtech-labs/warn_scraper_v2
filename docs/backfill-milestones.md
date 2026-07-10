@@ -62,7 +62,7 @@ Reachable floor = floor after running every verified route (no FOIA).
 | MO | 322 | 2019–2026 | ✅ | 🔍 | ✉ | 2012-07 | Wayback: consolidated log PDF Jul-2012–Jul-2015 + PY2015–PY2018 pages (+550–650); pre-Jul-2012 → ✉ |
 | MS | 139 | 2013–2026 | ✅ | 🔍 | ✉ | 2004 | Wayback: all 40 quarterlies PY2010–PY2019 + 2004–2006 era + the missing PY2023-Q4 (+400–800); **Jul 2007–Jun 2010 never archived** → ✉ |
 | MT | 43 | 2015–2026 | ✅ | ✉ | ✉ | 2015 | Sweep: only a rolling 2-yr window existed before the 2015+ cumulative file; nothing older ever published (~4 notices/yr) |
-| NC | 913 | 2014–2026 | ✅ | 🔍 | ✉ | 2012-10 | Wayback: `Warn-2013.pdf` full year + rolling `Warn.pdf` Q4-2012 (+~140); nothing pre-Oct-2012 (ncesc.com has zero WARN URLs) |
+| NC | 913 | 2014–2026 | ✅ | 🔍 | ✉ | 2013 | Wayback `Warn-2013.pdf` **built 2026-07-10** (+82, pinned in `_discover_nc_pdf_urls`; run pending); Q4-2012 unrecoverable — no Dec-2012/Jan-2013 `Warn.pdf` capture in CDX; nothing pre-Oct-2012 (ncesc.com has zero WARN URLs) |
 | ND | 54 | 2015–2026 | ✅ | ✉ | ✉ | 2015 | Sweep: agency's own file is "WARN Notices 2015 to present" — 2015 is the start of the published record |
 | NE | 46 | 2023–2026 | 🔍 | 🔍 | ✉ | 2010 | **Live frozen endpoint** `dol.nebraska.gov/LayoffServices/WARNReportData/?year=Y` still serves 2010–2020 today; Wayback fills 2021–2022 (+~130) |
 | NH | — | — | ✉ | ✉ | ✉ | — | Not published online; split-custody FOIA drafted |
@@ -273,12 +273,14 @@ Layoff Date / # Affected) + `warn-report-for-week-ending-08-21-20/download`
 WARN docs captured between 2020-08-28 and 2021-11-30** → the Sep-2020→Mar-2021
 tail and pre-FY2020 stay email-only (agency invites it).
 
-### NC — Wayback 2013 + Q4-2012 (+~140)
+### NC — Wayback 2013 (+82) — parser built 2026-07-10, run pending
 `nccommerce.com/Portals/11/WARN/Warn-2013.pdf` (capture 20150327025758; full
-calendar 2013, ~120–150 notices) + rolling `Warn.pdf` captures 2012-12
-(Oct–Dec 2012). Caveats: 2013 PDF has letter-spaced city glyphs ("O x ford") —
-de-space like the NC 2014 era; 2012 report lists County where 2013 lists City.
-Pre-Oct-2012: nothing (ncesc.com has zero WARN URLs).
+calendar 2013, 82 notices, 9,869 employees) — pinned into
+`_discover_nc_pdf_urls`; same summary-count layout as 2014–2017, letter-spaced
+city glyphs despaced by glyph gap (nc.py `_join_city`). Known source typo kept
+as printed: one December-section row reads "2/03/2013" (really 12/03). The
+rolling `Warn.pdf` Q4-2012 slice is **unrecoverable** — no Dec-2012/Jan-2013
+capture exists in CDX. Pre-Oct-2012: nothing (ncesc.com has zero WARN URLs).
 
 ### NE — live frozen endpoint 2010–2020 + Wayback 2021–2022 (+~130)
 `dol.nebraska.gov/LayoffServices/WARNReportData/?year={2010..2020}` **still
@@ -351,7 +353,7 @@ pre-2008 may simply not exist.
 | 16 | UT scraper fix | 2009–2026 | ~265 | Parse all year sections, not just current |
 | 17 | VA three-format captures | PY1999, PY2002–04 | ~240–260 | XLS + PDF + Excel-HTML |
 | 18 | MA FY2020 + wk-2020-08-21 | 2019-07–2020-08 | ~215 | Existing MA regional-sheet parser (FY22/23 layout) |
-| 19 | NC 2013 + Q4-2012 | 2012-10–2013 | ~140 | Existing NC PDF dispatch + de-spacing |
+| 19 | NC 2013 | 2013 | 82 | **Parser built 2026-07-10** (run pending); Q4-2012 slice unrecoverable (no capture) |
 | 20 | NE frozen endpoint + captures | 2010–2022 | ~130 | Trivial HTML; **snapshot soon** |
 | 21 | GA 2022 entry pages | 2022 | ~70–100 | ID enumeration; dedupe by GA WARN ID |
 | 22 | SD 1997–2005 PDF | 1997–2005 | ~60 | Single file |
