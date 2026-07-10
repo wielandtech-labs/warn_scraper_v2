@@ -234,7 +234,10 @@ Ordered by recoverable rows:
   date + received date + closure type), 2000–2002 simple 2-slice
   `cnal`/`cnmz` pages (employer/city/count/layoff date only — weaker dedup
   hash, review near-misses). Nothing archived pre-2000. (A+gate)
-- [ ] **OR Socrata backfill** (+~300 rows) — `data.oregon.gov/ijbz-jpx8` is
+- [x] **OR Socrata backfill** — route built 2026-07-10 (`backfill-historical
+  --state OR`: Socrata + bundled Wayback capture union, 1989–2026; prod run
+  pending — dry-run first, ~95 near-miss dups vs live masters expected).
+  `data.oregon.gov/ijbz-jpx8` is
   official and complete (397 rows 2020-03→2026-05 w/ counts+dates) while the
   live HECC tracker has gone near-empty (prod 2024: 3 vs 71; 2026: 1 vs 33).
   Backfill from Socrata; keep the HECC scraper for freshness; consider a

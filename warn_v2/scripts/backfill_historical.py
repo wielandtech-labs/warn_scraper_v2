@@ -95,6 +95,12 @@ from warn_v2.scrapers.states.nm import _discover_archive_pdf_urls as _discover_n
 from warn_v2.scrapers.states.nv import _fetch_nv_year, parse_nv_archive
 from warn_v2.scrapers.states.ny import ny_history_csv
 from warn_v2.scrapers.states.oh import _fetch_oh_year, parse_oh_year
+from warn_v2.scrapers.states.or_ import SOCRATA_MEMBER as _OR_SOCRATA_MEMBER
+from warn_v2.scrapers.states.or_ import (
+    or_backfill_files,
+    parse_or_archive_csv,
+    parse_or_socrata,
+)
 from warn_v2.scrapers.states.pa import _fetch_pa_year, parse_pa_month
 from warn_v2.scrapers.states.sc import _discover_sc_archive_urls, parse_sc_archive_pdf
 from warn_v2.scrapers.states.sd import parse_sd_archive_pdf, sd_archive_files
@@ -402,6 +408,20 @@ _BACKFILL: dict[str, BackfillSpec] = {
     "VA": BackfillSpec(
         bundled_files=va_archive_files,
         parse_for_url=parse_va_archive_member,
+    ),
+    # OR: two complementary sources — the bundled Wayback capture union of the
+    # HECC list app (dated master rows 1989-2020-03 plus stragglers Socrata
+    # lacks; the live app purged pre-2020 around Nov 2025) and a live fetch of
+    # the official Socrata dataset ijbz-jpx8 (per-worksite rows 2020-03+,
+    # ~2-month lag). The union CSV was built excluding every track number in
+    # Socrata, so the two members never overlap. Socrata company_name is often
+    # a facility label where prod's live-scraped rows carry the legal employer
+    # — expect near-miss duplicates there (see states/or_.py docstring).
+    "OR": BackfillSpec(
+        bundled_files=lambda: or_backfill_files(),
+        parse_for_url=lambda n: (
+            parse_or_socrata if n == _OR_SOCRATA_MEMBER else parse_or_archive_csv
+        ),
     ),
     # NY: the dashboard's full crosstab export (2006-2026, ~9k rows) bundled
     # as a gzipped snapshot; NYScraper.parse reads it (same schema as the live
