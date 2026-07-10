@@ -17,6 +17,11 @@ Continuation rows where col 0 is None are skipped.
 The Date of Action field occasionally uses "." instead of "/" as the separator
 (e.g. "4/3.2026"); we normalise that before parsing.
 
+Every era's Reason/Comments column flags non-WARN Rapid Response events
+("Non-WARN ..."). Those rows are kept but tagged ``extra["non_warn"] = "1"``,
+which the storage upsert maps to ``closure_category = "Non-WARN"`` so
+aggregate stats can exclude them from statutory-WARN counts.
+
 Three layout eras:
   - PY2025+ ("modern"): one label per header cell, separate City/County columns.
   - PY2020-PY2022 ("merged"): employer and "City (County)" share one column.
@@ -28,9 +33,8 @@ Historical backfill (Wayback replay, see _discover_ms_archive_urls) adds a
 fourth family, dispatched on the title's "PROGRAM YEAR <= 2019":
   - 2004-2006 + PY2010-PY2019 ("archive"): "# Affected" stacked under
     "Type of Action" with the count on its own continuation grid row, an
-    "Impact Date"/"Date of Action" column, SIC+NAICS descriptions (2004-06),
-    and a Reason/Comments column that flags non-WARN Rapid Response events
-    ("Non-WARN ..."), which are filtered out; see _parse_archive_tables().
+    "Impact Date"/"Date of Action" column, and SIC+NAICS descriptions
+    (2004-06); see _parse_archive_tables().
 """
 from __future__ import annotations
 
@@ -325,7 +329,7 @@ def _row_starts_record(row: list) -> bool:
 
 
 def _parse_archive_tables(
-    tables: list[list[list]], source_url: str, *, include_non_warn: bool = False
+    tables: list[list[list]], source_url: str
 ) -> list[NoticeRow]:
     """Parse 2004-2006 / PY2010-PY2019 quarterlies.
 
@@ -336,8 +340,7 @@ def _parse_archive_tables(
     merged column-wise, and the fields between the company cell and the
     trailing Reason/Comments cell are classified by content (action word /
     standalone count / date).  Reason/Comments flags non-WARN Rapid Response
-    events, which are dropped unless ``include_non_warn`` (debug/tests) —
-    those rows then carry ``extra["non_warn"] = "1"``.
+    events; those rows carry ``extra["non_warn"] = "1"``.
     """
     records: list[list[list]] = []
     for t in tables:
@@ -370,15 +373,13 @@ def _parse_archive_tables(
 
     rows: list[NoticeRow] = []
     for rec in records:
-        row = _archive_record_to_row(rec, source_url, include_non_warn=include_non_warn)
+        row = _archive_record_to_row(rec, source_url)
         if row is not None:
             rows.append(row)
     return rows
 
 
-def _archive_record_to_row(
-    rec: list[list], source_url: str, *, include_non_warn: bool
-) -> NoticeRow | None:
+def _archive_record_to_row(rec: list[list], source_url: str) -> NoticeRow | None:
     # Merge the record's rows column-wise into lists of lines.
     cols: dict[int, list[str]] = {}
     for row in rec:
@@ -411,8 +412,6 @@ def _archive_record_to_row(
             reason_i = rest[-1]
     reason = " ".join(cols[reason_i]) if reason_i is not None else ""
     non_warn = _NON_WARN_RE.match(reason) is not None
-    if non_warn and not include_non_warn:
-        return None
 
     closure_type: str | None = None
     counts: list[int] = []
@@ -464,9 +463,9 @@ def _archive_record_to_row(
     extra: dict[str, str] = {}
     if wda:
         extra["wda"] = wda
-    if include_non_warn:  # debug/tests only — never set on ingested rows
-        if non_warn:
-            extra["non_warn"] = "1"
+    if non_warn:
+        extra["non_warn"] = "1"
+    if reason:
         extra["reason"] = reason
     return NoticeRow(
         state="MS",
@@ -580,6 +579,7 @@ def _extract_rows(
     i_count = _find("number affected")
     i_eff = _find("date of action")
     i_wda = _find("workforce area")
+    i_reason = _find("reason")
     if i_company is None:
         return []
     # In the merged old format, "city" would match the company column —
@@ -631,6 +631,15 @@ def _extract_rows(
 
         closure_type = as_str(_cell(raw_row, i_action))
         wda = _cell(raw_row, i_wda)
+        reason = _cell(raw_row, i_reason)
+
+        extra: dict[str, str] = {}
+        if wda:
+            extra["wda"] = wda
+        if _NON_WARN_RE.match(reason):
+            extra["non_warn"] = "1"
+        if reason:
+            extra["reason"] = reason
 
         rows.append(
             NoticeRow(
@@ -643,7 +652,7 @@ def _extract_rows(
                 city=city,
                 county=county,
                 source_url=_LANDING_URL,
-                extra={"wda": wda} if wda else {},
+                extra=extra,
             )
         )
     return rows
