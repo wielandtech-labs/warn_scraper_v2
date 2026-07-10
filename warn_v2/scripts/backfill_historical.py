@@ -66,7 +66,7 @@ from warn_v2.scrapers.states.in_ import _discover_in_archive_urls, parse_in_arch
 from warn_v2.scrapers.states.ky import ky_archive_files, parse_ky_workbook
 from warn_v2.scrapers.states.la import _fetch_la_year, parse_la_pdf
 from warn_v2.scrapers.states.la import _source_url as _la_source_url
-from warn_v2.scrapers.states.ma import _fetch_ma_fy, parse_ma_xlsx
+from warn_v2.scrapers.states.ma import ma_archive_files, parse_ma_archive_member
 from warn_v2.scrapers.states.md import _fetch_md_year
 from warn_v2.scrapers.states.mi import (
     _discover_mi_archive_urls,
@@ -213,15 +213,17 @@ _BACKFILL: dict[str, BackfillSpec] = {
         fetch_year=lambda s, y: _fetch_la_year(y),
         parse_year=lambda b, y: parse_la_pdf(b, _la_source_url(y)),
     ),
-    # MA: mass.gov publishes one XLSX per fiscal year back to FY22 ("Previous
-    # WARN reports"); downloads are Akamai-gated (httpx 403s from the cluster),
-    # so _fetch_ma_fy drives Playwright like the live scraper. Key the loop by
-    # the FY-ending year (FY22 -> 2022); FY26 is the live current year, so run
-    # --year-end 2025. Pre-FY22 is email-request only.
+    # MA: bundled Wayback captures — the FY2020 report (legacy .xls, six
+    # regional sheets, Jul 2019 - Jun 2020) plus the FY2021 weekly cumulative
+    # through 2020-08-21. Sep 2020 - Mar 2021 and pre-FY2020 were never
+    # archived (email-request only). This replaces the FY22-FY25 Playwright
+    # year-loop spec, which ALREADY RAN in prod (floor 2021-04); to re-run
+    # those fiscal years restore (helpers still live in states/ma.py):
+    #   BackfillSpec(year_start=2022, fetch_year=lambda s, y: _fetch_ma_fy(y),
+    #                parse_year=lambda b, y: parse_ma_xlsx(b, y))
     "MA": BackfillSpec(
-        year_start=2022,
-        fetch_year=lambda s, y: _fetch_ma_fy(y),
-        parse_year=lambda b, y: parse_ma_xlsx(b, y),
+        bundled_files=lambda: ma_archive_files(),
+        parse_for_url=lambda n: parse_ma_archive_member(n),
     ),
     # NV: per-year archive PDFs 2017+ in three layout eras; 2021 is a scanned
     # image (parsed via the tesseract OCR fallback) and 2025 coverage ends
