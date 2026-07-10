@@ -267,9 +267,19 @@ Ordered by recoverable rows:
   `warn_v2/scrapers/states/ok.py` (floor 2001-03). See deferred-states.md.
 - [ ] **Puerto Rico / territories** — scope whether public WARN sources exist
   at all; report, don't build. (A: spike + report)
-- [ ] **Failure alerting** — page on `scraper_*` failures from `scraper_runs`
+- ~~**Failure alerting** — page on `scraper_*` failures from `scraper_runs`
   instead of waiting for the daily audit; Grafana + AlertManager are already
-  deployed, so this is likely an alert rule PR. (A+gate)
+  deployed, so this is likely an alert rule PR. (A+gate)~~ — DONE. Most of it
+  shipped with #198 (2026-07-07: `WarnMetricsAbsent`, `WarnEnrichmentStalled`,
+  `WarnScrapeStale` at 8d for the weekly tier); the remaining gap — a
+  daily-tier state waited 8 days to page — closed with `WarnScraperFailing`
+  (chart 0.1.28): ≥2 fetch/parse/storage failures in 50h with no success in
+  26h, i.e. ~1 day after a real break; transient single flaps never fire, and
+  `validation_failed` is excluded (MA's July fiscal-year rollover fails
+  row-count validation for weeks — row drift still pages via the 8d stale
+  rule + daily heal loop). Routing verified: AlertManager's default receiver
+  posts to the ntfy bridge (w_homelab `alertmanager-ntfy.yaml`), so no
+  w_homelab change was needed.
 
 ## Accepted / not planned
 
