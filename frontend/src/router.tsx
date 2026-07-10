@@ -10,6 +10,7 @@ import {
 import { Layout } from "./components/Layout";
 import { NoticesPage } from "./routes/notices";
 import { NoticeDetail } from "./routes/notice-detail";
+import { RadarPage } from "./routes/radar";
 import { CompaniesPage } from "./routes/companies";
 import { CompanyDetail } from "./routes/company-detail";
 import { StatesIndexPage } from "./routes/states-index";
@@ -110,6 +111,31 @@ const noticeDetailRoute = createRoute({
   path: "/notices/$noticeId",
   validateSearch: validateNoticesSearch,
   component: NoticeDetail,
+});
+
+const radarRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/radar",
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): {
+    state?: string;
+    closure_category?: string;
+    industry?: string;
+    subsector?: string;
+    min_layoffs?: number;
+    days?: number;
+    page?: number;
+  } => ({
+    state: (search.state as string) || undefined,
+    closure_category: (search.closure_category as string) || undefined,
+    industry: (search.industry as string) || undefined,
+    subsector: (search.subsector as string) || undefined,
+    min_layoffs: search.min_layoffs ? Number(search.min_layoffs) : undefined,
+    days: search.days ? Number(search.days) : undefined,
+    page: search.page ? Number(search.page) : undefined,
+  }),
+  component: RadarPage,
 });
 
 const companiesRoute = createRoute({
@@ -280,6 +306,7 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   noticesRoute,
   noticeDetailRoute,
+  radarRoute,
   companiesRoute,
   companyDetailRoute,
   mapRoute,
