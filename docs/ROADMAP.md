@@ -221,13 +221,41 @@ Ordered by recoverable rows:
   qtr-1 rows purged, verified per-record; MDES's `py2023-qtr-4` file
   actually carries Q1 content — PY2023-Q4 is published nowhere).
 
+### Wave 3 — opened by the 2026-07-09 probe sweep
+
+- [ ] **JobLink truncation backfill (AZ/KS/DE/ME/VT, ~900 rows)** — fix merged
+  as #241 (`fetch()` was page-1-only, 25-row cap; AZ floor 2016→2010, DE
+  2016→2007). Remaining: the gated prod Jobs per the runbook, one state per
+  Job, after the image deploys. Verify per-year against the source totals in
+  historical-sources.md's 2026-07-09 Progress entry. (A+gate)
+- [ ] **CA 2000–2005 Wayback HTML** (~2–3k rows) — pre-2006 survives under
+  `www.edd.ca.gov/warn/` as HTML: 2003–2005 detailed 7-slice pages
+  `eddwarncnd{ab,cd,ef,gl,mr,s,tz}{YY}.htm/.asp` (address + count + layoff
+  date + received date + closure type), 2000–2002 simple 2-slice
+  `cnal`/`cnmz` pages (employer/city/count/layoff date only — weaker dedup
+  hash, review near-misses). Nothing archived pre-2000. (A+gate)
+- [ ] **OR Socrata backfill** (+~300 rows) — `data.oregon.gov/ijbz-jpx8` is
+  official and complete (397 rows 2020-03→2026-05 w/ counts+dates) while the
+  live HECC tracker has gone near-empty (prod 2024: 3 vs 71; 2026: 1 vs 33).
+  Backfill from Socrata; keep the HECC scraper for freshness; consider a
+  recurring top-up (the dataset lags ~2 months). Watch cross-source dedup —
+  `company_name` is sometimes a facility name. (A+gate)
+- [ ] **TN 2018–2024 Wayback** — the live reports page holds 2025+ only.
+  2024 (~60 rows): late-2024/early-2025 captures of reports.html carry the
+  live-schema table — easy. 2018–2023: only as **534 per-notice WARN letter
+  PDFs** archived in Wayback (258 are 2020; pruned from live tn.gov) — needs
+  a free-form letter parser; decide build vs. the TN request (TPRA is
+  TN-citizens-only). (A+gate)
+
 ## Track 4 — Records-request (FOIA) pipeline
 
-- [ ] **Send the drafts** — 31 ready in [foia/](foia/), tracker in
-  [foia/README.md](foia/README.md). Suggested first wave by recoverable rows:
-  NY, TX (pre-2020), MI (pre-Nov-2024). CA 2009–2013 dropped — the probe passed
-  (Wayback route, 2026-07-07); only CA **pre-2008** might warrant a request, and
-  `cn00`–`cn08` are in Wayback too, so spike that before drafting. **Sending is
+- [ ] **Send the drafts** — tracker in [foia/README.md](foia/README.md).
+  First wave by recoverable rows (refreshed 2026-07-09): **MI (pre-Nov-2024)**,
+  **TX (pre-2020)**, **FL (pre-2020)**, **GA (pre-2023, web form)**. Gmail
+  drafts for the three email requests staged 2026-07-09 — review + hit send.
+  Dropped from the wave: NY (closed via crosstab), CA (2000–2005 Wayback HTML
+  found; pre-2000 archived nowhere), AZ/DE (JobLink reaches 2010/2007, #241);
+  TN deferred while the Wayback letter route is evaluated. **Sending is
   a human action.** (H)
 - [ ] **Track + follow up** — once any are sent, agents maintain the tracker
   (sent date, statutory deadline, response), draft follow-ups/appeals. (A+gate)
@@ -265,8 +293,15 @@ Ordered by recoverable rows:
   `aura.token=null` unauthenticated and returns the full record history as
   JSON — plain httpx, **no Playwright**. Live scraper in
   `warn_v2/scrapers/states/ok.py` (floor 2001-03). See deferred-states.md.
-- [ ] **Puerto Rico / territories** — scope whether public WARN sources exist
-  at all; report, don't build. (A: spike + report)
+- ~~**Puerto Rico / territories** — scope whether public WARN sources exist
+  at all; report, don't build. (A: spike + report)~~ — DONE 2026-07-09:
+  **no public employer-level WARN source exists** for PR, Guam, or USVI.
+  PR's DTRH publishes only aggregate quarterly "despidos significativos"
+  stats by industry (estadisticas.pr.gov → mercadolaboral.pr.gov); WARN
+  notices go to the local occupational-development council + municipality
+  mayors, unpublished. Guam DOL (dol.guam.gov) and USVI DOL (vidol.gov)
+  publish nothing WARN-related. Optional future: a records request to PR
+  DTRH (they demonstrably hold the underlying notices), not planned.
 - ~~**Failure alerting** — page on `scraper_*` failures from `scraper_runs`
   instead of waiting for the daily audit; Grafana + AlertManager are already
   deployed, so this is likely an alert rule PR. (A+gate)~~ — DONE. Most of it
