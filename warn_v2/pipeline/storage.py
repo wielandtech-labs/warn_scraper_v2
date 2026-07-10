@@ -324,7 +324,7 @@ def enrich_notice_location(
         if existing_loc.lat is None:
             result = _geocode(address, existing_loc.city, notice.state, zip_, existing_loc.county)
             if result is not None:
-                existing_loc.lat, existing_loc.lon, existing_loc.geocode_source = result
+                _apply_geocode(existing_loc, result)
         session.flush()
         return True
     return False
@@ -333,6 +333,15 @@ def enrich_notice_location(
 def _zip_is_missing(col):
     """Filter expression matching a Location row with no usable ZIP."""
     return or_(col.is_(None), col == "")
+
+
+def _apply_geocode(loc: Location, result) -> None:
+    """Apply a GeoResult to a Location: coords, source, and — only when the
+    location doesn't already have one — the resolved county (a scraper- or
+    enricher-provided county always wins over the geocoder's)."""
+    loc.lat, loc.lon, loc.geocode_source = result.lat, result.lon, result.source
+    if result.county and not loc.county:
+        loc.county = result.county
 
 
 def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None:
@@ -378,12 +387,12 @@ def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None
             if existing.lat is None and existing.lon is None:
                 result = _geocode(None, None, state, None, row.county)
                 if result is not None:
-                    existing.lat, existing.lon, existing.geocode_source = result
+                    _apply_geocode(existing, result)
             return existing
         lat, lon, geocode_source = (None, None, None)
         result = _geocode(None, None, state, None, row.county)
         if result is not None:
-            lat, lon, geocode_source = result
+            lat, lon, geocode_source = result.lat, result.lon, result.source
         loc = Location(
             state=state, county=row.county,
             lat=lat, lon=lon, geocode_source=geocode_source,
@@ -414,7 +423,7 @@ def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None
         if exact.lat is None and exact.lon is None:
             result = _geocode(row.address, row.city, row.state, exact.zip, row.county)
             if result is not None:
-                exact.lat, exact.lon, exact.geocode_source = result
+                _apply_geocode(exact, result)
         return exact
 
     # 2. promote a single zip-less candidate in place — but only when it backs
@@ -444,19 +453,21 @@ def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None
                 if loc.lat is None and loc.lon is None:
                     result = _geocode(row.address, row.city, row.state, incoming_zip, row.county)
                     if result is not None:
-                        loc.lat, loc.lon, loc.geocode_source = result
+                        _apply_geocode(loc, result)
                 session.flush()
                 return loc
 
     # 3. fall through to insert
     lat, lon, geocode_source = (None, None, None)
+    county = row.county
     result = _geocode(row.address, row.city, row.state, incoming_zip, row.county)
     if result is not None:
-        lat, lon, geocode_source = result
+        lat, lon, geocode_source = result.lat, result.lon, result.source
+        county = county or result.county
     loc = Location(
         state=state,
         city=row.city,
-        county=row.county,
+        county=county,
         zip=incoming_zip,
         lat=lat,
         lon=lon,

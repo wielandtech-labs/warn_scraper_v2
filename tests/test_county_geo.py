@@ -161,3 +161,48 @@ def test_no_location_when_no_city_zip_county(db):
     notice = db.query(Notice).one()
     assert notice.location_id is None
     assert db.query(Location).count() == 0
+
+
+# ---------------------------------------------------------------------------
+# Geocoder-resolved county (sources that publish no county column)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def _richmond_zip():
+    from warn_v2.geo import zip_centroids
+
+    zip_centroids.reload_for_testing({"40475": (37.7479, -84.2947)})  # Richmond KY
+    yield
+    zip_centroids._cache = None  # type: ignore[attr-defined]
+
+
+def test_zip_tier_geocode_fills_county_on_insert(db, monkeypatch, _richmond_zip):
+    """A row with no county gets one from the coordinate reverse lookup."""
+    from warn_v2.geo import geocoder
+
+    monkeypatch.setattr(
+        geocoder, "county_from_coords", lambda lat, lon, state: "Madison"
+    )
+    row = _county_row(county=None, city="Richmond", zip="40475")
+    upsert_notices(db, [row])
+    db.commit()
+
+    loc = db.query(Location).one()
+    assert loc.city == "Richmond"
+    assert loc.county == "Madison"
+    assert loc.geocode_source == "zip"
+
+
+def test_scraper_county_not_overwritten_by_geocoder(db, monkeypatch, _richmond_zip):
+    """A source-provided county always wins over the geocoder's answer."""
+    from warn_v2.geo import geocoder
+
+    monkeypatch.setattr(
+        geocoder, "county_from_coords", lambda lat, lon, state: "Wrongshire"
+    )
+    row = _county_row(county="Madison", city="Richmond", zip="40475")
+    upsert_notices(db, [row])
+    db.commit()
+
+    loc = db.query(Location).one()
+    assert loc.county == "Madison"

@@ -84,7 +84,7 @@ def test_geocode_rejects_out_of_state_census_falls_to_zip(monkeypatch):
     # Census resolves the HQ address... in California.
     monkeypatch.setattr(
         geocoder, "_census_geocode",
-        lambda *a, **k: (Decimal("37.7749"), Decimal("-122.4194")),
+        lambda *a, **k: (Decimal("37.7749"), Decimal("-122.4194"), None),
     )
 
     pair = geocode("1 Corporate Way", "Atlanta", "GA", "30301")
@@ -109,7 +109,7 @@ def test_geocode_all_tiers_out_of_state_returns_none(monkeypatch):
     city_centroids.reload_for_testing({"CA|oakland": (37.8044, -122.2712)})
     monkeypatch.setattr(
         geocoder, "_census_geocode",
-        lambda *a, **k: (Decimal("37.7749"), Decimal("-122.4194")),
+        lambda *a, **k: (Decimal("37.7749"), Decimal("-122.4194"), None),
     )
 
     assert geocode("1 Main St", "Oakland", "GA", "94607") is None
@@ -131,3 +131,100 @@ def test_in_state_bbox_alaska_antimeridian():
     assert in_state_bbox("AK", 61.2, -149.9)   # Anchorage
     assert in_state_bbox("AK", 52.8, 173.2)    # Attu Island (lon > 0)
     assert not in_state_bbox("AK", 33.7, -84.4)  # Atlanta
+
+
+# ---------------------------------------------------------------------------
+# County resolution (census tier carries it; ZIP/city tiers reverse-look-up)
+# ---------------------------------------------------------------------------
+
+def test_geocode_census_tier_carries_county(monkeypatch):
+    from warn_v2.geo import geocoder
+
+    monkeypatch.setattr(
+        geocoder, "_census_geocode",
+        lambda *a, **k: (Decimal("33.7490"), Decimal("-84.3880"), "Fulton"),
+    )
+    result = geocode("1 Main St", "Atlanta", "GA", "30301")
+    assert result is not None
+    assert result.source == "census"
+    assert result.county == "Fulton"
+
+
+def test_geocode_zip_tier_reverse_looks_up_county(monkeypatch):
+    from warn_v2.geo import geocoder
+
+    calls = []
+
+    def _fake_lookup(lat, lon, state):
+        calls.append((lat, lon, state))
+        return "Alameda"
+
+    monkeypatch.setattr(geocoder, "county_from_coords", _fake_lookup)
+    result = geocode(None, "Oakland", "CA", "94607")
+    assert result is not None
+    assert result.source == "zip"
+    assert result.county == "Alameda"
+    assert calls == [(result.lat, result.lon, "CA")]
+
+
+def test_geocode_scraper_county_wins_no_lookup(monkeypatch):
+    """A caller-supplied county is echoed back; no reverse lookup happens."""
+    from warn_v2.geo import geocoder
+
+    def _boom(lat, lon, state):
+        raise AssertionError("county_from_coords must not be called")
+
+    monkeypatch.setattr(geocoder, "county_from_coords", _boom)
+    result = geocode(None, "Oakland", "CA", "94607", "Alameda")
+    assert result is not None
+    assert result.county == "Alameda"
+
+
+def test_geocode_county_stays_none_when_lookup_misses():
+    """The conftest stub returns None → result.county is None, no crash."""
+    result = geocode(None, "Oakland", "CA", "94607")
+    assert result is not None
+    assert result.county is None
+
+
+# ---------------------------------------------------------------------------
+# _county_from_geographies (Census payload parsing + state-FIPS validation)
+# ---------------------------------------------------------------------------
+
+def _census_counties_payload(basename: str, state_fips: str) -> dict:
+    """Trimmed-down real response shape from geocoder/geographies/*."""
+    return {
+        "Counties": [
+            {
+                "GEOID": f"{state_fips}173",
+                "STATE": state_fips,
+                "BASENAME": basename,
+                "NAME": f"{basename} County",
+                "COUNTY": "173",
+            }
+        ]
+    }
+
+
+def test_county_from_geographies_extracts_basename():
+    from warn_v2.geo.geocoder import _county_from_geographies
+
+    payload = _census_counties_payload("Sedgwick", "20")
+    assert _county_from_geographies(payload, "KS") == "Sedgwick"
+
+
+def test_county_from_geographies_rejects_wrong_state_fips():
+    """A DC address on the MD line resolving to a Maryland county is dropped."""
+    from warn_v2.geo.geocoder import _county_from_geographies
+
+    payload = _census_counties_payload("Prince George's", "24")  # MD
+    assert _county_from_geographies(payload, "DC") is None
+    assert _county_from_geographies(payload, "MD") == "Prince George's"
+
+
+def test_county_from_geographies_handles_missing_layer():
+    from warn_v2.geo.geocoder import _county_from_geographies
+
+    assert _county_from_geographies({}, "KS") is None
+    assert _county_from_geographies({"Counties": []}, "KS") is None
+    assert _county_from_geographies({"Counties": [{"STATE": "20"}]}, "KS") is None
