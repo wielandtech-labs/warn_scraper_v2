@@ -2062,3 +2062,88 @@ def test_backfill_historical_bundled_mode(db, monkeypatch) -> None:
     stats = bh.backfill_historical("NY", dry_run=True)
     assert stats["rows_seen"] == 1
     assert db.query(Notice).filter(Notice.state == "NY").count() == 1
+
+
+def test_backfill_historical_bundled_files_mode(db, monkeypatch) -> None:
+    """Mode 3b: every member counts as an attempt and dispatches through
+    parse_for_url(member_name), falling back to scraper.parse."""
+    from warn_v2.scripts import backfill_historical as bh
+
+    csv_b = _MINI_NY_CSV
+    csv_a = csv_b.replace(b"Acme Corp", b"Beta Corp").replace(b"3/1/2015", b"4/1/2016")
+    custom_calls: list[str] = []
+
+    def _custom_parser(raw: bytes):
+        custom_calls.append("hit")
+        from warn_v2.scrapers.states.ny import NYScraper
+
+        return NYScraper().parse(raw)
+
+    monkeypatch.setitem(
+        bh._BACKFILL,
+        "NY",
+        bh.BackfillSpec(
+            bundled_files=lambda: [("a.csv", csv_a), ("custom/b.csv", csv_b)],
+            parse_for_url=lambda name: _custom_parser if name.startswith("custom/") else None,
+        ),
+    )
+
+    with patch.object(bh, "session_scope") as mock_scope:
+        mock_scope.return_value.__enter__ = lambda _: db
+        mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+        stats = bh.backfill_historical("NY")
+    assert stats["years_attempted"] == 2
+    assert stats["rows_seen"] == 2
+    assert custom_calls == ["hit"]
+    assert db.query(Notice).filter(Notice.state == "NY").count() == 2
+
+    # --limit applies to bundled members too.
+    stats = bh.backfill_historical("NY", dry_run=True, limit=1)
+    assert stats["years_attempted"] == 1
+
+
+def test_load_archive_roundtrip(tmp_path) -> None:
+    import io
+    import tarfile
+
+    from warn_v2.scrapers.bundled import load_archive
+
+    path = tmp_path / "xx_archive.tar.gz"
+    with tarfile.open(path, "w:gz") as tar:
+        for name, payload in (("z_last.pdf", b"pdf-bytes"), ("a_first.html", b"<html>")):
+            info = tarfile.TarInfo(name)
+            info.size = len(payload)
+            tar.addfile(info, io.BytesIO(payload))
+
+    members = load_archive(path)
+    # sorted by name, full bytes round-tripped
+    assert members == [("a_first.html", b"<html>"), ("z_last.pdf", b"pdf-bytes")]
+
+
+def test_wayback_helpers(monkeypatch) -> None:
+    from warn_v2.scrapers import wayback
+
+    monkeypatch.setattr(wayback, "_DELAY", 0)
+    monkeypatch.setattr(wayback, "_BACKOFFS", ())
+
+    assert wayback.replay_url("20160825213318", "http://x.test/a.pdf") == (
+        "https://web.archive.org/web/20160825213318id_/http://x.test/a.pdf"
+    )
+
+    with respx.mock:
+        respx.get("https://web.archive.org/web/20200101000000id_/http://x.test/gone").mock(
+            return_value=httpx.Response(404)
+        )
+        assert wayback.fetch(wayback.replay_url("20200101000000", "http://x.test/gone")) is None
+
+        respx.get(wayback.CDX_API).mock(
+            return_value=httpx.Response(
+                200,
+                json=[
+                    ["timestamp", "original"],
+                    ["20100101000000", "http://x.test/1.pdf"],
+                ],
+            )
+        )
+        rows = wayback.cdx_query({"url": "x.test/", "matchType": "prefix"})
+    assert rows == [["20100101000000", "http://x.test/1.pdf"]]

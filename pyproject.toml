@@ -28,6 +28,7 @@ dependencies = [
     "python-dateutil>=2.9",
     "click>=8.1",
     "pdfplumber>=0.11.9",
+    "xlrd>=2.0.1",
     "anthropic>=0.40",
     "argon2-cffi>=25.1.0",
     "stripe>=12",
