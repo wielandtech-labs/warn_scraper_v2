@@ -29,7 +29,7 @@ export const EMPTY_FILTERS: FilterValues = Object.fromEntries(
   FILTER_KEYS.map((k) => [k, undefined]),
 ) as FilterValues;
 
-const CLOSURE_TYPES = ["Closure", "Layoff"] as const;
+const CLOSURE_TYPES = ["Closure", "Layoff", "Non-WARN"] as const;
 
 export interface FilterBarProps {
   values: FilterValues;

@@ -163,7 +163,7 @@ def _radar_row(notice: Notice, today: date) -> RadarNoticeOut:
 def radar(
     state: str | None = Query(None, description="Two-letter state code, e.g. CA"),
     closure_category: str | None = Query(
-        None, description="Normalized closure type: Closure | Layoff"
+        None, description="Normalized closure type: Closure | Layoff | Non-WARN"
     ),
     industry: str | None = Query(
         None, description="NAICS sector id (e.g. 31-33) of the linked company"

@@ -106,6 +106,21 @@ def test_superseded_and_other_state_excluded(db):
     assert (agg.cur_notices, agg.cur_layoffs) == (1, 100)
 
 
+def test_non_warn_excluded(db):
+    """Non-WARN Rapid Response rows (MS) don't count — reports compare
+    statutory WARN notices only."""
+    _notice(db, state="MS", notice_date=date(2026, 5, 1), layoff_count=100,
+            closure_category="Closure")
+    _notice(db, state="MS", notice_date=date(2026, 5, 2), layoff_count=999,
+            closure_category="Non-WARN")
+    db.commit()
+
+    agg = compute_state_aggregates(db, "MS", as_of=AS_OF)
+    assert (agg.cur_notices, agg.cur_layoffs) == (1, 100)
+    assert agg.closure_split == {"Closure": 1}
+    assert agg.monthly == [("2026-05", 1, 100, 0)]
+
+
 def test_county_deltas_and_unknown_bucket(db):
     _notice(db, notice_date=date(2026, 5, 1), layoff_count=50, county="Alameda")
     _notice(db, notice_date=date(2026, 2, 1), layoff_count=20, county="Alameda")
