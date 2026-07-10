@@ -206,11 +206,24 @@ def _census_counties_payload(basename: str, state_fips: str) -> dict:
     }
 
 
-def test_county_from_geographies_extracts_basename():
+def test_county_from_geographies_extracts_names():
     from warn_v2.geo.geocoder import _county_from_geographies
 
     payload = _census_counties_payload("Sedgwick", "20")
-    assert _county_from_geographies(payload, "KS") == "Sedgwick"
+    assert _county_from_geographies(payload, "KS") == ("Sedgwick County", "Sedgwick")
+
+
+def test_county_from_geographies_full_name_disambiguates():
+    """Independent cities keep their qualifier: NAME, not BASENAME, is first."""
+    from warn_v2.geo.geocoder import _county_from_geographies
+
+    payload = {
+        "Counties": [
+            {"GEOID": "24510", "STATE": "24", "BASENAME": "Baltimore",
+             "NAME": "Baltimore city", "COUNTY": "510"}
+        ]
+    }
+    assert _county_from_geographies(payload, "MD") == ("Baltimore city", "Baltimore")
 
 
 def test_county_from_geographies_rejects_wrong_state_fips():
@@ -219,7 +232,9 @@ def test_county_from_geographies_rejects_wrong_state_fips():
 
     payload = _census_counties_payload("Prince George's", "24")  # MD
     assert _county_from_geographies(payload, "DC") is None
-    assert _county_from_geographies(payload, "MD") == "Prince George's"
+    assert _county_from_geographies(payload, "MD") == (
+        "Prince George's County", "Prince George's"
+    )
 
 
 def test_county_from_geographies_handles_missing_layer():

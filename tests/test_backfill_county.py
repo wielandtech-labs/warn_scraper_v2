@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from warn_v2.db.models import Location
 from warn_v2.geo import geocoder
-from warn_v2.scripts.backfill_county import backfill_county
+from warn_v2.scripts.backfill_county import backfill_county, repair_county_names
 
 
 def _location(db, *, state="TX", city="Houston", zip="77001", county=None,
@@ -109,3 +109,94 @@ def test_streaming_many_locations(db) -> None:
     db.expire_all()
     for loc in locs:
         assert db.get(Location, loc.id).county == "Harris"
+
+
+# ---------------------------------------------------------------------------
+# --repair-names mode: bare BASENAME → full Census NAME
+# ---------------------------------------------------------------------------
+
+def test_repair_rewrites_independent_city(db) -> None:
+    """"Baltimore" (BASENAME fingerprint, wrong employment key) → "Baltimore city"."""
+    loc = _location(db, state="MD", city="Baltimore", zip="21201", county="Baltimore",
+                    lat=Decimal("39.2904"), lon=Decimal("-76.6122"))
+    db.commit()
+
+    with patch.object(geocoder, "_names_from_coords",
+                      return_value=("Baltimore city", "Baltimore")):
+        stats = repair_county_names(dry_run=False)
+
+    assert stats == {"considered": 1, "repaired": 1, "unchanged": 0, "no_match": 0}
+    db.expire_all()
+    assert db.get(Location, loc.id).county == "Baltimore city"
+
+
+def test_repair_rewrites_ct_planning_region(db) -> None:
+    loc = _location(db, state="CT", city="Hartford", zip="06103", county="Capitol",
+                    lat=Decimal("41.7658"), lon=Decimal("-72.6734"))
+    db.commit()
+
+    with patch.object(geocoder, "_names_from_coords",
+                      return_value=("Capitol Planning Region", "Capitol")):
+        stats = repair_county_names(dry_run=False)
+
+    assert stats["repaired"] == 1
+    db.expire_all()
+    assert db.get(Location, loc.id).county == "Capitol Planning Region"
+
+
+def test_repair_skips_cosmetic_county_suffix(db) -> None:
+    """"Sedgwick" vs "Sedgwick County" normalize identically — no churn."""
+    loc = _location(db, state="KS", city="Wichita", zip="67202", county="Sedgwick",
+                    lat=Decimal("37.6889"), lon=Decimal("-97.3361"))
+    db.commit()
+
+    with patch.object(geocoder, "_names_from_coords",
+                      return_value=("Sedgwick County", "Sedgwick")):
+        stats = repair_county_names(dry_run=False)
+
+    assert stats == {"considered": 1, "repaired": 0, "unchanged": 1, "no_match": 0}
+    db.expire_all()
+    assert db.get(Location, loc.id).county == "Sedgwick"
+
+
+def test_repair_leaves_scraper_value_that_disagrees(db) -> None:
+    """A stored county that isn't the lookup's BASENAME (scraper-provided,
+    possibly disagreeing with centroid-derived coords) is never overwritten."""
+    loc = _location(db, state="MO", city="Kansas City", zip="64106", county="Jackson",
+                    lat=Decimal("39.0997"), lon=Decimal("-94.5786"))
+    db.commit()
+
+    with patch.object(geocoder, "_names_from_coords",
+                      return_value=("Clay County", "Clay")):
+        stats = repair_county_names(dry_run=False)
+
+    assert stats == {"considered": 1, "repaired": 0, "unchanged": 1, "no_match": 0}
+    db.expire_all()
+    assert db.get(Location, loc.id).county == "Jackson"
+
+
+def test_repair_skips_null_county_and_no_coords(db) -> None:
+    _location(db, county=None)                                  # NULL county
+    _location(db, city="Nowhere", zip="00000", county="Foo",
+              lat=None, lon=None)                               # no coords
+    db.commit()
+
+    with patch.object(geocoder, "_names_from_coords") as mock_lookup:
+        stats = repair_county_names(dry_run=False)
+
+    assert stats["considered"] == 0
+    mock_lookup.assert_not_called()
+
+
+def test_repair_dry_run_no_write(db) -> None:
+    loc = _location(db, state="MD", city="Baltimore", zip="21201", county="Baltimore",
+                    lat=Decimal("39.2904"), lon=Decimal("-76.6122"))
+    db.commit()
+
+    with patch.object(geocoder, "_names_from_coords",
+                      return_value=("Baltimore city", "Baltimore")):
+        stats = repair_county_names(dry_run=True)
+
+    assert stats["repaired"] == 1
+    db.expire_all()
+    assert db.get(Location, loc.id).county == "Baltimore"

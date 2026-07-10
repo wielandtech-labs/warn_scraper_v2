@@ -52,8 +52,12 @@ class GeoResult(NamedTuple):
 
     ``source`` records which tier produced the coordinates:
     ``'census'`` | ``'zip'`` | ``'city'`` | ``'county'``.
-    ``county`` is the containing county's bare name (no " County"/" Parish"
-    suffix, e.g. ``"Sedgwick"``), or ``None`` when it couldn't be resolved.
+    ``county`` is the containing county's full Census name (``"Sedgwick
+    County"``, ``"Baltimore city"``, ``"Capitol Planning Region"``) — or the
+    caller-supplied county verbatim — or ``None`` when it couldn't be
+    resolved. Full names keep independent cities distinct from same-named
+    counties and match the bundled CBP employment keys; the stats layer
+    normalizes suffixed and bare spellings onto the same key.
     """
 
     lat: Decimal
@@ -86,8 +90,16 @@ STATE_FIPS: dict[str, str] = {
 }
 
 
-def _county_from_geographies(geographies: dict, state: str | None) -> str | None:
-    """Extract the county bare name from a Census ``geographies`` payload.
+def _county_from_geographies(
+    geographies: dict, state: str | None
+) -> tuple[str, str] | None:
+    """Extract ``(name, basename)`` for the county layer of a Census payload.
+
+    ``name`` is the full Census NAME ("Sedgwick County", "Baltimore city",
+    "Capitol Planning Region"); ``basename`` drops the type suffix. We store
+    NAME: the bundled CBP employment keys derive from the same full names,
+    and a bare BASENAME collides with same-named counties — "Baltimore city"'s
+    basename is "Baltimore", which normalizes onto Baltimore *County*.
 
     Returns ``None`` when no county layer is present or when the county's
     state FIPS doesn't match *state* (wrong-state match near a border).
@@ -96,16 +108,17 @@ def _county_from_geographies(geographies: dict, state: str | None) -> str | None
     if not counties:
         return None
     entry = counties[0]
-    name = (entry.get("BASENAME") or "").strip()
+    name = (entry.get("NAME") or entry.get("BASENAME") or "").strip()
     if not name:
         return None
+    basename = (entry.get("BASENAME") or "").strip() or name
     if state and STATE_FIPS.get(state.strip().upper()) != entry.get("STATE"):
         log.debug(
             "Census county %r (state FIPS %s) doesn't match expected state %s — dropping",
             name, entry.get("STATE"), state,
         )
         return None
-    return name
+    return name, basename
 
 
 def _census_geocode(
@@ -146,7 +159,8 @@ def _census_geocode(
             # Census returns lon as "x", lat as "y"
             lat = Decimal(str(round(float(coords["y"]), 6)))
             lon = Decimal(str(round(float(coords["x"]), 6)))
-            county = _county_from_geographies(matches[0].get("geographies") or {}, state)
+            pair = _county_from_geographies(matches[0].get("geographies") or {}, state)
+            county = pair[0] if pair else None
             log.debug("Census geocoded %r → (%.4f, %.4f) county=%r", street, lat, lon, county)
             return lat, lon, county
         log.debug("Census geocoder: no match for %r %s %s %s", street, city, state, zip_code)
@@ -156,16 +170,17 @@ def _census_geocode(
 
 
 @cache
-def county_from_coords(
+def _names_from_coords(
     lat: Decimal, lon: Decimal, state: str | None
-) -> str | None:
+) -> tuple[str, str] | None:
     """Reverse-look-up the county containing ``(lat, lon)`` via the Census API.
 
-    Returns the county's bare name (e.g. ``"Sedgwick"``), or ``None`` on any
-    failure or a wrong-state match.  Results — including failures — are
-    memoized for the process lifetime: ZIP/city-centroid coordinates repeat
-    across many locations, so this collapses most lookups to one HTTP call,
-    and an outage doesn't stall a long run with one timeout per row.
+    Returns ``(name, basename)`` — e.g. ``("Sedgwick County", "Sedgwick")``,
+    ``("Baltimore city", "Baltimore")`` — or ``None`` on any failure or a
+    wrong-state match.  Results — including failures — are memoized for the
+    process lifetime: ZIP/city-centroid coordinates repeat across many
+    locations, so this collapses most lookups to one HTTP call, and an outage
+    doesn't stall a long run with one timeout per row.
     """
     import httpx  # local import keeps startup fast
 
@@ -181,12 +196,20 @@ def county_from_coords(
         resp = httpx.get(_CENSUS_COORDS_URL, params=params, timeout=_TIMEOUT)
         resp.raise_for_status()
         geographies = resp.json().get("result", {}).get("geographies") or {}
-        county = _county_from_geographies(geographies, state)
-        log.debug("Census county for (%.4f, %.4f): %r", lat, lon, county)
-        return county
+        pair = _county_from_geographies(geographies, state)
+        log.debug("Census county for (%.4f, %.4f): %r", lat, lon, pair)
+        return pair
     except Exception as exc:
         log.debug("Census coordinates lookup error for (%s, %s): %s", lat, lon, exc)
     return None
+
+
+def county_from_coords(
+    lat: Decimal, lon: Decimal, state: str | None
+) -> str | None:
+    """The full Census county name containing ``(lat, lon)``, or ``None``."""
+    pair = _names_from_coords(lat, lon, state)
+    return pair[0] if pair else None
 
 
 def geocode(
