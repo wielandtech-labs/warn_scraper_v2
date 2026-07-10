@@ -17,6 +17,8 @@ export interface CompanyOut {
   name: string;
   sic_code: string | null;
   sic_desc: string | null;
+  naics_code: string | null;
+  naics_desc: string | null;
   website: string | null;
   enriched_at: string | null;
   enrichment_confidence: number | null;
@@ -84,6 +86,51 @@ export interface NoticeOut {
   scraped_at: string;
   company: CompanyOut | null;
   location: LocationOut | null;
+}
+
+// One estimated occupation in a layoff cohort (national OEWS staffing
+// pattern applied to the notice's layoff count — a statistical prior, not
+// data about the actual affected roles).
+export interface OccupationEstimate {
+  soc_code: string;
+  title: string;
+  pct: number; // percent of the industry's employment
+  estimate: number | null; // ~workers; null when the notice has no count
+}
+
+// /radar — an upcoming layoff cohort (effective_date is today or later).
+export interface RadarNoticeOut {
+  notice_id: string;
+  employer: string;
+  company_id: number | null;
+  state: string;
+  city: string | null;
+  county: string | null;
+  notice_date: string | null;
+  effective_date: string;
+  days_until: number;
+  layoff_count: number | null;
+  closure_category: string | null;
+  naics_code: string | null; // null → "industry unknown"
+  sector: string | null;
+  sector_name: string | null;
+  occupation_preview: OccupationEstimate[] | null; // top 3; null without a pattern
+  oews_vintage: string | null;
+}
+
+// /notices/{id}/occupation-mix — the full estimated occupation mix.
+export interface OccupationMixOut {
+  notice_id: string;
+  available: boolean;
+  reason: "no_naics" | "no_pattern" | null;
+  naics_code: string | null;
+  matched_naics: string | null;
+  match_level: "4-digit" | "3-digit" | "sector" | null;
+  industry_title: string | null;
+  coverage_pct: number | null;
+  layoff_count: number | null;
+  oews_vintage: string | null;
+  occupations: OccupationEstimate[];
 }
 
 export interface ScraperRunOut {

@@ -95,7 +95,7 @@ class Notice(Base):
     state: Mapped[str] = mapped_column(String(2), nullable=False, index=True)
     employer: Mapped[str] = mapped_column(String(512), nullable=False)
     notice_date: Mapped[date | None] = mapped_column(Date, index=True)
-    effective_date: Mapped[date | None] = mapped_column(Date)
+    effective_date: Mapped[date | None] = mapped_column(Date, index=True)
     layoff_count: Mapped[int | None] = mapped_column(Integer)
     closure_type: Mapped[str | None] = mapped_column(Text)
     # Normalized bucket derived from closure_type: 'Closure' | 'Layoff' | None.

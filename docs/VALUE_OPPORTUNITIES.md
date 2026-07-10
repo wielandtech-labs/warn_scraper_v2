@@ -59,6 +59,13 @@ data about the actual affected roles.
 - Revenue: the natural paid-tier feature; competitors
   ([Intellizence](https://docs.intellizence.com/signals-api/layoffs),
   [WARNTracker](https://www.warntracker.com/)) charge for weaker versions.
+- **Shipped (first cut):** `/api/radar` (upcoming cohorts by effective_date,
+  filterable, with a top-3 occupation preview per notice) +
+  `/api/notices/{id}/occupation-mix`, a /radar page, and an occupation-mix
+  panel on notice detail — backed by bundled OEWS May 2025 national staffing
+  patterns (`warn_v2/labor/oews.py`; sector/3-digit/4-digit walk-up, top 12
+  detailed occupations per industry). Public/free for now to validate demand.
+  Still open: digest email integration, A2 ad-spec export, paid-tier gating.
 
 **A2 add-on — LinkedIn ad-targeting-spec export.** The one officially
 sanctioned LinkedIn integration that fits (see §3): per notice cohort, generate

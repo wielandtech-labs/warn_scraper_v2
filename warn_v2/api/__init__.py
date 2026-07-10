@@ -21,6 +21,7 @@ from warn_v2.api.routes import (
     keys,
     map_pins,
     notices,
+    radar,
     reports,
     runs,
     search,
@@ -101,6 +102,7 @@ def create_app(static_dir: Path | None = None) -> FastAPI:
     app.include_router(companies.router, prefix="/api", dependencies=limited)
     app.include_router(runs.router, prefix="/api", dependencies=limited)
     app.include_router(stats.router, prefix="/api", dependencies=limited)
+    app.include_router(radar.router, prefix="/api", dependencies=limited)
     app.include_router(reports.router, prefix="/api", dependencies=limited)
     app.include_router(map_pins.router, prefix="/api", dependencies=limited)
     app.include_router(search.router, prefix="/api", dependencies=limited)
