@@ -2,12 +2,16 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
 
 from warn_v2.db.models import Location, Notice
+from warn_v2.geo.geocoder import GeoResult
 from warn_v2.scripts.backfill_geo import backfill
+
+_ZIP_RESULT = GeoResult(Decimal("29.76"), Decimal("-95.36"), "zip")
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -43,7 +47,7 @@ def test_backfill_fills_null_coords(db) -> None:
     _notice(db, loc=loc)
     db.commit()
 
-    with patch("warn_v2.scripts.backfill_geo.geocode", return_value=(29.76, -95.36, "zip")):
+    with patch("warn_v2.scripts.backfill_geo.geocode", return_value=_ZIP_RESULT):
         result = backfill(dry_run=False)
 
     assert result["considered"] == 1
@@ -70,7 +74,7 @@ def test_backfill_dry_run_no_write(db) -> None:
     _notice(db, loc=loc)
     db.commit()
 
-    with patch("warn_v2.scripts.backfill_geo.geocode", return_value=(29.76, -95.36, "zip")):
+    with patch("warn_v2.scripts.backfill_geo.geocode", return_value=_ZIP_RESULT):
         backfill(dry_run=True)
 
     db.expire_all()
@@ -84,7 +88,7 @@ def test_backfill_state_filter(db) -> None:
     _notice(db, loc=ca_loc)
     db.commit()
 
-    with patch("warn_v2.scripts.backfill_geo.geocode", return_value=(29.76, -95.36, "zip")):
+    with patch("warn_v2.scripts.backfill_geo.geocode", return_value=_ZIP_RESULT):
         result = backfill(dry_run=False, state_filter="TX")
 
     assert result["considered"] == 1
@@ -102,13 +106,15 @@ def test_rerun_address_upgrades_existing_coords(db) -> None:
     _notice(db, loc=loc, address="100 Main St, Houston, TX 77001")
     db.commit()
 
-    census_coords = (29.7604, -95.3698)
-    with patch("warn_v2.geo.geocoder._census_geocode", return_value=census_coords):
+    census_hit = (Decimal("29.7604"), Decimal("-95.3698"), "Harris")
+    with patch("warn_v2.geo.geocoder._census_geocode", return_value=census_hit):
         result = backfill(dry_run=False, rerun_address=True)
 
     assert result["upgraded_address"] == 1
     db.expire_all()
-    assert float(db.get(Location, loc.id).lat) == pytest.approx(29.7604)
+    refreshed = db.get(Location, loc.id)
+    assert float(refreshed.lat) == pytest.approx(29.7604)
+    assert refreshed.county == "Harris"  # census county backfilled alongside coords
 
 
 def test_rerun_address_skips_location_without_address(db) -> None:
@@ -134,7 +140,8 @@ def test_backfill_processes_many_locations(db) -> None:
         locs.append(loc)
     db.commit()
 
-    with patch("warn_v2.scripts.backfill_geo.geocode", return_value=(30.0, -95.0, "city")):
+    city_result = GeoResult(Decimal("30.0"), Decimal("-95.0"), "city")
+    with patch("warn_v2.scripts.backfill_geo.geocode", return_value=city_result):
         result = backfill(dry_run=False, batch_size=5)
 
     assert result["considered"] == 20
@@ -149,9 +156,6 @@ def test_backfill_processes_many_locations(db) -> None:
 
 def test_fix_out_of_state_repairs_with_in_state_result(db) -> None:
     """GA location pinned in California is re-geocoded into Georgia."""
-    from decimal import Decimal
-
-    from warn_v2.geo.geocoder import GeoResult
     from warn_v2.scripts.backfill_geo import fix_out_of_state
 
     loc = _location(db, state="GA", city="Atlanta", zip="30301",
@@ -219,18 +223,16 @@ def test_fix_out_of_state_dry_run_no_write(db) -> None:
 
 def test_rerun_address_keeps_coords_on_out_of_state_census(db) -> None:
     """The census upgrade must not replace in-state centroids with HQ pins."""
-    from decimal import Decimal
-
     loc = _location(db, state="GA", city="Atlanta", zip="30301",
                     lat=33.7490, lon=-84.3880)
     _notice(db, loc=loc, address="1 Corporate Way, San Francisco, CA")
     db.commit()
 
-    hq_pair = (Decimal("37.7749"), Decimal("-122.4194"))  # SF — out of GA
-    with patch("warn_v2.scripts.backfill_geo._census_geocode", return_value=hq_pair, create=True):
+    hq_hit = (Decimal("37.7749"), Decimal("-122.4194"), "San Francisco")  # out of GA
+    with patch("warn_v2.scripts.backfill_geo._census_geocode", return_value=hq_hit, create=True):
         from warn_v2.geo import geocoder
 
-        with patch.object(geocoder, "_census_geocode", return_value=hq_pair):
+        with patch.object(geocoder, "_census_geocode", return_value=hq_hit):
             stats = backfill(dry_run=False, rerun_address=True)
 
     assert stats["skipped_no_address"] == 1

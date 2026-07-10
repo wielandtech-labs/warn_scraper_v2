@@ -117,22 +117,24 @@ def backfill(
                     # If Census can't resolve the address, or resolves it outside
                     # the state (HQ address instead of worksite), keep existing
                     # coords rather than degrade them.
-                    pair = _census_geocode(address, loc.city, loc.state, loc.zip)
-                    if pair is None or not in_state_bbox(
-                        loc.state, float(pair[0]), float(pair[1])
+                    hit = _census_geocode(address, loc.city, loc.state, loc.zip)
+                    if hit is None or not in_state_bbox(
+                        loc.state, float(hit[0]), float(hit[1])
                     ):
                         log.debug(
                             "Census geocoder returned %s for location %d "
                             "(address=%r) — keeping existing coords",
-                            "nothing" if pair is None else "out-of-state coords",
+                            "nothing" if hit is None else "out-of-state coords",
                             loc.id, address,
                         )
                         stats["skipped_no_address"] += 1
                         continue
-                    loc.lat, loc.lon = pair
+                    loc.lat, loc.lon = hit[0], hit[1]
                     loc.geocode_source = "census"
+                    if hit[2] and not loc.county:
+                        loc.county = hit[2]
                 else:
-                    result = geocode(address, loc.city, loc.state, loc.zip)
+                    result = geocode(address, loc.city, loc.state, loc.zip, loc.county)
                     if result is None:
                         stats["no_coords"] += 1
                         log.debug(
@@ -140,7 +142,9 @@ def backfill(
                             loc.id, loc.city, loc.zip, address,
                         )
                         continue
-                    loc.lat, loc.lon, loc.geocode_source = result
+                    loc.lat, loc.lon, loc.geocode_source = result.lat, result.lon, result.source
+                    if result.county and not loc.county:
+                        loc.county = result.county
                 # Flush this individual change *before* the finally-block expunge
                 # so pending writes aren't silently discarded on expunge.
                 if not dry_run:
@@ -242,7 +246,9 @@ def fix_out_of_state(
                     loc.id, loc.state, loc.lat, loc.lon,
                     result.lat, result.lon, result.source,
                 )
-                loc.lat, loc.lon, loc.geocode_source = result
+                loc.lat, loc.lon, loc.geocode_source = result.lat, result.lon, result.source
+                if result.county and not loc.county:
+                    loc.county = result.county
                 stats["fixed"] += 1
             else:
                 log.info(
