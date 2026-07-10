@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 from prometheus_client import CollectorRegistry, generate_latest
 from sqlalchemy.orm import Session, sessionmaker
 
-from warn_v2.db.models import ScraperRun, Subscription
+from warn_v2.db.models import Notice, ScraperRun, Subscription
 from warn_v2.observability.collector import WarnCollector
 
 _GAUGE = "warn_scrape_last_success_timestamp_seconds"
@@ -95,6 +95,60 @@ def test_generate_latest_renders_duration_summary(
     output = generate_latest(registry).decode()
     assert "warn_scrape_duration_seconds_count" in output
     assert "warn_scrape_duration_seconds_sum" in output
+
+
+_NOTICES = "warn_notices"
+_WORKERS = "warn_workers_affected"
+
+
+def _notice(
+    session: Session,
+    notice_id: str,
+    state: str,
+    layoff_count: int | None,
+) -> None:
+    session.add(
+        Notice(
+            notice_id=notice_id,
+            state=state,
+            employer=f"Employer {notice_id}",
+            layoff_count=layoff_count,
+        )
+    )
+
+
+def test_notices_and_workers_gauges_by_state(
+    db_session_factory: sessionmaker[Session],
+) -> None:
+    with db_session_factory() as s:
+        # CA: two notices, 100 + 50 workers. NM: one notice with NULL count
+        # (workers unknown) — must count as a notice but add 0 workers, not a
+        # phantom 0-worker row that skews averages elsewhere.
+        _notice(s, "ca-1", "CA", 100)
+        _notice(s, "ca-2", "CA", 50)
+        _notice(s, "nm-1", "NM", None)
+        s.commit()
+
+    notices = _samples(_NOTICES)
+    assert notices == {"CA": 2, "NM": 1}
+
+    workers = _samples(_WORKERS)
+    assert workers["CA"] == 150
+    assert workers["NM"] == 0  # NULL layoff_count excluded, coalesced to 0
+
+
+def test_notices_gauges_absent_when_empty_but_registry_renders(
+    db_session_factory: sessionmaker[Session],
+) -> None:
+    # No notices: both gauges yield no samples, but the full registry must
+    # still render (the metric name appears via HELP/TYPE lines).
+    registry = CollectorRegistry()
+    registry.register(WarnCollector())
+    assert _samples(_NOTICES) == {}
+    assert _samples(_WORKERS) == {}
+    output = generate_latest(registry).decode()
+    assert "warn_notices" in output
+    assert "warn_workers_affected" in output
 
 
 def _sub(

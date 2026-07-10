@@ -43,6 +43,7 @@ class WarnCollector(Collector):
         from warn_v2.db.models import (
             SCRAPER_SUCCESS_STATUSES,
             Company,
+            Notice,
             ScraperRun,
             Subscription,
         )
@@ -68,6 +69,40 @@ class WarnCollector(Collector):
                 "Total company records in the database.",
                 value=float(companies),
             )
+
+            # ------------------------------------------------------------------
+            # 2b. Notices tracked by state (total count) and workers affected
+            #     (sum of layoff_count). These are point-in-time totals; graphed
+            #     over time in Grafana they give the "notices/workers tracked"
+            #     growth curve, and their sum() gives the current totals. Both
+            #     are collector-only (NOT declared in metrics.py) — same as
+            #     warn_companies — to avoid a duplicate-registration conflict.
+            # ------------------------------------------------------------------
+            rows = s.execute(
+                select(Notice.state, func.count()).group_by(Notice.state)
+            ).all()
+            g = GaugeMetricFamily(
+                "warn_notices",
+                "Total WARN notices stored, by state.",
+                labels=["state"],
+            )
+            for state, count in rows:
+                g.add_metric([state], float(count))
+            yield g
+
+            rows = s.execute(
+                select(Notice.state, func.coalesce(func.sum(Notice.layoff_count), 0))
+                .group_by(Notice.state)
+            ).all()
+            g = GaugeMetricFamily(
+                "warn_workers_affected",
+                "Total workers affected across stored WARN notices, by state "
+                "(sum of layoff_count; notices with an unknown count are excluded).",
+                labels=["state"],
+            )
+            for state, total in rows:
+                g.add_metric([state], float(total or 0))
+            yield g
 
             # ------------------------------------------------------------------
             # 3. Provider (D&B) attempts and misses. A miss stamps
