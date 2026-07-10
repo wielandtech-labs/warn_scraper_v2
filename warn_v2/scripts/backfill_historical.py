@@ -55,7 +55,7 @@ from warn_v2.scrapers.states.ca import (
 from warn_v2.scrapers.states.co import _fetch_co_year, _parse_co_year
 from warn_v2.scrapers.states.ct import _discover_ct_archive_urls, parse_ct_archive
 from warn_v2.scrapers.states.dc import _fetch_dc_year
-from warn_v2.scrapers.states.fl import _fetch_fl_year
+from warn_v2.scrapers.states.fl import _fetch_fl_year, parse_fl_year
 from warn_v2.scrapers.states.ga import ga_archive_files, parse_ga_entry_page
 from warn_v2.scrapers.states.hi import _fetch_hi_year
 from warn_v2.scrapers.states.ia import ia_archive_files, parse_ia_archive_pdf
@@ -181,7 +181,15 @@ _BACKFILL: dict[str, BackfillSpec] = {
     # TX: live per-year XLSX 2020+; 2004-2018 via pinned Wayback captures of
     # the removed twc files (.xls through 2013); 2019 via Socrata (see tx.py).
     "TX": BackfillSpec(year_start=2004, fetch_year=_fetch_tx_year),
-    "FL": BackfillSpec(year_start=2020, fetch_year=_fetch_fl_year),
+    # FL: live reactwarn pages 2020+, pinned Wayback captures for the two
+    # 2019 reactwarn result pages and the warn.asp era (1998-2018, one
+    # cumulative page per year); parse_fl_year dispatches per era. The 2012
+    # capture is header-only — that year parses to 0 rows.
+    "FL": BackfillSpec(
+        year_start=1998,
+        fetch_year=_fetch_fl_year,
+        parse_year=parse_fl_year,
+    ),
     "HI": BackfillSpec(year_start=2019, fetch_year=lambda s, y: _fetch_hi_year(y)),
     # GA: the 31 GA2022* TCSG entry detail pages still served live 2026-07-10
     # (ids 071-103; 083/097 pruned at the source), bundled with the listing

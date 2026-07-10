@@ -44,7 +44,7 @@ Reachable floor = floor after running every verified route (no FOIA).
 | CT | 286 | 2019–2026 | ✅ | 🔨 | 🔨 | 1998 | Wayback: monthly pages 1998–2009 + yearly `warn{Y}.htm` 2010–2018 **built** (`backfill-historical --state CT`, 142 pinned captures, 1,342 rows offline); prod Job pending; **holes: all of 2013, Jan–Jul + Oct–Dec 2009** → ✉ |
 | DC | 141 | 2005–2026 | ✅ | ✅ | ✉ | 2005 | Sweep: nothing pre-2005 in any archive (legacy domains checked) |
 | DE | 42 | 2016–2026 | ✅ | 🔨 | ⛔ | 2007 | JobLink reaches 2007 (PR #241); Job pending (+37); 2006- empty at source |
-| FL | 2,334 | 2020–2026 | ✅ | 🔍 | 🔍 | 1998 | Wayback: `react/warn.asp?year=Y` HTML 1998–2018 + reactwarn 2019 (~2.2–3k rows) |
+| FL | 2,334 | 2020–2026 | ✅ | 🔨 | 🔨 | 1998 | Wayback: `react/warn.asp?year=Y` HTML 1998–2018 + reactwarn 2019 — parser built 2026-07-10 (2,863+152 rows offline; the lone 2012 capture is empty), ingest Job pending |
 | GA | 264 | 2023–2026 | ✉ | ✉ | ✉ | 2022 (partial) | 2022: ~70–100 notices via still-live TCSG `/warn-public-view/entry/{id}/` pages 🔍; 2013–2021: GDOL session app never archived → ✉ |
 | HI | 418 | 2019–2026 | ✅ | ✉ | ✉ | 2019 | Sweep: DLIR never published a list before 2019 (guides only) |
 | IA | 490 | 2021–2026 | 🔍 | 🔍 | ✉ | 2005 | Wayback: union of 4 rolling-log snapshots (PDF 2005–2015, XLSX 2011–2023) covers 2005-07→2021 (+600–800) |
@@ -110,6 +110,11 @@ per year, case-insensitive REACT) + `reactwarn.floridajobs.org/WarnList/Records?
 `web.archive.org/web/20160622214052id_/http://floridajobs.org/REACT/warn.asp?year=2005`
 (113 rows). Caveats: company name + street address glued in one cell; layoff
 date often a "x thru y" range; 1997 is a soft-404 — floor is 1998.
+**Built 2026-07-10** (`parse_fl_warn_asp` + pinned replay captures in
+`warn_v2/scrapers/states/fl.py`; `backfill-historical --state FL`): 2,863 rows
+1998–2018 + 152 rows 2019 parsed offline, city/ZIP on every row. One hole: the
+only 2012 capture (Nov 2019) is a header-only table — 0 rows for that year;
+recovering 2012 would need a records request.
 
 ### SC — Wayback 2009–2019 + still-live unlinked PDFs 2020–2025 (~1,500–3,000 rows)
 2009–2018: `scworks.org/docs/librariesprovider6/layoff-notification-reports/{Y}_layoff_notifications*.pdf`

@@ -13,6 +13,13 @@ gets appended to the download base URL to fetch the PDF.
 
 Like NY and JobLink, we surface the PDF URL via `raw_notice_url` but do NOT
 fetch the PDF here — per-PDF enrichment goes through Phase 4.
+
+Historical backfill (1998-2019): the reactwarn site only serves 2020+, but
+the predecessor site published one cumulative HTML page per year at
+floridajobs.org/REACT/warn.asp?year=Y from 1998 through 2018 (dead since the
+reactwarn migration), and Wayback holds post-year captures of every year plus
+the two 2019 reactwarn result pages. `_fetch_fl_year` routes those years to
+pinned replay captures; `parse_fl_warn_asp` handles the warn.asp table layout.
 """
 from __future__ import annotations
 
@@ -22,6 +29,7 @@ from datetime import datetime
 import httpx
 from bs4 import BeautifulSoup
 
+from warn_v2.scrapers import wayback
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.registry import register
@@ -123,14 +131,76 @@ class FLScraper:
 
 _PAGE_PARAM_RE = re.compile(r"[?&]page=(\d+)")
 
+# warn.asp era (1998-2018): latest post-year Wayback capture per year, from the
+# 2026-07 backfill sweep. The 2012 capture is a header-only table (the site
+# itself had dropped the 2012 rows by capture time) — it parses to 0 rows.
+_ASP_CAPTURES: dict[int, tuple[str, str]] = {
+    1998: ("20160623033351", "http://floridajobs.org/REACT/warn.asp?year=1998"),
+    1999: ("20160622225353", "http://floridajobs.org/REACT/warn.asp?year=1999"),
+    2000: ("20160622213326", "http://floridajobs.org/REACT/warn.asp?year=2000"),
+    2001: ("20160623062611", "http://floridajobs.org/REACT/warn.asp?year=2001"),
+    2002: ("20160623034732", "http://floridajobs.org/REACT/warn.asp?year=2002"),
+    2003: ("20160623034736", "http://floridajobs.org/REACT/warn.asp?year=2003"),
+    2004: ("20160623033355", "http://floridajobs.org/REACT/warn.asp?year=2004"),
+    2005: ("20160622214052", "http://floridajobs.org/REACT/warn.asp?year=2005"),
+    2006: ("20160623034741", "http://floridajobs.org/REACT/warn.asp?year=2006"),
+    2007: ("20160622215615", "http://floridajobs.org/REACT/warn.asp?year=2007"),
+    2008: ("20160623033343", "http://floridajobs.org/REACT/warn.asp?year=2008"),
+    2009: ("20160623035546", "http://floridajobs.org/REACT/warn.asp?year=2009"),
+    2010: ("20160623045834", "http://floridajobs.org/REACT/warn.asp?year=2010"),
+    2011: ("20160623033348", "http://floridajobs.org/REACT/warn.asp?year=2011"),
+    2012: ("20191120063637", "http://www.floridajobs.org/react/warn.asp?year=2012"),
+    2013: ("20160623041024", "http://floridajobs.org/REACT/warn.asp?year=2013"),
+    2014: ("20191120055606", "http://www.floridajobs.org:80/REACT/warn.asp?year=2014"),
+    2015: ("20191120055934", "http://www.floridajobs.org:80/REACT/warn.asp?year=2015"),
+    2016: ("20191210022836", "http://www.floridajobs.org/react/warn.asp?year=2016"),
+    2017: ("20191120055949", "http://www.floridajobs.org:80/REACT/warn.asp?year=2017"),
+    2018: ("20191207230734", "http://www.floridajobs.org/REACT/warn.asp?year=2018"),
+}
+
+# 2019: reactwarn served it (two result pages) but no longer does — pinned
+# captures of page 1 (latest, 2025) and page 2 (2023). Verified offline
+# 2026-07-10: this pair covers the full 150-notice union across all 46
+# archived sort/page variants of the year.
+_REACTWARN_2019_CAPTURES: list[tuple[str, str]] = [
+    ("20250210193435", "https://reactwarn.floridajobs.org/WarnList/Records?year=2019"),
+    (
+        "20230725141811",
+        "https://reactwarn.floridajobs.org/WarnList/Records?year=2019&page=2",
+    ),
+]
+
 
 def _fetch_fl_year(scraper, year: int) -> list[bytes] | None:
-    """Fetch all result pages for one year (backfill-historical).
+    """Fetch all result pages for one year (backfill-historical + live fetch).
 
-    The REACT site paginates within a year; each page links its neighbours, so
-    we follow "next page" links until none remain. Returns one chunk per page,
-    or None when the year page itself is missing.
+    1998-2018 → pinned Wayback replay of the warn.asp year page;
+    2019      → pinned Wayback replays of the two reactwarn result pages;
+    2020+     → the live REACT site, following "next page" links until none
+                remain. Returns one chunk per page, or None when the year has
+                no page at all.
     """
+    if year <= 2018:
+        capture = _ASP_CAPTURES.get(year)
+        if capture is None:
+            return None
+        url = wayback.replay_url(*capture)
+        scraper.source_url = url
+        raw = wayback.fetch(url)
+        return None if raw is None else [raw]
+
+    if year == 2019:
+        chunks = [
+            raw
+            for ts, url in _REACTWARN_2019_CAPTURES
+            if (raw := wayback.fetch(wayback.replay_url(ts, url)))
+        ]
+        # parse() stamps rows with scraper.source_url; point it at the year
+        # page's replay (page-2 rows share it — one URL per year is enough
+        # provenance here).
+        scraper.source_url = wayback.replay_url(*_REACTWARN_2019_CAPTURES[0])
+        return chunks or None
+
     base = URL_TEMPLATE.format(year=year)
     scraper.source_url = base  # parse() stamps rows with self.source_url
     chunks: list[bytes] = []
@@ -225,4 +295,111 @@ def _first_date(text: str):
     return as_date(first)
 
 
-register(FLScraper())
+# ---------------------------------------------------------------------------
+# warn.asp era parser (1998-2018)
+# ---------------------------------------------------------------------------
+
+# Last address line: "Jupiter, FL  33458", "Dallas, TX  75219" (out-of-state
+# HQ filings), "Miami, FL  331866208" (unhyphenated ZIP+4), "New Bern
+# (Headquarters), NC  00000". ZIP is optional — a handful of rows omit it.
+_ASP_LOCATION_RE = re.compile(
+    r"^(?P<city>.+?)[,\s]+(?P<st>[A-Z]{2})[.,]?(?:\s+(?P<zip>\d{5})(?:-?\d{4})?)?\s*$"
+)
+
+
+def parse_fl_warn_asp(raw: bytes, year: int) -> list[NoticeRow]:
+    """Parse one floridajobs.org/REACT/warn.asp?year=Y page (1998-2018 era).
+
+    Columns: COMPANY NAME | NOTICE DATE | LAYOFF DATE | EMPLOYEES AFFECTED |
+    INDUSTRY. The first cell glues company name and street address together:
+    <font face="Arial Black">Name</font><br>street<br>City, FL  ZIP.
+    Layoff dates are often a "start <I>thru</I> end" range — keep the start.
+    """
+    soup = BeautifulSoup(raw, "html.parser")
+    # The data table nests inside a layout table whose single <tr> re-exposes
+    # the first data row's cells — pick the table that directly owns the
+    # COMPANY NAME header and only walk its direct rows, or the first data row
+    # would be ingested twice.
+    data_table = None
+    for th in soup.find_all("th"):
+        if "COMPANY NAME" in th.get_text(" ", strip=True).upper():
+            data_table = th.find_parent("table")
+            break
+    if data_table is None:
+        raise ParseFailed(f"no COMPANY NAME table in FL warn.asp page for {year}")
+
+    capture = _ASP_CAPTURES.get(year)
+    source_url = wayback.replay_url(*capture) if capture else None
+
+    rows: list[NoticeRow] = []
+    for tr in data_table.find_all("tr"):
+        if tr.find_parent("table") is not data_table:
+            continue
+        cells = tr.find_all("td")
+        if len(cells) < 5:
+            continue
+
+        # First cell: employer in the lone <font>/<b> tag, address after <br>s.
+        name_tag = cells[0].find("font") or cells[0].find("b")
+        lines = [
+            ln.strip()
+            for ln in cells[0].get_text("\n", strip=True).split("\n")
+            if ln.strip()
+        ]
+        employer = (
+            name_tag.get_text(" ", strip=True)
+            if name_tag is not None
+            else (lines[0] if lines else None)
+        )
+        if not employer:
+            continue
+        if lines and lines[0] == employer:
+            lines = lines[1:]
+
+        notice_date = as_date(cells[1].get_text(" ", strip=True))
+        if notice_date is None:
+            continue
+
+        city = zip_code = None
+        for ln in reversed(lines):
+            m = _ASP_LOCATION_RE.match(ln)
+            if m:
+                city, zip_code = m.group("city").strip(), m.group("zip")
+                # A few source rows double the ", FL ZIP" suffix
+                # ("St. Petersburg, FL 33701, FL  33701") — strip nested ones.
+                while m := _ASP_LOCATION_RE.match(city):
+                    city = m.group("city").strip()
+                    zip_code = zip_code or m.group("zip")
+                break
+
+        effective_date = _first_date(cells[2].get_text(" ", strip=True))
+        layoff_count = as_int(cells[3].get_text(" ", strip=True))
+        industry = as_str(cells[4].get_text(" ", strip=True))
+        if industry and industry.lower() == "industry not provided":
+            industry = None
+
+        rows.append(
+            NoticeRow(
+                state="FL",
+                employer=employer,
+                notice_date=notice_date,
+                effective_date=effective_date,
+                layoff_count=layoff_count,
+                city=city,
+                zip=zip_code,
+                address=as_str(", ".join(lines)),
+                source_url=source_url,
+                extra={"industry": industry} if industry else {},
+            )
+        )
+    return rows
+
+
+def parse_fl_year(raw: bytes, year: int) -> list[NoticeRow]:
+    """Backfill parse dispatch: warn.asp era vs reactwarn HTML (2019+)."""
+    if year <= 2018:
+        return parse_fl_warn_asp(raw, year)
+    return _SCRAPER.parse(raw)
+
+
+_SCRAPER = register(FLScraper())
