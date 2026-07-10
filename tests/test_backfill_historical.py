@@ -465,12 +465,14 @@ def test_fl_fetch_year_single_page_does_not_confuse_page_numbers():
 
 @respx.mock
 def test_fl_fetch_year_returns_none_on_404():
+    # A live-era year (2020+): 1998-2019 now route to pinned Wayback captures
+    # instead of the reactwarn site (see tests/test_fl_backfill.py).
     from warn_v2.scrapers.states.fl import FLScraper, _fetch_fl_year
 
-    base = "https://reactwarn.floridajobs.org/WarnList/Records?year=2010"
+    base = "https://reactwarn.floridajobs.org/WarnList/Records?year=2022"
     respx.get(base).mock(return_value=httpx.Response(404))
 
-    assert _fetch_fl_year(FLScraper(), 2010) is None
+    assert _fetch_fl_year(FLScraper(), 2022) is None
 
 
 @respx.mock
