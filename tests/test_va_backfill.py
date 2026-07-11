@@ -47,11 +47,12 @@ def html_rows(archive):
 # ---------------------------------------------------------------------------
 
 def test_archive_members(archive):
-    assert sorted(archive) == [
-        "warnlog03.pdf",
-        "warnnot04_statewide.htm",
-        "warnnot99.xls",
-    ]
+    regions = ["central", "eastern", "northern", "statewide", "western"]
+    assert sorted(archive) == (
+        ["warnlog03.pdf"]
+        + [f"warnlogpy0{y}_{r}.htm" for y in (4, 5, 6) for r in regions]
+        + ["warnnot04_statewide.htm", "warnnot99.xls"]
+    )
 
 
 def test_member_dispatch():
@@ -59,6 +60,10 @@ def test_member_dispatch():
     assert parse_va_archive_member("warnlog03.pdf") is parse_va_py2002_pdf
     assert parse_va_archive_member("warnnot04_statewide.htm") is parse_va_excel_html
     assert parse_va_archive_member("something.csv") is None
+    # PY2004-06 workbook members parse with their workbook's source_url bound.
+    fn = parse_va_archive_member("warnlogpy05_statewide.htm")
+    assert fn.func is parse_va_excel_html
+    assert fn.keywords["source_url"].endswith("/warnlogpy05.htm")
 
 
 # ---------------------------------------------------------------------------
@@ -196,19 +201,90 @@ def test_py2003_address_line_notice_inherits_employer(html_rows):
 
 
 # ---------------------------------------------------------------------------
+# PY2004-PY2006 Excel-HTML workbooks (statewide + regional tabs)
+# ---------------------------------------------------------------------------
+
+_PY_RANGES = {
+    "warnlogpy04": (date(2004, 7, 1), date(2005, 6, 30)),
+    "warnlogpy05": (date(2005, 6, 30), date(2006, 6, 30)),
+    "warnlogpy06": (date(2006, 7, 1), date(2007, 6, 30)),
+}
+_SHEET_COUNTS = {
+    "warnlogpy04": {"statewide": 58, "central": 16, "eastern": 15, "northern": 20, "western": 11},
+    "warnlogpy05": {"statewide": 78, "central": 15, "eastern": 9, "northern": 35, "western": 19},
+    "warnlogpy06": {"statewide": 64, "central": 25, "eastern": 17, "northern": 14, "western": 6},
+}
+
+
+@pytest.mark.parametrize("workbook", sorted(_SHEET_COUNTS))
+def test_pyworkbook_sheet_counts_and_ranges(archive, workbook):
+    lo, hi = _PY_RANGES[workbook]
+    for region, expected in _SHEET_COUNTS[workbook].items():
+        rows = parse_va_excel_html(archive[f"{workbook}_{region}.htm"])
+        assert len(rows) == expected, f"{workbook}_{region}"
+        for r in rows:
+            # One source typo kept as printed: Colonial Williamsburg's
+            # notice_date reads 11/23/2007 (impact 1/24/2005).
+            if r.notice_date == date(2007, 11, 23) and workbook == "warnlogpy04":
+                continue
+            assert lo <= r.notice_date <= hi, f"{workbook}_{region}: {r.employer}"
+
+
+def test_py2004_uses_untruncated_2014_generation(archive):
+    """The 2022-era vec.virginia.gov re-serve truncated WARNLOGPY04 to 32
+    statewide rows; the bundled 2014 capture generation carries all 58."""
+    rows = parse_va_excel_html(archive["warnlogpy04_statewide.htm"])
+    assert len(rows) == 58
+
+
+def test_py2005_py2006_regionals_add_rows_missing_from_statewide(archive):
+    """Unlike PY2003, these regional tabs are NOT a subset of Statewide —
+    that's why all five tabs ship per workbook."""
+    from warn_v2.pipeline.dedup import notice_id
+
+    for workbook, extra in (("warnlogpy05", 6), ("warnlogpy06", 11)):
+        sw_ids = {
+            notice_id(r)
+            for r in parse_va_excel_html(archive[f"{workbook}_statewide.htm"])
+        }
+        regional_only = set()
+        for region in ("central", "eastern", "northern", "western"):
+            for r in parse_va_excel_html(archive[f"{workbook}_{region}.htm"]):
+                nid = notice_id(r)
+                if nid not in sw_ids:
+                    regional_only.add(nid)
+        assert len(regional_only) == extra, workbook
+
+
+def test_py2006_regional_only_example(archive):
+    rows = parse_va_excel_html(archive["warnlogpy06_eastern.htm"])
+    symantec = next(r for r in rows if r.employer == "Symantec Corporation")
+    assert symantec.notice_date == date(2007, 3, 14)
+    assert symantec.layoff_count == 107
+
+
+def test_pyworkbook_source_url_bound_per_workbook(archive):
+    fn = parse_va_archive_member("warnlogpy06_statewide.htm")
+    rows = fn(archive["warnlogpy06_statewide.htm"])
+    assert all(r.source_url.endswith("/warnlogpy06.htm") for r in rows)
+
+
+# ---------------------------------------------------------------------------
 # End-to-end through the backfill registry
 # ---------------------------------------------------------------------------
 
 def test_backfill_va_ingests_all_members(db):
     stats = backfill_historical("VA")
 
-    assert stats["years_attempted"] == 3
-    assert stats["years_ok"] == 3
-    # 221 unique of 222 parsed: the doubled Ericsson PDF row collapses by
-    # notice_id before upsert.
-    assert stats["rows_seen"] == 221
-    assert stats["rows_new"] == 221
-    assert db.execute(select(func.count(Notice.notice_id))).scalar_one() == 221
+    assert stats["years_attempted"] == 18
+    assert stats["years_ok"] == 18
+    # 624 parsed → 623 seen (the doubled Ericsson PDF row collapses inside
+    # its member) → 439 unique ids in the DB: the PY2004-06 workbooks'
+    # statewide/regional tab redundancy collapses at upsert (221 from
+    # PY1999/PY2002/PY2003 + 59/84/75 from the PY2004/PY2005/PY2006 unions).
+    assert stats["rows_seen"] == 623
+    assert stats["rows_new"] == 439
+    assert db.execute(select(func.count(Notice.notice_id))).scalar_one() == 439
 
     # Idempotent re-run: nothing new.
     stats2 = backfill_historical("VA")
