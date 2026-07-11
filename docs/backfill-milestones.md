@@ -79,7 +79,7 @@ Reachable floor = floor after running every verified route (no FOIA).
 | NY | 8,708 | 2006–2026 | ✅ | ✅ | ✉ | 2006 | Crosstab floor 2006; pre-2006 → FOIA backstop (draft exists) |
 | OH | 3,172 | 1996–2026 | ✅ | ✅ | ✅ | 1996 | Complete; gap-year re-run 2007–2024 pending; 2025 unaccounted |
 | OK | 198 | 2001–2026 | ✅ | ✅ | ✉ | 2001 | Portal reaches 2001; pre-2001 → FOIA drafted |
-| OR | 866 | 1989–2026 | ✅ | ✅ | ✅ | **1989** ✅ | **done 2026-07-10** (+766, floor 2020→**1989-03**, ~100→866): Socrata + Wayback capture union — **no mid-2000s gap** (the sweep's "possible gap" worry was wrong); ~389 date-less 1990s rows dropped (dates only in scanned per-notice PDFs) → ✉; follow-up: ~95 HECC-master-vs-Socrata-facility duplicates need a computed notice-id supersede list |
+| OR | 866 | 1989–2026 | ✅ | ✅ | ✅ | **1989** ✅ | **done 2026-07-10** (+766, floor 2020→**1989-03**, ~100→866): Socrata + Wayback capture union — **no mid-2000s gap** (the sweep's "possible gap" worry was wrong); ~389 date-less 1990s rows dropped (dates only in scanned per-notice PDFs) → ✉; HECC-master-vs-Socrata dedup **done 2026-07-11** (w_homelab #719: 73 masters superseded by track-computed notice-id list, 866→793 non-superseded) |
 | PA | 3,715 | 1998–2026 | ✅ | ✅ | ✅ | 1998-07 ✅ | **done 2026-07-10** (+394, floor 2001→1998-07; the dry-run-throttled 1999 Oct+Nov healed on the real run); **Dec 2000 never captured — permanent gap** |
 | RI | 125 | 2009–2026 | ✅ | ✅ | ✉ | 2009 | Sweep: earliest listing ever archived is the 2009 table — nothing older exists |
 | SC | 1,178 | 2009–2026 | ✅ | ✅ | ✉ | 2009 ✅ | **done 2026-07-10** (+1,153, floor 2026→2009-01): Wayback 2009–2019 + still-live unlinked 2020–2025 PDFs; the 2022 Apr–Dec hole closed via the live 12-15-2022 edition; residual holes only Dec 16–31 2022, Dec 2023, Dec tails of 2016/17/19; 2013–2021 editions print no notice dates → Jan-1-of-year proxy dates |
@@ -277,9 +277,13 @@ SortOrder=EstDate_desc capture 20240621021957 (2009–10 rows). Run outcome:
 the capture union recovers dated rows back to **1989** (not ~2009) and there
 is **NO mid-2000s gap** — the sweep's worry was unfounded; prod OR went
 ~100 → 866. ~389 date-less 1990s rows dropped (dates only in scanned
-per-notice upload PDFs, also archived) → FOIA. **Pending follow-up:** ~95
-HECC-master-vs-Socrata-facility duplicates need a computed notice-id
-supersede list.
+per-notice upload PDFs, also archived) → FOIA. **Follow-up done 2026-07-11**
+(w_homelab #719): the HECC-master-vs-Socrata-facility duplicates never
+key-match (Socrata truncates employer strings at ~39 chars, received-date
+drift), so the supersede list was computed offline by track number (live
+crawl + the wave's 703-capture union) — 73 masters marked, count sums match
+on every pair, tracks 8509/8352 (absent from Socrata) kept canonical;
+OR non-superseded 866→793.
 
 ### UT — live page already cumulative 2009–2026 — 🔨 fix merged (#260), first full scrape pending
 `jobs.utah.gov/employer/business/warnnotices.html` holds 18 per-year sections
@@ -407,7 +411,7 @@ Actual prod inserts vs the sweep estimates ("est." column kept for the record):
 | 12 | ✅ MS quarterlies (incl. PY2023-Q4) | 2004–Jun 2010 hole-adjacent + PY2010–19 | ~400–800 | **+834**, floor 2004-06 (562 tagged Non-WARN; API total 409) |
 | 13 | ✅ WV cumulative PDF | 2011–2021 | ~350 | **+366**, floor 2011-03; 2 live variants superseded |
 | 14 | ✅ PA pre-2001 month pages | 1998-07–2000-11 | ~300–350 | **+394**, floor 1998-07; 1999 Oct+Nov healed on real run |
-| 15 | ✅ OR Socrata + app captures | **1989**–2026 | ~500–700 | **+766**, floor **1989-03** (~100→866); ~95-dupe supersede list pending |
+| 15 | ✅ OR Socrata + app captures | **1989**–2026 | ~500–700 | **+766**, floor **1989-03** (~100→866); computed supersede done 2026-07-11 (73 marked, 866→793) |
 | 16 | 🔨 UT scraper fix | 2009–2026 | ~265 | fix merged (#260); first full scrape pending (~275 expected) |
 | 17 | ✅ VA three-format captures | PY1999, PY2002–03 | ~240–260 | **+221**, floor 1999-07; PY2004–06 refetch = follow-up build |
 | 18 | ✅ MA FY2020 + wk-2020-08-21 | 2019-07–2020-08 | ~215 | **+204**, floor 2019-07 |
@@ -419,9 +423,10 @@ Actual prod inserts vs the sweep estimates ("est." column kept for the record):
 
 Wave total: **+17,714** (bundled batch +3,295 + Wayback batch +14,419).
 Post-run: a 12-state mark-superseded sweep (2026-07-11) found pairs only in
-NC — 4 zip-variance pairs marked; every other state came back zero. OR's ~95
-HECC-master-vs-Socrata-facility duplicates need a computed notice-id
-supersede list (follow-up — the automated matcher can't key-match them).
+NC — 4 zip-variance pairs marked; every other state came back zero. OR's
+HECC-master-vs-Socrata duplicates (which never key-match) were superseded
+2026-07-11 via a track-computed notice-id list (w_homelab #719: 73 marked,
+866→793).
 
 Still queued (pre-sweep items): JobLink re-backfill Jobs AZ/KS/DE/ME/VT
 (~900), TN 2018–2024 (~500+), CA 2000–2005 (Wayback HTML slices), OH gap-year
