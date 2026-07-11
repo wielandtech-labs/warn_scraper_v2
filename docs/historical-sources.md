@@ -53,9 +53,13 @@ sources only).
     drift) — 73 masters superseded via a track-computed notice-id list
     (live crawl + capture union), count sums verified on every pair,
     866→793 non-superseded; tracks 8509/8352 (absent from Socrata) kept.
-  - **Pending follow-up**: VA PY2004–06 Wayback refetch (the sweep's
-    "unrecoverable" verdict was wrong — the capture generations exist, a
-    local cache bug overwrote them).
+  - **VA PY2004–06 done 2026-07-11** (#286, +218): the refetch with
+    per-workbook filenames recovered all three workbooks (the sweep's
+    "unrecoverable" verdict was a cache bug); PY2004 needed the 2014 capture
+    generation (the 2022 re-serve truncated it) and the PY2005/06 regional
+    tabs carried 17 notices missing from Statewide. VA → 1,556, coverage
+    continuous Jul 2004–Jun 2007; remaining request scope PY2000–01 +
+    Jul-2007–Dec-2009. No wave follow-ups remain.
 - **2026-07-10 — Global-milestone Wayback probe sweep** (every remaining state
   without a known route; verdicts + verified capture URLs + ranked build queue
   in [backfill-milestones.md](backfill-milestones.md)): **~15–20k rows are
@@ -390,7 +394,7 @@ the ranked build queue live in [backfill-milestones.md](backfill-milestones.md))
 | WV | ~~2021~~ **2011 ✅** | Wayback cumulative `WV_WARN_Notices_3-1-11_to_6-7-21.pdf` (capture 1 MiB-truncated: fonts lost, content streams intact — `parse_wv_archive_pdf` reconstructs text from the raw streams) | **2011** | **done 2026-07-10** (+366, floor 2011-03): bundled `wv_archive.tar.gz` (Mode 3b), cross-checked against the complete through-Aug-2014 edition; post-run 2 live employer-variant rows superseded (Mylan 2021-05-24 / Monongalia County Coal Resources 2021-06-04 — the state log's revised rows kept) |
 | CT | ~~2019~~ **1998 ✅** | Wayback: monthly pages 1998–2008 (`warnreports{Y}-{M}.htm`, variant names 1998–2000) + yearly `warn{Y}.htm` 2010–2018 | **1998** | **done 2026-07-10** (+1,210, floor 1998-01; complete 1998–2008 monthly + 2010–2018 yearly); holes: all of 2013, 2009 except Aug/Sep → request |
 | IN | ~~2008~~ **2000-11 ✅** | Wayback DWD pages, 3 generations: `workforce_stats/warn/{2000..2003}.html`, rolling `notices.html` 2003–05, accumulating `employers/warn_notices.html` 2005–07 | **2000-11** | **done 2026-07-10** (+496, floor 2000-11); gaps Jan–Oct 2000 (newly found — the archived 2000.html starts Nov 3), Nov–Dec 2004, Oct–Dec 2007 |
-| VA | ~~2010~~ **1999-07 ✅** (partial) | Wayback: PY1999 XLS + PY2002 PDF + PY2003 Excel-HTML `_files/sheet00N.htm` | **1999-07** (partial) | **done 2026-07-10** (+221: PY1999/PY2002/PY2003); **PY2004–06 ARE recoverable — Wayback refetch follow-up build** (the sweep's "unrecoverable" verdict was a local cache bug); PY2000–01 + Jul-2006–Dec-2009 unrecoverable → request |
+| VA | ~~2010~~ **1999-07 ✅** (partial) | Wayback: PY1999 XLS + PY2002 PDF + PY2003–PY2006 Excel-HTML workbook sheets (PY2005/06 regional tabs carry rows missing from Statewide → all tabs bundled) | **1999-07** (partial) | **done 2026-07-10** (+221) **+ PY2004–06 done 2026-07-11** (#286, +218, VA → 1,556, continuous Jul 2004–Jun 2007); PY2000–01 + Jul-2007–Dec-2009 unrecoverable → request |
 | SD | ~~2007~~ **1997 ✅** | Wayback frozen cumulative PDF `WARN Notices Received.pdf` (Jul-1997→Dec-2005, 60 notices) | **1997** | **done 2026-07-10** (+60, floor 1997-07); gap 2006→Apr-2007 (~0–5 notices) |
 | ID | ~~2009~~ **2008 ✅** | Wayback `labor.idaho.gov/pdf/WARNNotice.pdf` (2008 rows dropped from the current live log) | **2008** | **done 2026-07-10** (+16, floor 2008-02) |
 | GA | 2023 | still-live TCSG `warn-public-view/entry/{id}/` pages for 2022 (verified GA202200071) | **2022** (partial) | **run 2026-07-10**: only 31 entries recoverable (ids 071–103 minus pruned 083/097) → +0 inserts, 31 COALESCE field fills onto existing GA2022 rows; **ids 001–070 NOT publicly recoverable** (single-entry route renders an empty shell outside the server-side-filtered view) → request with 2013–2021 |

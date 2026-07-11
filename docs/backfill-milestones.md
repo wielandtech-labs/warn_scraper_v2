@@ -88,7 +88,7 @@ Reachable floor = floor after running every verified route (no FOIA).
 | TN | 90 | 2025–2026 | 🔨 | ✉ | ✉ | 2018 | 2018–2024 verified in Wayback (reports-page captures + 534 letter PDFs); pre-2018 ✉ (TPRA citizens-only caveat) |
 | TX | 5,430 | 2004–2026 | ✅ | ✅ | ✉ | 2004 ✅ | **done 2026-07-10** (+3,192, floor 2020→2004-01): Wayback XLS/XLSX 2004–2018 (two hosts) + Socrata 2019; pre-2004 → ✉ |
 | UT | 280 | 2009–2026 | ✅ | ✅ | ✉ | 2009 ✅ | **done 2026-07-11** (fix #260, parse all year sections; first full daily scrape: 9→280 rows, floor 2009-01, API-verified); pre-2009 never published → ✉ |
-| VA | 1,337 | 1999–2026 | ✅ | ✅ | 🔨 | 1999-07 (partial) ✅ | **done 2026-07-10** (+221, floor 2010→1999-07: PY1999/PY2002/PY2003 bundle); **PY2004–06 ARE recoverable via a Wayback refetch** 🔨 (the sweep's "unrecoverable" verdict was wrong — a local cache bug overwrote the fetched generations); **PY2000–01 and Jul-2006–Dec-2009 unrecoverable** → ✉ |
+| VA | 1,556 | 1999–2026 | ✅ | ✅ | ✅ | 1999-07 (partial) ✅ | **done 2026-07-10** (+221: PY1999/PY2002/PY2003) **+ PY2004–06 done 2026-07-11** (#286, +218 — coverage now continuous Jul 2004–Jun 2007); **PY2000–01 and Jul-2007–Dec-2009 unrecoverable** → ✉ |
 | VT | 97 | 2003–2026 | ✅ | ✅ | ⛔ | 2003 | JobLink source floor; capped-year Job pending (+3) |
 | WA | 1,480 | 2004–2026 | ✅ | ✅ | ⛔ | 2004 | Pagination reaches source floor 2004-01 |
 | WI | 3,637 | 1996–2026 | ✅ | ✅ | ✅ | 1996 ✅ | **done 2026-07-10** (+2,693, floor 2016→1996-01: PCML XLS logs 1996–2015); the 2016 file was abandoned by DWD in Feb-2016 (13 rows, all already in prod) — excluded |
@@ -294,22 +294,25 @@ Caveats: sloppy old dates (`05/2009`, `01/07//09`); no county/NAICS; pre-2009
 never published. The parse-all-sections fix merged 2026-07-10 (#260); the
 next daily scrape (2026-07-11) took UT 9→280 rows, floor 2009-01 (API-verified).
 
-### VA — Wayback PY1999 + PY2002–PY2003 — ✅ +221 in prod (2026-07-10, partial)
+### VA — Wayback PY1999 + PY2002–PY2006 — ✅ +221 (2026-07-10) +218 (2026-07-11) in prod
 **Built + run 2026-07-10** (Mode 3b `warn_v2/scrapers/data/va_archive.tar.gz`):
 PY1999 `vec.state.va.us/docs/xls/warnnot99.xls` (capture 20030426225501; 59
 notices, multi-row address blocks) + PY2002 `vec.state.va.us/pdf/warnlog03.pdf`
 (capture 20050510175855; 87 rows, one row printed twice in the source) +
 PY2003 `warnnot04_files/sheet001.htm` statewide Excel-HTML sheet (76 rows) —
-222 rows, 221 unique — all in prod. Regional-tab dedupe verified: the four
-regional sheets' union is a subset of Statewide (modulo one amended notice
-date), so only the statewide sheet is bundled. **Follow-up build (small):** the
-PY2004 (`WARNLOGPY04_files`), PY2005 and PY2006 workbook data sheets ARE
-captured in Wayback — the sweep's "unrecoverable" verdict was wrong (the
-capture generations exist; the local cache's fixed filenames let later
-generations overwrite them, so only the last-fetched warnnot04 sheets
-survived); refetch per-workbook and extend the bundle. **Unrecoverable:
-PY2000–01 (never captured), Jul-2006→Dec-2009** → FOIA. Caveats: three
-formats; program years Jul–Jun.
+222 rows, 221 unique — all in prod. Regional-tab dedupe verified for PY2003:
+the four regional sheets' union is a subset of Statewide (modulo one amended
+notice date), so only its statewide sheet is bundled. **PY2004–06 followed
+2026-07-11** (#286, +218 — the sweep's "unrecoverable" verdict was a local
+cache bug: fixed filenames let workbook generations overwrite each other):
+same Excel-HTML family, but here the PY2005/PY2006 regional tabs carry 6/11
+notices MISSING from Statewide, so all five tabs ship per workbook and
+collapse by notice_id; PY2004 uses the 2014 capture generation (the 2022-era
+re-serve truncated it to 32 of 58 statewide rows); one source typo kept as
+printed (Colonial Williamsburg notice_date 11/23/2007, really 11/23/2004).
+Coverage is now continuous Jul 2004–Jun 2007. **Unrecoverable: PY2000–01
+(never captured), Jul-2007→Dec-2009** → FOIA. Caveats: three formats;
+program years Jul–Jun.
 
 ### MA — Wayback FY2020 + early FY2021 — ✅ +204 in prod (2026-07-10)
 `mass.gov/doc/warn-report-for-fy-2020/download` (capture 20200828043125;
@@ -381,7 +384,7 @@ pre-2008 may simply not exist.
 | CT | 2013 + most of 2009 | year page never captured (2013); only Aug/Sep monthlies exist (2009) |
 | TX | pre-2004 | no earlier files on either TWC host (domain + /news/ sweeps) |
 | MS | Jul 2007–Jun 2010 | quarterlies exist in CDX only as 404 captures from 2013 |
-| VA | PY2000–01, Jul 2006–Dec 2009 | never captured (PY2004–06 data sheets ARE in Wayback — refetch follow-up build, the sweep's "unrecoverable" verdict was a local cache bug) |
+| VA | PY2000–01, Jul 2007–Dec 2009 | never captured (PY2004–06 recovered 2026-07-11 after the cache-bug refetch — the hole shrank by a year) |
 | MO | pre-Jul-2012 + Sep 2015–Jun 2016, May–Jun 2017, Jan–Jun 2018 | ded.mo.gov, dolir.mo.gov, missourieconomy.org all negative; the mid-PY capture gaps have no Wayback coverage (found on the 2026-07-10 run) |
 | MA | Sep 2020–Mar 2021, pre-FY2020 | zero WARN doc captures 2020-08-28→2021-11-30; weekly docs never crawled |
 | FL | 2012 | a real hole — the site itself had dropped the year (its only capture is a header-only table) |
@@ -414,7 +417,7 @@ Actual prod inserts vs the sweep estimates ("est." column kept for the record):
 | 14 | ✅ PA pre-2001 month pages | 1998-07–2000-11 | ~300–350 | **+394**, floor 1998-07; 1999 Oct+Nov healed on real run |
 | 15 | ✅ OR Socrata + app captures | **1989**–2026 | ~500–700 | **+766**, floor **1989-03** (~100→866); computed supersede done 2026-07-11 (73 marked, 866→793) |
 | 16 | ✅ UT scraper fix | 2009–2026 | ~265 | **+271** via the daily scrape 2026-07-11 (9→280), floor 2009-01 |
-| 17 | ✅ VA three-format captures | PY1999, PY2002–03 | ~240–260 | **+221**, floor 1999-07; PY2004–06 refetch = follow-up build |
+| 17 | ✅ VA three-format captures | PY1999, PY2002–06 | ~240–260 | **+221** (2026-07-10) **+218** (PY2004–06 refetch, 2026-07-11), floor 1999-07 |
 | 18 | ✅ MA FY2020 + wk-2020-08-21 | 2019-07–2020-08 | ~215 | **+204**, floor 2019-07 |
 | 19 | ✅ NC 2013 | 2013 | 82 | **+89** (82 + 7 amendment dupes; 4 marked superseded 2026-07-11), floor 2013-01 |
 | 20 | ✅ NE frozen endpoint + captures | 2010–2022 | ~130 | **+102**, floor 2010-02 |
