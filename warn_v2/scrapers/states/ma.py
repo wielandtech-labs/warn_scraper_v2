@@ -119,7 +119,7 @@ class MAScraper(PlaywrightScraper):
                             if not dl_path:
                                 log.warning("MA: download of %s produced no file", url)
                                 continue
-                            text = Path(dl_path).read_bytes().decode("utf-8-sig")
+                            text = _decode_csv(Path(dl_path).read_bytes())
                             files.append({"url": url, "csv": text})
                             log.info("MA: downloaded %s (%d chars)", url, len(text))
                         except Exception as exc:
@@ -202,6 +202,23 @@ def _clean_city(value: object) -> str | None:
     if not city:
         return None
     return as_str(_STATE_SUFFIX_RE.sub("", city))
+
+
+def _decode_csv(raw: bytes) -> str:
+    """Decode a downloaded weekly CSV to text.
+
+    mass.gov usually serves UTF-8 (with a BOM), but some weekly files are
+    Windows-1252 — e.g. an accented employer name like "Labouré College"
+    arrives as byte 0xE9, which ``utf-8-sig`` cannot decode and would
+    otherwise sink the whole download.  Fall back to cp1252, then to a
+    lossy utf-8 as a last resort so a single stray byte never drops the file.
+    """
+    for enc in ("utf-8-sig", "cp1252"):
+        try:
+            return raw.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    return raw.decode("utf-8-sig", errors="replace")
 
 
 def _parse_csv(csv_text: str, url: str) -> list[NoticeRow]:
