@@ -50,6 +50,31 @@ def test_ma_validation_passes(ma_sample: bytes) -> None:
     assert result.ok, result.reason
 
 
+def test_ma_decode_csv_falls_back_to_cp1252() -> None:
+    # A weekly file with an accented employer name encoded as Windows-1252
+    # (byte 0xE9 for "é"), which utf-8-sig cannot decode. Regression for the
+    # 2026-07 FY2027 file ("Labouré College of Healthcare, Inc.") whose single
+    # cp1252 byte sank the entire download.
+    from warn_v2.scrapers.states.ma import _decode_csv, _parse_csv
+
+    csv_bytes = (
+        "RECEIVED,EMPLOYER,CITY/TOWN,REGION,DATE(S) OF LAYOFFS,# EMPLOYEES IMPACTED\r\n"
+        '7/1/2026,"Labouré College of Healthcare, Inc.","Milton, MA",'
+        "Southeast,8/30/2026,65\r\n"
+    ).encode("cp1252")
+
+    rows = _parse_csv(_decode_csv(csv_bytes), "https://example/warn.csv")
+    assert len(rows) == 1
+    assert rows[0].employer == "Labouré College of Healthcare, Inc."
+    assert rows[0].city == "Milton"
+
+
+def test_ma_decode_csv_reads_utf8_bom() -> None:
+    from warn_v2.scrapers.states.ma import _decode_csv
+
+    assert _decode_csv("café".encode("utf-8-sig")) == "café"
+
+
 def test_ma_raises_on_bad_input() -> None:
     scraper = get_scraper("MA")
     with pytest.raises(ParseFailed):
