@@ -400,11 +400,12 @@ _BACKFILL: dict[str, BackfillSpec] = {
         bundled_files=id_archive_files,
         parse_for_url=lambda u: parse_id_2008_pdf,
     ),
-    # VA: Wayback captures of the three pre-2010 legacy formats bundled as a
-    # tar.gz (PY1999 xls, PY2002 pdf, PY2003 statewide Excel-HTML sheet — VA
-    # publishes July-June program years). PY2000-01 were never captured and
-    # the PY2004-06 workbook data sheets are not bundled; prod floor is 2010,
-    # so there is no overlap with live rows.
+    # VA: Wayback captures of the pre-2010 legacy formats bundled as a tar.gz
+    # (PY1999 xls, PY2002 pdf, PY2003-PY2006 Excel-HTML workbook sheets — VA
+    # publishes July-June program years; PY2005/06 regional tabs carry rows
+    # missing from Statewide, so all tabs ship and collapse by notice_id).
+    # PY2000-01 were never captured; the only overlap risk is the workbooks'
+    # own tab redundancy.
     "VA": BackfillSpec(
         bundled_files=va_archive_files,
         parse_for_url=parse_va_archive_member,

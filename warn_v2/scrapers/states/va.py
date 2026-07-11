@@ -28,14 +28,24 @@ from the Wayback Machine and bundled as ``data/va_archive.tar.gz``:
     regional tabs repeat the statewide notices (verified: after date
     normalization the regional union is a subset of Statewide, modulo two
     amended-value variants), so only the statewide sheet is bundled/ingested.
+  - PY2004-PY2006: same Excel-HTML workbook family
+    (``warnlogpy0{4,5,6}_{statewide,central,eastern,northern,western}.htm``).
+    Unlike PY2003, the PY2005/PY2006 regional tabs carry notices MISSING from
+    Statewide (6 and 11 respectively), so all five tabs are bundled per
+    workbook — overlapping rows collapse by notice_id (verified: the union is
+    exactly statewide + the regional-only rows, save one PY2004 worksite
+    variant with no count). PY2004 uses the 2014 capture generation: the
+    2022-era vec.virginia.gov re-serve truncated the workbook to 32 of its
+    58 statewide rows. One source typo kept as printed: Colonial Williamsburg
+    Foundation notice_date 11/23/2007 (impact 1/24/2005 — really 11/23/2004).
 
-PY2000-01 were never captured; the PY2004-PY2006 workbook data sheets exist in
-the Wayback Machine but are not in this bundle (see docs/backfill-milestones.md).
+PY2000-01 were never captured (see docs/backfill-milestones.md).
 """
 from __future__ import annotations
 
 import io
 import re
+from functools import partial
 
 import httpx
 import pdfplumber
@@ -143,13 +153,20 @@ def _text(cell) -> str:
 
 _ARCHIVE_PATH = DATA_DIR / "va_archive.tar.gz"
 
-# Original locations of the bundled captures (Wayback Machine, 2003-2014).
+# Original locations of the bundled captures (Wayback Machine, 2003-2022).
 _PY1999_URL = "http://www.vec.state.va.us/docs/xls/warnnot99.xls"
 _PY2002_URL = "http://www.vec.state.va.us/pdf/warnlog03.pdf"
 _PY2003_URL = (
     "http://www.vec.virginia.gov/vecportal/employer/docs/xls/warnlog/"
     "warnnot04_files/sheet001.htm"
 )
+_WARNLOG_BASE = "http://www.vec.virginia.gov/vecportal/employer/docs/xls/warnlog"
+# PY2004-06 workbook viewer pages (all tabs of a workbook share its URL).
+_WORKBOOK_URLS = {
+    "warnlogpy04": f"{_WARNLOG_BASE}/WARNLOGPY04.htm",
+    "warnlogpy05": f"{_WARNLOG_BASE}/warnlogpy05.htm",
+    "warnlogpy06": f"{_WARNLOG_BASE}/warnlogpy06.htm",
+}
 
 _MDY_RE = re.compile(r"\d{1,2}/\d{1,2}/\d{2,4}$")
 _CITY_VA_RE = re.compile(r"^[^,]+,\s*(VA|Va\.?|Virginia)\b")
@@ -171,6 +188,9 @@ def parse_va_archive_member(name: str):
     if name.endswith(".pdf"):
         return parse_va_py2002_pdf
     if name.endswith(".htm"):
+        workbook = name.split("_", 1)[0]
+        if workbook in _WORKBOOK_URLS:
+            return partial(parse_va_excel_html, source_url=_WORKBOOK_URLS[workbook])
         return parse_va_excel_html
     return None
 
@@ -293,8 +313,10 @@ def parse_va_py2002_pdf(raw: bytes) -> list[NoticeRow]:
     return rows
 
 
-def parse_va_excel_html(raw: bytes) -> list[NoticeRow]:
-    """Excel-workbook-as-HTML statewide sheet (PY2003 era).
+def parse_va_excel_html(
+    raw: bytes, source_url: str = _PY2003_URL
+) -> list[NoticeRow]:
+    """Excel-workbook-as-HTML sheet (PY2003-PY2006 workbook family).
 
     A notice row has the company in col 0 and the notice date in col 1;
     the address lines follow in col 0 of continuation rows. One notice
@@ -337,7 +359,7 @@ def parse_va_excel_html(raw: bytes) -> list[NoticeRow]:
                 layoff_count=as_int(c[3]),
                 closure_type=as_str(c[6]),
                 city=as_str(c[4].split(",")[0]) if c[4] else None,
-                source_url=_PY2003_URL,
+                source_url=source_url,
             )
         )
     if not rows:
