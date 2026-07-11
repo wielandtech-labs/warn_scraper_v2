@@ -39,8 +39,8 @@ sources only).
     550–650 estimate was high — mid-PY capture gaps stay Sunshine-Law) ·
     NC +89 (2013-01; 82 from Warn-2013.pdf + 7 hub-drift amendment dupes —
     4 marked superseded 2026-07-11, 3 non-key-matching variants remain).
-  - **UT** ships via the daily scrape instead (parse-all-sections fix #260) —
-    first full scrape pending, expect ~275 rows / floor 2009.
+  - **UT** shipped via the daily scrape instead (parse-all-sections fix
+    #260): first full scrape 2026-07-11 took UT 9→280 rows, floor 2009-01.
   - **Post-run cleanups done**: IA `mark-superseded` real run (2 zip-variance
     pairs marked); WV 2 live employer-variant rows superseded (Mylan
     2021-05-24/1,246 and Monongalia County Coal Resources 2021-06-04/None —
@@ -53,10 +53,9 @@ sources only).
     drift) — 73 masters superseded via a track-computed notice-id list
     (live crawl + capture union), count sums verified on every pair,
     866→793 non-superseded; tracks 8509/8352 (absent from Socrata) kept.
-  - **Pending follow-ups**: VA PY2004–06 Wayback
-    refetch (the sweep's "unrecoverable" verdict was wrong — the capture
-    generations exist, a local cache bug overwrote them); verify UT's first
-    full scrape.
+  - **Pending follow-up**: VA PY2004–06 Wayback refetch (the sweep's
+    "unrecoverable" verdict was wrong — the capture generations exist, a
+    local cache bug overwrote them).
 - **2026-07-10 — Global-milestone Wayback probe sweep** (every remaining state
   without a known route; verdicts + verified capture URLs + ranked build queue
   in [backfill-milestones.md](backfill-milestones.md)): **~15–20k rows are
@@ -385,7 +384,7 @@ the ranked build queue live in [backfill-milestones.md](backfill-milestones.md))
 | State | DB floor | Source / route | Available back to | Backfill route |
 |-------|----------|----------------|-------------------|----------------|
 | SC | ~~2026~~ **2009 ✅** | Wayback `scworks.org/docs/librariesprovider6/layoff-notification-reports/{Y}_layoff_notifications*.pdf` 2009–2019 + **still-live unlinked** dew.sc.gov/scworks.org year PDFs 2020–2025 | **2009** | **done 2026-07-10** (+1,153, floor 2009-01); the 2022 Apr–Dec hole closed via the still-live 12-15-2022 edition; residual holes only Dec 16–31 2022, Dec 2023, Dec tails of 2016/17/19 → request; 2013–2021 editions print no notice dates → Jan-1-of-year proxy dates (documented convention) |
-| UT | 2026 | the live page (`jobs.utah.gov/.../warnnotices.html`) already holds per-year sections **2009–2026** (~275 rows) — scraper reads current year only | **2009** | **fix merged 2026-07-10 (#260**, parse all year sections); ships via the daily scrape — first full scrape pending (~275 rows / floor 2009 expected); pre-2009 never published |
+| UT | ~~2026~~ **2009 ✅** | the live page (`jobs.utah.gov/.../warnnotices.html`) already holds per-year sections **2009–2026** — the scraper read only the current year until fix #260 (parse all year sections) | **2009** | **done 2026-07-11** via the daily scrape (9→280 rows, floor 2009-01, API-verified); pre-2009 never published |
 | IA | ~~2021~~ **2005-07 ✅** | Wayback rolling-log snapshots, union of 4 (`WARN_20150722.pdf`, `WARN_20171219.xlsx`, `WARN_20210105.xlsx`, `WARN_20230823.xlsx`) | **2005-07** | **done 2026-07-10** (+804, floor 2005-07): bundled as `ia_archive.tar.gz` (Mode 3b), run via `backfill-historical --state IA`. XLSX members reuse `IAScraper.parse`; PDF era has its own parser (U+2010 hyphens normalized so overlap rows hash-collide). "Amendment" rows kept as in the live log; the real `mark-superseded --state IA` pass marked 2 zip-variance pairs. Pre-2005 never published |
 | NE | ~~2023~~ **2010 ✅** | **frozen live endpoint** `dol.nebraska.gov/LayoffServices/WARNReportData/?year={2010..2020}` + Wayback captures of the rolling page for 2021–22 | **2010** | **done 2026-07-10** (+102, floor 2010-02) |
 | WV | ~~2021~~ **2011 ✅** | Wayback cumulative `WV_WARN_Notices_3-1-11_to_6-7-21.pdf` (capture 1 MiB-truncated: fonts lost, content streams intact — `parse_wv_archive_pdf` reconstructs text from the raw streams) | **2011** | **done 2026-07-10** (+366, floor 2011-03): bundled `wv_archive.tar.gz` (Mode 3b), cross-checked against the complete through-Aug-2014 edition; post-run 2 live employer-variant rows superseded (Mylan 2021-05-24 / Monongalia County Coal Resources 2021-06-04 — the state log's revised rows kept) |

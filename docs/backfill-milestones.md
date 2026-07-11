@@ -12,7 +12,8 @@ below was verified by fetching an actual capture and reading WARN rows in it).
 (PRs #258–#281), merged, and **run in prod** (one-off Job train w_homelab
 #709–#715): **+17,714 notices** (bundled batch +3,295 + Wayback batch +14,419),
 all verified via the public API. UT ships separately via the daily scrape
-(parse-all-sections fix #260, first full scrape pending). Run details + post-run
+(parse-all-sections fix #260 — landed 2026-07-11: 280 rows, floor 2009-01).
+Run details + post-run
 cleanups in historical-sources.md Progress.
 
 Ranges are the **verified post-run prod floors as of 2026-07-10** — the 2026-07-07
@@ -86,7 +87,7 @@ Reachable floor = floor after running every verified route (no FOIA).
 | SD | 139 | 1997–2026 | ✅ | ✅ | ✅ | 1997 ✅ | **done 2026-07-10** (+60, floor 2007→1997-07): frozen cumulative PDF Jul-1997–Dec-2005; gap 2006→Apr-2007 (≈0–5 notices) |
 | TN | 90 | 2025–2026 | 🔨 | ✉ | ✉ | 2018 | 2018–2024 verified in Wayback (reports-page captures + 534 letter PDFs); pre-2018 ✉ (TPRA citizens-only caveat) |
 | TX | 5,430 | 2004–2026 | ✅ | ✅ | ✉ | 2004 ✅ | **done 2026-07-10** (+3,192, floor 2020→2004-01): Wayback XLS/XLSX 2004–2018 (two hosts) + Socrata 2019; pre-2004 → ✉ |
-| UT | 9 | 2026 | ✅ | ✅ | ✉ | 2009 | **Fix merged 2026-07-10 (#260, parse all year sections)** — first full scrape pending: expect ~275 rows / floor 2009 at the next morning run; pre-2009 never published |
+| UT | 280 | 2009–2026 | ✅ | ✅ | ✉ | 2009 ✅ | **done 2026-07-11** (fix #260, parse all year sections; first full daily scrape: 9→280 rows, floor 2009-01, API-verified); pre-2009 never published → ✉ |
 | VA | 1,337 | 1999–2026 | ✅ | ✅ | 🔨 | 1999-07 (partial) ✅ | **done 2026-07-10** (+221, floor 2010→1999-07: PY1999/PY2002/PY2003 bundle); **PY2004–06 ARE recoverable via a Wayback refetch** 🔨 (the sweep's "unrecoverable" verdict was wrong — a local cache bug overwrote the fetched generations); **PY2000–01 and Jul-2006–Dec-2009 unrecoverable** → ✉ |
 | VT | 97 | 2003–2026 | ✅ | ✅ | ⛔ | 2003 | JobLink source floor; capped-year Job pending (+3) |
 | WA | 1,480 | 2004–2026 | ✅ | ✅ | ⛔ | 2004 | Pagination reaches source floor 2004-01 |
@@ -285,13 +286,13 @@ crawl + the wave's 703-capture union) — 73 masters marked, count sums match
 on every pair, tracks 8509/8352 (absent from Socrata) kept canonical;
 OR non-superseded 866→793.
 
-### UT — live page already cumulative 2009–2026 — 🔨 fix merged (#260), first full scrape pending
+### UT — live page already cumulative 2009–2026 — ✅ done 2026-07-11 (fix #260, 9→280 via the daily scrape)
 `jobs.utah.gov/employer/business/warnnotices.html` holds 18 per-year sections
 (~275 rows) **today**; the scraper only ingests the current-year section.
 Wayback corroborates (capture 20100413170506 of the `.asp` predecessor).
 Caveats: sloppy old dates (`05/2009`, `01/07//09`); no county/NAICS; pre-2009
-never published. The parse-all-sections fix merged 2026-07-10 (#260) and ships
-via the daily scrape — expect ~275 rows / floor 2009 at the next morning run.
+never published. The parse-all-sections fix merged 2026-07-10 (#260); the
+next daily scrape (2026-07-11) took UT 9→280 rows, floor 2009-01 (API-verified).
 
 ### VA — Wayback PY1999 + PY2002–PY2003 — ✅ +221 in prod (2026-07-10, partial)
 **Built + run 2026-07-10** (Mode 3b `warn_v2/scrapers/data/va_archive.tar.gz`):
@@ -412,7 +413,7 @@ Actual prod inserts vs the sweep estimates ("est." column kept for the record):
 | 13 | ✅ WV cumulative PDF | 2011–2021 | ~350 | **+366**, floor 2011-03; 2 live variants superseded |
 | 14 | ✅ PA pre-2001 month pages | 1998-07–2000-11 | ~300–350 | **+394**, floor 1998-07; 1999 Oct+Nov healed on real run |
 | 15 | ✅ OR Socrata + app captures | **1989**–2026 | ~500–700 | **+766**, floor **1989-03** (~100→866); computed supersede done 2026-07-11 (73 marked, 866→793) |
-| 16 | 🔨 UT scraper fix | 2009–2026 | ~265 | fix merged (#260); first full scrape pending (~275 expected) |
+| 16 | ✅ UT scraper fix | 2009–2026 | ~265 | **+271** via the daily scrape 2026-07-11 (9→280), floor 2009-01 |
 | 17 | ✅ VA three-format captures | PY1999, PY2002–03 | ~240–260 | **+221**, floor 1999-07; PY2004–06 refetch = follow-up build |
 | 18 | ✅ MA FY2020 + wk-2020-08-21 | 2019-07–2020-08 | ~215 | **+204**, floor 2019-07 |
 | 19 | ✅ NC 2013 | 2013 | 82 | **+89** (82 + 7 amendment dupes; 4 marked superseded 2026-07-11), floor 2013-01 |
