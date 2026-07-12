@@ -104,6 +104,7 @@ from warn_v2.scrapers.states.or_ import (
 from warn_v2.scrapers.states.pa import _fetch_pa_year, parse_pa_month
 from warn_v2.scrapers.states.sc import _discover_sc_archive_urls, parse_sc_archive_pdf
 from warn_v2.scrapers.states.sd import parse_sd_archive_pdf, sd_archive_files
+from warn_v2.scrapers.states.tn import parse_tn_archive, tn_archive_files
 from warn_v2.scrapers.states.tx import _fetch_tx_year
 from warn_v2.scrapers.states.va import parse_va_archive_member, va_archive_files
 from warn_v2.scrapers.states.wi import _discover_wi_pcml_urls, parse_wi_pcml_xls
@@ -189,6 +190,15 @@ _BACKFILL: dict[str, BackfillSpec] = {
     # Year-URL sources, earliest years verified by 2026-06-12 probes.
     # TX: live per-year XLSX 2020+; 2004-2018 via pinned Wayback captures of
     # the removed twc files (.xls through 2013); 2019 via Socrata (see tx.py).
+    # TN: the live reports page was pruned to 2025+ in early 2025; the bundled
+    # 2025-01-16 Wayback capture carries the full 2017-2024 archive as labeled
+    # text entries (514 → 507 rows after parse_tn_archive merges same-day
+    # multi-county filings that would collide on notice_id). No overlap with
+    # the live scraper's rows (prod floor 2025-01).
+    "TN": BackfillSpec(
+        bundled_files=tn_archive_files,
+        parse_for_url=lambda u: parse_tn_archive,
+    ),
     "TX": BackfillSpec(year_start=2004, fetch_year=_fetch_tx_year),
     # FL: live reactwarn pages 2020+, pinned Wayback captures for the two
     # 2019 reactwarn result pages and the warn.asp era (1998-2018, one
