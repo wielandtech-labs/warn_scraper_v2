@@ -47,10 +47,15 @@ from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.registry import get_scraper
 from warn_v2.scrapers.states.ca import (
     _CA_DETAIL_RE,
+    _CA_HTML_DETAIL_RE,
+    _CA_HTML_SIMPLE_RE,
     _discover_archive_urls,
     _discover_ca_historical_urls,
+    ca_html_slice_urls,
+    parse_ca_detail_html,
     parse_ca_detail_pdf,
     parse_ca_pdf,
+    parse_ca_simple_html,
 )
 from warn_v2.scrapers.states.co import _fetch_co_year, _parse_co_year
 from warn_v2.scrapers.states.ct import _discover_ct_archive_urls, parse_ct_archive
@@ -150,13 +155,22 @@ def _joblink_fetch(scraper, year: int) -> bytes:
 _BACKFILL: dict[str, BackfillSpec] = {
     # CA: the live archive page (FY2014+ PDFs → parse_ca_pdf) plus the pre-FY2014
     # detailed reports recovered from the Wayback Machine (→ parse_ca_detail_pdf,
-    # url-aware so rows carry the replay source_url). Detailed URLs are matched by
-    # filename; everything else .pdf falls to the current-year parser.
+    # url-aware so rows carry the replay source_url) plus the pre-2006 HTML era
+    # (static pinned captures, see ca._CA_HTML_SLICES). Detailed URLs are matched
+    # by filename; everything else .pdf falls to the current-year parser.
     "CA": BackfillSpec(
-        discover_urls=lambda: _discover_archive_urls() + _discover_ca_historical_urls(),
+        discover_urls=lambda: (
+            _discover_archive_urls()
+            + _discover_ca_historical_urls()
+            + ca_html_slice_urls()
+        ),
         parse_for_url=lambda u: (
             (lambda raw, _u=u: parse_ca_detail_pdf(raw, _u))
             if _CA_DETAIL_RE.search(u)
+            else (lambda raw, _u=u: parse_ca_detail_html(raw, _u))
+            if _CA_HTML_DETAIL_RE.search(u)
+            else (lambda raw, _u=u: parse_ca_simple_html(raw, _u))
+            if _CA_HTML_SIMPLE_RE.search(u)
             else parse_ca_pdf
             if u.lower().endswith(".pdf")
             else None
