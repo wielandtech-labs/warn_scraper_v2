@@ -21,7 +21,9 @@ which the WAF accepts.
 """
 from __future__ import annotations
 
+import re
 import time
+from datetime import date
 
 from bs4 import BeautifulSoup
 from curl_cffi import requests as cffi_requests
@@ -29,6 +31,7 @@ from curl_cffi.requests.exceptions import RequestException
 
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
+from warn_v2.scrapers.bundled import DATA_DIR, load_archive
 from warn_v2.scrapers.registry import register
 
 SOURCE_URL = (
@@ -132,6 +135,166 @@ def _parse_table(table) -> list[NoticeRow]:
 
 def _text(cell) -> str:
     return " ".join(cell.get_text(" ", strip=True).split())
+
+
+# ---------------------------------------------------------------------------
+# Historical backfill (2017-2024) — bundled Wayback capture
+# ---------------------------------------------------------------------------
+# The live reports page was pruned to 2025+ in early 2025, but its archive
+# section had been cumulative: the 2025-01-16 capture carries every notice
+# 2017-2024 as labeled <p> entries ("Date Notice Posted: ... | Company: ... |
+# County: ... | Affected Workers: ... | Closure/Layoff Date: ... |
+# Notice/Type: #N"), plus a 2024 <table> that duplicates the 2024 entries
+# (skipped — same notices, same ids). The linked per-notice WARN letter PDFs
+# are also pruned from live tn.gov, so raw_notice_url is Wayback-wrapped.
+
+_ARCHIVE_PATH = DATA_DIR / "tn_archive.tar.gz"
+_ARCHIVE_TS = "20250116"
+
+_ARCHIVE_POSTED_RE = re.compile(r"Date Notice Posted\s*:")
+# Label spellings drift across years: "Company :", "Counties:", and one
+# "Notice Type:" (no slash) all appear.
+_ARCHIVE_LABEL_RE = re.compile(
+    r"(Date Notice Posted|Compan(?:y|ies)|Count(?:y|ies)|Affected Workers|"
+    r"Closure/Layoff Date|Notice[/ ]?Type)\s*:\s*([^|]*?)\s*(?=\||$)"
+)
+_LABEL_KEYS = {
+    "Date Notice Posted": "posted",
+    "Affected Workers": "workers",
+    "Closure/Layoff Date": "effective",
+}
+_COUNT_RE = re.compile(r"\d[\d,]*")
+# First token naming a full date, for free-text effective values like
+# "June 30, 2023 to September 30, 2023", "Beginning in February 2020" or
+# "March 20,2020": month-day-year, numeric, or month-year.
+_DATE_TOKEN_RE = re.compile(
+    r"[A-Z][a-z]+ \d{1,2},\s*\d{4}|\d{1,4}/\s*\d{1,2}/\s*\d{2,4}|[A-Z][a-z]+ \d{4}"
+)
+
+
+def tn_archive_files() -> list[tuple[str, bytes]]:
+    return load_archive(_ARCHIVE_PATH)
+
+
+def parse_tn_archive(raw: bytes) -> list[NoticeRow]:
+    """Parse the archived reports page's labeled notice entries.
+
+    Some paragraphs glue several entries together, so entries are split on
+    the "Date Notice Posted:" boundary of the flattened text rather than per
+    <p>. Same-(employer, posted-date) entries — distinct filings with their
+    own Notice/Type numbers, usually one per county — would collide on
+    ``notice_id`` (TN rows carry no city/zip), so they are merged: counts
+    summed, counties joined, earliest closure/layoff date kept.
+    """
+    soup = BeautifulSoup(raw, "html.parser")
+    paras = []
+    seen: set[int] = set()
+    for node in soup.find_all(string=_ARCHIVE_POSTED_RE):
+        p = node.find_parent("p")
+        if p is None or id(p) in seen:
+            continue
+        seen.add(id(p))
+        paras.append(p)
+
+    entries: list[dict] = []
+    for p in paras:
+        text = " ".join(p.get_text(" ", strip=True).split())
+        anchors = [
+            (" ".join(a.get_text(" ", strip=True).split()), a["href"])
+            for a in p.find_all("a", href=True)
+        ]
+        starts = [m.start() for m in _ARCHIVE_POSTED_RE.finditer(text)]
+        for i, start in enumerate(starts):
+            end = starts[i + 1] if i + 1 < len(starts) else len(text)
+            chunk = text[start:end]
+            fields: dict[str, str] = {}
+            for label, value in _ARCHIVE_LABEL_RE.findall(chunk):
+                if label.startswith("Compan"):
+                    key = "company"
+                elif label.startswith("Count"):
+                    key = "county"
+                elif label.startswith("Notice"):
+                    key = "notice_type"
+                else:
+                    key = _LABEL_KEYS[label]
+                fields.setdefault(key, value)
+
+            employer = as_str(fields.get("company"))
+            # One 2018 entry reads "2018/4/ 27" — drop spaces around slashes.
+            posted = as_date(re.sub(r"\s*/\s*", "/", fields.get("posted", "")))
+            if not employer or posted is None:
+                raise ParseFailed(f"TN archive: unparseable entry {chunk[:120]!r}")
+            m = _COUNT_RE.search(fields.get("workers", ""))
+            href = next(
+                (
+                    h
+                    for t, h in anchors
+                    if t and (t.lower() in employer.lower() or employer.lower() in t.lower())
+                ),
+                None,
+            )
+            entries.append(
+                {
+                    "employer": employer,
+                    "posted": posted,
+                    "effective": _parse_archive_effective(fields.get("effective", "")),
+                    "count": int(m.group().replace(",", "")) if m else None,
+                    "county": as_str(fields.get("county")),
+                    "notice_number": as_str(fields.get("notice_type")),
+                    "href": href,
+                }
+            )
+    if not entries:
+        raise ParseFailed("TN archive: no labeled notice entries found")
+    return _merge_archive_collisions(entries)
+
+
+def _parse_archive_effective(value: str) -> date | None:
+    """Effective date from free text; ranges/phased lists keep the first
+    dated token (one entry's value is a stray worker count — stays None)."""
+    d = as_date(value)
+    if d is not None:
+        return d
+    for token in _DATE_TOKEN_RE.findall(value):
+        d = as_date(re.sub(r",(?=\d)", ", ", token))
+        if d is not None:
+            return d
+    return None
+
+
+def _merge_archive_collisions(entries: list[dict]) -> list[NoticeRow]:
+    groups: dict[tuple[str, date], list[dict]] = {}
+    for e in entries:
+        groups.setdefault((" ".join(e["employer"].lower().split()), e["posted"]), []).append(e)
+
+    rows: list[NoticeRow] = []
+    for group in groups.values():
+        counts = [e["count"] for e in group if e["count"] is not None]
+        effectives = [e["effective"] for e in group if e["effective"] is not None]
+        counties = list(dict.fromkeys(e["county"] for e in group if e["county"]))
+        numbers = [e["notice_number"] for e in group if e["notice_number"]]
+        href = next((e["href"] for e in group if e["href"]), None)
+        rows.append(
+            NoticeRow(
+                state="TN",
+                employer=group[0]["employer"],
+                notice_date=group[0]["posted"],
+                effective_date=min(effectives) if effectives else None,
+                layoff_count=sum(counts) if counts else None,
+                county="; ".join(counties) or None,
+                source_url=SOURCE_URL,
+                raw_notice_url=_archive_notice_url(href),
+                extra={"notice_number": "; ".join(numbers)},
+            )
+        )
+    return rows
+
+
+def _archive_notice_url(href: str | None) -> str | None:
+    if not href:
+        return None
+    original = href if href.startswith("http") else _BASE_URL + href
+    return f"https://web.archive.org/web/{_ARCHIVE_TS}/{original}"
 
 
 register(TNScraper())
