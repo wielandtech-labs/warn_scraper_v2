@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import io
 import re
+from datetime import date
 
 import httpx
 import pandas as pd
@@ -495,6 +496,236 @@ def _parse_detail_block(block: list[list[dict]], source_url: str | None) -> Noti
         address=address,
         source_url=source_url or SOURCE_URL,
     )
+
+
+# --- Pre-2006 HTML era (2000-2005) via the Wayback Machine ------------------
+# Before the PDF listings, EDD published the same reports as HTML under
+# www.edd.ca.gov/warn/ (frozen there until the site was rebuilt; captures
+# 2006-2007 hold the complete files). Two formats:
+#
+# * detailed 7-slice pages `eddwarncnd{ab,cd,ef,gl,mr,s,tz}{YY}.htm/.asp` —
+#   the HTML twin of the detailed PDFs (address, count, layoff date, notice
+#   received date, closure type). 2004/2005 are full calendar years; the
+#   format debuted mid-2003, so the 2003 files cover Jul-Dec only.
+# * simple 2-slice pages `eddwarncn{al,mz}{YY}.htm` (2000-2003) — employer /
+#   city / count / layoff date only. Used for 2000-2002 and for Jan-Jun 2003
+#   (rows with a layoff date from Jul 2003 on are skipped there — the
+#   detailed files carry those notices with their real received dates).
+#   With no received date, ``notice_date`` is the layoff date (proxy — same
+#   accepted convention as the PA month pages). The simple 2004/2005 pages
+#   are NOT ingested: the detailed files supersede them, and EDD's own
+#   `eddwarncnal04.asp` actually serves 2005 A-L content (source mixup).
+#
+# Static pinned captures (verified 2026-07-12) — prod never runs CDX for
+# these. Nothing WARN-shaped is archived pre-2000.
+#
+# Dedup: within a file, distinct same-day worksites of one employer collapse
+# per notice_id (no zip in the simple era) — the PDF era's accepted
+# granularity. Five notices also repeat across adjacent year files as
+# revisions (the layoff date pushed out); files ingest in filename order, so
+# the original filing's row wins at upsert.
+_CA_HTML_ORIGINAL = "http://www.edd.ca.gov/warn/{name}"
+_CA_HTML_SLICES: dict[str, str] = {
+    "eddwarncnal00.htm": "20070611152947",
+    "eddwarncnmz00.htm": "20060923175425",
+    "eddwarncnal01.htm": "20070611153203",
+    "eddwarncnmz01.htm": "20060923150609",
+    "eddwarncnal02.htm": "20070611152138",
+    "eddwarncnmz02.htm": "20060923175354",
+    "eddwarncnal03.htm": "20060923175202",
+    "eddwarncnmz03.htm": "20060923175608",
+    "eddwarncndab03.htm": "20060924053638",
+    "eddwarncndcd03.htm": "20060924081538",
+    "eddwarncndef03.htm": "20060924081544",
+    "eddwarncndgl03.htm": "20060924081638",
+    "eddwarncndmr03.htm": "20060924081607",
+    "eddwarncnds03.htm": "20060924081600",
+    "eddwarncndtz03.htm": "20060924081515",
+    "eddwarncndab04.asp": "20060924053218",
+    "eddwarncndcd04.asp": "20060924081152",
+    "eddwarncndef04.asp": "20060924081200",
+    "eddwarncndgl04.asp": "20060924081132",
+    "eddwarncndmr04.asp": "20060924081240",
+    "eddwarncnds04.asp": "20060924081250",
+    "eddwarncndtz04.asp": "20060924081125",
+    "eddwarncndab05.asp": "20060924053350",
+    "eddwarncndcd05.asp": "20060924081450",
+    "eddwarncndef05.asp": "20060924081318",
+    "eddwarncndgl05.asp": "20060924081341",
+    "eddwarncndmr05.asp": "20060924081424",
+    "eddwarncnds05.asp": "20060924081404",
+    "eddwarncndtz05.asp": "20060924081418",
+}
+_CA_HTML_DETAIL_RE = re.compile(
+    r"eddwarncnd(?:ab|cd|ef|gl|mr|s|tz)\d{2}\.(?:htm|asp)$", re.I
+)
+_CA_HTML_SIMPLE_RE = re.compile(r"eddwarncn(?:al|mz)(\d{2})\.htm$", re.I)
+# Layoff dates from here on appear in the detailed Jul-Dec 2003 files.
+_CA_SIMPLE_2003_CUTOFF = date(2003, 7, 1)
+
+_SIMPLE_HEADER = ["company name", "location", "employees affected", "layoff date"]
+_HTML_DATE_RE = re.compile(r"^\d{1,2}/\d{1,2}/\d{2,4}$")
+_HTML_NOTICE_DATE_RE = re.compile(r"Date Notice Received:\s*(\d{1,2}/\d{1,2}/\d{2,4})")
+_HTML_CLOSURE_RE = re.compile(r"Layoff or Closure:\s*(.*?)\s*(?:Severance:|$)")
+
+
+def ca_html_slice_urls() -> list[str]:
+    return [
+        _WAYBACK_REPLAY.format(ts=ts, url=_CA_HTML_ORIGINAL.format(name=name))
+        for name, ts in sorted(_CA_HTML_SLICES.items())
+    ]
+
+
+def _html_soup(raw: bytes):
+    from bs4 import BeautifulSoup
+
+    # The pages declare `charset=iso-1252` (sic) — decode as cp1252 ourselves.
+    # lxml, not html.parser: the legacy markup (unclosed <P>/<FONT> inside
+    # cells) mis-nests some files' tables under html.parser.
+    return BeautifulSoup(raw.decode("cp1252", "replace"), "lxml")
+
+
+def _td_text(td) -> str:
+    return " ".join(td.get_text(" ", strip=True).split())
+
+
+def parse_ca_simple_html(raw: bytes, source_url: str | None = None) -> list[NoticeRow]:
+    """Parse a simple-format year slice (Company / Location / Count / Layoff Date)."""
+    soup = _html_soup(raw)
+    all_trs = soup.find_all("tr")
+    header_at = next(
+        (
+            i
+            for i, tr in enumerate(all_trs)
+            if [_td_text(td).lower() for td in tr.find_all("td", recursive=False)]
+            == _SIMPLE_HEADER
+        ),
+        None,
+    )
+    if header_at is None:
+        raise ParseFailed("CA simple HTML: header row not found")
+
+    cutoff = None
+    m = _CA_HTML_SIMPLE_RE.search(source_url or "")
+    if m and m.group(1) == "03":
+        cutoff = _CA_SIMPLE_2003_CUTOFF
+
+    rows: list[NoticeRow] = []
+    for tr in all_trs[header_at + 1 :]:
+        tds = tr.find_all("td", recursive=False)
+        if len(tds) != 4:
+            continue
+        employer = as_str(_td_text(tds[0]))
+        layoff_date = as_date(_td_text(tds[3]))
+        if not employer or layoff_date is None:
+            continue
+        if cutoff is not None and layoff_date >= cutoff:
+            continue
+        rows.append(
+            NoticeRow(
+                state="CA",
+                employer=employer,
+                notice_date=layoff_date,  # proxy: the format has no received date
+                effective_date=layoff_date,
+                layoff_count=as_int(_td_text(tds[2])),
+                city=as_str(_td_text(tds[1])),
+                source_url=source_url or SOURCE_URL,
+            )
+        )
+    if not rows:
+        raise ParseFailed("CA simple HTML: no data rows parsed")
+    return rows
+
+
+def parse_ca_detail_html(raw: bytes, source_url: str | None = None) -> list[NoticeRow]:
+    """Parse a detailed-format slice — the HTML twin of ``parse_ca_detail_pdf``.
+
+    Each record is a run of table rows: a main row (company+address cell,
+    count, layoff date, LWIA — dropped like the PDF parser drops it) followed
+    by metadata rows carrying "Date Notice Received:" and "Layoff or
+    Closure:"; the per-record job-title breakdown is skipped.
+    """
+    soup = _html_soup(raw)
+    all_trs = soup.find_all("tr")
+
+    def main_tds(tr) -> list | None:
+        tds = tr.find_all("td", recursive=False)
+        if len(tds) == 4 and _HTML_DATE_RE.match(_td_text(tds[2])):
+            return tds
+        return None
+
+    rows: list[NoticeRow] = []
+    current: dict | None = None
+
+    def flush() -> None:
+        if current is None:
+            return
+        address = ", ".join(current["address_lines"]) or None
+        zip_code = None
+        if address:
+            m = _ZIP_AFTER_STATE_RE.search(address)
+            zip_code = m.group(1) if m else zip_from(None, address)
+        rows.append(
+            NoticeRow(
+                state="CA",
+                employer=" ".join(current["employer_lines"]),
+                notice_date=current["notice_date"],
+                effective_date=current["effective_date"],
+                layoff_count=current["count"],
+                closure_type=current["closure"],
+                city=city_from_address(address),
+                zip=zip_code,
+                address=address,
+                source_url=source_url or SOURCE_URL,
+            )
+        )
+
+    for tr in all_trs:
+        tds = main_tds(tr)
+        if tds is not None:
+            flush()
+            employer_lines: list[str] = []
+            address_lines: list[str] = []
+            for line in tds[0].get_text("\n").splitlines():
+                line = " ".join(line.split())
+                if not line:
+                    continue
+                looks_addr = (
+                    line[:1].isdigit()
+                    or bool(_CITYLINE_RE.search(line))
+                    or line.upper().startswith(("PO BOX", "P.O", "P O"))
+                )
+                if looks_addr:
+                    address_lines.append(line)
+                elif not address_lines:
+                    employer_lines.append(line)
+            if not employer_lines:
+                continue
+            current = {
+                "employer_lines": employer_lines,
+                "address_lines": address_lines,
+                "count": as_int(_td_text(tds[1])),
+                "effective_date": as_date(_td_text(tds[2])),
+                "notice_date": None,
+                "closure": None,
+            }
+            continue
+        if current is None:
+            continue
+        joined = " ".join(tr.get_text(" ", strip=True).split())
+        m = _HTML_NOTICE_DATE_RE.search(joined)
+        if m:
+            current["notice_date"] = as_date(m.group(1))
+        m = _HTML_CLOSURE_RE.search(joined)
+        if "Layoff or Closure:" in joined and m:
+            value = m.group(1).strip()
+            if value and value.upper() != "EDNS":
+                current["closure"] = value
+    flush()
+
+    if not rows:
+        raise ParseFailed("CA detail HTML: no WARN records found")
+    return rows
 
 
 register(CAScraper())

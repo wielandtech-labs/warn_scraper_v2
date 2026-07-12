@@ -370,6 +370,10 @@ def test_backfill_historical_ca_upserts_rows_xlsx(db) -> None:
          patch(
              "warn_v2.scripts.backfill_historical._discover_ca_historical_urls",
              return_value=[],
+         ), \
+         patch(
+             "warn_v2.scripts.backfill_historical.ca_html_slice_urls",
+             return_value=[],
          ):
         mock_disc.return_value = [archive_url]
 
@@ -1235,6 +1239,10 @@ def test_backfill_historical_ca_upserts_rows_pdf(db) -> None:
     with patch("warn_v2.scripts.backfill_historical._discover_archive_urls") as mock_disc, \
          patch(
              "warn_v2.scripts.backfill_historical._discover_ca_historical_urls",
+             return_value=[],
+         ), \
+         patch(
+             "warn_v2.scripts.backfill_historical.ca_html_slice_urls",
              return_value=[],
          ):
         mock_disc.return_value = [archive_url]
