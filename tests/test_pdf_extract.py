@@ -267,3 +267,41 @@ def test_ocr_text_degrades_to_empty_without_libs():
     from warn_v2.pdf_extract import _ocr_text
 
     assert _ocr_text(b"%PDF-1.4 fake") == ""
+
+
+# ---------------------------------------------------------------------------
+# _capped_ocr_dpi — bound OCR rasterization memory for oversized pages
+# ---------------------------------------------------------------------------
+
+def test_capped_ocr_dpi_unchanged_for_normal_page():
+    from warn_v2.pdf_extract import _capped_ocr_dpi
+
+    with patch("warn_v2.pdf_extract.pdfplumber") as mock_pp:
+        page = MagicMock(width=612, height=792)  # US Letter, in points
+        mock_pp.open.return_value.__enter__.return_value.pages = [page]
+
+        assert _capped_ocr_dpi(_make_fake_pdf_bytes(), 200, 3) == 200
+
+
+def test_capped_ocr_dpi_lowered_for_oversized_page():
+    from warn_v2.pdf_extract import _capped_ocr_dpi
+
+    with patch("warn_v2.pdf_extract.pdfplumber") as mock_pp:
+        # A scan embedded at an abnormal point size — a real TN Wayback
+        # capture was seen at 1600x2140pt vs. ~612x792pt for a normal letter
+        # page, which OOM'd the pdf-downloader Job at dpi=200 (~4444x5944px).
+        page = MagicMock(width=1600, height=2140)
+        mock_pp.open.return_value.__enter__.return_value.pages = [page]
+
+        dpi = _capped_ocr_dpi(_make_fake_pdf_bytes(), 200, 3)
+
+    assert dpi < 200
+    assert 2140 * dpi / 72 <= 2500  # longest side stays within the raster budget
+
+
+def test_capped_ocr_dpi_falls_back_on_open_error():
+    from warn_v2.pdf_extract import _capped_ocr_dpi
+
+    with patch("warn_v2.pdf_extract.pdfplumber") as mock_pp:
+        mock_pp.open.side_effect = Exception("corrupt PDF")
+        assert _capped_ocr_dpi(b"not a pdf", 200, 3) == 200

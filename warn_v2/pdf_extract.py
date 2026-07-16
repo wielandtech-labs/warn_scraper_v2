@@ -104,6 +104,36 @@ def _normalize_state(raw: str) -> str | None:
 # the opening page(s), and OCR is slow (~seconds/page).
 _OCR_MAX_PAGES = 3
 
+# Cap OCR rasterization so an oversized page (a scan embedded at an abnormal
+# point size — a TN Wayback capture was seen at 1600x2140pt vs. the ~612x792pt
+# of a normal letter page) can't blow past the pdf-downloader Job's memory
+# limit. pdftoppm renders directly at the capped resolution (poppler computes
+# the render DPI from the target size up front, it doesn't rasterize at full
+# size and then downscale), so this actually bounds peak memory.
+_MAX_OCR_RASTER_PX = 2500
+
+
+def _capped_ocr_dpi(pdf_bytes: bytes, requested_dpi: int, max_pages: int) -> int:
+    """Lower *requested_dpi* if it would rasterize a considered page past
+    ``_MAX_OCR_RASTER_PX`` on its longest side.
+
+    Falls back to *requested_dpi* unchanged if the page size can't be read —
+    the caller's own pdfplumber.open/convert_from_bytes will fail the same
+    way moments later, which already degrades gracefully.
+    """
+    try:
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            max_pt = max(
+                (max(p.width, p.height) for p in pdf.pages[:max_pages]),
+                default=0,
+            )
+    except Exception:
+        return requested_dpi
+    if max_pt <= 0:
+        return requested_dpi
+    capped = int(_MAX_OCR_RASTER_PX * 72 / max_pt)
+    return min(requested_dpi, capped) if capped > 0 else requested_dpi
+
 # A WARN letter addresses state officials (often at the capital) and may list a
 # corporate HQ, so the worksite must be told apart from these. Worksite cues sit
 # near the real address ("located at 1 Moore Ave, Buckhannon, WV 26201"); recipient
@@ -178,8 +208,9 @@ def _ocr_text(pdf_bytes: bytes, max_pages: int = _OCR_MAX_PAGES) -> str:
         log.debug("pdf_extract: OCR libraries unavailable: %s", e)
         return ""
     try:
+        dpi = _capped_ocr_dpi(pdf_bytes, 200, max_pages)
         images = convert_from_bytes(
-            pdf_bytes, dpi=200, first_page=1, last_page=max_pages
+            pdf_bytes, dpi=dpi, first_page=1, last_page=max_pages
         )
     except Exception as e:  # poppler missing / unrasterizable
         log.debug("pdf_extract: OCR rasterize failed: %s", e)
@@ -218,6 +249,7 @@ def ocr_word_boxes(
         log.debug("pdf_extract: OCR libraries unavailable: %s", e)
         return []
     try:
+        dpi = _capped_ocr_dpi(pdf_bytes, dpi, max_pages)
         images = convert_from_bytes(pdf_bytes, dpi=dpi, first_page=1, last_page=max_pages)
     except Exception as e:  # poppler missing / unrasterizable
         log.debug("pdf_extract: OCR rasterize failed: %s", e)
