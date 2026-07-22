@@ -220,6 +220,76 @@ def test_industry_payload_carries_sector_bls_context(db):
     assert "bls_context" not in json.loads(client.prompts[1])
 
 
+def _seed_monthly_history(db, state: str, *, as_of: date, months: int = 40) -> None:
+    """40 complete months of history ending the month before as_of (clears
+    the ets-seasonal forecast ladder tier) plus a handful of very recent
+    notices (clears the MIN_NOTICES narrative gate)."""
+    from warn_v2.reports.aggregate import _month_start_back
+
+    for i in range(months):
+        month_start = _month_start_back(as_of, months - i)
+        db.add(
+            Notice(
+                notice_id=f"hist_{state}_{i}",
+                state=state,
+                employer=f"HistEmployer {i}",
+                notice_date=month_start,
+                layoff_count=50 + (i % 4) * 10,
+            )
+        )
+    for j in range(5):
+        db.add(
+            Notice(
+                notice_id=f"recent_{state}_{j}",
+                state=state,
+                employer=f"RecentEmployer {j}",
+                notice_date=as_of - timedelta(days=j),
+                layoff_count=20,
+            )
+        )
+    db.commit()
+
+
+def test_state_and_national_payload_carry_forecast_with_sufficient_history(db):
+    import json
+
+    from warn_v2.reports.generate import generate_national_report, generate_state_report
+
+    as_of = date(2026, 7, 1)
+    _seed_monthly_history(db, "CA", as_of=as_of)
+    client = PromptCapturingClient()
+
+    state_md, state_status = generate_state_report(db, client, "CA", as_of=as_of)
+    assert state_status == "ok"
+    state_payload = json.loads(client.prompts[0])
+    assert "forecast" in state_payload
+    assert state_payload["forecast"]["model"] in {"ets-seasonal", "ets-trend", "ets-level"}
+    assert len(state_payload["forecast"]["points"]) == 6
+    assert "## Outlook — next 6 months (model estimate)" in state_md
+
+    national_md, national_status = generate_national_report(db, client, as_of=as_of)
+    assert national_status == "ok"
+    national_payload = json.loads(client.prompts[1])
+    assert "forecast" in national_payload
+    assert "## Outlook — next 6 months (model estimate)" in national_md
+
+
+def test_sparse_history_has_no_forecast_key_or_section(db):
+    import json
+
+    from warn_v2.reports.generate import generate_state_report
+
+    # _seed_state puts every notice on a single day -- one month of history,
+    # far below even the lowest forecast ladder tier.
+    _seed_state(db, "CA")
+    client = PromptCapturingClient()
+    md, status = generate_state_report(db, client, "CA")
+    assert status == "ok"
+    payload = json.loads(client.prompts[0])
+    assert "forecast" not in payload
+    assert "Outlook" not in md
+
+
 def test_single_state_with_narrative(db, fake_client, tmp_path):
     _seed_state(db, "CA")
     result = CliRunner().invoke(
@@ -397,3 +467,51 @@ def test_full_dry_run_writes_nothing(db, fake_client, tmp_path):
     )
     assert result.exit_code == 0, result.output
     assert list(tmp_path.iterdir()) == []
+
+
+def test_full_run_writes_forecasts_json(db, fake_client, tmp_path):
+    import json
+
+    _seed_monthly_history(db, "CA", as_of=date.today())
+    result = CliRunner().invoke(
+        cli.main, ["sentiment-report", "--reports-dir", str(tmp_path), "--skip-llm"]
+    )
+    assert result.exit_code == 0, result.output
+    names = {p.name for p in tmp_path.iterdir()}
+    assert "forecasts.json" in names
+    payload = json.loads((tmp_path / "forecasts.json").read_text(encoding="utf-8"))
+    assert payload["schema"] == 1
+    assert "CA" in payload["jurisdictions"]
+    assert "US" in payload["jurisdictions"]
+    assert any(line.startswith("forecasts=") for line in result.output.splitlines())
+
+
+@pytest.mark.parametrize(
+    "extra_args", [["--state", "CA"], ["--national"], ["--industry", "31-33"]]
+)
+def test_targeted_runs_do_not_write_forecasts_json(db, fake_client, tmp_path, extra_args):
+    _seed_state(db, "CA", naics="311999")
+    result = CliRunner().invoke(
+        cli.main, ["sentiment-report", "--reports-dir", str(tmp_path), *extra_args]
+    )
+    assert result.exit_code == 0, result.output
+    assert "forecasts.json" not in {p.name for p in tmp_path.iterdir()}
+
+
+def test_forecasts_build_failure_does_not_abort_run(db, fake_client, tmp_path, monkeypatch):
+    from warn_v2.reports import forecast as forecast_mod
+
+    monkeypatch.setattr(
+        forecast_mod,
+        "build_forecasts",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    _seed_state(db, "CA", naics="311999")
+    result = CliRunner().invoke(
+        cli.main, ["sentiment-report", "--reports-dir", str(tmp_path), "--skip-llm"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "forecasts=failed" in result.output
+    names = {p.name for p in tmp_path.iterdir()}
+    assert "forecasts.json" not in names
+    assert "US.md" in names  # the rest of the run still completed

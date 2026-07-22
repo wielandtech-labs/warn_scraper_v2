@@ -201,6 +201,20 @@ def test_monthly_series_and_closure_split(db):
     assert agg.closure_split == {"Layoff": 1, "Closure": 1, "Unspecified": 1}
 
 
+def test_monthly_full_reaches_further_back_than_monthly(db):
+    _notice(db, notice_date=date(2021, 8, 1), layoff_count=5)  # ~59 months back
+    _notice(db, notice_date=date(2025, 6, 1), layoff_count=99)  # outside monthly's 12
+    _notice(db, notice_date=date(2026, 5, 1), layoff_count=10)
+    db.commit()
+
+    agg = compute_state_aggregates(db, "CA", as_of=AS_OF)
+    assert ("2021-08", 1, 5) in agg.monthly_full
+    assert ("2025-06", 1, 99) in agg.monthly_full
+    # monthly (the 12-month display series) excludes the deep-history row.
+    assert all(m >= "2025-08" for m, _, _, _ in agg.monthly)
+    assert not any(m == "2021-08" for m, _, _, _ in agg.monthly)
+
+
 def test_prompt_payload_shape(db):
     for i in range(12):
         _notice(db, notice_date=date(2026, 5, 1), layoff_count=10, county=f"County{i:02d}")

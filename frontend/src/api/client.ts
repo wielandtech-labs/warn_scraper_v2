@@ -12,6 +12,7 @@ import type {
   CountyImpactStat,
   EmployerStat,
   FamilyMemberOut,
+  ForecastOut,
   IndustryScorecard,
   IndustryStat,
   MonthStat,
@@ -301,6 +302,11 @@ export const api = {
   /** One sector's scorecard as raw markdown (404 if none). */
   getIndustryReport: (sector: string) =>
     getText(`/api/reports/industries/${encodeURIComponent(sector)}`),
+  /** One jurisdiction's 6-month forecast (404 until the weekly job has run,
+   *  or if its history never cleared the lowest forecast model tier).
+   *  "US" returns the national forecast. */
+  getForecast: (state: string) =>
+    get<ForecastOut>(`/api/reports/forecasts/${encodeURIComponent(state)}`),
 
   // ---------- Search ----------
   search: (q: string, limit = 8) =>
