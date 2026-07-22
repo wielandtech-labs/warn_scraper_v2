@@ -1499,6 +1499,12 @@ def sentiment_report_cmd(
     report to figures-only; the run exits non-zero only when every attempted
     narrative failed (systemic outage).
 
+    Before generating anything, one narrate() call checks Ollama is actually
+    serving (not just reachable -- a service that's up but can't generate,
+    e.g. a broken GPU passthrough, would otherwise only surface once per
+    report). If it fails, every report still writes figures-only rather than
+    each independently retrying against a service already known to be down.
+
     \b
     Examples:
       warn-v2 sentiment-report                       # states + national + industries
@@ -1517,7 +1523,7 @@ def sentiment_report_cmd(
         generate_reports,
         write_report,
     )
-    from warn_v2.reports.ollama import build_ollama_client
+    from warn_v2.reports.ollama import DeadClient, build_ollama_client, check_ollama_health
     from warn_v2.states import is_valid_state
 
     if state and industry:
@@ -1534,10 +1540,27 @@ def sentiment_report_cmd(
         sys.exit(1)
 
     client = None if skip_llm else build_ollama_client()
+    # Up-front health check: one narrate() call (with its own built-in
+    # retries) instead of discovering a systemic outage one narrative at a
+    # time across every report, each paying its own retry-with-backoff cost.
+    # A failure swaps in DeadClient, which fails every subsequent narrate()
+    # call instantly -- reports still write with the same llm_unavailable
+    # figures-only degradation as an isolated per-report failure, just
+    # without hammering a service already known to be down.
+    ollama_healthy = True
+    if client is not None:
+        ollama_healthy = check_ollama_health(client)
+        if not ollama_healthy:
+            click.echo(
+                "ollama health check failed; narratives will be skipped this run "
+                "(deterministic figures and forecasts still generate)",
+                err=True,
+            )
+            client = DeadClient()
     # BLS macro context feeds only the national + industry narratives; skip
     # the fetch when no narrative will be written. Fail-open: None is fine.
     bls = None
-    if client is not None and state is None:
+    if client is not None and ollama_healthy and state is None:
         target_sectors = [industry] if industry else [sid for sid, _, _ in NAICS_SECTORS]
         bls = fetch_bls_context(target_sectors)
         click.echo(f"bls_context={'ok' if bls else 'unavailable'}")

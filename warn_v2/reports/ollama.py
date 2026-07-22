@@ -113,3 +113,33 @@ def build_ollama_client() -> OllamaClient:
         base_url=os.getenv("OLLAMA_BASE_URL", DEFAULT_BASE_URL),
         model=os.getenv("OLLAMA_MODEL", DEFAULT_MODEL),
     )
+
+
+def check_ollama_health(client: NarrativeClient) -> bool:
+    """Up-front probe before a full report run: a tiny narrate() call
+    exercises the same model-load path a real narrative would, catching
+    failures a bare ping (e.g. /api/tags) would miss -- the ollama daemon
+    itself can be perfectly reachable while the model-serving path underneath
+    it is broken (seen 2026-07-22: GPU passthrough down -> silent CPU
+    fallback -> OOM-killed on every generate call, HTTP 500). narrate()'s own
+    tenacity retryer (3 attempts, exponential backoff) already absorbs a
+    single transient blip -- e.g. right after a fresh Ollama restart -- so no
+    extra retry loop is layered on here."""
+    try:
+        client.narrate(system="Reply with exactly: OK", prompt="Health check.")
+        return True
+    except OllamaUnavailable as exc:
+        log.warning("Ollama health check failed: %s", exc)
+        return False
+
+
+class DeadClient:
+    """Stand-in NarrativeClient for the rest of a run once
+    check_ollama_health() has confirmed Ollama is unreachable: every call
+    raises immediately, no network I/O and no retries. Report generation
+    still writes deterministic figures and correctly records each report's
+    narrative_status as llm_unavailable -- this just skips redundantly
+    re-discovering the same outage once per report."""
+
+    def narrate(self, *, system: str, prompt: str) -> str:
+        raise OllamaUnavailable("Ollama unavailable (failed the startup health check)")
