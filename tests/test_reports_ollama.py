@@ -7,7 +7,13 @@ import respx
 from tenacity import wait_none
 
 from warn_v2.reports import ollama as ollama_mod
-from warn_v2.reports.ollama import OllamaClient, OllamaUnavailable, build_ollama_client
+from warn_v2.reports.ollama import (
+    DeadClient,
+    OllamaClient,
+    OllamaUnavailable,
+    build_ollama_client,
+    check_ollama_health,
+)
 
 BASE = "http://ollama.test:11434"
 
@@ -66,6 +72,46 @@ def test_narrate_4xx_fails_fast():
     with pytest.raises(OllamaUnavailable):
         OllamaClient(base_url=BASE).narrate(system="s", prompt="p")
     assert route.call_count == 1  # no retry on 4xx
+
+
+@respx.mock
+def test_check_ollama_health_true_on_success():
+    respx.post(f"{BASE}/api/chat").respond(json={"message": {"content": "OK"}})
+    assert check_ollama_health(OllamaClient(base_url=BASE)) is True
+
+
+@respx.mock
+def test_check_ollama_health_false_on_failure(caplog):
+    respx.post(f"{BASE}/api/chat").respond(500, text="boom")
+    assert check_ollama_health(OllamaClient(base_url=BASE)) is False
+    assert "Ollama health check failed" in caplog.text
+
+
+def test_check_ollama_health_reuses_narrate_retries():
+    """No separate retry loop is layered on top -- narrate()'s own tenacity
+    retryer (3 attempts) is what absorbs a transient blip."""
+    calls = []
+
+    class FlakyOnceClient:
+        def narrate(self, *, system: str, prompt: str) -> str:
+            calls.append(1)
+            if len(calls) == 1:
+                raise OllamaUnavailable("transient")
+            return "OK"
+
+    # A client that fails outright never recovers -- check_ollama_health
+    # makes exactly one narrate() call and trusts its result.
+    assert check_ollama_health(FlakyOnceClient()) is False
+    assert calls == [1]
+
+
+def test_dead_client_raises_immediately_no_state():
+    client = DeadClient()
+    with pytest.raises(OllamaUnavailable, match="health check"):
+        client.narrate(system="sys", prompt="prompt")
+    # Calling it again behaves identically -- no state, no network.
+    with pytest.raises(OllamaUnavailable):
+        client.narrate(system="sys", prompt="prompt")
 
 
 def test_build_ollama_client_env_overrides(monkeypatch: pytest.MonkeyPatch):
