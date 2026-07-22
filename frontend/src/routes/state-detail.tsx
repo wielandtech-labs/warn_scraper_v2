@@ -2,9 +2,10 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import {
+  Area,
   CartesianGrid,
+  ComposedChart,
   Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -14,6 +15,7 @@ import {
 import { api, ApiError } from "../api/client";
 import { AlertSignup } from "../components/AlertSignup";
 import { CountyImpact } from "../components/CountyImpact";
+import { ForecastNote } from "../components/ForecastNote";
 import { NoticeMap } from "../components/NoticeMap";
 import { ProjectionNote } from "../components/ProjectionNote";
 import { ProjectionTooltip } from "../components/ProjectionTooltip";
@@ -29,6 +31,7 @@ import { UnavailableNotice } from "../components/UnavailableNotice";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useTheme } from "../hooks/useTheme";
 import { STATE_NAMES, fmtCompact, fmtDate, fmtNum, fmtPeriod, stateName } from "../lib/format";
+import { withForecastSeries } from "../lib/forecast";
 import { withProjectionSeries } from "../lib/projection";
 import { CHART_COLORS } from "../lib/themeColors";
 import { LAW_BLOCKED, NO_COUNTS } from "../lib/unavailable";
@@ -64,6 +67,16 @@ export function StateDetailPage() {
     queryKey: ["stats", "over-time", { state: code, after, bucket }],
     queryFn: () => api.statsOverTime({ state: code, after, bucket }),
     enabled: valid && !blocked,
+  });
+  // Weekly statistical forecast — a 404 just means this state never cleared
+  // the lowest forecast model tier (or the job hasn't run yet); fall back to
+  // the pace projection instead of retrying.
+  const forecast = useQuery({
+    queryKey: ["forecast", code],
+    queryFn: () => api.getForecast(code),
+    enabled: valid && !blocked && bucket === "month",
+    retry: (failureCount, error) =>
+      !(error instanceof ApiError && error.status === 404) && failureCount < 2,
   });
   const topEmployers = useQuery({
     queryKey: ["stats", "top-employers", { state: code, after }, 10],
@@ -115,12 +128,20 @@ export function StateDetailPage() {
   const row = byState.data?.find((s) => s.state === code);
   const noticeCount = row?.notice_count ?? 0;
   const layoffTotal = row?.layoff_total ?? 0;
-  const { data: timeData, hasProjection } = withProjectionSeries(
-    (overTime.data ?? []).map((r) => ({
-      ...r,
-      label: fmtPeriod(r.period, bucket),
-    })),
+  const labeledTimeData = (overTime.data ?? []).map((r) => ({
+    ...r,
+    label: fmtPeriod(r.period, bucket),
+  }));
+  const { data: forecastData, hasForecast } = withForecastSeries(
+    labeledTimeData,
+    forecast.data,
+    bucket,
   );
+  // The forecast supersedes the pace projection when active — an ETS point
+  // estimate beats a linear pace estimate, and two overlapping dashed
+  // segments would just be noise.
+  const { data: projectedData, hasProjection } = withProjectionSeries(labeledTimeData);
+  const timeData = hasForecast ? forecastData : projectedData;
 
   return (
     <div className="space-y-6">
@@ -195,7 +216,7 @@ export function StateDetailPage() {
               aria-label={`Line chart of notice counts and workers affected in ${name} over time`}
             >
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={timeData}>
+                <ComposedChart data={timeData}>
                   <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
                   <XAxis
                     dataKey="label"
@@ -219,6 +240,21 @@ export function StateDetailPage() {
                     content={<ProjectionTooltip />}
                     contentStyle={chart.tooltip}
                     labelStyle={chart.tooltipLabel}
+                  />
+                  {/* 80% prediction-interval band for the forecast — layoffs
+                      only, so it doesn't compete visually with a second band
+                      for notices. All-null (invisible) when no forecast. */}
+                  <Area
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="forecast_layoff_band"
+                    name="Workers affected (forecast range)"
+                    fill={chart.layoffs}
+                    fillOpacity={0.12}
+                    stroke="none"
+                    legendType="none"
+                    animationBegin={1500}
+                    isAnimationActive={false}
                   />
                   <Line
                     yAxisId="left"
@@ -266,11 +302,41 @@ export function StateDetailPage() {
                     dot={false}
                     legendType="none"
                   />
-                </LineChart>
+                  {/* Dashed 6-month forecast; supersedes the projection above
+                      when active (both are all-null otherwise). */}
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="forecast_notice_count"
+                    name="Notices (forecast)"
+                    stroke={chart.notices}
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    animationBegin={1500}
+                    dot={false}
+                    legendType="none"
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="forecast_layoff_total"
+                    name="Workers affected (forecast)"
+                    stroke={chart.layoffs}
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    animationBegin={1500}
+                    dot={false}
+                    legendType="none"
+                  />
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
-            {hasProjection && (
-              <ProjectionNote periodLabel={timeData[timeData.length - 1].label} />
+            {hasForecast && forecast.data ? (
+              <ForecastNote lastHistoryLabel={fmtPeriod(forecast.data.last_history_month, "month")} />
+            ) : (
+              hasProjection && (
+                <ProjectionNote periodLabel={timeData[timeData.length - 1].label} />
+              )
             )}
           </>
         )}

@@ -280,3 +280,24 @@ export interface IndustryScorecard {
   delta_pct: number | null;
   generated_at: string;
 }
+
+// /reports/forecasts/{state} — a 6-month statistical outlook, built weekly
+// alongside the sentiment reports (see warn_v2.reports.forecast).
+export interface ForecastPointOut {
+  month: string; // "YYYY-MM"
+  notice_count: number;
+  notice_count_lo: number;
+  notice_count_hi: number;
+  layoff_total: number;
+  layoff_total_lo: number;
+  layoff_total_hi: number;
+}
+
+export interface ForecastOut {
+  state: string; // state code or "US"
+  model: "ets-seasonal" | "ets-trend" | "ets-level";
+  history_months: number;
+  last_history_month: string; // "YYYY-MM"
+  generated_at: string;
+  points: ForecastPointOut[]; // 6 months, oldest first
+}

@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import date
 
 from warn_v2.reports.aggregate import DeltaRow, StateAggregates
+from warn_v2.reports.forecast import Forecast, ForecastPoint
 from warn_v2.reports.generate import write_report
 from warn_v2.reports.industry import SectorAggregates
 from warn_v2.reports.render import (
@@ -162,6 +163,58 @@ def test_render_ok_embeds_sanitized_narrative():
     assert "| 2026-06 | 6 | 300 | 0 |" in md
     assert "NAICS coverage: 62%" in md
     assert "Current-window notice mix: 7 Layoff · 3 Closure." in md
+
+
+def _forecast(**overrides) -> Forecast:
+    base = dict(
+        model="ets-seasonal",
+        history_months=36,
+        last_history_month="2026-06",
+        points=[
+            ForecastPoint(
+                month="2026-07", notices=12, notices_lo=6, notices_hi=19,
+                layoffs=1450, layoffs_lo=700, layoffs_hi=2300,
+            ),
+            ForecastPoint(
+                month="2026-08", notices=10, notices_lo=5, notices_hi=16,
+                layoffs=1100, layoffs_lo=500, layoffs_hi=1900,
+            ),
+        ],
+    )
+    base.update(overrides)
+    return Forecast(**base)
+
+
+def test_render_without_forecast_is_unchanged():
+    md_no_kwarg = render_report(_agg(), None, narrative_status="skipped")
+    md_explicit_none = render_report(_agg(), None, narrative_status="skipped", forecast=None)
+    assert md_no_kwarg == md_explicit_none
+    assert "Outlook" not in md_no_kwarg
+
+
+def test_render_with_forecast_adds_outlook_section():
+    md = render_report(_agg(), None, narrative_status="skipped", forecast=_forecast())
+    assert "## Outlook — next 6 months (model estimate)" in md
+    assert "| 2026-07 | 12 | 6-19 | 1450 | 700-2300 |" in md
+    assert "| 2026-08 | 10 | 5-16 | 1100 | 500-1900 |" in md
+    assert "damped trend, seasonal" in md
+    assert "36 months of history through 2026-06" in md
+    assert "floored at zero" in md
+    # The Outlook section renders between the monthly trend and the footer.
+    assert md.index("Monthly trend") < md.index("Outlook") < md.index("_Deterministic figures")
+
+
+def test_render_forecast_model_labels():
+    md = render_report(
+        _agg(), None, narrative_status="skipped", forecast=_forecast(model="ets-trend")
+    )
+    assert "exponential smoothing, damped trend)" in md
+    assert "damped trend, seasonal" not in md
+
+    md = render_report(
+        _agg(), None, narrative_status="skipped", forecast=_forecast(model="ets-level")
+    )
+    assert "exponential smoothing, level only)" in md
 
 
 def test_render_insufficient_data():
