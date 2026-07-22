@@ -23,6 +23,7 @@ from warn_v2.reports.aggregate import (
     compute_national_aggregates,
     compute_state_aggregates,
 )
+from warn_v2.reports.forecast import compute_forecast
 from warn_v2.reports.industry import (
     SectorAggregates,
     compute_sector_aggregates,
@@ -53,6 +54,9 @@ The user message is a JSON object of pre-computed figures:
 - monthly: the last 12 months; layoffs_year_earlier is the same calendar
   month one year before.
 - naics_coverage_pct.
+- forecast (optional): a statistical 6-month outlook computed upstream from
+  the monthly history — per month a point estimate and an 80% band (lo/hi),
+  floored at zero. It is a model projection, not recorded data.
 
 Structure the prose in three short movements:
 1. Headline: current-window job losses with BOTH comparisons — vs the prior
@@ -61,11 +65,19 @@ Structure the prose in three short movements:
    trailing-12-month totals for the long-run picture.
 2. Geography: the counties where job losses are concentrated, rising, or easing.
 3. Industry: the same for sectors.
+If forecast is present, close with ONE OR TWO sentences on the outlook: cite
+only the first and last forecast months, always together with their lo-hi
+ranges, and attribute them to the model ("the model projects...", "the
+statistical outlook suggests..."). A projected rise in job losses is a
+worsening outlook; a projected fall is an easing one. If forecast is absent,
+say nothing about the future.
 
 Hard rules:
 - Use ONLY numbers present in the JSON. Never compute, extrapolate, or invent
   figures, counties, industries, companies, or causes. Cite percentages only
-  from the pct_change fields.
+  from the pct_change fields. The forecast block is the sole exception for
+  forward-looking statements: report its numbers verbatim, never adjust,
+  extend, combine, or re-derive them, and never present them as recorded data.
 - HARD LIMIT: 250 words. Cover only the biggest movers - at most three
   geographic areas and three industry rows. Plain prose; no headings, no
   bullet lists, no tables.
@@ -101,6 +113,9 @@ The user message is a JSON object of pre-computed figures:
 - bls_context (optional): official BLS month-over-month changes in total
   nonfarm payroll employment (thousands, seasonally adjusted) and the latest
   unemployment rate, for the same months.
+- forecast (optional): a statistical 6-month outlook computed upstream from
+  the monthly history — per month a point estimate and an 80% band (lo/hi),
+  floored at zero. It is a model projection, not recorded data.
 
 Structure the prose in three short movements:
 1. Headline: national current-window job losses with BOTH comparisons — vs
@@ -113,11 +128,19 @@ If bls_context is present, close with ONE sentence of macro context
 attributed to BLS ("BLS reports...") — whether overall payrolls rose or fell
 while these WARN losses occurred, and the unemployment rate. If it is absent,
 do not mention BLS.
+If forecast is present, close with ONE OR TWO sentences on the outlook: cite
+only the first and last forecast months, always together with their lo-hi
+ranges, and attribute them to the model ("the model projects...", "the
+statistical outlook suggests..."). A projected rise in job losses is a
+worsening outlook; a projected fall is an easing one. If forecast is absent,
+say nothing about the future.
 
 Hard rules:
 - Use ONLY numbers present in the JSON. Never compute, extrapolate, or invent
   figures, states, industries, companies, or causes. Cite percentages only
-  from the pct_change fields.
+  from the pct_change fields. The forecast block is the sole exception for
+  forward-looking statements: report its numbers verbatim, never adjust,
+  extend, combine, or re-derive them, and never present them as recorded data.
 - Never combine, net, or arithmetically compare BLS payroll figures with WARN
   figures — they measure different things at different scales.
 - HARD LIMIT: 250 words. Cover only the biggest movers - at most three
@@ -279,22 +302,28 @@ def generate_state_report(
     """Build one state's report. Returns (markdown, narrative_status) where
     status is ok | insufficient_data | llm_unavailable | skipped."""
     agg = compute_state_aggregates(session, state, as_of=as_of)
+    forecast = compute_forecast(agg.monthly_full, as_of=agg.as_of)
     narrative: str | None = None
     if not agg.sufficient:
         status = "insufficient_data"
     elif client is None:
         status = "skipped"
     else:
+        payload = agg.to_prompt_payload()
+        if forecast is not None:
+            payload["forecast"] = forecast.to_payload()
         try:
-            narrative = _narrate_checked(
-                client, SYSTEM_PROMPT, json.dumps(agg.to_prompt_payload())
-            )
+            narrative = _narrate_checked(client, SYSTEM_PROMPT, json.dumps(payload))
             status = "ok"
         except OllamaUnavailable as exc:
             log.warning("narrative failed for %s: %s", agg.state, exc)
             status = "llm_unavailable"
     content = render_report(
-        agg, narrative, narrative_status=status, model=getattr(client, "model", None)
+        agg,
+        narrative,
+        narrative_status=status,
+        model=getattr(client, "model", None),
+        forecast=forecast,
     )
     return content, status
 
@@ -310,6 +339,7 @@ def generate_national_report(
     `bls` is an optional fetch_bls_context() result; its national block is
     added to the LLM payload as macro context (never to the tables)."""
     agg = compute_national_aggregates(session, as_of=as_of)
+    forecast = compute_forecast(agg.monthly_full, as_of=agg.as_of)
     narrative: str | None = None
     if not agg.sufficient:
         status = "insufficient_data"
@@ -317,6 +347,8 @@ def generate_national_report(
         status = "skipped"
     else:
         payload = agg.to_prompt_payload()
+        if forecast is not None:
+            payload["forecast"] = forecast.to_payload()
         if bls and bls.get("national"):
             payload["bls_context"] = bls["national"]
         try:
@@ -328,7 +360,11 @@ def generate_national_report(
             log.warning("narrative failed for %s: %s", agg.state, exc)
             status = "llm_unavailable"
     content = render_report(
-        agg, narrative, narrative_status=status, model=getattr(client, "model", None)
+        agg,
+        narrative,
+        narrative_status=status,
+        model=getattr(client, "model", None),
+        forecast=forecast,
     )
     return content, status
 

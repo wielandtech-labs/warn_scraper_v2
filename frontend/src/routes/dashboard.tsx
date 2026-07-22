@@ -2,20 +2,22 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
+  Area,
   Bar,
   BarChart,
   CartesianGrid,
+  ComposedChart,
   Legend,
   Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 
-import { api } from "../api/client";
+import { api, ApiError } from "../api/client";
 import { AlertSignup } from "../components/AlertSignup";
+import { ForecastNote } from "../components/ForecastNote";
 import { QueryError } from "../components/QueryError";
 import { SkeletonBlock, SkeletonChart, SkeletonRows } from "../components/Skeleton";
 import {
@@ -28,6 +30,7 @@ import { ProjectionTooltip } from "../components/ProjectionTooltip";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useTheme } from "../hooks/useTheme";
 import { fmtCompact, fmtDate, fmtNum, fmtPeriod } from "../lib/format";
+import { withForecastSeries } from "../lib/forecast";
 import { withProjectionSeries } from "../lib/projection";
 import { CHART_COLORS } from "../lib/themeColors";
 
@@ -55,6 +58,17 @@ export function Dashboard() {
     queryFn: () => api.statsOverTime({ after, bucket }),
   });
 
+  // Weekly statistical forecast, national roll-up. A 404 just means the
+  // jurisdiction never cleared the lowest forecast model tier (or the job
+  // hasn't run yet) — don't retry, and fall back to the pace projection.
+  const forecast = useQuery({
+    queryKey: ["forecast", "US"],
+    queryFn: () => api.getForecast("US"),
+    enabled: bucket === "month",
+    retry: (failureCount, error) =>
+      !(error instanceof ApiError && error.status === 404) && failureCount < 2,
+  });
+
   const industries = useQuery({
     queryKey: ["stats", "industries", { after }],
     queryFn: () => api.statsIndustries({ after }),
@@ -69,12 +83,20 @@ export function Dashboard() {
     byState.data?.reduce((acc, s) => acc + s.layoff_total, 0) ?? null;
   const totalNotices = byState.data?.reduce((acc, s) => acc + s.notice_count, 0) ?? null;
 
-  const { data: timeData, hasProjection } = withProjectionSeries(
-    (overTime.data ?? []).map((r) => ({
-      ...r,
-      label: fmtPeriod(r.period, bucket),
-    })),
+  const labeledTimeData = (overTime.data ?? []).map((r) => ({
+    ...r,
+    label: fmtPeriod(r.period, bucket),
+  }));
+  const { data: forecastData, hasForecast } = withForecastSeries(
+    labeledTimeData,
+    forecast.data,
+    bucket,
   );
+  // The forecast supersedes the pace projection when active — an ETS point
+  // estimate beats a linear pace estimate, and two overlapping dashed
+  // segments would just be noise.
+  const { data: projectedData, hasProjection } = withProjectionSeries(labeledTimeData);
+  const timeData = hasForecast ? forecastData : projectedData;
   const industryData = (industries.data ?? [])
     .slice()
     .sort((a, b) => b.layoff_total - a.layoff_total);
@@ -180,7 +202,7 @@ export function Dashboard() {
               aria-label="Line chart of notice counts and workers affected over time"
             >
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={timeData}>
+                <ComposedChart data={timeData}>
                   <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
                   <XAxis
                     dataKey="label"
@@ -206,6 +228,21 @@ export function Dashboard() {
                     labelStyle={chart.tooltipLabel}
                   />
                   <Legend />
+                  {/* 80% prediction-interval band for the forecast — layoffs
+                      only, so it doesn't compete visually with a second band
+                      for notices. All-null (invisible) when no forecast. */}
+                  <Area
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="forecast_layoff_band"
+                    name="Workers affected (forecast range)"
+                    fill={chart.layoffs}
+                    fillOpacity={0.12}
+                    stroke="none"
+                    legendType="none"
+                    animationBegin={1500}
+                    isAnimationActive={false}
+                  />
                   <Line
                     yAxisId="left"
                     type="monotone"
@@ -252,11 +289,41 @@ export function Dashboard() {
                     dot={false}
                     legendType="none"
                   />
-                </LineChart>
+                  {/* Dashed 6-month forecast; supersedes the projection above
+                      when active (both are all-null otherwise). */}
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="forecast_notice_count"
+                    name="Notices (forecast)"
+                    stroke={chart.notices}
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    animationBegin={1500}
+                    dot={false}
+                    legendType="none"
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="forecast_layoff_total"
+                    name="Workers affected (forecast)"
+                    stroke={chart.layoffs}
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    animationBegin={1500}
+                    dot={false}
+                    legendType="none"
+                  />
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
-            {hasProjection && (
-              <ProjectionNote periodLabel={timeData[timeData.length - 1].label} />
+            {hasForecast && forecast.data ? (
+              <ForecastNote lastHistoryLabel={fmtPeriod(forecast.data.last_history_month, "month")} />
+            ) : (
+              hasProjection && (
+                <ProjectionNote periodLabel={timeData[timeData.length - 1].label} />
+              )
             )}
           </>
         )}

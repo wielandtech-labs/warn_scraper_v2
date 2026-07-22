@@ -166,3 +166,115 @@ def test_industry_report_unknown_sector_and_traversal(client, tmp_path):
     # A bare ".." is path-normalized away by clients before routing; the
     # encoded form reaches the handler as a path param and must be rejected.
     assert client.get("/api/reports/industries/%2e%2e%2f31-33").status_code == 404
+
+
+_FORECASTS = {
+    "schema": 1,
+    "as_of": "2026-07-01",
+    "jurisdictions": {
+        "US": {
+            "model": "ets-seasonal",
+            "history_months": 60,
+            "last_history_month": "2026-06",
+            "points": [
+                {
+                    "month": "2026-07",
+                    "notices": 12, "notices_lo": 6, "notices_hi": 19,
+                    "layoffs": 1450, "layoffs_lo": 700, "layoffs_hi": 2300,
+                }
+            ],
+        },
+        "CA": {
+            "model": "ets-trend",
+            "history_months": 20,
+            "last_history_month": "2026-06",
+            "points": [
+                {
+                    "month": "2026-07",
+                    "notices": 5, "notices_lo": 2, "notices_hi": 8,
+                    "layoffs": 500, "layoffs_lo": 200, "layoffs_hi": 800,
+                }
+            ],
+        },
+    },
+}
+
+
+def test_get_forecast_ok(client, tmp_path):
+    (tmp_path / "forecasts.json").write_text(json.dumps(_FORECASTS), encoding="utf-8")
+    resp = client.get("/api/reports/forecasts/ca")  # case-insensitive
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "CA"
+    assert body["model"] == "ets-trend"
+    assert body["history_months"] == 20
+    assert body["last_history_month"] == "2026-06"
+    assert body["generated_at"]
+    assert body["points"] == [
+        {
+            "month": "2026-07",
+            "notice_count": 5, "notice_count_lo": 2, "notice_count_hi": 8,
+            "layoff_total": 500, "layoff_total_lo": 200, "layoff_total_hi": 800,
+        }
+    ]
+
+
+def test_get_forecast_national(client, tmp_path):
+    (tmp_path / "forecasts.json").write_text(json.dumps(_FORECASTS), encoding="utf-8")
+    resp = client.get("/api/reports/forecasts/us")
+    assert resp.status_code == 200
+    assert resp.json()["model"] == "ets-seasonal"
+
+
+def test_get_forecast_missing_file(client):
+    resp = client.get("/api/reports/forecasts/CA")
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Forecast not available"
+
+
+def test_get_forecast_jurisdiction_absent(client, tmp_path):
+    thin = {
+        "schema": 1,
+        "as_of": "2026-07-01",
+        "jurisdictions": {"US": _FORECASTS["jurisdictions"]["US"]},
+    }
+    (tmp_path / "forecasts.json").write_text(json.dumps(thin), encoding="utf-8")
+    resp = client.get("/api/reports/forecasts/TX")  # never cleared the ladder
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Forecast not available"
+
+
+def test_get_forecast_unknown_state_and_traversal(client, tmp_path):
+    (tmp_path / "forecasts.json").write_text(json.dumps(_FORECASTS), encoding="utf-8")
+    assert client.get("/api/reports/forecasts/ZZ").status_code == 404
+    assert client.get("/api/reports/forecasts/%2e%2e%2fCA").status_code == 404
+
+
+def test_get_forecast_corrupt_json(client, tmp_path):
+    (tmp_path / "forecasts.json").write_text("not json", encoding="utf-8")
+    resp = client.get("/api/reports/forecasts/CA")
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Forecast not available"
+
+
+def test_get_forecast_stale_row_never_500s(client, tmp_path):
+    # The PVC file can be a week older than the running code -- a row the
+    # current model can't parse must 404, never crash the endpoint.
+    stale = {
+        "schema": 1,
+        "as_of": "2026-07-01",
+        "jurisdictions": {"CA": {"model": "ets-trend"}},  # missing required keys
+    }
+    (tmp_path / "forecasts.json").write_text(json.dumps(stale), encoding="utf-8")
+    resp = client.get("/api/reports/forecasts/CA")
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Forecast not available"
+
+
+def test_get_forecast_not_swallowed_by_state_route(client, tmp_path):
+    # /forecasts/{state} must be matched before /{state} — otherwise "forecasts"
+    # itself would be treated as an unknown state code.
+    (tmp_path / "forecasts.json").write_text(json.dumps(_FORECASTS), encoding="utf-8")
+    resp = client.get("/api/reports/forecasts/CA")
+    assert resp.status_code == 200
+    assert resp.json()["state"] == "CA"

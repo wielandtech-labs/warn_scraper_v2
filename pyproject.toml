@@ -33,6 +33,7 @@ dependencies = [
     "argon2-cffi>=25.1.0",
     "stripe>=12",
     "google-cloud-bigquery>=3.25",
+    "statsmodels>=0.14",
 ]
 
 [project.optional-dependencies]
@@ -75,3 +76,7 @@ addopts = "-ra -q"
 python_version = "3.12"
 strict = true
 warn_return_any = true
+
+[[tool.mypy.overrides]]
+module = "statsmodels.*"
+ignore_missing_imports = true

@@ -82,6 +82,11 @@ class StateAggregates:
     monthly: list[tuple[str, int, int, int]]
     naics_coverage_pct: float  # % of current-window notices with an enriched NAICS
     states: list[DeltaRow] = field(default_factory=list)  # national only: per-state deltas
+    # ("YYYY-MM", notices, layoffs), oldest first — the raw series behind
+    # `monthly`, reaching back far enough to fit warn_v2.reports.forecast's
+    # longest-history ladder tier. Not part of to_prompt_payload(); the LLM
+    # never sees more than the 12-month `monthly` field.
+    monthly_full: list[tuple[str, int, int]] = field(default_factory=list)
 
     @property
     def sufficient(self) -> bool:
@@ -420,6 +425,10 @@ def _compute_aggregates(
         lambda k: SECTOR_NAME.get(k, k),
     )
     covered = _naics_covered(session, code, cur_start, as_of)
+    # Fetched once at 71 months back (72 months of history including the
+    # current partial month) — far enough for forecast.py's longest ladder
+    # tier; `monthly` below slices the same series down to its usual 12.
+    raw_monthly = _monthly_series(session, code, _month_start_back(as_of, 71))
 
     return StateAggregates(
         state=code if code is not None else NATIONAL_CODE,
@@ -445,9 +454,9 @@ def _compute_aggregates(
         counties=counties,
         sectors=sectors,
         monthly=_zip_year_earlier(
-            _monthly_series(session, code, _month_start_back(as_of, 23)),
-            _month_start_back(as_of, 11).isoformat()[:7],
+            raw_monthly, _month_start_back(as_of, 11).isoformat()[:7]
         ),
         naics_coverage_pct=(covered / cur_n * 100.0) if cur_n else 0.0,
         states=states,
+        monthly_full=raw_monthly,
     )

@@ -18,6 +18,7 @@ from pydantic import BaseModel, ValidationError
 
 from warn_v2.companies.naics import SECTOR_NAME
 from warn_v2.reports.aggregate import NATIONAL_CODE, NATIONAL_NAME
+from warn_v2.reports.forecast import FORECASTS_JSON
 from warn_v2.reports.generate import INDUSTRIES_JSON
 from warn_v2.states import STATE_NAMES
 
@@ -48,6 +49,25 @@ class IndustryScorecard(BaseModel):
     cur_notices: int
     delta_pct: float | None
     generated_at: datetime  # industries.json mtime
+
+
+class ForecastPointOut(BaseModel):
+    month: str
+    notice_count: int
+    notice_count_lo: int
+    notice_count_hi: int
+    layoff_total: int
+    layoff_total_lo: int
+    layoff_total_hi: int
+
+
+class ForecastOut(BaseModel):
+    state: str
+    model: str  # "ets-seasonal" | "ets-trend" | "ets-level"
+    history_months: int
+    last_history_month: str
+    generated_at: datetime  # forecasts.json mtime
+    points: list[ForecastPointOut]
 
 
 @router.get("", response_model=list[ReportInfo])
@@ -108,6 +128,52 @@ def get_industry_report(sector: str) -> Response:
     return Response(
         path.read_text(encoding="utf-8"), media_type="text/markdown; charset=utf-8"
     )
+
+
+def _forecast_point_out(row: dict) -> ForecastPointOut:
+    return ForecastPointOut(
+        month=row["month"],
+        notice_count=row["notices"],
+        notice_count_lo=row["notices_lo"],
+        notice_count_hi=row["notices_hi"],
+        layoff_total=row["layoffs"],
+        layoff_total_lo=row["layoffs_lo"],
+        layoff_total_hi=row["layoffs_hi"],
+    )
+
+
+# Declared before /{state}: same route-order requirement as /industries.
+@router.get("/forecasts/{state}", response_model=ForecastOut)
+def get_forecast(state: str) -> ForecastOut:
+    """The latest 6-month forecast for one state (or US), built weekly
+    alongside the sentiment reports. 404 when the file, or this
+    jurisdiction within it, isn't available -- including a jurisdiction
+    whose history never cleared the lowest forecast ladder tier."""
+    code = state.upper()
+    if code not in _REPORT_NAMES:  # whitelist doubles as a path-traversal guard
+        raise HTTPException(status_code=404, detail="Unknown state")
+    path = _REPORTS_DIR / FORECASTS_JSON
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Forecast not available")
+    generated_at = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
+    # The file on the PVC can be up to a week older than the running code, so
+    # tolerate schema drift rather than 500ing until the next weekly run.
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        row = payload["jurisdictions"][code]
+        return ForecastOut(
+            state=code,
+            model=row["model"],
+            history_months=row["history_months"],
+            last_history_month=row["last_history_month"],
+            generated_at=generated_at,
+            points=[_forecast_point_out(p) for p in row["points"]],
+        )
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Forecast not available") from None
+    except (OSError, json.JSONDecodeError, ValidationError, TypeError) as exc:
+        log.warning("unreadable %s: %s", FORECASTS_JSON, exc)
+        raise HTTPException(status_code=404, detail="Forecast not available") from None
 
 
 @router.get("/{state}")

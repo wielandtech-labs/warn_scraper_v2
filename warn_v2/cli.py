@@ -1591,6 +1591,22 @@ def sentiment_report_cmd(
                     progress=click.echo,
                 )
             )
+        if state is None and industry is None and not national:
+            # Full default run only -- mirrors industries.json semantics so a
+            # targeted run never shrinks the file. Fail-open: a forecasts.json
+            # build failure must never break the weekly report run.
+            try:
+                import json
+
+                from warn_v2.reports.forecast import FORECASTS_JSON, build_forecasts
+                from warn_v2.reports.generate import _atomic_write
+
+                payload = build_forecasts(session)
+                if not dry_run:
+                    _atomic_write(reports_dir, FORECASTS_JSON, json.dumps(payload, indent=2))
+                click.echo(f"forecasts={len(payload['jurisdictions'])}")
+            except Exception as exc:
+                click.echo(f"forecasts=failed ({exc})", err=True)
 
     suffix = " (dry run — nothing written)" if dry_run else ""
     click.echo(
