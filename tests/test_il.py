@@ -5,14 +5,21 @@ import io
 from datetime import date
 from pathlib import Path
 
+import httpx
 import openpyxl
 import pytest
+import respx
 
 from warn_v2.db.models import Company
 from warn_v2.pipeline.storage import upsert_notices
 from warn_v2.scrapers.base import NoticeRow, ParseFailed
 from warn_v2.scrapers.registry import get_scraper
-from warn_v2.scrapers.states.il import parse_il_pdf
+from warn_v2.scrapers.states.il import (
+    _ARCHIVE_URL,
+    _discover_archive_xlsx_urls,
+    _discover_latest_url,
+    parse_il_pdf,
+)
 
 _FIXTURES = Path(__file__).resolve().parents[1] / "warn_v2" / "scrapers" / "fixtures" / "il"
 
@@ -435,3 +442,40 @@ def test_il_pdf_all_rows_have_employer_and_date() -> None:
 def test_il_pdf_raises_on_non_pdf() -> None:
     with pytest.raises(ParseFailed):
         parse_il_pdf(b"not a pdf")
+
+
+# ---------------------------------------------------------------------------
+# Archive-page link discovery
+# ---------------------------------------------------------------------------
+# The SharePoint _layouts/download.aspx wrapper's SourceUrl query param is
+# normally an absolute URL, but the site started emitting a site-relative
+# SourceUrl for the newest month (seen live 2026-08-05) — a relative URL
+# passed straight to httpx blew up with "missing an 'http://' protocol".
+
+_ARCHIVE_HTML_MIXED_SOURCEURL = """
+<html><body>
+<a href="/_layouts/download.aspx?SourceUrl=/DownloadPrint/June2026MonthlyWARNReport.xlsx">June 2026</a>
+<a href="/_layouts/download.aspx?SourceUrl=https://www.illinoisworknet.com/DownloadPrint/May2026MonthlyWARNReport.xlsx">May 2026</a>
+</body></html>
+"""
+
+
+@respx.mock
+def test_il_discover_latest_url_resolves_relative_sourceurl() -> None:
+    respx.get(_ARCHIVE_URL).mock(
+        return_value=httpx.Response(200, content=_ARCHIVE_HTML_MIXED_SOURCEURL)
+    )
+    url = _discover_latest_url()
+    assert url == "https://www.illinoisworknet.com/DownloadPrint/June2026MonthlyWARNReport.xlsx"
+
+
+@respx.mock
+def test_il_discover_archive_xlsx_urls_resolves_relative_sourceurl() -> None:
+    respx.get(_ARCHIVE_URL).mock(
+        return_value=httpx.Response(200, content=_ARCHIVE_HTML_MIXED_SOURCEURL)
+    )
+    urls = _discover_archive_xlsx_urls()
+    assert urls == [
+        "https://www.illinoisworknet.com/DownloadPrint/June2026MonthlyWARNReport.xlsx",
+        "https://www.illinoisworknet.com/DownloadPrint/May2026MonthlyWARNReport.xlsx",
+    ]
