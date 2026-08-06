@@ -1,6 +1,7 @@
 """Hawaii WARN scraper.
 
-Source: https://labor.hawaii.gov/wdc/{year}-warn-notices/
+Source (current year): https://labor.hawaii.gov/wdd/warn-notices/
+Source (past years):   https://labor.hawaii.gov/wdc/{year}-warn-notices/
 Data:   HTML page with <p> entries; one paragraph per notice.
 
 Each paragraph follows the pattern:
@@ -11,6 +12,14 @@ Rescission notices appear as a parenthetical anchor with text "WARN Rescinded
 - {date}" inside an existing entry's paragraph; those anchors are not used as
 the employer link. Entries where the only anchor is a rescission notice have
 the employer extracted from the paragraph text.
+
+As of 2026-08-06, HI moved the *current* year's notices off the old
+`/wdc/{year}-warn-notices/` page (which now just points elsewhere) onto a
+consolidated `/wdd/warn-notices/` "most recent notices" page. That page uses a
+different markup: a `<ul class="wp-block-list">` of `<li><a>` entries in
+"Employer &#8211; {Month D, YYYY}" order (employer first, no PDF link — the
+anchor goes to an HTML detail page instead). Old per-year pages (2019-2025)
+still use the original <p>-paragraph format, so both are supported here.
 
 No count, city, county, or ZIP data is published on this page.
 """
@@ -29,6 +38,8 @@ from warn_v2.scrapers.registry import register
 # The HI page uses the Unicode en-dash (U+2013, &#8211;) as the date separator.
 _EN_DASH = chr(0x2013)  # U+2013 EN DASH
 _SOURCE_TMPL = "https://labor.hawaii.gov/wdc/{year}-warn-notices/"
+# Current-year "most recent notices" page (see module docstring, 2026-08-06).
+_WDD_URL = "https://labor.hawaii.gov/wdd/warn-notices/"
 # Build patterns using chr() to avoid a literal en-dash in source (ruff RUF001).
 _UPDATE_PREFIX = re.compile("^UPDATE\\s*" + chr(0x2013) + "\\s*", re.I)
 _COND_PREFIX = re.compile("^Conditional\\s+WARN\\s*" + chr(0x2013) + "\\s*", re.I)
@@ -92,6 +103,43 @@ def _parse_paragraph(p: Tag) -> tuple[str, str, str | None] | None:
     return date_str, employer, None
 
 
+def _parse_wdd_list(soup: BeautifulSoup) -> list[NoticeRow]:
+    """Parse the new `/wdd/warn-notices/` "most recent" list format.
+
+    Entries are `<li><a>Employer Name &#8211; Month D, YYYY</a></li>` inside a
+    `<ul class="wp-block-list">` -- employer first, date last (reverse of the
+    old per-year page's date-first paragraphs).
+    """
+    ul = soup.find("ul", class_="wp-block-list")
+    if ul is None:
+        return []
+
+    rows: list[NoticeRow] = []
+    for li in ul.find_all("li", recursive=False):
+        a = li.find("a", href=True)
+        text = a.get_text(strip=True) if a else li.get_text(strip=True)
+        if _EN_DASH not in text:
+            continue
+        employer, _, date_str = text.rpartition(_EN_DASH)
+        employer = employer.strip()
+        date_str = date_str.strip()
+        if not employer or not re.match(r"[A-Za-z]+ \d+,\s*\d{4}$", date_str):
+            continue
+        notice_date = as_date(date_str)
+        if notice_date is None:
+            continue
+        rows.append(
+            NoticeRow(
+                state="HI",
+                employer=employer,
+                notice_date=notice_date,
+                raw_notice_url=a["href"] if a else None,
+                source_url=_WDD_URL,
+            )
+        )
+    return rows
+
+
 def _fetch_hi_year(year: int) -> bytes | None:
     """Fetch one year's notices page for backfill-historical.
 
@@ -111,19 +159,17 @@ def _fetch_hi_year(year: int) -> bytes | None:
 
 class HIScraper:
     state = "HI"
-    source_url = _source_url(date.today().year)
+    source_url = _WDD_URL
     expected_row_range = (1, 500)
     required_fields = frozenset({"employer", "notice_date"})
 
     def fetch(self) -> bytes:
-        year = date.today().year
-        url = _source_url(year)
         try:
-            r = httpx.get(url, headers=_UA, timeout=30, follow_redirects=True)
+            r = httpx.get(_WDD_URL, headers=_UA, timeout=30, follow_redirects=True)
             r.raise_for_status()
             return r.content
         except httpx.HTTPError as e:
-            raise ScrapeFailed(f"GET {url}: {e}") from e
+            raise ScrapeFailed(f"GET {_WDD_URL}: {e}") from e
 
     def parse(self, raw: bytes) -> list[NoticeRow]:
         try:
@@ -161,7 +207,12 @@ class HIScraper:
                     source_url=src,
                 )
             )
-        return rows
+        if rows:
+            return rows
+
+        # No old-format notice paragraphs -- try the new /wdd/ list format
+        # (current-year live page as of 2026-08-06, see module docstring).
+        return _parse_wdd_list(soup)
 
 
 register(HIScraper())
