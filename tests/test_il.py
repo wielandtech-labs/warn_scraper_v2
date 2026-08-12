@@ -452,12 +452,14 @@ def test_il_pdf_raises_on_non_pdf() -> None:
 # SourceUrl for the newest month (seen live 2026-08-05) — a relative URL
 # passed straight to httpx blew up with "missing an 'http://' protocol".
 
-_ARCHIVE_HTML_MIXED_SOURCEURL = """
-<html><body>
-<a href="/_layouts/download.aspx?SourceUrl=/DownloadPrint/June2026MonthlyWARNReport.xlsx">June 2026</a>
-<a href="/_layouts/download.aspx?SourceUrl=https://www.illinoisworknet.com/DownloadPrint/May2026MonthlyWARNReport.xlsx">May 2026</a>
-</body></html>
-"""
+_ARCHIVE_HTML_MIXED_SOURCEURL = (
+    "<html><body>\n"
+    '<a href="/_layouts/download.aspx?SourceUrl=/DownloadPrint/'
+    'June2026MonthlyWARNReport.xlsx">June 2026</a>\n'
+    '<a href="/_layouts/download.aspx?SourceUrl=https://www.illinoisworknet.com'
+    '/DownloadPrint/May2026MonthlyWARNReport.xlsx">May 2026</a>\n'
+    "</body></html>\n"
+)
 
 
 @respx.mock
