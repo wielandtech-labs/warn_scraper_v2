@@ -26,7 +26,6 @@ No count, city, county, or ZIP data is published on this page.
 from __future__ import annotations
 
 import re
-from datetime import date
 
 import httpx
 from bs4 import BeautifulSoup, Tag
