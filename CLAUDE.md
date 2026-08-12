@@ -77,8 +77,16 @@ is what actually gets tested (verify once with
 
 Same trap for one-off scripts: `python some_script.py` puts the *script's*
 directory first on `sys.path`, so `warn_v2` silently resolves to the venv's
-editable install of the main checkout — old code, no error. From a worktree,
-run scripts with `PYTHONPATH=<worktree>` (or via `python -m`).
+editable install of the main checkout — old code, no error. This isn't only a
+worktree concern: `C:\Users\rapha\workspace\warn_scrapper_v2` (double-p) is a
+**separate git remote** (`wielandtech/warn_scraper_v2`, personal account) from
+this repo (`wielandtech-labs/warn_scraper_v2`) and drifts behind it — seen
+2026-07-21, 11 days / dozens of commits stale, which silently reproduced a
+phantom MA parser "break" already fixed on this repo's main. Never run a
+script as `python path\to\script.py` against the sibling venv; use
+`python -c "..."` (cwd is `sys.path[0]` for `-c`) or `python -m` with this
+repo as cwd, and verify once with
+`python -c "import warn_v2; print(warn_v2.__file__)"` before trusting results.
 
 ## Database migrations (Alembic)
 
