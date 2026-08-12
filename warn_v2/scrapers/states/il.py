@@ -121,11 +121,13 @@ def _discover_latest_url() -> str:
         href = a["href"]
         if _XL_HREF_RE.search(href):
             # href may be a relative _layouts/download.aspx?SourceUrl=... wrapper
-            # or a direct /DownloadPrint/... path
+            # (SourceUrl itself may be absolute or site-relative) or a direct
+            # /DownloadPrint/... path.
             if href.startswith("/_layouts"):
                 m = re.search(r"SourceUrl=([^&]+)", href)
                 if m:
-                    return m.group(1)
+                    url = m.group(1)
+                    return url if url.startswith("http") else _BASE_URL + url
             if href.startswith("http"):
                 return href
             return _BASE_URL + href
@@ -152,7 +154,10 @@ def _discover_archive_xlsx_urls() -> list[str]:
         # keep the percent-encoded form (filenames contain spaces).
         m = re.search(r"SourceUrl=([^&\"']+\.xlsx?)(?:&|$)", href, re.I)
         url = m.group(1) if m else None
-        if url is None:
+        if url is not None:
+            if not url.startswith("http"):
+                url = _BASE_URL + url
+        else:
             if re.search(r"\.xlsx?$", href, re.I):
                 url = href if href.startswith("http") else _BASE_URL + href
             else:
