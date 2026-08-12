@@ -1,7 +1,11 @@
 """Montana WARN scraper.
 
 Source: https://wsd.dli.mt.gov/wioa/related-links/warn-notice-page
-Data:   https://wsd.dli.mt.gov/_docs/wioa/warn-notices-updated-march-2026.xlsx
+Data:   a monthly-renamed xlsx linked from the page above (e.g.
+        warn_notices_july_2026.xlsx) — the filename's month/year and even its
+        separator/prefix convention change each time the state re-publishes it
+        (seen: "warn-notices-updated-march-2026.xlsx" -> "warn_notices_july_2026.xlsx"),
+        so the link is discovered from the page rather than hardcoded.
 
 Schema (live as of May 2026):
   Year | Date of Notice | Name of Company | County | Industry |
@@ -15,9 +19,12 @@ multiple dates.
 from __future__ import annotations
 
 import io
+import re
+from urllib.parse import urljoin
 
 import httpx
 import openpyxl
+from bs4 import BeautifulSoup
 
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
@@ -25,7 +32,7 @@ from warn_v2.scrapers.http_cache import conditional_get
 from warn_v2.scrapers.registry import register
 
 PAGE_URL = "https://wsd.dli.mt.gov/wioa/related-links/warn-notice-page"
-SOURCE_URL = "https://wsd.dli.mt.gov/_docs/wioa/warn-notices-updated-march-2026.xlsx"
+SOURCE_URL = PAGE_URL
 
 _UA = {
     "User-Agent": (
@@ -33,6 +40,24 @@ _UA = {
         "(KHTML, like Gecko) warn-v2/0.1"
     )
 }
+
+_XLSX_HREF_RE = re.compile(r"warn.*\.xlsx", re.IGNORECASE)
+
+
+def _discover_url() -> str:
+    """Return the current WARN xlsx URL linked from the WARN notice page."""
+    try:
+        r = httpx.get(PAGE_URL, headers=_UA, timeout=30, follow_redirects=True)
+        r.raise_for_status()
+    except httpx.HTTPError as e:
+        raise ScrapeFailed(f"MT: page fetch error: {e}") from e
+
+    soup = BeautifulSoup(r.content, "lxml")
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        if _XLSX_HREF_RE.search(href):
+            return urljoin(PAGE_URL, href)
+    raise ScrapeFailed("MT: could not find WARN xlsx link on notice page")
 
 
 class MTScraper:
@@ -42,10 +67,11 @@ class MTScraper:
     required_fields = frozenset({"employer", "notice_date"})
 
     def fetch(self) -> bytes:
+        xl_url = _discover_url()
         try:
-            return conditional_get(SOURCE_URL, state=self.state, headers=_UA, timeout=60)
+            return conditional_get(xl_url, state=self.state, headers=_UA, timeout=60)
         except httpx.HTTPError as e:
-            raise ScrapeFailed(f"GET {SOURCE_URL}: {e}") from e
+            raise ScrapeFailed(f"MT: GET {xl_url}: {e}") from e
 
     def parse(self, raw: bytes) -> list[NoticeRow]:
         try:
