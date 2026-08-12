@@ -42,7 +42,7 @@ from warn_v2.scrapers.bundled import DATA_DIR, load_archive
 from warn_v2.scrapers.registry import register
 
 _SOURCE_URL = "https://workforce.iowa.gov/employers/resources/warn/notices"
-_XL_URL = "https://workforce.iowa.gov/media/3025/download?inline"
+_XL_URL = "https://workforce.iowa.gov/media/3050/download?inline"
 
 _UA = {
     "User-Agent": (
