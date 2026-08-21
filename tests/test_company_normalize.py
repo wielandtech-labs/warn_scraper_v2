@@ -21,6 +21,23 @@ def test_legal_form_variants_collapse():
     assert keys == {"acme"}
 
 
+def test_leading_the_collapses():
+    # "The Boeing Company" must key the same as "Boeing Company" / "Boeing".
+    keys = {
+        canonical_name("The Boeing Company"),
+        canonical_name("Boeing Company"),
+        canonical_name("BOEING"),
+        canonical_name("The Boeing Co."),
+    }
+    assert keys == {"boeing"}
+    assert canonical_name("The Home Depot") == "home depot"
+
+
+def test_leading_the_only_token_kept():
+    # A bare "The" has no other tokens — must not strip down to "".
+    assert canonical_name("The") == "the"
+
+
 def test_descriptive_words_preserved_no_over_merge():
     # These are DIFFERENT companies — must not collapse.
     assert canonical_name("Smith Services") != canonical_name("Smith Technologies")

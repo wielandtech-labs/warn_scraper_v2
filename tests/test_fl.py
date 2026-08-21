@@ -81,6 +81,39 @@ def test_fl_parse_reads_all_concatenated_page_tables(fl_sample_html: bytes) -> N
     assert len(doubled) == 2 * len(single)
 
 
+def _fl_row(name: str, addr: str, city: str, zip_: str, ndate: str, count: str) -> str:
+    return (
+        "<tr>"
+        f"<td><b>{name}</b> </br>{addr}</br></br>{city}, FL, {zip_}</td>"
+        f"<td>{ndate}</td><td>{ndate}</td><td>{count}</td><td>Aerospace</td>"
+        "<td><input type='hidden' value='x.pdf' /></td>"
+        "</tr>"
+    )
+
+
+def test_fl_multi_worksite_keeps_per_site_counts() -> None:
+    # One employer/date filing spread across several worksites: each row carries
+    # its OWN affected count, never the filing total repeated per row. Regression
+    # guard for the Boeing 2024-11-18 over-count (26 rows each stamped 141).
+    scraper = get_scraper("FL")
+    rows_html = "".join(
+        [
+            _fl_row("BOEING", "100 Boeing Way", "TITUSVILLE", "32780", "11-18-24", "20"),
+            _fl_row("BOEING", "Kennedy Space Center", "MERRITT ISLAND", "32899", "11-18-24", "5"),
+            _fl_row("BOEING", "13501 Ingenuity Dr", "ORLANDO", "32826", "11-18-24", "4"),
+            _fl_row("BOEING", "929 Long Bridge Dr", "TAMPA", "33592", "11-18-24", "1"),
+        ]
+    )
+    html = f"<html><table id='DataTable'><tbody>{rows_html}</tbody></table></html>".encode()
+    rows = scraper.parse(html)
+
+    assert len(rows) == 4
+    assert all(r.employer == "BOEING" and r.notice_date == date(2024, 11, 18) for r in rows)
+    counts = sorted(r.layoff_count for r in rows)
+    assert counts == [1, 4, 5, 20]  # per-site, summing to 30 — NOT 4 x a total
+    assert len({r.layoff_count for r in rows}) > 1  # not one value repeated
+
+
 @respx.mock
 def test_fl_fetch_paginates_and_concatenates() -> None:
     # The live source caps at 100 rows/page; fetch() must walk every page and
