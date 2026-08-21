@@ -358,6 +358,11 @@ def canonical_name(name: str | None) -> str:
     cleaned = _HASH_STORE_NO.sub(" ", _LEADING_STORE_NO.sub("", name))
     s = _PUNCT.sub(" ", cleaned.lower())
     tokens = _WS.sub(" ", s).split()
+    # Drop a single leading "the" so "The Boeing Company" keys the same as
+    # "Boeing Company" (-> "boeing"). Only when other tokens remain, so a name
+    # that is nothing but "The" still has something to key on.
+    if len(tokens) > 1 and tokens[0] == "the":
+        tokens = tokens[1:]
     # Strip trailing legal suffixes (there can be more than one, e.g. "co inc").
     while tokens and tokens[-1] in _LEGAL_SUFFIXES:
         tokens.pop()
