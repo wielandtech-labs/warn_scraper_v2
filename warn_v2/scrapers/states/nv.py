@@ -36,7 +36,7 @@ from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.http_cache import conditional_get
 from warn_v2.scrapers.registry import register
 
-_PDF_URL = "https://detr.nv.gov/content/media/WARN_and_Non_WARN_Master_w_Logo.pdf"
+_PDF_URL = "https://detr.nv.gov/content/media/WARN_and_Non_WARN_Master_w_Logo_.pdf"
 _SOURCE_URL = "https://detr.nv.gov/Page/Warn_Notices"
 
 _UA = {
