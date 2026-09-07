@@ -97,7 +97,7 @@ export const TILE_LAYERS: Record<
   },
   dark: {
     // CARTO raster basemap: free for non-commercial use with attribution.
-    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_2sq1_1_a51e5819cc710c716cb3ff00",
     attribution:
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
   },
