@@ -44,6 +44,12 @@ def list_notices(
     subsector: str | None = Query(
         None, description="3-digit NAICS subsector (e.g. 311); narrows within a sector"
     ),
+    min_layoffs: int | None = Query(
+        None,
+        ge=1,
+        description="Only notices reporting at least this many affected workers "
+        "(notices with no reported count are excluded)",
+    ),
     after: date | None = Query(None, description="Only notices on or after this date"),
     before: date | None = Query(None, description="Only notices on or before this date"),
     geocoded_only: bool = Query(False, description="Only return notices with latitude/longitude"),
@@ -72,6 +78,7 @@ def list_notices(
         closure_category=closure_category,
         industry=industry,
         subsector=subsector,
+        min_layoffs=min_layoffs,
         after=after,
         before=before,
         geocoded_only=geocoded_only,

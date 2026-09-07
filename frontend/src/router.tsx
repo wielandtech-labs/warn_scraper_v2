@@ -26,6 +26,7 @@ import { TermsPage } from "./routes/content/terms";
 import { LoginPage } from "./routes/login";
 import { SignupPage } from "./routes/signup";
 import { AccountPage } from "./routes/account";
+import { AlertsPage } from "./routes/alerts";
 
 const rootRoute = createRootRoute({
   component: () => (
@@ -56,6 +57,7 @@ const validateNoticesSearch = (
   closure_category?: string;
   industry?: string;
   subsector?: string;
+  min_layoffs?: number;
   after?: string;
   before?: string;
   page?: number;
@@ -67,6 +69,7 @@ const validateNoticesSearch = (
   closure_category: (search.closure_category as string) || undefined,
   industry: (search.industry as string) || undefined,
   subsector: (search.subsector as string) || undefined,
+  min_layoffs: search.min_layoffs ? Number(search.min_layoffs) : undefined,
   after: (search.after as string) || undefined,
   before: (search.before as string) || undefined,
   page: search.page ? Number(search.page) : undefined,
@@ -298,6 +301,16 @@ const signupRoute = createRoute({
   component: SignupPage,
 });
 
+const alertsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/alerts",
+  // `token` comes from the "Manage your alerts" link in every alert email.
+  validateSearch: (search: Record<string, unknown>): { token?: string } => ({
+    token: (search.token as string) || undefined,
+  }),
+  component: AlertsPage,
+});
+
 const accountRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/account",
@@ -328,6 +341,7 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   signupRoute,
   accountRoute,
+  alertsRoute,
 ]);
 
 // Rendered inside the root route's Layout for any URL that matches no route.

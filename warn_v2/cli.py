@@ -1455,7 +1455,8 @@ def send_alert_digest_cmd() -> None:
         summary = run_digest(session, datetime.now(UTC))
     click.echo(
         f"subscriptions={summary['subscriptions']} emailed={summary['emailed']} "
-        f"notices={summary['notices']} failed={summary['failed']}"
+        f"notices={summary['notices']} failed={summary['failed']} "
+        f"not_due={summary['not_due']}"
     )
 
 
