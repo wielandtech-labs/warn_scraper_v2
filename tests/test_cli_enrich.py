@@ -14,7 +14,7 @@ def runner():
     return CliRunner()
 
 
-def _seed(db_session_factory, count: int = 5) -> None:
+def _seed(db_session_factory, count: int = 30) -> None:
     with db_session_factory() as session:
         for i in range(count):
             session.add(Company(name=f"Acme Manufacturing {i} Corporation"))
@@ -55,28 +55,44 @@ class _MissProvider:
 def test_enrich_fails_when_provider_tier_completes_no_searches(
     db_session_factory, runner, monkeypatch
 ) -> None:
-    """The 2026-09 silent failure: a provider that can't search anything used to
-    exit 0, so ~24 consecutive no-op CronJob runs all reported Complete."""
+    """The first 2026-09 silent failure: a provider that can't search anything
+    used to exit 0, so ~24 consecutive no-op CronJob runs all reported Complete."""
     _seed(db_session_factory)
     provider = _DeadProvider()
     _install(monkeypatch, provider)
 
-    result = runner.invoke(main, ["enrich", "--sleep-between", "0"])
+    result = runner.invoke(main, ["enrich", "--limit", "30", "--sleep-between", "0"])
 
     assert result.exit_code == 1, result.output
     assert "provider_errors=3" in result.output
     assert len(provider.calls) == 3  # paused after the failure streak
 
 
-def test_enrich_succeeds_on_a_batch_of_genuine_misses(
+def test_enrich_fails_when_a_full_batch_hits_nothing(
     db_session_factory, runner, monkeypatch
 ) -> None:
-    """A miss is an expected outcome (stamped + left queued), not a failure —
-    the run searched, so it must not flip the exit code."""
+    """The second 2026-09 silent failure: a broken search returned an empty
+    dropdown for every company, which reads as 100 genuine misses. Those exit 0
+    under the old rule AND stamp provider_attempted_at, burning the queue."""
     _seed(db_session_factory)
     _install(monkeypatch, _MissProvider())
 
-    result = runner.invoke(main, ["enrich", "--sleep-between", "0"])
+    result = runner.invoke(main, ["enrich", "--limit", "30", "--sleep-between", "0"])
+
+    assert result.exit_code == 1, result.output
+    assert "enriched nothing across 30 companies" in result.output
+    assert "provider_miss=30" in result.output
+
+
+def test_enrich_stays_quiet_for_a_small_run_of_misses(
+    db_session_factory, runner, monkeypatch
+) -> None:
+    """A miss is an expected outcome (stamped + left queued), not a failure.
+    Below the alarm floor an all-miss run is an ordinary draw, not evidence."""
+    _seed(db_session_factory, count=5)
+    _install(monkeypatch, _MissProvider())
+
+    result = runner.invoke(main, ["enrich", "--limit", "5", "--sleep-between", "0"])
 
     assert result.exit_code == 0, result.output
     assert "provider_miss=5" in result.output
