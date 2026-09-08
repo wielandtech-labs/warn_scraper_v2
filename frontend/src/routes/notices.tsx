@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { type ColumnDef } from "@tanstack/react-table";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { api } from "../api/client";
+import { AlertSignup } from "../components/AlertSignup";
 import { DataTable } from "../components/DataTable";
 import { ExportButtons } from "../components/ExportButtons";
 import { EMPTY_FILTERS, FilterBar, type FilterValues } from "../components/FilterBar";
@@ -24,6 +25,7 @@ export function NoticesPage() {
   const offset = (page - 1) * PAGE_SIZE;
   const sortBy = search.sort_by ?? "notice_date";
   const sortDir = search.sort_dir ?? "desc";
+  const [alerting, setAlerting] = useState(false);
 
   // Exactly what the API call uses — keying the cache on anything more
   // (e.g. the whole search object) causes spurious misses on unrelated keys.
@@ -33,6 +35,7 @@ export function NoticesPage() {
     closure_category: search.closure_category,
     industry: search.industry,
     subsector: search.subsector,
+    min_layoffs: search.min_layoffs,
     after: search.after,
     before: search.before,
     sort_by: sortBy,
@@ -143,6 +146,7 @@ export function NoticesPage() {
             closure_category: search.closure_category,
             industry: search.industry,
             subsector: search.subsector,
+            min_layoffs: search.min_layoffs,
             after: search.after,
             before: search.before,
           }}
@@ -153,6 +157,28 @@ export function NoticesPage() {
         onChange={handleFilterChange}
         industries={industriesQuery.data}
       />
+
+      <div className="mb-4">
+        {alerting ? (
+          // Seeded from the filters on screen, so the alert matches the list
+          // the reader is looking at (dates excluded — an alert is forward-looking).
+          <AlertSignup
+            initialFilters={{
+              state: search.state,
+              industry: search.industry,
+              subsector: search.subsector,
+              employer_query: search.employer,
+              closure_category: search.closure_category,
+              min_layoffs: search.min_layoffs,
+            }}
+            defaultOpen
+          />
+        ) : (
+          <button type="button" className="btn-secondary" onClick={() => setAlerting(true)}>
+            Alert me about these results
+          </button>
+        )}
+      </div>
 
       {query.isLoading && <SkeletonTable rows={10} />}
       {query.isError && (

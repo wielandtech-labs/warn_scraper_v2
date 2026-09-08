@@ -10,11 +10,11 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from html import escape
-from urllib.parse import urlencode
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from warn_v2.alerts import describe_scope, is_due, manage_url, notices_url, unsubscribe_url
 from warn_v2.api.filters import apply_notice_filters
 from warn_v2.api.seo import site_base_url
 from warn_v2.db.models import Notice, Subscription
@@ -36,32 +36,15 @@ def new_notices_for(db: Session, sub: Subscription) -> list[Notice]:
         .order_by(Notice.notice_date.desc().nullslast(), Notice.scraped_at.desc())
     )
     stmt = apply_notice_filters(
-        stmt, state=sub.state, employer=sub.employer_query, industry=sub.industry
+        stmt,
+        state=sub.state,
+        employer=sub.employer_query,
+        industry=sub.industry,
+        subsector=sub.subsector,
+        min_layoffs=sub.min_layoffs,
+        closure_category=sub.closure_category,
     )
     return list(db.scalars(stmt.limit(_MAX_PER_DIGEST)))
-
-
-def _describe(sub: Subscription) -> str:
-    parts = []
-    if sub.state:
-        parts.append(state_name(sub.state) or sub.state)
-    if sub.industry:
-        parts.append(f"industry {sub.industry}")
-    if sub.employer_query:
-        parts.append(f'"{sub.employer_query}"')
-    return ", ".join(parts) if parts else "all US"
-
-
-def unsubscribe_url(sub: Subscription, base: str) -> str:
-    """The GET/POST unsubscribe link for this subscription."""
-    return f"{base}/api/subscriptions/unsubscribe?token={sub.unsubscribe_token}"
-
-
-def _notices_url(sub: Subscription, base: str) -> str:
-    """Deep link to the notices list pre-filtered to the subscription's scope."""
-    params = {"state": sub.state, "employer": sub.employer_query, "industry": sub.industry}
-    qs = urlencode({k: v for k, v in params.items() if v})
-    return f"{base}/notices?{qs}" if qs else f"{base}/notices"
 
 
 def _notice_row(x: Notice, base: str) -> str:
@@ -89,11 +72,12 @@ def _notice_row(x: Notice, base: str) -> str:
 def render_digest(sub: Subscription, notices: list[Notice]) -> tuple[str, str, str]:
     """Return (subject, text_body, html_body) for a digest email."""
     base = site_base_url()
-    scope = _describe(sub)
+    scope = describe_scope(sub)
     n = len(notices)
     plural = "s" if n != 1 else ""
     subject = f"WARN Tracker: {n} new {scope} layoff notice{plural}"
     unsub = unsubscribe_url(sub, base)
+    manage = manage_url(sub, base)
 
     text_lines = [f"{n} new WARN notice{plural} ({scope}):", ""]
     for x in notices:
@@ -101,7 +85,7 @@ def render_digest(sub: Subscription, notices: list[Notice]) -> tuple[str, str, s
         affected = f" ({x.layoff_count:,} affected)" if x.layoff_count else ""
         when = x.notice_date.isoformat() if x.notice_date else ""
         text_lines.append(f"- {x.employer}{loc}{affected} {when}\n  {base}/notices/{x.notice_id}")
-    text_lines += ["", f"Unsubscribe: {unsub}"]
+    text_lines += ["", f"Manage your alerts: {manage}", f"Unsubscribe: {unsub}"]
 
     # employer/scope are scraped/user-supplied — escape anything dynamic that
     # lands in the HTML alternative; the text alternative above stays raw.
@@ -127,11 +111,12 @@ def render_digest(sub: Subscription, notices: list[Notice]) -> tuple[str, str, s
         '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">'
         f"{rows}</table></td></tr>"
         f'<tr><td align="center" style="padding:24px;">'
-        f"{button(_notices_url(sub, base), 'View all matching notices')}</td></tr>"
+        f"{button(notices_url(sub, base), 'View all matching notices')}</td></tr>"
     )
     footer = (
         "You're receiving this because you subscribed to WARN Tracker alerts "
         f"for {escape(scope)}.<br>"
+        f'<a href="{manage}" style="color:#64748b;">Manage your alerts</a> &#183; '
         f'<a href="{unsub}" style="color:#64748b;">Unsubscribe</a> &#183; '
         f'<a href="{base}/" style="color:#64748b;">WARN Tracker</a>'
     )
@@ -171,13 +156,18 @@ def run_digest(db: Session, now: datetime) -> dict[str, int]:
 
     A send error (e.g. SMTP hiccup) is logged and skipped without advancing that
     subscription's watermark, so it retries next run; other subscribers are
-    unaffected.
+    unaffected. Weekly subscriptions are skipped on the runs where they aren't
+    yet due (see ``is_due``).
     """
     subs = list(db.scalars(select(Subscription).where(Subscription.confirmed_at.is_not(None))))
     sent = 0
     notices_total = 0
     failed = 0
+    not_due = 0
     for sub in subs:
+        if not is_due(sub, now):
+            not_due += 1
+            continue
         try:
             count = send_digest(db, sub, now)
         except Exception:
@@ -193,4 +183,5 @@ def run_digest(db: Session, now: datetime) -> dict[str, int]:
         "emailed": sent,
         "notices": notices_total,
         "failed": failed,
+        "not_due": not_due,
     }

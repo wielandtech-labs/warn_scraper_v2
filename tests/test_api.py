@@ -704,6 +704,19 @@ def test_notices_industry_filter_unknown_sector_ignored(api_client, db):
     assert body["total"] == 1
 
 
+def test_notices_min_layoffs_filter(api_client, db):
+    _notice(db, employer="Big Co", notice_date=date(2026, 1, 1), layoff_count=500)
+    _notice(db, employer="Small Co", notice_date=date(2026, 1, 2), layoff_count=20)
+    # No reported headcount — excluded by any threshold (NULL fails >=).
+    _notice(db, employer="Unknown Co", notice_date=date(2026, 1, 3), layoff_count=None)
+    db.commit()
+
+    body = api_client.get("/api/notices?min_layoffs=100").json()
+    assert body["total"] == 1  # the count query applies the same filter
+    assert [i["employer"] for i in body["items"]] == ["Big Co"]
+    assert api_client.get("/api/notices?min_layoffs=0").status_code == 422
+
+
 def test_companies_industry_filter(api_client, db):
     _company(db, name="Mfg Co", naics_code="332710")
     _company(db, name="Ret Co", naics_code="448140")

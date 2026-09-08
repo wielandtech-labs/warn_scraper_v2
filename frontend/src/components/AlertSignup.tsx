@@ -1,19 +1,40 @@
 import { useMutation } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { ApiError, api } from "../api/client";
+import type { AlertFilters } from "../api/types";
 import { stateName } from "../lib/format";
+import { AlertFilterFields } from "./AlertFilterFields";
 
 /**
  * Email-alert signup. Posts to /api/subscriptions (double opt-in — the user
- * gets a confirmation email). Pass `state` to scope alerts to one state.
+ * gets a confirmation email). Pass `state` to scope alerts to one state, or
+ * `initialFilters` to seed the criteria from what the page is already showing
+ * (the notices list does this so a filtered search becomes an alert in one
+ * step). The extra criteria live behind a disclosure so the common case stays
+ * a single email field.
  */
-export function AlertSignup({ state }: { state?: string }) {
+export function AlertSignup({
+  state,
+  initialFilters,
+  defaultOpen = false,
+}: {
+  state?: string;
+  initialFilters?: AlertFilters;
+  defaultOpen?: boolean;
+}) {
   const [email, setEmail] = useState("");
+  const [filters, setFilters] = useState<AlertFilters>({
+    frequency: "daily",
+    ...initialFilters,
+    ...(state ? { state } : {}),
+  });
+  const [showFilters, setShowFilters] = useState(defaultOpen);
   const scope = state ? stateName(state) : "US";
 
   const mutation = useMutation({
-    mutationFn: () => api.createSubscription({ email: email.trim(), state }),
+    mutationFn: () => api.createSubscription({ ...filters, email: email.trim() }),
   });
 
   if (mutation.isSuccess) {
@@ -29,10 +50,12 @@ export function AlertSignup({ state }: { state?: string }) {
 
   const errorMessage =
     mutation.error instanceof ApiError && mutation.error.status === 422
-      ? "Please enter a valid email address."
-      : mutation.isError
-        ? "Something went wrong. Please try again later."
-        : null;
+      ? "Please check the email address and the alert criteria."
+      : mutation.error instanceof ApiError && mutation.error.status === 400
+        ? "This address already has the maximum number of alerts; remove one first."
+        : mutation.isError
+          ? "Something went wrong. Please try again later."
+          : null;
 
   return (
     <div className="card">
@@ -63,11 +86,33 @@ export function AlertSignup({ state }: { state?: string }) {
           {mutation.isPending ? "Subscribing…" : "Subscribe"}
         </button>
       </form>
+
+      <button
+        type="button"
+        className="mt-2 text-sm text-sky-700 underline dark:text-sky-400"
+        onClick={() => setShowFilters((v) => !v)}
+      >
+        {showFilters ? "Hide options" : "Narrow by industry, size or employer"}
+      </button>
+      {showFilters && (
+        <div className="mt-3">
+          <AlertFilterFields
+            values={filters}
+            onChange={setFilters}
+            showState={!state}
+          />
+        </div>
+      )}
+
       {errorMessage && (
         <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errorMessage}</p>
       )}
       <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
-        Double opt-in · unsubscribe anytime · we only use your email for these alerts.
+        Double opt-in · unsubscribe anytime · we only use your email for these
+        alerts.{" "}
+        <Link to="/alerts" className="underline">
+          Manage your alerts
+        </Link>
       </p>
     </div>
   );

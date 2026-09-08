@@ -9,6 +9,7 @@ export interface FilterValues {
   closure_category?: string;
   industry?: string;
   subsector?: string;
+  min_layoffs?: number;
   after?: string;
   before?: string;
 }
@@ -19,6 +20,7 @@ const FILTER_KEYS = [
   "closure_category",
   "industry",
   "subsector",
+  "min_layoffs",
   "after",
   "before",
 ] as const;
@@ -197,6 +199,23 @@ export function FilterBar({
           />
         </label>
       )}
+
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          Min. affected
+        </span>
+        <input
+          type="number"
+          min={1}
+          placeholder="Any"
+          title="Only notices reporting at least this many affected workers; notices with no reported count are excluded"
+          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+          value={values.min_layoffs ?? ""}
+          onChange={(e) =>
+            update({ min_layoffs: e.target.value ? Number(e.target.value) : undefined })
+          }
+        />
+      </label>
 
       {/* After + Before share one grid cell so the date range never splits
           across rows (it wraps as a pair when the row overflows). */}
