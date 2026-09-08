@@ -99,6 +99,12 @@ def list_states() -> None:
         click.echo(s)
 
 
+# Batch size at or above which a provider run enriching nothing is treated as a
+# failure rather than an unlucky draw. The CronJob runs 100; manual --limit
+# spot-checks are smaller and stay quiet.
+_ZERO_HIT_ALARM_BATCH = 25
+
+
 @main.command()
 @click.option("--limit", default=10, show_default=True, help="Max companies to enrich per run")
 @click.option(
@@ -242,22 +248,19 @@ def enrich(
     # failures — only genuine agent errors flip the exit code.
     if stats["skipped"]:
         sys.exit(1)
-    # ...but a provider run that completed ZERO searches on a non-empty batch
-    # accomplished nothing, and used to exit 0 all the same: a single company
-    # the provider choked on paused the tier for the whole run, and ~24
-    # consecutive no-op runs reported Complete (2026-09-02..08). Fail so the
-    # CronJob shows it within one run instead of waiting out the 13h
-    # WarnEnrichmentStalled window. Deliberately NOT keyed on enriched==0 —
-    # a batch of 100 genuine misses is a valid outcome (and has searches>0).
-    searches = (
-        stats["provider"]
-        + stats.get("provider_dba", 0)
-        + stats["provider_miss"]
-        + stats.get("provider_rejected", 0)
-    )
-    if "provider" in tier_set and stats["total"] and not searches and not stats["enriched"]:
+    # ...but a provider run of any size that enriches NOTHING is broken, not
+    # unlucky, and used to exit 0 all the same. Both 2026-09 failures hid
+    # here: a company the provider choked on paused the tier for the whole
+    # run (~24 runs reporting Complete), then a broken search returned an
+    # empty dropdown for all 100 — recorded as genuine misses, which also
+    # stamp provider_attempted_at and burn the queue. At D&B's ~53% hit rate
+    # a batch this size coming back empty has probability ~0, so failing on
+    # it is safe; the floor keeps small manual runs quiet.
+    if ("provider" in tier_set and stats["total"] >= _ZERO_HIT_ALARM_BATCH
+            and not stats["enriched"]):
         click.echo(
-            "provider tier completed no searches — the run accomplished nothing",
+            f"provider tier enriched nothing across {stats['total']} companies — "
+            "treating the run as failed",
             err=True,
         )
         sys.exit(1)
@@ -796,6 +799,82 @@ def enrich_ga_cmd(limit: int | None, pdf_dir: Path, dry_run: bool) -> None:
     )
     if _enrich_run_failed(stats):
         sys.exit(1)
+
+
+@main.command("requeue-provider-misses")
+@click.option(
+    "--since",
+    required=True,
+    metavar="TIMESTAMP",
+    help="ISO 8601 UTC instant, e.g. 2026-09-08T00:00:00 — the start of the bad window",
+)
+@click.option(
+    "--until",
+    default=None,
+    metavar="TIMESTAMP",
+    help="Optional end of the window (exclusive); defaults to now",
+)
+@click.option("--dry-run", is_flag=True, help="Preview counts without writing")
+def requeue_provider_misses_cmd(since: str, until: str | None, dry_run: bool) -> None:
+    """Un-stamp provider misses recorded during a window, re-queueing them.
+
+    \b
+    A provider whose search is broken returns zero candidates for every company,
+    and nothing downstream can tell that from "D&B has never heard of this
+    company" — so the worker records genuine misses and stamps
+    ``provider_attempted_at``, which drops each row out of the provider-only
+    queue for good. ``reset-enrichment`` cannot bring them back: it only touches
+    rows that were actually enriched. This does, for a known-bad window.
+
+    \b
+    Only ever clears the stamp on rows that are still UNENRICHED, so a real D&B
+    hit inside the window keeps its provenance.
+
+    \b
+    Examples:
+      warn-v2 requeue-provider-misses --since 2026-09-08T00:00:00 --dry-run
+      warn-v2 requeue-provider-misses --since 2026-09-08T00:00:00
+    """
+    from datetime import UTC, datetime
+
+    from sqlalchemy import and_, func, select, update
+
+    from warn_v2.db.models import Company
+    from warn_v2.db.session import session_scope
+
+    def _parse(value: str) -> datetime:
+        try:
+            ts = datetime.fromisoformat(value)
+        except ValueError:
+            click.echo(f"not an ISO 8601 timestamp: {value!r}", err=True)
+            sys.exit(1)
+        return ts if ts.tzinfo else ts.replace(tzinfo=UTC)
+
+    since_dt = _parse(since)
+    until_dt = _parse(until) if until else None
+    if until_dt and until_dt <= since_dt:
+        click.echo("--until must be after --since", err=True)
+        sys.exit(1)
+
+    cond = and_(
+        Company.provider_attempted_at.is_not(None),
+        Company.provider_attempted_at >= since_dt,
+        Company.enriched_at.is_(None),  # never disturb a real hit
+    )
+    if until_dt is not None:
+        cond = and_(cond, Company.provider_attempted_at < until_dt)
+
+    with session_scope() as session:
+        total = session.scalar(select(func.count()).where(cond)) or 0
+        window = f"{since_dt.isoformat()} .. {until_dt.isoformat() if until_dt else 'now'}"
+        if dry_run or total == 0:
+            suffix = " (dry run — nothing written)" if dry_run else ""
+            click.echo(f"{total} provider misses stamped in {window}{suffix}")
+            return
+        session.execute(
+            update(Company).where(cond).values(provider_attempted_at=None)
+        )
+    click.echo(f"re-queued {total} companies for another D&B attempt ({window})")
 
 
 def _enrich_run_failed(stats: dict) -> bool:
