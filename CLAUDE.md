@@ -107,6 +107,25 @@ a scratch SQLite file, `Base.metadata.create_all(engine)` then `drop()` the new
 model's table, `alembic stamp head`, then `alembic revision --autogenerate` —
 the diff contains exactly the new table.
 
+## The enricher runs a DIFFERENT image
+
+The `enricher` CronJob does **not** run the app image. It runs the private
+derived image `ghcr.io/wielandtech-labs/warn-enrich-dnb`, built
+`FROM ghcr.io/wielandtech-labs/warn-v2:${BASE_TAG:-latest}` in the separate
+`wielandtech-labs/warn-enrich-dnb` repo (which adds the D&B Hoovers provider).
+
+**Merging a warn_v2 change to main does not deploy it to the enricher.** It only
+republishes `warn-v2:latest`; nothing rebuilds warn-enrich-dnb until something is
+pushed to *its* main, so the enricher keeps running whatever warn_v2 snapshot its
+image was built from — on 2026-09-08 that was a 2026-07-10 snapshot, two months
+stale.
+
+To ship an enrichment change: merge the warn_v2 PR, **wait** for its
+`docker.yml` to publish `latest` (the provider build reads `latest` at build
+time, so merging out of order rebuilds on the stale base), then merge in
+warn-enrich-dnb — its `docker.yml` rebuilds on any push to main. Flux's
+`warn-enrich-dnb` ImagePolicy bumps the HelmRelease from there.
+
 ## Production gate
 
 Merging to main is a production deploy (the image-tag chain above runs

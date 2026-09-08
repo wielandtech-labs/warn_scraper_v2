@@ -164,6 +164,7 @@ def search_name(name: str | None) -> str:
     s = _DESCRIPTIVE_CLAUSE.sub("", s)
     s = _SUBSIDIARY_CLAUSE.sub("", s)
     s = _truncate_repeated_entity(s)
+    s = _truncate_entity_list(s)
     # Trailing junk stacks in layers ("... (Trumbull) 150": the count hides the
     # parenthetical from the paren rule), so run the whole trailing block to a
     # fixed point — each pass only ever shortens the string, so this terminates.
@@ -261,6 +262,38 @@ def _truncate_repeated_entity(s: str) -> str:
     return s
 
 
+# A name this long is a roster of several companies, not one company's name.
+# It is also past what a browser-driven search box can take: the D&B provider
+# types the query keystroke-by-keystroke (~0.1 s/char) inside a 30 s action
+# timeout, so an untruncated roster times out and takes the whole enricher run
+# down with it (2026-09-02..08: ~24 consecutive runs enriched nothing).
+_ENTITY_LIST_MAX = 120
+
+
+def _truncate_entity_list(s: str) -> str:
+    """Collapse an over-long comma-delimited roster of entities to the first.
+
+    "Holland America Group, Carnival UK, Westmark Hotels, Inc., Tour Alaska,
+    Inc., ..." names a dozen companies; only the leading one is searchable.
+    The sibling rule ``_truncate_repeated_entity`` handles the case where the
+    segments are spellings of ONE company; this one handles genuinely different
+    companies, so it only fires above ``_ENTITY_LIST_MAX`` — ordinary names
+    with commas are left exactly as they are. A segment that is nothing but a
+    legal suffix rejoins its entity ("Westmark Hotels" + ", Inc.").
+    """
+    if len(s) <= _ENTITY_LIST_MAX or "," not in s:
+        return s
+    kept: list[str] = []
+    for part in (p.strip() for p in s.split(",")):
+        if not part:
+            continue
+        if kept and _PUNCT.sub("", part).strip().lower() not in _LEGAL_SUFFIXES:
+            break
+        kept.append(part)
+    head = ", ".join(kept).strip(" ,")
+    return head if head else s
+
+
 def _fuse_initialisms(tokens: list[str]) -> list[str]:
     """Fuse runs of >=2 consecutive single-letter tokens into one token.
 
@@ -299,16 +332,23 @@ _HEADER_ARTIFACT = re.compile(r"#\s*AFFECTED|EFFECTIVE\s+DATE", re.IGNORECASE)
 # match would be pure guesswork, so don't search at all. Deliberately narrow —
 # "in"/"at"/"to" would false-positive on real names ("Sonic Drive In").
 _DANGLING_LAST_TOKENS: frozenset[str] = frozenset({"of", "for", "the"})
+# Hard ceiling on what may reach an external search. Above this a query is
+# certainly a multi-entity roster or a mangled cell that _truncate_entity_list
+# could not shorten (no commas to split on) — and at the provider's 70-130 ms
+# per keystroke, 150 chars is ~20 s, comfortably inside its 30 s action timeout.
+_MAX_QUERY_LEN = 150
 
 
 def is_unsearchable(cleaned: str) -> bool:
     """True when a cleaned query is too generic or too broken to look up: a
     lone generic token ("Alliance"), a header artifact stored as a name, a
-    string with no letters at all ("#1349"), or a name truncated mid-phrase
-    ("Bank of"). Lets aggressive stripping run without risking
-    luck-of-the-draw matches."""
+    string with no letters at all ("#1349"), a name truncated mid-phrase
+    ("Bank of"), or a query too long to type into a search box. Lets aggressive
+    stripping run without risking luck-of-the-draw matches."""
     tokens = cleaned.split()
     if not tokens:
+        return True
+    if len(cleaned) > _MAX_QUERY_LEN:
         return True
     if len(tokens) == 1 and tokens[0].lower() in _GENERIC_SINGLE_TOKENS:
         return True

@@ -232,12 +232,34 @@ def enrich(
         f"provider_miss={stats['provider_miss']} "
         f"provider_rejected={stats.get('provider_rejected', 0)} "
         f"provider_dba={stats.get('provider_dba', 0)} "
+        f"provider_errors={stats.get('provider_errors', 0)} "
         f"sibling={stats.get('sibling', 0)} "
         f"skipped={stats['skipped']} total={stats['total']}{suffix}"
     )
+    if dry_run:
+        return
     # Provider misses are EXPECTED outcomes (stamped + left queued), not
     # failures — only genuine agent errors flip the exit code.
-    if stats["skipped"] and not dry_run:
+    if stats["skipped"]:
+        sys.exit(1)
+    # ...but a provider run that completed ZERO searches on a non-empty batch
+    # accomplished nothing, and used to exit 0 all the same: a single company
+    # the provider choked on paused the tier for the whole run, and ~24
+    # consecutive no-op runs reported Complete (2026-09-02..08). Fail so the
+    # CronJob shows it within one run instead of waiting out the 13h
+    # WarnEnrichmentStalled window. Deliberately NOT keyed on enriched==0 —
+    # a batch of 100 genuine misses is a valid outcome (and has searches>0).
+    searches = (
+        stats["provider"]
+        + stats.get("provider_dba", 0)
+        + stats["provider_miss"]
+        + stats.get("provider_rejected", 0)
+    )
+    if "provider" in tier_set and stats["total"] and not searches and not stats["enriched"]:
+        click.echo(
+            "provider tier completed no searches — the run accomplished nothing",
+            err=True,
+        )
         sys.exit(1)
 
 
