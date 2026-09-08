@@ -182,6 +182,37 @@ def test_search_name_collapses_multiple_entities():
     ) == "10 Roads Express LLC"
 
 
+def test_search_name_collapses_long_roster_of_distinct_entities():
+    # The name that wedged the enricher for ~24 consecutive runs (2026-09):
+    # a dozen DIFFERENT companies in one cell, 256 chars, which the provider
+    # typed keystroke-by-keystroke straight into a 30 s timeout.
+    roster = (
+        "Holland America Group, Carnival UK, Westmark Hotels, Inc., Tour Alaska, "
+        "Inc., Royal Hyway Tours, Inc., Anchorage Westmark Hotel, Escorted Tour "
+        "Operations, Anchorage Transportation, Anchorage Rail Division, Fairbanks "
+        "Westmark Hotel, Fairbanks Transportation"
+    )
+    assert search_name(roster) == "Holland America Group"
+    # A segment that is nothing but a legal suffix rejoins its entity.
+    assert search_name(
+        "Westmark Hotels, Inc., Tour Alaska, Inc., Royal Hyway Tours, Inc., "
+        "Anchorage Westmark Hotel, Escorted Tour Operations, Anchorage "
+        "Transportation, Anchorage Rail"
+    ) == "Westmark Hotels, Inc."
+
+
+def test_search_name_keeps_short_comma_lists_intact():
+    # Below the roster threshold nothing changes: plenty of real names carry
+    # commas, and truncating them would lose the searchable entity.
+    for name in (
+        "Merritt Hospitality, LLC Warner Center Marriott Woodland Hills",
+        "Telemundo Network Group LLC, NBCUniversal Media, LLC, and NBC "
+        "Universal Production Services, LLC",
+        "Gulf Coast Optometry, P.A.",
+    ):
+        assert search_name(name) == name
+
+
 def test_search_name_repeated_stem_without_comma_is_kept():
     # Prose repetition is NOT a comma-delimited entity list — leave it alone.
     assert search_name("Los Angeles County of Los Angeles") == (
@@ -396,3 +427,12 @@ def test_is_unsearchable_flags_junk_and_truncated_names():
     assert not is_unsearchable("3M")
     assert not is_unsearchable("Advantest, Inc.")
     assert not is_unsearchable("Sonic Drive In")  # 'in'/'at'/'to' are NOT dangling
+
+
+def test_is_unsearchable_flags_over_long_queries():
+    # Backstop for what _truncate_entity_list cannot shorten (no commas to
+    # split on). Anything this long is a roster or a mangled cell, and it is
+    # past what the provider's search box can be typed into inside its 30 s
+    # action timeout — searching it wedges the whole run instead of missing.
+    assert is_unsearchable("Acme Manufacturing " * 20)
+    assert not is_unsearchable("Acme Manufacturing " * 2)
