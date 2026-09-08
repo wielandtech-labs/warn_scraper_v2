@@ -133,6 +133,7 @@ def export_notices(
     closure_category: str | None = Query(None),
     industry: str | None = Query(None),
     subsector: str | None = Query(None),
+    min_layoffs: int | None = Query(None, ge=1),
     after: date | None = Query(None),
     before: date | None = Query(None),
     geocoded_only: bool = Query(False),
@@ -161,8 +162,8 @@ def export_notices(
     stmt = apply_notice_filters(
         stmt,
         state=state, employer=employer, closure_category=closure_category,
-        industry=industry, subsector=subsector, after=after, before=before,
-        geocoded_only=geocoded_only,
+        industry=industry, subsector=subsector, min_layoffs=min_layoffs,
+        after=after, before=before, geocoded_only=geocoded_only,
         location_joined=True, company_joined=True,
     )
     columns = list(_NOTICE_PUBLIC_COLS)

@@ -60,6 +60,7 @@ def _sub(db, email="me@example.com", confirmed=True, last_notified_at=EPOCH, **k
         email=email,
         confirm_token=f"c-{suffix}",
         unsubscribe_token=f"u-{suffix}",
+        manage_token=f"m-{suffix}",
         confirmed_at=EPOCH if confirmed else None,
         last_notified_at=last_notified_at if confirmed else None,
         **kw,
@@ -129,7 +130,13 @@ def test_digest_emails_new_matching_notices(db, sent):
     db.commit()
 
     summary = run_digest(db, EPOCH + timedelta(days=2))
-    assert summary == {"subscriptions": 1, "emailed": 1, "notices": 1, "failed": 0}
+    assert summary == {
+        "subscriptions": 1,
+        "emailed": 1,
+        "notices": 1,
+        "failed": 0,
+        "not_due": 0,
+    }
     assert len(sent) == 1
     assert "Acme Inc" in sent[0]["text"]
     assert "Texas Co" not in sent[0]["text"]  # state filter excluded it
@@ -206,11 +213,72 @@ def test_digest_isolates_send_failures(db, monkeypatch):
     assert bad.last_notified_at.replace(tzinfo=None) == EPOCH.replace(tzinfo=None)
 
 
+def test_digest_filters_on_size_and_category(db, sent):
+    _sub(db, email="big@example.com", min_layoffs=100, suffix="big")
+    _sub(db, email="closures@example.com", closure_category="Closure", suffix="clo")
+    _notice(db, employer="Big Co", scraped_at=EPOCH + timedelta(days=1),
+            notice_id="big1", layoff_count=250, closure_category="Layoff")
+    _notice(db, employer="Small Co", scraped_at=EPOCH + timedelta(days=1),
+            notice_id="small1", layoff_count=10, closure_category="Closure")
+    # No reported headcount: never matches a size threshold (NULL fails >=).
+    _notice(db, employer="Unknown Co", scraped_at=EPOCH + timedelta(days=1),
+            notice_id="none1", closure_category="Closure")
+    db.commit()
+
+    run_digest(db, EPOCH + timedelta(days=2))
+    by_to = {m["to"]: m["text"] for m in sent}
+    assert "Big Co" in by_to["big@example.com"]
+    assert "Small Co" not in by_to["big@example.com"]
+    assert "Unknown Co" not in by_to["big@example.com"]
+    assert "Small Co" in by_to["closures@example.com"]
+    assert "Unknown Co" in by_to["closures@example.com"]
+    assert "Big Co" not in by_to["closures@example.com"]
+
+
+def test_digest_filters_on_subsector(db, sent):
+    from warn_v2.db.models import Company
+
+    company = Company(name="Bakery Co", naics_code="311811")
+    db.add(company)
+    db.flush()
+    _sub(db, email="food@example.com", industry="31-33", subsector="311", suffix="food")
+    matching = _notice(db, employer="Bakery Co", scraped_at=EPOCH + timedelta(days=1),
+                       notice_id="sub1")
+    matching.company_id = company.id
+    # Same sector, different subsector — excluded by the narrower filter.
+    other = Company(name="Chip Co", naics_code="334413")
+    db.add(other)
+    db.flush()
+    off = _notice(db, employer="Chip Co", scraped_at=EPOCH + timedelta(days=1),
+                  notice_id="sub2")
+    off.company_id = other.id
+    db.commit()
+
+    run_digest(db, EPOCH + timedelta(days=2))
+    assert "Bakery Co" in sent[0]["text"]
+    assert "Chip Co" not in sent[0]["text"]
+
+
+def test_weekly_subscription_waits_a_week(db, sent):
+    _sub(db, email="weekly@example.com", frequency="weekly", suffix="wk")
+    _notice(db, employer="Acme Inc", scraped_at=EPOCH + timedelta(days=1))
+    db.commit()
+
+    summary = run_digest(db, EPOCH + timedelta(days=2))
+    assert (summary["emailed"], summary["not_due"]) == (0, 1)
+    assert sent == []
+
+    summary = run_digest(db, EPOCH + timedelta(days=8))
+    assert (summary["emailed"], summary["not_due"]) == (1, 0)
+    assert "Acme Inc" in sent[0]["text"]
+
+
 # --- rich HTML rendering ----------------------------------------------------
 
 def test_digest_cta_deep_links_filters(db):
     sub = _sub(db, email="me@example.com", state="CA", industry="31-33",
-               employer_query="acme co")
+               employer_query="acme co", subsector="311", min_layoffs=100,
+               closure_category="Closure")
     notice = _notice(db, state="CA", scraped_at=EPOCH + timedelta(days=1))
 
     _subject, _text, html = render_digest(sub, [notice])
@@ -218,6 +286,11 @@ def test_digest_cta_deep_links_filters(db):
     assert "state=CA" in html
     assert "industry=31-33" in html
     assert "employer=acme+co" in html
+    # Every filter has to travel, or "View all matching notices" shows a wider
+    # list than the alert the reader subscribed to.
+    assert "subsector=311" in html
+    assert "min_layoffs=100" in html
+    assert "closure_category=Closure" in html
 
     plain = _sub(db, email="all@example.com", suffix="all")
     _subject, _text, html = render_digest(plain, [notice])
@@ -244,6 +317,20 @@ def test_digest_summary_and_rows(db):
     assert f"/notices/{counted.notice_id}" in html
     assert f"/notices/{bare.notice_id}" in html
     assert "None" not in html  # missing fields are omitted, not rendered
+
+
+def test_digest_scope_label_and_manage_link(db):
+    sub = _sub(db, email="me@example.com", state="CA", subsector="311",
+               min_layoffs=100, closure_category="Closure")
+    notice = _notice(db, state="CA", scraped_at=EPOCH + timedelta(days=1))
+
+    subject, text, html = render_digest(sub, [notice])
+    assert "California, Food Manufacturing, closures, 100+ affected" in subject
+    # The management link uses manage_token, never the unsubscribe token that
+    # mail providers fetch on their own.
+    assert f"/alerts?token={sub.manage_token}" in html
+    assert f"/alerts?token={sub.manage_token}" in text
+    assert f"/alerts?token={sub.unsubscribe_token}" not in html
 
 
 def test_digest_truncation_note_only_at_cap(db):

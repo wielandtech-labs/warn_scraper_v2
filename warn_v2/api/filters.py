@@ -28,6 +28,7 @@ def apply_notice_filters(
     closure_category: str | None = None,
     industry: str | None = None,
     subsector: str | None = None,
+    min_layoffs: int | None = None,
     after: date | None = None,
     before: date | None = None,
     geocoded_only: bool = False,
@@ -43,6 +44,10 @@ def apply_notice_filters(
     notices with no linked company — matching the long-standing behaviour of
     the notices endpoint. (With a caller-supplied OUTER join the predicate
     still excludes company-less notices: NULL fails the NAICS match.)
+
+    ``min_layoffs`` likewise excludes notices with **no reported headcount** —
+    ``layoff_count IS NULL`` fails ``>=``, and many states file notices without
+    a number. Callers that surface this filter should say so.
     """
     if state:
         stmt = stmt.where(Notice.state == state.upper())
@@ -55,6 +60,8 @@ def apply_notice_filters(
         if not company_joined:
             stmt = stmt.join(Company, Notice.company_id == Company.id)
         stmt = stmt.where(industry_filter)
+    if min_layoffs:
+        stmt = stmt.where(Notice.layoff_count >= min_layoffs)
     if after:
         stmt = stmt.where(Notice.notice_date >= after)
     if before:

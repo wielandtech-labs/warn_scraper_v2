@@ -301,3 +301,30 @@ export interface ForecastOut {
   generated_at: string;
   points: ForecastPointOut[]; // 6 months, oldest first
 }
+
+// ---------- Email alerts ----------
+
+/** The search criteria of one alert. Null/omitted means "no constraint".
+ *  Mirrors AlertFilters in warn_v2/api/routes/subscriptions.py — the update
+ *  endpoint replaces the whole set, so always send every field. */
+export interface AlertFilters {
+  state?: string | null;
+  industry?: string | null;
+  subsector?: string | null;
+  employer_query?: string | null;
+  min_layoffs?: number | null;
+  closure_category?: string | null;
+  frequency?: "daily" | "weekly";
+}
+
+// /subscriptions/manage — one alert as the management page sees it. Tokens are
+// never returned.
+export interface SubscriptionOut extends AlertFilters {
+  id: number;
+  email: string;
+  frequency: "daily" | "weekly";
+  scope: string; // human label, the same one used in digest subjects
+  confirmed: boolean;
+  created_at: string | null;
+  last_notified_at: string | null;
+}

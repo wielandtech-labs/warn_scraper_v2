@@ -168,6 +168,7 @@ def _sub(
             confirmed_at=now if confirmed else None,
             confirm_token=f"c-{email}",
             unsubscribe_token=f"u-{email}",
+            manage_token=f"m-{email}",
         )
     )
 

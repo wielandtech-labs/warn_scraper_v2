@@ -266,6 +266,61 @@ function PlanCard({ role }: { role: string }) {
   );
 }
 
+/** The account holder's email alerts, listed by the same endpoint /alerts uses.
+ *  Editing happens on /alerts, so this stays a summary with a way in. */
+function AlertsCard() {
+  const subs = useQuery({
+    queryKey: ["subscriptions", "session"],
+    queryFn: () => api.listSubscriptions(),
+    retry: false,
+  });
+
+  const unverified = subs.error instanceof ApiError && subs.error.status === 401;
+  const rows = subs.data ?? [];
+
+  return (
+    <div className="card">
+      <h2 className="text-lg font-semibold">Email alerts</h2>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        Saved searches we email you about. Alerts you created with this address
+        before signing up show up here too.
+      </p>
+
+      {subs.isLoading ? (
+        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">Loading…</p>
+      ) : unverified ? (
+        <p className="mt-4 text-sm text-amber-700 dark:text-amber-400">
+          Verify your email first — check your inbox for the verification link.
+        </p>
+      ) : subs.isError ? (
+        <p className="mt-4 text-sm text-red-600 dark:text-red-400">
+          Could not load your alerts. Please try again later.
+        </p>
+      ) : rows.length === 0 ? (
+        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">No alerts yet.</p>
+      ) : (
+        <ul className="mt-4 space-y-2 text-sm">
+          {rows.map((s) => (
+            <li key={s.id} className="flex flex-wrap items-baseline justify-between gap-2">
+              <span>{s.scope}</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                {s.frequency === "weekly" ? "Weekly" : "Daily"} ·{" "}
+                {s.confirmed ? "Active" : "Awaiting confirmation"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <p className="mt-4 text-sm">
+        <Link to="/alerts" className="text-sky-700 underline dark:text-sky-400">
+          Manage alerts
+        </Link>
+      </p>
+    </div>
+  );
+}
+
 export function AccountPage() {
   useDocumentTitle("Account — WARN Tracker");
   const auth = useAuth();
@@ -294,6 +349,7 @@ export function AccountPage() {
       <h1 className="text-2xl font-semibold">Account</h1>
       <p className="text-sm text-slate-500 dark:text-slate-400">{auth.data.email}</p>
       <PlanCard role={auth.data.role} />
+      <AlertsCard />
       <KeysCard />
       <UsageCard />
     </div>

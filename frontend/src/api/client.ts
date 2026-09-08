@@ -5,6 +5,7 @@
 // In dev, vite.config.ts proxies these paths to the local FastAPI server.
 
 import type {
+  AlertFilters,
   ApiKeyCreatedOut,
   ApiKeyOut,
   AuthUser,
@@ -26,6 +27,7 @@ import type {
   SearchResults,
   StateStat,
   StateStatusOut,
+  SubscriptionOut,
   UsageOut,
 } from "./types";
 
@@ -80,8 +82,16 @@ async function del<T>(path: string): Promise<T> {
 
 // Same-origin fetch sends the session cookie by default; no credentials flag needed.
 async function post<T>(path: string, body?: unknown): Promise<T> {
+  return send<T>("POST", path, body);
+}
+
+async function put<T>(path: string, body?: unknown): Promise<T> {
+  return send<T>("PUT", path, body);
+}
+
+async function send<T>(method: string, path: string, body?: unknown): Promise<T> {
   const resp = await fetch(path, {
-    method: "POST",
+    method,
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -100,6 +110,7 @@ export interface NoticesQuery {
   closure_category?: string;
   industry?: string;
   subsector?: string;
+  min_layoffs?: number;
   after?: string;
   before?: string;
   geocoded_only?: boolean;
@@ -313,10 +324,25 @@ export const api = {
     get<SearchResults>("/api/search" + qs({ q, limit })),
 
   // ---------- Alert subscriptions ----------
-  createSubscription: (body: {
-    email: string;
-    state?: string;
-    industry?: string;
-    employer_query?: string;
-  }) => post<{ status: string; message: string }>("/api/subscriptions", body),
+  createSubscription: (body: { email: string } & AlertFilters) =>
+    post<{ status: string; message: string }>("/api/subscriptions", body),
+
+  /** Ask for the emailed management link. Answers the same for an address with
+   *  no alerts, so it never reveals whether someone is subscribed. */
+  requestManageLink: (email: string) =>
+    post<{ status: string; message: string }>("/api/subscriptions/manage-link", { email }),
+
+  // The manage endpoints authenticate with either the emailed token or the
+  // session cookie; pass the token when the page was opened from an email.
+  listSubscriptions: (token?: string) =>
+    get<SubscriptionOut[]>("/api/subscriptions/manage" + qs({ token })),
+  /** Replaces the alert's whole filter set — send every field, not a patch. */
+  updateSubscription: (id: number, filters: AlertFilters, token?: string) =>
+    put<SubscriptionOut>(`/api/subscriptions/manage/${id}` + qs({ token }), filters),
+  deleteSubscription: (id: number, token?: string) =>
+    del<{ status: string }>(`/api/subscriptions/manage/${id}` + qs({ token })),
+  resendConfirmation: (id: number, token?: string) =>
+    post<{ status: string }>(
+      `/api/subscriptions/manage/${id}/resend-confirmation` + qs({ token }),
+    ),
 };

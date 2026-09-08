@@ -299,14 +299,28 @@ class Subscription(Base):
     # Optional filters (mirror the notices query params). Null => no constraint.
     state: Mapped[str | None] = mapped_column(String(2))
     industry: Mapped[str | None] = mapped_column(String(8))  # NAICS sector id, e.g. "31-33"
+    subsector: Mapped[str | None] = mapped_column(String(8))  # 3-digit NAICS, e.g. "311"
     employer_query: Mapped[str | None] = mapped_column(String(256))  # case-insensitive substring
+    # Notices reporting fewer than this many affected workers are skipped. A
+    # notice with no reported count never matches (see apply_notice_filters).
+    min_layoffs: Mapped[int | None] = mapped_column(Integer)
+    closure_category: Mapped[str | None] = mapped_column(String(16))  # Closure | Layoff | Non-WARN
     frequency: Mapped[str] = mapped_column(
         String(16), nullable=False, default="daily", server_default="daily"
-    )
+    )  # 'daily' | 'weekly' — see warn_v2.notifications.digest.is_due
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     confirm_token: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
     unsubscribe_token: Mapped[str] = mapped_column(
         String(64), nullable=False, unique=True, index=True
+    )
+    # Deliberately separate from unsubscribe_token: that one travels in
+    # List-Unsubscribe headers and is auto-fetched by mail providers, so it must
+    # not also authorize reading/editing the address's other alerts.
+    manage_token: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    # Set when a verified account holder owns this address, so /account can list
+    # it. Null for anonymous subscribers, which remain the common case.
+    user_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL"), index=True
     )
     # Watermark: only notices with scraped_at after this are sent in the next digest.
     last_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

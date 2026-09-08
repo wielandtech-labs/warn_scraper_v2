@@ -106,7 +106,9 @@ def create_app(static_dir: Path | None = None) -> FastAPI:
     app.include_router(reports.router, prefix="/api", dependencies=limited)
     app.include_router(map_pins.router, prefix="/api", dependencies=limited)
     app.include_router(search.router, prefix="/api", dependencies=limited)
-    app.include_router(subscriptions.router, prefix="/api")
+    # Rate-limited like the data routes: every POST here sends mail, so an
+    # unthrottled endpoint is a way to pump messages at an address.
+    app.include_router(subscriptions.router, prefix="/api", dependencies=limited)
 
     # --- SEO + feeds (site root, not /api): sitemap.xml, robots.txt, RSS ---
     app.include_router(seo.router)
