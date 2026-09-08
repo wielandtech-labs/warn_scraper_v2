@@ -341,6 +341,17 @@ def _propagate_siblings(session: Session, donors: dict, *, dry_run: bool = False
 
 ALL_TIERS = frozenset({"provider", "edgar", "claude"})
 
+# How many CONSECUTIVE provider failures end the tier for the rest of the run.
+# The provider cannot tell the worker whether a failure was about the company
+# (a query it choked on) or about itself (session dead, cap, cooldown) — both
+# arrive as ProviderUnavailable. Pausing on the first one let a single
+# pathological company take down every run it appeared in (2026-09: a
+# 250+-char multi-entity name timed out the provider's search box, and being
+# un-stamped it stayed first in the impact-ordered queue, so ~24 consecutive
+# runs enriched nothing). A streak separates the two cheaply: a genuinely
+# dead provider trips its own breaker and raises instantly from then on.
+_MAX_PROVIDER_FAILURES = 3
+
 
 def enrich_batch(
     session: Session,
@@ -437,8 +448,8 @@ def enrich_batch(
         log.info("enrich_batch: no pending companies found")
         return {"total": 0, "enriched": 0, "skipped": 0, "provider": 0,
                 "provider_miss": 0, "provider_rejected": 0, "provider_dba": 0,
-                "unsearchable": 0, "edgar": 0, "claude": 0,
-                "sibling": stats_sibling}
+                "provider_errors": 0, "unsearchable": 0, "edgar": 0,
+                "claude": 0, "sibling": stats_sibling}
 
     log.info(
         "enrich_batch: found %d company/companies to enrich (%d impact + %d recency)",
@@ -448,14 +459,17 @@ def enrich_batch(
     skipped = 0
     stats_provider = 0
     stats_provider_miss = 0
+    stats_provider_errors = 0
     stats_provider_rejected = 0
     stats_provider_dba = 0
     stats_unsearchable = 0
     stats_edgar = 0
     stats_claude = 0
-    # Once the provider signals it can't search (session trip, cap, cooldown),
-    # every later company in this run would trip too — stop calling it.
+    # Once the provider has failed _MAX_PROVIDER_FAILURES times in a row it is
+    # the provider that's broken (session trip, cap, cooldown), not the
+    # companies — stop calling it. An isolated failure only costs its company.
     provider_ok = True
+    provider_fails = 0
 
     for i, company in enumerate(companies):
         # Only apply the inter-company delay before Claude calls (free tiers are fast).
@@ -507,27 +521,36 @@ def enrich_batch(
                 except ProviderUnavailable as e:
                     # The provider could not actually search this company (session
                     # trip, cap, cooldown, transport error). Don't burn its one
-                    # shot: leave it un-attempted so a healthy run retries it, and
-                    # stop calling the provider for the rest of this run.
+                    # shot: leave it un-attempted so a healthy run retries it.
+                    stats_provider_errors += 1
+                    provider_fails += 1
+                    provider_ok = provider_fails < _MAX_PROVIDER_FAILURES
                     log.warning(
-                        "company_id=%d name=%r: provider unavailable (%s); "
-                        "pausing provider tier for this run",
-                        company.id, company.name, e,
+                        "company_id=%d name=%r: provider unavailable (%s) "
+                        "[%d/%d consecutive]%s",
+                        company.id, company.name, e, provider_fails,
+                        _MAX_PROVIDER_FAILURES,
+                        "" if provider_ok else "; pausing provider tier for this run",
                     )
-                    provider_ok = False
                     attempted = False
                     pr = None
                 except Exception:
                     # An unexpected error is not evidence the company is absent —
                     # treat it like unavailability so we never burn the one shot.
+                    stats_provider_errors += 1
+                    provider_fails += 1
+                    provider_ok = provider_fails < _MAX_PROVIDER_FAILURES
                     log.exception(
-                        "provider.lookup failed for company_id=%d name=%r; "
-                        "pausing provider tier for this run",
-                        company.id, company.name,
+                        "provider.lookup failed for company_id=%d name=%r "
+                        "[%d/%d consecutive]%s",
+                        company.id, company.name, provider_fails,
+                        _MAX_PROVIDER_FAILURES,
+                        "" if provider_ok else "; pausing provider tier for this run",
                     )
-                    provider_ok = False
                     attempted = False
                     pr = None
+                else:
+                    provider_fails = 0  # a completed search is a healthy round-trip
 
             if attempted:
                 if not dry_run:
@@ -577,21 +600,31 @@ def enrich_batch(
                     try:
                         pr2 = provider.lookup(alt, state)
                     except ProviderUnavailable as e:
+                        stats_provider_errors += 1
+                        provider_fails += 1
+                        provider_ok = provider_fails < _MAX_PROVIDER_FAILURES
                         log.warning(
                             "company_id=%d name=%r: provider unavailable on dba "
-                            "retry (%s); pausing provider tier for this run",
-                            company.id, company.name, e,
+                            "retry (%s) [%d/%d consecutive]%s",
+                            company.id, company.name, e, provider_fails,
+                            _MAX_PROVIDER_FAILURES,
+                            "" if provider_ok else "; pausing provider tier for this run",
                         )
-                        provider_ok = False
                         pr2 = None
                     except Exception:
+                        stats_provider_errors += 1
+                        provider_fails += 1
+                        provider_ok = provider_fails < _MAX_PROVIDER_FAILURES
                         log.exception(
                             "provider.lookup failed on dba retry for company_id=%d "
-                            "name=%r; pausing provider tier for this run",
-                            company.id, company.name,
+                            "name=%r [%d/%d consecutive]%s",
+                            company.id, company.name, provider_fails,
+                            _MAX_PROVIDER_FAILURES,
+                            "" if provider_ok else "; pausing provider tier for this run",
                         )
-                        provider_ok = False
                         pr2 = None
+                    else:
+                        provider_fails = 0
 
                     # Faithfulness is judged against the TRADE name — the legal
                     # entity's tokens won't (and shouldn't) match its dba.
@@ -722,6 +755,7 @@ def enrich_batch(
         "provider_miss": stats_provider_miss,
         "provider_rejected": stats_provider_rejected,
         "provider_dba": stats_provider_dba,
+        "provider_errors": stats_provider_errors,
         "unsearchable": stats_unsearchable,
         "edgar": stats_edgar,
         "claude": stats_claude,

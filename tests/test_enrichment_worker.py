@@ -425,7 +425,8 @@ def test_enrich_batch_provider_hit_skips_edgar_and_claude(db, monkeypatch) -> No
     stats = enrich_batch(db, _StubClient(), provider=_FakeProvider(), inter_delay_s=0)
     assert stats == {"total": 1, "enriched": 1, "skipped": 0,
                      "provider": 1, "provider_miss": 0, "provider_rejected": 0,
-                     "provider_dba": 0, "unsearchable": 0, "edgar": 0, "claude": 0,
+                     "provider_dba": 0, "provider_errors": 0,
+                     "unsearchable": 0, "edgar": 0, "claude": 0,
                      "sibling": 0}
     assert edgar_calls == []
     assert claude_calls == []
@@ -473,7 +474,8 @@ def test_enrich_batch_edgar_hit_skips_claude(db, monkeypatch) -> None:
     stats = enrich_batch(db, _StubClient(), inter_delay_s=0)
     assert stats == {"total": 1, "enriched": 1, "skipped": 0,
                      "provider": 0, "provider_miss": 0, "provider_rejected": 0,
-                     "provider_dba": 0, "unsearchable": 0, "edgar": 1, "claude": 0,
+                     "provider_dba": 0, "provider_errors": 0,
+                     "unsearchable": 0, "edgar": 1, "claude": 0,
                      "sibling": 0}
     assert claude_calls == []
 
@@ -499,7 +501,8 @@ def test_enrich_batch_falls_through_to_claude(db, monkeypatch) -> None:
     stats = enrich_batch(db, _StubClient(), inter_delay_s=0)
     assert stats == {"total": 1, "enriched": 1, "skipped": 0,
                      "provider": 0, "provider_miss": 0, "provider_rejected": 0,
-                     "provider_dba": 0, "unsearchable": 0, "edgar": 0, "claude": 1,
+                     "provider_dba": 0, "provider_errors": 0,
+                     "unsearchable": 0, "edgar": 0, "claude": 1,
                      "sibling": 0}
 
     db.refresh(c)
@@ -787,9 +790,9 @@ def test_dba_retry_match_rejected_when_inconsistent(db) -> None:
     assert c.provider_attempted_at is not None
 
 
-def test_dba_retry_unavailable_keeps_stamp_and_pauses(db) -> None:
+def test_dba_retry_unavailable_keeps_stamp_and_continues(db) -> None:
     """The primary attempt was real, so an infrastructure failure on the dba
-    retry keeps the stamp but pauses the provider for the rest of the run."""
+    retry keeps the stamp — and a single failure does not end the run."""
     from warn_v2.enrichment.provider import ProviderUnavailable
 
     class _TrippingDbaProvider:
@@ -813,15 +816,16 @@ def test_dba_retry_unavailable_keeps_stamp_and_pauses(db) -> None:
     stats = enrich_batch(
         db, _StubClient(), provider=provider, inter_delay_s=0, tiers={"provider"}
     )
-    # The retry tripped: c1's genuine primary attempt still counts as a miss,
-    # and c2 is never tried (provider paused).
-    assert provider.calls == ["Managed Services-IDS", "Cardinal Health"]
-    assert stats["provider_miss"] == 1
+    # The retry failed: c1's genuine primary attempt still counts as a miss, and
+    # c2 is still tried — one failure is not evidence the provider is broken.
+    assert provider.calls == ["Managed Services-IDS", "Cardinal Health", "Second Corp"]
+    assert stats["provider_miss"] == 2
+    assert stats["provider_errors"] == 1
 
     db.refresh(c1)
     db.refresh(c2)
     assert c1.provider_attempted_at is not None  # primary shot was real
-    assert c2.provider_attempted_at is None  # untouched, stays queued
+    assert c2.provider_attempted_at is not None  # reached and genuinely searched
 
 
 def test_unsearchable_query_skips_backup_tiers(db, monkeypatch) -> None:
@@ -1060,8 +1064,10 @@ def test_full_cascade_still_falls_through(db, monkeypatch) -> None:
 def test_provider_unavailable_does_not_stamp_and_pauses_run(db, monkeypatch) -> None:
     """An infrastructure failure (session trip / cap / cooldown) must NOT burn a
     company's one provider shot: the row is left un-attempted (so a healthy run
-    retries it), and the provider is not called again for the rest of the run."""
+    retries it), and after _MAX_PROVIDER_FAILURES in a row the provider is not
+    called again for the rest of the run."""
     from warn_v2.enrichment.provider import ProviderUnavailable
+    from warn_v2.enrichment.worker import _MAX_PROVIDER_FAILURES
 
     class _UnavailableProvider:
         def __init__(self):
@@ -1074,34 +1080,74 @@ def test_provider_unavailable_does_not_stamp_and_pauses_run(db, monkeypatch) -> 
         def close(self) -> None:
             pass
 
-    c1 = _company(db, name="Boeing Company")
-    c2 = _company(db, name="Cisco Systems, Inc.")
+    names = ["Boeing Company", "Cisco Systems, Inc.", "Kodak Company", "Xerox Company"]
+    assert len(names) > _MAX_PROVIDER_FAILURES
+    companies = [_company(db, name=n) for n in names]
     db.commit()
 
     provider = _UnavailableProvider()
     stats = enrich_batch(
         db, _StubClient(), provider=provider, inter_delay_s=0, tiers={"provider"}
     )
-    # Nothing counted as a miss or skip; the provider was called once then paused.
+    # Nothing counted as a miss or skip; the tier stopped once the streak hit.
     assert stats["provider_miss"] == 0
     assert stats["enriched"] == 0
     assert stats["skipped"] == 0
-    assert provider.calls == ["Boeing Company"]  # second company never tried
+    assert stats["provider_errors"] == _MAX_PROVIDER_FAILURES
+    assert provider.calls == names[:_MAX_PROVIDER_FAILURES]  # rest never tried
 
-    db.refresh(c1)
-    db.refresh(c2)
-    assert c1.provider_attempted_at is None  # NOT burned
-    assert c2.provider_attempted_at is None
+    for c in companies:
+        db.refresh(c)
+        assert c.provider_attempted_at is None  # NOT burned
 
-    # A subsequent healthy run still finds and attempts both (they were queued).
+    # A subsequent healthy run still finds and attempts them all (still queued).
     healthy = _MissProviderCounting()
     stats2 = enrich_batch(
         db, _StubClient(), provider=healthy, inter_delay_s=0, tiers={"provider"}
     )
-    assert stats2["total"] == 2
-    assert sorted(healthy.calls) == ["Boeing Company", "Cisco Systems, Inc."]
-    db.refresh(c1)
-    assert c1.provider_attempted_at is not None  # now a genuine attempt stamps
+    assert stats2["total"] == len(names)
+    assert sorted(healthy.calls) == sorted(names)
+    db.refresh(companies[0])
+    assert companies[0].provider_attempted_at is not None  # now a genuine attempt stamps
+
+
+def test_single_provider_failure_does_not_end_the_run(db) -> None:
+    """Regression (2026-09-02..08): one company the provider chokes on used to
+    pause the tier for the WHOLE run, and — never stamped — it stayed first in
+    the impact-ordered queue, so every run after it enriched nothing. An
+    isolated failure must cost only that company."""
+    from warn_v2.enrichment.provider import ProviderUnavailable
+
+    class _OneBadCompanyProvider:
+        def __init__(self):
+            self.calls: list[str] = []
+
+        def lookup(self, company_name: str, state):
+            self.calls.append(company_name)
+            if company_name == "Boeing Company":
+                raise ProviderUnavailable("lookup failed")
+            return None
+
+        def close(self) -> None:
+            pass
+
+    names = ["Boeing Company", "Cisco Systems, Inc.", "Kodak Company"]
+    companies = [_company(db, name=n) for n in names]
+    db.commit()
+
+    provider = _OneBadCompanyProvider()
+    stats = enrich_batch(
+        db, _StubClient(), provider=provider, inter_delay_s=0, tiers={"provider"}
+    )
+    assert provider.calls == names  # every company still got its lookup
+    assert stats["provider_errors"] == 1
+    assert stats["provider_miss"] == len(names) - 1
+
+    db.refresh(companies[0])
+    assert companies[0].provider_attempted_at is None  # the failure burned no shot
+    for c in companies[1:]:
+        db.refresh(c)
+        assert c.provider_attempted_at is not None
 
 
 def test_provider_unavailable_falls_through_to_backup_in_mixed_run(db, monkeypatch) -> None:
