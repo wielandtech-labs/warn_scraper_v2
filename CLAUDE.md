@@ -107,6 +107,35 @@ a scratch SQLite file, `Base.metadata.create_all(engine)` then `drop()` the new
 model's table, `alembic stamp head`, then `alembic revision --autogenerate` —
 the diff contains exactly the new table.
 
+## A "Running" enricher pod may be dead
+
+The enricher drives a headless browser, so it can fail without its process
+exiting. If a pod shows `Running` with no new log lines, don't wait on it —
+`concurrencyPolicy: Forbid` means every later run is being suppressed while you
+do. Diagnose from inside the pod (all read-only):
+
+```
+kubectl -n warn-v2 exec <pod> -- sh -c 'cat /proc/1/wchan; cat /sys/fs/cgroup/memory.events'
+```
+
+`wchan=ep_poll` with ~0 CPU means the Playwright client is blocked on its driver
+pipe. Then check `memory.events`: **`oom_kill` counts processes, not pods.**
+With `oom_group_kill 0` the kernel killed one process inside the cgroup — for
+this workload that is the Chromium renderer, which leaves PID 1 alive and
+waiting forever. `memory.peak` equal to the limit confirms it. So the *same*
+root cause shows up either as an `OOMKilled` pod (kernel picked PID 1, and the
+SIGKILL leaves the Hoovers seat lock held, so the `backoffLimit: 1` retry fails
+on a stale lock) or as a pod that hangs for days (kernel picked the renderer).
+Per-run memory history:
+
+```
+max_over_time(container_memory_working_set_bytes{namespace="warn-v2",container="enricher"}[2h])
+```
+
+Both shapes are now bounded — a per-lookup SIGALRM watchdog in
+`warn_v2/enrichment/worker.py` and `enricher.activeDeadlineSeconds` in the
+chart — but a wedge that outlives both is still diagnosed this way.
+
 ## The enricher runs a DIFFERENT image
 
 The `enricher` CronJob does **not** run the app image. It runs the private
