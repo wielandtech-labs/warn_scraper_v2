@@ -63,7 +63,7 @@ class Company(Base):
     global_ultimate_name: Mapped[str | None] = mapped_column(String(512))
     hq_address: Mapped[str | None] = mapped_column(Text)
     enriched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    # When the external provider (D&B) last attempted this company — set on hit
+    # When the external provider last attempted this company — set on hit
     # AND miss, so provider-only runs work through the queue without retrying
     # misses forever. Cleared by reset-enrichment to grant another attempt.
     provider_attempted_at: Mapped[datetime | None] = mapped_column(
@@ -83,7 +83,7 @@ class Company(Base):
     name_normalized: Mapped[str | None] = mapped_column(String(512), index=True)
     global_ultimate_duns: Mapped[str | None] = mapped_column(String(16), index=True)
     global_ultimate_id: Mapped[str | None] = mapped_column(String(64), index=True)
-    # D&B's stable id for the global ultimate (from its profile href) — exact,
+    # the provider's stable id for the global ultimate (from its profile href) — exact,
     # free sibling-grouping key shared by all subsidiaries of one parent.
     parent_group_key: Mapped[str | None] = mapped_column(String(512), index=True)
 

@@ -1,4 +1,4 @@
-"""Add companies.global_ultimate_id — D&B id of the global ultimate parent.
+"""Add companies.global_ultimate_id — provider id of the global ultimate parent.
 
 Exact, free sibling-grouping key (from the ultimate's profile href) shared by
 all subsidiaries of one parent. Additive/nullable.

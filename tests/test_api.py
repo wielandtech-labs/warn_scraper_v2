@@ -345,10 +345,10 @@ def test_company_detail_not_found(api_client, db):
 
 
 def test_company_detail_hides_internal_enrichment_fields(api_client, db):
-    """D&B-sourced fields are stored but must not be exposed by the public API.
+    """provider-sourced fields are stored but must not be exposed by the public API.
 
     Redistribution of DUNS / employee counts / corporate hierarchy is restricted
-    by D&B terms, so CompanyOut deliberately omits them.
+    by the provider's terms, so CompanyOut deliberately omits them.
     """
     c = _company(
         db,

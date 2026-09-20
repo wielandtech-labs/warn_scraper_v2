@@ -79,8 +79,8 @@ def require_admin(user: User | None = Depends(get_current_user)) -> User:
 class ViewerSchemas:
     """Company/notice output schemas for the requesting user's role.
 
-    enterprise/admin sessions get the *EnterpriseOut subclasses (D&B fields
-    including raw DUNS); paid sessions get *EnrichedOut (D&B fields minus DUNS);
+    enterprise/admin sessions get the *EnterpriseOut subclasses (provider fields
+    including raw DUNS); paid sessions get *EnrichedOut (provider fields minus DUNS);
     anonymous and free users get the base schemas — today's exact public shape.
     """
 

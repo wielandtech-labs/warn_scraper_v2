@@ -5,7 +5,7 @@ The API has cookie-session auth with three roles:
 | Role  | Sees                                                                  |
 |-------|-----------------------------------------------------------------------|
 | free  | Same as anonymous (the public site shape) — login adds nothing yet    |
-| paid  | + D&B fields on companies: duns, parent_duns, parent_company_name, global_ultimate_name, hq_address, employee_count |
+| paid  | + provider fields on companies: duns, parent_duns, parent_company_name, global_ultimate_name, hq_address, employee_count |
 | admin | Same as paid; reserved for future admin endpoints (`require_admin`)   |
 
 Accounts are **admin-provisioned only** — there is no signup endpoint. User
@@ -67,7 +67,7 @@ needed — drop the secret and the stdin pipe).
 
 ## Data-exposure note
 
-D&B-sourced fields were deliberately excluded from the public API
+provider-sourced fields were deliberately excluded from the public API
 (see the comment in `warn_v2/api/schemas.py`); serving them to paid logins is
 a deliberate owner decision (2026-06-11) and is limited to authenticated
 paid/admin sessions.

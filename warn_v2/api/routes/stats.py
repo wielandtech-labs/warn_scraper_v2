@@ -93,7 +93,7 @@ class CountyImpactStat(BaseModel):
 
 class ParentGroupStat(BaseModel):
     # Anonymous: a corporate family is identified only by a representative member
-    # WARN company, never by the D&B parent name or the internal grouping key.
+    # WARN company, never by the provider parent name or the internal grouping key.
     representative_company_id: int
     representative_company_name: str
     member_count: int

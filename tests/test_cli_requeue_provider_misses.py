@@ -37,7 +37,7 @@ def _seed(db_session_factory) -> None:
                     name="Old Miss Co",
                     provider_attempted_at=BAD_WINDOW_START - timedelta(days=3),
                 ),
-                # Inside the window but actually enriched — a real D&B hit.
+                # Inside the window but actually enriched — a real provider hit.
                 Company(
                     name="Real Hit Co",
                     provider_attempted_at=BAD_WINDOW_START + timedelta(hours=7),

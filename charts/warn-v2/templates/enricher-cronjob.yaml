@@ -7,8 +7,8 @@ metadata:
     {{- include "warn-v2.labels" . | nindent 4 }}
 spec:
   schedule: {{ .Values.enricher.schedule | quote }}
-  # Forbid: never overlap runs. Critical when the D&B provider image is used —
-  # D&B locks the seat (~1h) on a second concurrent session.
+  # Forbid: never overlap runs. Critical when the provider image is used —
+  # the provider locks the seat (~1h) on a second concurrent session.
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 5
@@ -58,40 +58,40 @@ spec:
                 - name: ENRICHMENT_PROVIDER_MODULE
                   value: {{ .Values.enricher.providerModule | quote }}
                 {{- end }}
-                - name: HOOVERS_USERNAME
+                - name: PROVIDER_USERNAME
                   valueFrom:
                     secretKeyRef:
-                      name: {{ .Values.dnb.secretName }}
-                      key: {{ .Values.dnb.usernameKey }}
-                - name: HOOVERS_PASSWORD
+                      name: {{ .Values.providerAuth.secretName }}
+                      key: {{ .Values.providerAuth.usernameKey }}
+                - name: PROVIDER_PASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: {{ .Values.dnb.secretName }}
-                      key: {{ .Values.dnb.passwordKey }}
-                {{- if .Values.hooversStorage.enabled }}
-                - name: HOOVERS_STATE_PATH
-                  value: /var/hoovers/profile
+                      name: {{ .Values.providerAuth.secretName }}
+                      key: {{ .Values.providerAuth.passwordKey }}
+                {{- if .Values.providerStorage.enabled }}
+                - name: PROVIDER_STATE_PATH
+                  value: /var/provider-profile/profile
                 {{- end }}
                 {{- if .Values.enricher.maxPerRun }}
-                - name: HOOVERS_MAX_PER_RUN
+                - name: PROVIDER_MAX_PER_RUN
                   value: {{ .Values.enricher.maxPerRun | quote }}
                 {{- end }}
                 {{- if .Values.enricher.maxPerDay }}
-                - name: HOOVERS_MAX_PER_DAY
+                - name: PROVIDER_MAX_PER_DAY
                   value: {{ .Values.enricher.maxPerDay | quote }}
                 {{- end }}
                 {{- end }}
-              {{- if and .Values.enricher.providerImage .Values.hooversStorage.enabled }}
+              {{- if and .Values.enricher.providerImage .Values.providerStorage.enabled }}
               volumeMounts:
-                - name: hoovers-profile
-                  mountPath: /var/hoovers
+                - name: provider-profile
+                  mountPath: /var/provider-profile
               {{- end }}
               resources:
                 {{- toYaml .Values.enricher.resources | nindent 16 }}
-          {{- if and .Values.enricher.providerImage .Values.hooversStorage.enabled }}
+          {{- if and .Values.enricher.providerImage .Values.providerStorage.enabled }}
           volumes:
-            - name: hoovers-profile
+            - name: provider-profile
               persistentVolumeClaim:
-                claimName: {{ include "warn-v2.fullname" . }}-hoovers
+                claimName: {{ include "warn-v2.fullname" . }}-provider-profile
           {{- end }}
 {{- end }}

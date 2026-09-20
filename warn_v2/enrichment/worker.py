@@ -63,7 +63,7 @@ def find_pending(
     for that state are returned.
     If ``recent_years`` is set, only companies that have at least one notice
     within the last N years are returned (focuses the backlog on active companies).
-    ``provider_attempted`` filters on the D&B attempt stamp: ``False`` = only
+    ``provider_attempted`` filters on the provider attempt stamp: ``False`` = only
     companies the provider hasn't tried yet (provider-only main flow), ``True``
     = only already-attempted ones (backup-tier runs), ``None`` = no filter.
     ``exclude_ids`` drops the given company ids — used to dedupe a second,
@@ -436,7 +436,7 @@ def enrich_batch(
     Tier selection drives which companies are picked: a provider-only run
     takes companies the provider hasn't attempted; a run WITHOUT the provider
     tier (backup mode) takes only already-attempted ones, so the cheap tiers
-    never preempt a company's one D&B shot.
+    never preempt a company's one provider shot.
 
     Commits after each company so partial runs are safe.
     In dry_run mode the agents still run but nothing is written to the DB.

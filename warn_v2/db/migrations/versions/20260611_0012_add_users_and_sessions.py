@@ -1,6 +1,6 @@
 """Add users + user_sessions tables for cookie-session auth.
 
-Roles (admin | paid | free) gate visibility of D&B enrichment fields in the
+Roles (admin | paid | free) gate visibility of the provider enrichment fields in the
 API. Sessions are server-side: the cookie carries a random token and only its
 sha256 is stored.
 

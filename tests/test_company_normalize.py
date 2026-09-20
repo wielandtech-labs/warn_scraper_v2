@@ -399,7 +399,7 @@ def test_match_is_consistent_trusts_provider_for_tokenless_names():
 
 
 def test_match_is_consistent_fuses_ampersand_initialisms():
-    # "T&H" tokenizes to "t h" once punctuation drops, and D&B spells it
+    # "T&H" tokenizes to "t h" once punctuation drops, and the provider spells it
     # "T & H" — the fused "th" token lets the exact match through (a conf=1.00
     # provider hit was previously rejected on exactly this shape).
     assert match_is_consistent("T&H Services LLC", "T & H Services, LLC")

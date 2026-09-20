@@ -26,7 +26,7 @@ export interface CompanyOut {
   // Workers affected (rolled up over merged dupes, superseded excluded).
   // Computed only by the companies list endpoint; null elsewhere.
   layoff_total?: number | null;
-  // D&B enrichment fields — present only for paid sessions and above; the API
+  // Provider enrichment fields — present only for paid sessions and above; the API
   // omits the keys entirely for anonymous/free viewers. Raw DUNS identifiers
   // are enterprise/admin only.
   duns?: string | null;
@@ -236,7 +236,7 @@ export interface CountyImpactStat {
 }
 
 // A member of a corporate family (siblings sharing a parent). Anonymous by
-// design — identified only by the member WARN company, never the D&B parent name.
+// design — identified only by the member WARN company, never the provider parent name.
 export interface FamilyMemberOut {
   company_id: number;
   name: string;

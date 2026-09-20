@@ -105,7 +105,7 @@ class WarnCollector(Collector):
             yield g
 
             # ------------------------------------------------------------------
-            # 3. Provider (D&B) attempts and misses. A miss stamps
+            # 3. Provider attempts and misses. A miss stamps
             #    provider_attempted_at but leaves enriched_at NULL — the company
             #    queues for the backup tiers (edgar/claude). Hit rate =
             #    1 - misses/attempts; untried pool = backlog - misses.
@@ -118,7 +118,7 @@ class WarnCollector(Collector):
             )
             c = CounterMetricFamily(
                 "warn_enrichment_provider_attempts",
-                "Companies the D&B provider tier has attempted (hit or miss).",
+                "Companies the provider tier has attempted (hit or miss).",
             )
             c.add_metric([], float(attempted))
             yield c

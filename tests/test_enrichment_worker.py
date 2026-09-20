@@ -563,7 +563,7 @@ class _MissProviderCounting:
 
 
 def test_provider_only_miss_stamps_and_stays_queued(db, monkeypatch) -> None:
-    """Main flow: a D&B miss stamps the attempt, leaves the row unenriched,
+    """Main flow: a provider miss stamps the attempt, leaves the row unenriched,
     and never falls through to EDGAR/Claude."""
     edgar_calls: list[str] = []
     monkeypatch.setattr(
@@ -681,7 +681,7 @@ def test_generic_single_token_skips_provider_lookup(db, monkeypatch) -> None:
 
 
 def test_backup_tiers_select_only_provider_attempted(db, monkeypatch) -> None:
-    """--tiers edgar,claude only touches companies D&B has already tried."""
+    """--tiers edgar,claude only touches companies the provider has already tried."""
     from datetime import UTC, datetime
 
     monkeypatch.setattr(
