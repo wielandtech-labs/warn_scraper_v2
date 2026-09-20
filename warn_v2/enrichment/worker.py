@@ -366,6 +366,12 @@ _MAX_PROVIDER_FAILURES = 3
 # provider failure, which the breaker below already knows how to end a run on.
 _PROVIDER_CALL_TIMEOUT_S = 300
 
+# Shutting the provider down is the OTHER place a wedged browser blocks
+# forever: Playwright's context.close()/stop() wait on processes to exit and
+# take no timeout of their own. Shutdown is seconds' work when it works at all,
+# and an orphaned browser dies with the container, so the budget is tight.
+_PROVIDER_CLOSE_TIMEOUT_S = 120
+
 
 @contextmanager
 def _call_deadline(seconds: int, what: str):

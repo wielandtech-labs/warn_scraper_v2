@@ -1,6 +1,9 @@
 """enrich CLI: exit codes that make a dead provider tier visible to Kubernetes."""
 from __future__ import annotations
 
+import signal
+import time
+
 import pytest
 from click.testing import CliRunner
 
@@ -97,3 +100,33 @@ def test_enrich_stays_quiet_for_a_small_run_of_misses(
     assert result.exit_code == 0, result.output
     assert "provider_miss=5" in result.output
     assert "provider_errors=0" in result.output
+
+
+@pytest.mark.skipif(
+    not hasattr(signal, "SIGALRM"), reason="SIGALRM watchdog is POSIX-only"
+)
+def test_enrich_does_not_hang_when_the_provider_will_not_close(
+    db_session_factory, runner, monkeypatch
+) -> None:
+    """Shutting the provider down is the other place a wedged browser blocks
+    forever — Playwright's close()/stop() wait on processes and take no timeout
+    of their own. Without a budget the run finishes its work and then parks the
+    pod, which concurrencyPolicy=Forbid turns into a stalled schedule."""
+    import warn_v2.enrichment.worker as worker_mod
+
+    monkeypatch.setattr(worker_mod, "_PROVIDER_CLOSE_TIMEOUT_S", 1)
+
+    class _WontCloseProvider(_MissProvider):
+        def close(self) -> None:
+            time.sleep(30)
+            raise AssertionError("close watchdog did not fire")
+
+    _seed(db_session_factory, count=5)
+    _install(monkeypatch, _WontCloseProvider())
+
+    started = time.monotonic()
+    result = runner.invoke(main, ["enrich", "--limit", "5", "--sleep-between", "0"])
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 30  # returned on the watchdog, not on the sleep
+    assert "provider_miss=5" in result.output  # the run's own work still reported
