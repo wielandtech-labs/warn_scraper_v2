@@ -188,7 +188,12 @@ def enrich(
     from warn_v2.db.session import session_scope
     from warn_v2.enrichment.agent import build_anthropic_client
     from warn_v2.enrichment.provider import load_provider
-    from warn_v2.enrichment.worker import ALL_TIERS, enrich_batch
+    from warn_v2.enrichment.worker import (
+        _PROVIDER_CLOSE_TIMEOUT_S,
+        ALL_TIERS,
+        _call_deadline,
+        enrich_batch,
+    )
 
     tier_set = frozenset(t.strip().lower() for t in tiers.split(",") if t.strip())
     invalid = tier_set - ALL_TIERS
@@ -227,7 +232,12 @@ def enrich(
     finally:
         if provider:
             try:
-                provider.close()
+                # A provider whose browser has died blocks here forever, which
+                # is the same outage as a hung lookup: Forbid means the pod
+                # holds the schedule hostage. Leaving the browser orphaned is
+                # fine — the container is about to exit anyway.
+                with _call_deadline(_PROVIDER_CLOSE_TIMEOUT_S, "provider.close()"):
+                    provider.close()
             except Exception:
                 pass
 

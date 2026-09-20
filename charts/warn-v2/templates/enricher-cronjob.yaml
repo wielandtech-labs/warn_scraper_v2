@@ -15,6 +15,12 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 1
+      {{- with .Values.enricher.activeDeadlineSeconds }}
+      # Paired with Forbid above: a run that hangs (rather than fails) is an
+      # outage, not a delay — nothing else ever reaps it. 2026-09-17: a lookup
+      # wedged for 3 days and suppressed ~12 scheduled runs.
+      activeDeadlineSeconds: {{ . }}
+      {{- end }}
       template:
         metadata:
           labels:

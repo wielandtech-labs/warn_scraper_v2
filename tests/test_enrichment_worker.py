@@ -2,10 +2,14 @@
 from __future__ import annotations
 
 import json
+import signal
+import time
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from typing import Any
+
+import pytest
 
 from warn_v2.db.models import Company, Notice
 from warn_v2.enrichment.agent import EnrichmentContext, EnrichmentResult
@@ -1059,6 +1063,58 @@ def test_full_cascade_still_falls_through(db, monkeypatch) -> None:
     db.refresh(c)
     assert c.enrichment_source == "claude"
     assert c.provider_attempted_at is not None
+
+
+@pytest.mark.skipif(
+    not hasattr(signal, "SIGALRM"), reason="SIGALRM watchdog is POSIX-only"
+)
+def test_provider_lookup_that_hangs_is_timed_out_and_not_stamped(db, monkeypatch) -> None:
+    """A provider call that never returns must not park the run forever.
+
+    The provider drives a browser out of process; a crashed renderer leaves its
+    client blocked on a pipe with no timeout (2026-09-17: three days of a
+    Running-but-idle pod, and Forbid suppressed every later run). The watchdog
+    turns that into an ordinary provider failure, so the breaker ends the run
+    and the companies stay queued.
+    """
+    from warn_v2.enrichment import worker as worker_mod
+    from warn_v2.enrichment.worker import _MAX_PROVIDER_FAILURES
+
+    monkeypatch.setattr(worker_mod, "_PROVIDER_CALL_TIMEOUT_S", 1)
+
+    class _HangingProvider:
+        def __init__(self):
+            self.calls: list[str] = []
+
+        def lookup(self, company_name: str, state):
+            self.calls.append(company_name)
+            time.sleep(30)  # interrupted by the watchdog long before this elapses
+            raise AssertionError("watchdog did not fire")
+
+        def close(self) -> None:
+            pass
+
+    names = ["Boeing Company", "Cisco Systems, Inc.", "Kodak Company", "Xerox Company"]
+    assert len(names) > _MAX_PROVIDER_FAILURES
+    companies = [_company(db, name=n) for n in names]
+    db.commit()
+
+    provider = _HangingProvider()
+    started = time.monotonic()
+    stats = enrich_batch(
+        db, _StubClient(), provider=provider, inter_delay_s=0, tiers={"provider"}
+    )
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 30  # the run ended on the watchdog, not on the sleep
+    assert stats["provider_errors"] == _MAX_PROVIDER_FAILURES
+    assert stats["provider_miss"] == 0
+    assert stats["enriched"] == 0
+    assert provider.calls == names[:_MAX_PROVIDER_FAILURES]  # tier paused after the streak
+
+    for c in companies:
+        db.refresh(c)
+        assert c.provider_attempted_at is None  # a hang is not an attempt
 
 
 def test_provider_unavailable_does_not_stamp_and_pauses_run(db, monkeypatch) -> None:

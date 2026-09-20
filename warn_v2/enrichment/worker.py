@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import json
 import logging
+import signal
+import threading
 import time
 from collections.abc import Collection
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
@@ -352,6 +355,51 @@ ALL_TIERS = frozenset({"provider", "edgar", "claude"})
 # dead provider trips its own breaker and raises instantly from then on.
 _MAX_PROVIDER_FAILURES = 3
 
+# Wall-clock ceiling on ONE provider lookup. The provider drives a headless
+# browser out of process, so a crashed renderer leaves its client blocked on a
+# pipe that will never answer — no exception, no timeout, forever. On
+# 2026-09-17 the kernel OOM-killed the enricher's renderer (not the Python
+# process), and the run sat in that state for three days; with the CronJob's
+# concurrencyPolicy=Forbid that suppressed every later run too. A generous
+# ceiling costs nothing on the healthy path (a lookup is ~25-60 s, ~2-3 min
+# worst case with navigation retries) and converts the wedge into an ordinary
+# provider failure, which the breaker below already knows how to end a run on.
+_PROVIDER_CALL_TIMEOUT_S = 300
+
+# Shutting the provider down is the OTHER place a wedged browser blocks
+# forever: Playwright's context.close()/stop() wait on processes to exit and
+# take no timeout of their own. Shutdown is seconds' work when it works at all,
+# and an orphaned browser dies with the container, so the budget is tight.
+_PROVIDER_CLOSE_TIMEOUT_S = 120
+
+
+@contextmanager
+def _call_deadline(seconds: int, what: str):
+    """Raise TimeoutError in the main thread if the block runs past ``seconds``.
+
+    A no-op where SIGALRM is unavailable (Windows dev boxes) or off the main
+    thread; prod is Linux and single-threaded, and the CronJob's
+    activeDeadlineSeconds is the backstop either way.
+    """
+    if (
+        seconds <= 0
+        or not hasattr(signal, "SIGALRM")
+        or threading.current_thread() is not threading.main_thread()
+    ):
+        yield
+        return
+
+    def _fire(signum, frame):
+        raise TimeoutError(f"{what} exceeded {seconds}s")
+
+    previous = signal.signal(signal.SIGALRM, _fire)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous)
+
 
 def enrich_batch(
     session: Session,
@@ -517,7 +565,10 @@ def enrich_batch(
                 pr = None
             else:
                 try:
-                    pr = provider.lookup(query, state)
+                    with _call_deadline(
+                        _PROVIDER_CALL_TIMEOUT_S, f"provider.lookup({query!r})"
+                    ):
+                        pr = provider.lookup(query, state)
                 except ProviderUnavailable as e:
                     # The provider could not actually search this company (session
                     # trip, cap, cooldown, transport error). Don't burn its one
@@ -598,7 +649,10 @@ def enrich_batch(
                         company.id, company.name, alt,
                     )
                     try:
-                        pr2 = provider.lookup(alt, state)
+                        with _call_deadline(
+                            _PROVIDER_CALL_TIMEOUT_S, f"provider.lookup({alt!r})"
+                        ):
+                            pr2 = provider.lookup(alt, state)
                     except ProviderUnavailable as e:
                         stats_provider_errors += 1
                         provider_fails += 1

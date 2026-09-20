@@ -57,6 +57,12 @@ scraper:
 enricher:
   enabled: true  # override to false in HelmRelease until Phase 4 is ready
   schedule: "23 */6 * * *"  # every 6h
+  # Hard wall-clock ceiling on one run. concurrencyPolicy is Forbid, so a run
+  # that hangs instead of failing suppresses every later run indefinitely —
+  # 2026-09-17 a wedged Playwright call cost ~3 days of enrichment. A healthy
+  # 100-company run is ~65 min, so 2h is ~2x margin and still leaves 4h of the
+  # 6-hourly window. Set to "" to disable.
+  activeDeadlineSeconds: 7200
   limit: 10       # max companies to enrich per CronJob run (impact-ordered)
   # Two-ended queue: additionally enrich this many companies ordered by
   # most-recent notice date (deduped against the impact batch), so freshly
