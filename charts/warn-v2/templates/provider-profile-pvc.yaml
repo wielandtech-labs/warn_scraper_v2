@@ -1,5 +1,5 @@
 {{- if and .Values.enricher.providerImage .Values.providerStorage.enabled }}
-# Persists the authenticated the provider browser profile (the "warm session")
+# Persists the authenticated provider browser profile (the "warm session")
 # between enricher CronJob runs, so we don't re-login every run. ReadWriteOnce is
 # intentional — the single-session invariant means only one pod mounts it at a
 # time (enforced by concurrencyPolicy: Forbid on the enricher CronJob).

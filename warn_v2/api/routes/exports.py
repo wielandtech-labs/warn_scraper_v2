@@ -4,7 +4,7 @@ Bulk CSV/JSON download reusing the same filters as the list endpoints
 (warn_v2.api.filters). Access is role-gated via the session cookie or API key:
 
 - anonymous / free    -> capped at FREE_EXPORT_CAP rows, public columns only
-- paid                -> up to PAID_EXPORT_CAP rows, plus the provider-enriched columns
+- paid                -> up to PAID_EXPORT_CAP rows, plus provider-enriched columns
                          (minus raw DUNS identifiers)
 - enterprise / admin  -> paid columns plus raw DUNS identifiers
 

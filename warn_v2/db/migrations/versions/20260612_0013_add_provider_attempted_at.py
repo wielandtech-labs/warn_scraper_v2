@@ -1,4 +1,4 @@
-"""Add companies.provider_attempted_at — the provider attempt stamp for provider-first flow.
+"""Add companies.provider_attempted_at — provider attempt stamp for provider-first flow.
 
 The main enrichment flow is now provider-only (DUNS linkage is the value);
 misses no longer fall through to Claude. The stamp lets find_pending skip

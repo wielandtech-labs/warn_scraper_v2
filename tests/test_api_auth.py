@@ -1,4 +1,4 @@
-"""Auth endpoints + role-gated the provider field visibility.
+"""Auth endpoints + role-gated provider field visibility.
 
 The client uses base_url="https://testserver" so httpx's cookie jar sends the
 Secure session cookie back; everything else mirrors tests/test_api.py.
@@ -154,7 +154,7 @@ def test_garbage_cookie_is_anonymous(api_client, db):
 
 
 # ---------------------------------------------------------------------------
-# Role-gated the provider fields
+# Role-gated provider fields
 # ---------------------------------------------------------------------------
 
 def _company_bodies(api_client, company_id: int, notice_id: str) -> list[dict]:
@@ -168,7 +168,7 @@ def _company_bodies(api_client, company_id: int, notice_id: str) -> list[dict]:
     ]
 
 
-def test_anonymous_and_free_get_no_dnb_fields(api_client, db):
+def test_anonymous_and_free_get_no_provider_fields(api_client, db):
     c = _enriched_company(db)
     n = _notice(db, c)
 
@@ -201,7 +201,7 @@ def test_paid_gets_enriched_fields_but_no_duns(api_client, db):
 
 
 @pytest.mark.parametrize("role", ["enterprise", "admin"])
-def test_enterprise_and_admin_get_all_dnb_fields(api_client, db, role):
+def test_enterprise_and_admin_get_all_provider_fields(api_client, db, role):
     c = _enriched_company(db)
     n = _notice(db, c)
     _user(db, f"{role}@example.com", role=role)
@@ -227,21 +227,21 @@ def test_logout_drops_back_to_public_shape(api_client, db):
     assert "duns" not in api_client.get(f"/api/companies/{c.id}").json()
 
 
-def _assert_no_dnb_anywhere(payload) -> None:
-    """Recursively assert no the provider field key appears anywhere in a JSON payload."""
+def _assert_no_provider_fields_anywhere(payload) -> None:
+    """Recursively assert no provider field key appears anywhere in a JSON payload."""
     if isinstance(payload, dict):
         for field in DNB_FIELDS:
             assert field not in payload
         for v in payload.values():
-            _assert_no_dnb_anywhere(v)
+            _assert_no_provider_fields_anywhere(v)
     elif isinstance(payload, list):
         for v in payload:
-            _assert_no_dnb_anywhere(v)
+            _assert_no_provider_fields_anywhere(v)
 
 
 @pytest.mark.parametrize("role", ["paid", "enterprise"])
-def test_paid_session_gets_no_dnb_on_non_reshaped_endpoints(api_client, db, role):
-    """Policy pin: only the 5 reshaped endpoints may serve the provider fields.
+def test_paid_session_gets_no_provider_fields_on_non_reshaped_endpoints(api_client, db, role):
+    """Policy pin: only the 5 reshaped endpoints may serve provider fields.
 
     family/stats/map-pins keep static response models and must stay
     public-shaped even for paid/enterprise sessions — this test fails if a
@@ -261,7 +261,7 @@ def test_paid_session_gets_no_dnb_on_non_reshaped_endpoints(api_client, db, role
     ):
         resp = api_client.get(path)
         assert resp.status_code == 200, path
-        _assert_no_dnb_anywhere(resp.json())
+        _assert_no_provider_fields_anywhere(resp.json())
 
 
 # ---------------------------------------------------------------------------

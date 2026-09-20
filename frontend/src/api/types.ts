@@ -26,7 +26,7 @@ export interface CompanyOut {
   // Workers affected (rolled up over merged dupes, superseded excluded).
   // Computed only by the companies list endpoint; null elsewhere.
   layoff_total?: number | null;
-  // the provider enrichment fields — present only for paid sessions and above; the API
+  // Provider enrichment fields — present only for paid sessions and above; the API
   // omits the keys entirely for anonymous/free viewers. Raw DUNS identifiers
   // are enterprise/admin only.
   duns?: string | null;

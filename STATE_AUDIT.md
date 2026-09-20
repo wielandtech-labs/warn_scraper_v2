@@ -208,7 +208,7 @@ Findings the DB can't tell us — confirmed against the live sources.
   2026-07-27 — Active counts moved by only 1–15 rows per state (routine
   nightly-scrape accretion over the four-week gap; the two prior
   unreconciled audit PRs, #292 and #297, are both now merged), and no state
-  gained a new year floor. Enrichment% (`enrich`, backup-tier the provider/EDGAR/Claude)
+  gained a new year floor. Enrichment% (`enrich`, backup-tier provider/EDGAR/Claude)
   trended up broadly, most visibly GA 71%→90% and MT 27%→51%.
 - **Scraper health at the 2026-07-27 run** — two prior `broken` states
   **recovered**: **MA** `validation_failed` → `ok`, and **SD** `fetch_failed`

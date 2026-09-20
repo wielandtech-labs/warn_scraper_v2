@@ -61,13 +61,13 @@ spec:
                 - name: PROVIDER_USERNAME
                   valueFrom:
                     secretKeyRef:
-                      name: {{ .Values.dnb.secretName }}
-                      key: {{ .Values.dnb.usernameKey }}
+                      name: {{ .Values.providerAuth.secretName }}
+                      key: {{ .Values.providerAuth.usernameKey }}
                 - name: PROVIDER_PASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: {{ .Values.dnb.secretName }}
-                      key: {{ .Values.dnb.passwordKey }}
+                      name: {{ .Values.providerAuth.secretName }}
+                      key: {{ .Values.providerAuth.passwordKey }}
                 {{- if .Values.providerStorage.enabled }}
                 - name: PROVIDER_STATE_PATH
                   value: /var/provider-profile/profile

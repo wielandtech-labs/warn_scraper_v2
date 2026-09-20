@@ -33,7 +33,7 @@ _HASH_STORE_NO = re.compile(r"#\s*\d+")
 
 # Site-designator patterns for search_name (display-case query cleaning, distinct
 # from canonical_name's lowercase comparison key). search_name strips the noise
-# WARN filings wrap around the real company name so the provider/EDGAR type-ahead can find
+# WARN filings wrap around the real company name so provider/EDGAR type-ahead can find
 # it. Aggressive stripping is paired with acceptance-side certainty guards
 # (match_is_consistent / is_unsearchable + the provider's similarity threshold),
 # so casting a wide net can never persist a *wrong* DUNS — at worst it degrades

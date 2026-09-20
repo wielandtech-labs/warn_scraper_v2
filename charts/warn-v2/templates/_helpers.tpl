@@ -19,7 +19,7 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version }}
 {{- printf "%s:%s" .Values.image.repository (default .Chart.AppVersion .Values.image.tag) -}}
 {{- end -}}
 
-{{/* The enricher may run a derived PRIVATE image (the provider).
+{{/* The enricher may run a derived PRIVATE image (the enrichment provider).
      Falls back to the public app image when no provider image is configured. */}}
 {{- define "warn-v2.enricherImage" -}}
 {{- if .Values.enricher.providerImage -}}

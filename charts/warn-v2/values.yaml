@@ -73,13 +73,14 @@ enricher:
   # Enrichment tiers, comma-separated (provider, edgar, claude). Passed
   # explicitly as --tiers so prod behavior never silently depends on the
   # default baked into the (separately-built) enricher image. "provider" =
-  # the provider only; a miss is left queued. Run a backup pass with "edgar,claude".
+  # the commercial tier only; a miss is left queued. Run a backup pass with
+  # "edgar,claude".
   tiers: "provider"
-  # the provider (private, derived image). When providerImage is set, the
-  # enricher runs that image instead of the public app image, with the provider
-  # credentials + a warm-session PVC. Leave blank to run the cascade without the
-  # provider tier (EDGAR + Claude only).
-  providerImage: ""   # e.g. ghcr.io/wielandtech-labs/warn-enrich-provider:<tag>
+  # Commercial data provider (private, derived image). When providerImage is set,
+  # the enricher runs that image instead of the public app image, with the
+  # provider credentials + a warm-session PVC. Leave blank to run the cascade
+  # without the provider tier (EDGAR + Claude only).
+  providerImage: ""   # e.g. ghcr.io/<org>/<derived-image>:<tag>
   providerModule: ""  # override ENRICHMENT_PROVIDER_MODULE (baked into the image ENV by default)
   imagePullSecrets: []  # e.g. [{ name: ghcr-wielandtech-labs }] for the private image
   # Provider throttle overrides (PROVIDER_MAX_PER_RUN / PROVIDER_MAX_PER_DAY).
@@ -92,15 +93,15 @@ enricher:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 500m, memory: 512Mi }
 
-# the provider seat credentials (only used when enricher.providerImage is set).
-dnb:
+# Provider seat credentials (only used when enricher.providerImage is set).
+providerAuth:
   secretName: warn-v2-provider   # SealedSecret with username + password keys
   usernameKey: username
   passwordKey: password
 
-# Persistent warm-session profile for the provider. Strongly recommended
-# in prod so the authenticated session survives between runs (re-login every run
-# raises reCAPTCHA risk). Requires enricher.providerImage to be set.
+# Persistent warm-session profile for the provider. Strongly recommended in prod
+# so the authenticated session survives between runs (re-login every run raises
+# reCAPTCHA risk). Requires enricher.providerImage to be set.
 providerStorage:
   enabled: false
   storageClass: synostorage-nfs

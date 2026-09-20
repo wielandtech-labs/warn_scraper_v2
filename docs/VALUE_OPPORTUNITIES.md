@@ -20,10 +20,10 @@ B2B sales & risk teams, researchers/journalists.
 | county + lat/lon (~85–95%) | **Which local market** absorbs them | Location, geocoded |
 | `layoff_count` (~30–50%) | **How many** | Notice |
 | `closure_category` (Closure vs Layoff) | **Severity** — plant closure means the whole site's occupation mix, not a trim | Notice |
-| the provider family tree (paid tier) | **Corporate context** — parent distress, multi-site events | `/api/companies/{id}/family` |
+| Provider family tree (paid tier) | **Corporate context** — parent distress, multi-site events | `/api/companies/{id}/family` |
 
 Existing rails every idea below can ship on: filterable email subscriptions
-(`warn_v2/notifications/`), role-gated paid tier with the provider columns
+(`warn_v2/notifications/`), role-gated paid tier with provider columns
 (`docs/auth-operations.md`), CSV/JSON exports, RSS, map pins, per-state
 reports.
 
@@ -90,7 +90,7 @@ justifies one-click campaign creation.
 ### B. Vendor/portfolio watchlists — B2B sales & risk
 
 Users upload a list of companies (customers, vendors, borrowers, portfolio);
-we alert when a watched company **or anything in its the provider family tree** files
+we alert when a watched company **or anything in its provider family tree** files
 WARN. The family-tree join is the moat — aggregators match on literal employer
 names; we can catch "subsidiary of your borrower filed in another state" via
 `canonical_company_id` + parent rollups that already exist.
@@ -168,7 +168,7 @@ state agency advertise retraining programs to an affected cohort (ties into C).
 
 ## 4. Shared prerequisite: NAICS enrichment coverage
 
-Ideas A, C, D all key on NAICS, currently ~16% coverage. The the provider cap
+Ideas A, C, D all key on NAICS, currently ~16% coverage. The provider cap
 was **doubled to 400 companies/day** on 2026-07-07 (w_homelab #630; the
 earlier "~100/day" figure undercounted even the pre-doubling 200/day cap).
 Raising throughput further is still high-leverage:

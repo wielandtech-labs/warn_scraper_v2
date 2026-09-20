@@ -4,7 +4,7 @@ AI-assisted rebuild of [warn_scrapper](https://wielandtech.com) (2022). Collects
 
 ## Why V2
 
-V1 had ~33 hand-written per-state scrapers that broke every time a state site reformatted, plus a Selenium-based the provider enrichment scraper that was the main source of bad data. V2 keeps the original "Headhunter" goal — surface workers ~60 days before layoff — but minimizes the maintenance burden: the fetch/parse split saves a replayable snapshot on every failure, so a broken parser is reproduced and fixed with a single Claude Code op (see [Repairing a broken scraper](#repairing-a-broken-scraper)).
+V1 had ~33 hand-written per-state scrapers that broke every time a state site reformatted, plus a Selenium-based commercial-data enrichment scraper that was the main source of bad data. V2 keeps the original "Headhunter" goal — surface workers ~60 days before layoff — but minimizes the maintenance burden: the fetch/parse split saves a replayable snapshot on every failure, so a broken parser is reproduced and fixed with a single Claude Code op (see [Repairing a broken scraper](#repairing-a-broken-scraper)).
 
 ## Architecture
 

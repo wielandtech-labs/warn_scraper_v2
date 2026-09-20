@@ -163,23 +163,23 @@ def enrich(
     recent_years: int | None,
     tiers: str,
 ) -> None:
-    """Enrich company records — provider (the provider) first, DUNS linkage is the value.
+    """Enrich company records — provider first, DUNS linkage is the value.
 
     \b
     Main flow (default, what the CronJob runs):
       provider only. A miss stamps provider_attempted_at and leaves the
       company unenriched (still queued), so thin web data never blocks a
-      future the provider match.
+      future provider match.
     Backup flow (explicit, run eventually for the leftovers):
       warn-v2 enrich --tiers edgar,claude — only touches companies the
       provider has already attempted.
 
     \b
     Examples:
-      warn-v2 enrich                        # the provider-only on untried companies
+      warn-v2 enrich                        # provider-only on untried companies
       warn-v2 enrich --limit 200            # larger batch
       warn-v2 enrich --limit 25 --recent-limit 25  # 25 biggest + 25 most recent
-      warn-v2 enrich --tiers edgar,claude   # backup pass over the provider misses
+      warn-v2 enrich --tiers edgar,claude   # backup pass over provider misses
       warn-v2 enrich --tiers provider,edgar,claude  # old full cascade
       warn-v2 enrich --recent-years 2       # only companies with recent notices
       warn-v2 enrich --state CA             # only companies from CA notices
@@ -837,7 +837,7 @@ def requeue_provider_misses_cmd(since: str, until: str | None, dry_run: bool) ->
     rows that were actually enriched. This does, for a known-bad window.
 
     \b
-    Only ever clears the stamp on rows that are still UNENRICHED, so a real the provider
+    Only ever clears the stamp on rows that are still UNENRICHED, so a real provider
     hit inside the window keeps its provenance.
 
     \b
@@ -884,7 +884,7 @@ def requeue_provider_misses_cmd(since: str, until: str | None, dry_run: bool) ->
         session.execute(
             update(Company).where(cond).values(provider_attempted_at=None)
         )
-    click.echo(f"re-queued {total} companies for another the provider attempt ({window})")
+    click.echo(f"re-queued {total} companies for another provider attempt ({window})")
 
 
 def _enrich_run_failed(stats: dict) -> bool:
@@ -1261,7 +1261,7 @@ def cross_check_cmd(
     help=(
         "Also reset enriched rows with a NULL enrichment_source AND no DUNS "
         "(pre-source-field EDGAR/Claude-era rows the --sources filter can't "
-        "target). Scoped to duns IS NULL so it never touches a real the provider hit."
+        "target). Scoped to duns IS NULL so it never touches a real provider hit."
     ),
 )
 @click.option("--dry-run", is_flag=True, help="Preview counts without writing")
@@ -1284,7 +1284,7 @@ def reset_enrichment_cmd(sources: str, include_null_source: bool, dry_run: bool)
 
     wanted = {s.strip().lower() for s in sources.split(",") if s.strip()}
     if "provider" in wanted:
-        click.echo("refusing to reset provider-enriched rows (full the provider data)", err=True)
+        click.echo("refusing to reset provider-enriched rows (full provider data)", err=True)
         sys.exit(1)
     if not wanted and not include_null_source:
         click.echo("no sources given", err=True)
@@ -1293,7 +1293,7 @@ def reset_enrichment_cmd(sources: str, include_null_source: bool, dry_run: bool)
     cond = Company.enrichment_source.in_(wanted) if wanted else None
     if include_null_source:
         # Enriched but source-less AND DUNS-less = legacy EDGAR/Claude rows; the
-        # duns guard keeps any old source-less the provider hit out of scope.
+        # duns guard keeps any old source-less provider hit out of scope.
         null_cond = and_(
             Company.enriched_at.is_not(None),
             Company.enrichment_source.is_(None),
@@ -1321,7 +1321,7 @@ def reset_enrichment_cmd(sources: str, include_null_source: bool, dry_run: bool)
                 enrichment_confidence=None,
                 enrichment_source=None,
                 enrichment_sources=None,
-                provider_attempted_at=None,  # grant another the provider attempt
+                provider_attempted_at=None,  # grant another provider attempt
             )
         )
     click.echo(f"reset {total} companies — re-queued for the enrichment cascade")

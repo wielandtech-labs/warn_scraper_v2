@@ -105,7 +105,7 @@ class WarnCollector(Collector):
             yield g
 
             # ------------------------------------------------------------------
-            # 3. Provider (the provider) attempts and misses. A miss stamps
+            # 3. Provider attempts and misses. A miss stamps
             #    provider_attempted_at but leaves enriched_at NULL — the company
             #    queues for the backup tiers (edgar/claude). Hit rate =
             #    1 - misses/attempts; untried pool = backlog - misses.

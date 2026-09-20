@@ -82,7 +82,7 @@ export function CompanyDetail() {
             />
           )}
           <Item label="SIC" value={c.sic_code ? `${c.sic_code} · ${c.sic_desc ?? ""}` : "—"} />
-          {/* the provider fields are present in the payload only for paid/admin
+          {/* provider fields are present in the payload only for paid/admin
               sessions — render whatever the API returned, no role logic here. */}
           {c.duns != null && <Item label="DUNS" value={c.duns} />}
           {c.employee_count != null && (
