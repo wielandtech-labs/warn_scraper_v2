@@ -1,4 +1,4 @@
-"""Add company enrichment fields for the D&B Hoovers provider tier.
+"""Add company enrichment fields for the provider tier.
 
 Captures the richer company data the provider can resolve:
   employee_count, parent_company_name, parent_duns, global_ultimate_name,
@@ -10,7 +10,7 @@ corporate-family rollups.
 
 Note on public exposure: these columns are populated for internal use; only
 low-risk fields are surfaced via the public API (see api/schemas.py CompanyOut)
-to respect D&B's redistribution terms.
+to respect the provider's redistribution terms.
 
 Revision ID: j1f2a3b4c5d6
 Revises: i0e1f2a3b4c5

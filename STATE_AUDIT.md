@@ -208,7 +208,7 @@ Findings the DB can't tell us — confirmed against the live sources.
   2026-07-27 — Active counts moved by only 1–15 rows per state (routine
   nightly-scrape accretion over the four-week gap; the two prior
   unreconciled audit PRs, #292 and #297, are both now merged), and no state
-  gained a new year floor. Enrichment% (`enrich`, backup-tier D&B/EDGAR/Claude)
+  gained a new year floor. Enrichment% (`enrich`, backup-tier provider/EDGAR/Claude)
   trended up broadly, most visibly GA 71%→90% and MT 27%→51%.
 - **Scraper health at the 2026-07-27 run** — two prior `broken` states
   **recovered**: **MA** `validation_failed` → `ok`, and **SD** `fetch_failed`
@@ -418,7 +418,7 @@ Findings the DB can't tell us — confirmed against the live sources.
   responses ingested via a new `ingest-file` command. Email drafts ready in
   [docs/foia/](docs/foia/).
 - Any state the audit flags `dead_links`, `row_drift`, or persistent `scraper_*`.
-- Bulk company enrichment is low (0–18%) almost everywhere; the D&B + EDGAR + Claude
+- Bulk company enrichment is low (0–18%) almost everywhere; the provider + EDGAR + Claude
   enricher runs nightly (25/run, 100/day) and climbs over time.
 
 ## Optional enhancement

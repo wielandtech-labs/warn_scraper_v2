@@ -33,7 +33,7 @@ _HASH_STORE_NO = re.compile(r"#\s*\d+")
 
 # Site-designator patterns for search_name (display-case query cleaning, distinct
 # from canonical_name's lowercase comparison key). search_name strips the noise
-# WARN filings wrap around the real company name so D&B/EDGAR type-ahead can find
+# WARN filings wrap around the real company name so provider/EDGAR type-ahead can find
 # it. Aggressive stripping is paired with acceptance-side certainty guards
 # (match_is_consistent / is_unsearchable + the provider's similarity threshold),
 # so casting a wide net can never persist a *wrong* DUNS — at worst it degrades
@@ -103,7 +103,7 @@ _FACILITY_SUFFIX = re.compile(
 
 # Single tokens too generic to search on their own: an aggressive strip that
 # collapses a name to one of these (e.g. "Alliance (Piera Barbaglia ...)"
-# -> "Alliance") would only ever match D&B by luck, so we skip the lookup.
+# -> "Alliance") would only ever match the provider by luck, so we skip the lookup.
 _GENERIC_SINGLE_TOKENS: frozenset[str] = frozenset({
     "alliance", "services", "service", "solutions", "group", "associates",
     "partners", "holdings", "enterprises", "industries", "systems",
@@ -263,7 +263,7 @@ def _truncate_repeated_entity(s: str) -> str:
 
 
 # A name this long is a roster of several companies, not one company's name.
-# It is also past what a browser-driven search box can take: the D&B provider
+# It is also past what a browser-driven search box can take: the provider
 # types the query keystroke-by-keystroke (~0.1 s/char) inside a 30 s action
 # timeout, so an untruncated roster times out and takes the whole enricher run
 # down with it (2026-09-02..08: ~24 consecutive runs enriched nothing).

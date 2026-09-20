@@ -34,7 +34,7 @@ def _install(monkeypatch, provider) -> None:
 
 
 class _DeadProvider:
-    """Raises the way the D&B provider does for every can't-search condition."""
+    """Raises the way the provider does for every can't-search condition."""
 
     def __init__(self) -> None:
         self.calls: list[str] = []

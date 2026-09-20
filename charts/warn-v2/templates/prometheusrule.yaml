@@ -38,7 +38,7 @@ spec:
             summary: "warn-v2 enrichment has stalled"
             description: >-
               No company has been enriched in 13h (two enricher windows).
-              Check the enricher CronJob and the D&B provider session.
+              Check the enricher CronJob and the provider session.
 
         # Fast failure page: two live-run failures inside 50h with no success
         # in 26h = two consecutive daily failures — fires ~1 day after a

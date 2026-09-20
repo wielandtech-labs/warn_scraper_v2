@@ -79,11 +79,14 @@ Same trap for one-off scripts: `python some_script.py` puts the *script's*
 directory first on `sys.path`, so `warn_v2` silently resolves to the venv's
 editable install of the main checkout — old code, no error. This isn't only a
 worktree concern: `C:\Users\rapha\workspace\warn_scrapper_v2` (double-p) is a
-**separate git remote** (`wielandtech/warn_scraper_v2`, personal account) from
-this repo (`wielandtech-labs/warn_scraper_v2`) and drifts behind it — seen
-2026-07-21, 11 days / dozens of commits stale, which silently reproduced a
-phantom MA parser "break" already fixed on this repo's main. Never run a
-script as `python path\to\script.py` against the sibling venv; use
+**stale second checkout of this same repository**. Its remote reads
+`wielandtech/warn_scraper_v2`, which looks like a separate personal-account
+repo but is just GitHub's post-transfer redirect to
+`wielandtech-labs/warn_scraper_v2` — same repository id, one repo. Nothing
+fetches that checkout, so it drifts: seen 2026-07-21, 11 days / dozens of
+commits stale, which silently reproduced a phantom MA parser "break" already
+fixed on main. Never run a script as
+`python path\to\script.py` against the sibling venv; use
 `python -c "..."` (cwd is `sys.path[0]` for `-c`) or `python -m` with this
 repo as cwd, and verify once with
 `python -c "import warn_v2; print(warn_v2.__file__)"` before trusting results.
@@ -124,7 +127,7 @@ With `oom_group_kill 0` the kernel killed one process inside the cgroup — for
 this workload that is the Chromium renderer, which leaves PID 1 alive and
 waiting forever. `memory.peak` equal to the limit confirms it. So the *same*
 root cause shows up either as an `OOMKilled` pod (kernel picked PID 1, and the
-SIGKILL leaves the Hoovers seat lock held, so the `backoffLimit: 1` retry fails
+SIGKILL leaves the provider seat lock held, so the `backoffLimit: 1` retry fails
 on a stale lock) or as a pod that hangs for days (kernel picked the renderer).
 Per-run memory history:
 
@@ -138,22 +141,23 @@ chart — but a wedge that outlives both is still diagnosed this way.
 
 ## The enricher runs a DIFFERENT image
 
-The `enricher` CronJob does **not** run the app image. It runs the private
-derived image `ghcr.io/wielandtech-labs/warn-enrich-dnb`, built
-`FROM ghcr.io/wielandtech-labs/warn-v2:${BASE_TAG:-latest}` in the separate
-`wielandtech-labs/warn-enrich-dnb` repo (which adds the D&B Hoovers provider).
+The `enricher` CronJob does **not** run the app image. It runs a private derived
+image, built `FROM ghcr.io/wielandtech-labs/warn-v2:${BASE_TAG:-latest}` in a
+separate private repo that adds the commercial provider tier. Ask for the repo
+name if you need it — it is deliberately not written down here, and CI reaches it
+through the `PROVIDER_DISPATCH_REPO` secret.
 
 **Merging a warn_v2 change to main does not deploy it to the enricher.** It only
-republishes `warn-v2:latest`; nothing rebuilds warn-enrich-dnb until something is
-pushed to *its* main, so the enricher keeps running whatever warn_v2 snapshot its
-image was built from — on 2026-09-08 that was a 2026-07-10 snapshot, two months
-stale.
+republishes `warn-v2:latest`; nothing rebuilds the provider image until something
+is pushed to *its* main, so the enricher keeps running whatever warn_v2 snapshot
+its image was built from — on 2026-09-08 that was a 2026-07-10 snapshot, two
+months stale.
 
 To ship an enrichment change: merge the warn_v2 PR, **wait** for its
 `docker.yml` to publish `latest` (the provider build reads `latest` at build
-time, so merging out of order rebuilds on the stale base), then merge in
-warn-enrich-dnb — its `docker.yml` rebuilds on any push to main. Flux's
-`warn-enrich-dnb` ImagePolicy bumps the HelmRelease from there.
+time, so merging out of order rebuilds on the stale base), then merge in the
+provider repo — its `docker.yml` rebuilds on any push to main, and a Flux
+ImagePolicy bumps the HelmRelease from there.
 
 ## Production gate
 

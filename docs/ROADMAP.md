@@ -30,7 +30,7 @@ row-drift flag. 3 blocked (AR/WY confidential by statute, NH unpublished);
 OK re-enabled 2026-07-06 via the Employ Oklahoma guest Aura endpoint. effective_date ~100% everywhere; layoff_count weak only where
 counts live inside stored PDFs (CT/HI/WV/PA). Geocoding root causes fixed;
 residual low-geo states are un-geocodable historical tails. Enrichment is the
-weakest axis (~16% avg; D&B cap doubled to 400 companies/day 2026-07-07).
+weakest axis (~16% avg; provider cap doubled to 400 companies/day 2026-07-07).
 Largest coverage gap: NY (217 rows vs ~7,100 at aggregators since 2006). 31 records-request drafts in
 [foia/](foia/), all unsent.
 
@@ -300,9 +300,9 @@ Ordered by recoverable rows:
 
 - [ ] **Raise enrichment throughput** — ~16% avg coverage means slow
   convergence against the post-backfill backlog. *Cap-raise done 2026-07-07*
-  (w_homelab #630: D&B provider **200 → 400 companies/day**; the doc's earlier
+  (w_homelab #630: provider **200 → 400 companies/day**; the doc's earlier
   "~100/day" undercounted even the pre-doubling 200/day cap). Still open:
-  measure per-company cost by tier (D&B / EDGAR / Claude) and decide batch-mode
+  measure per-company cost by tier (provider / EDGAR / Claude) and decide batch-mode
   Haiku vs. a further cap-raise with the cost math. (A+gate)
 - ~~**GA full-state-name worksites** — `_choose_city_zip` handles the
   2-letter state form; letters spelling out "Georgia" still fall back to the
