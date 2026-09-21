@@ -187,7 +187,7 @@ Findings the DB can't tell us — confirmed against the live sources.
   postdates PR #303, and NV shows `not_modified` this run. No other state
   regressed. Active counts moved by only 1–6 rows per state (routine
   nightly-scrape accretion over the one-week gap since 2026-09-07), no state
-  gained a new year floor, and enrichment% (backup-tier D&B/EDGAR/Claude)
+  gained a new year floor, and enrichment% (backup-tier provider/EDGAR/Claude)
   ticked up broadly by 1–3 points.
 - **Scraper health at the 2026-09-07 run — one `broken`: NV, and it's a deploy-lag
   artifact, not a live regression.** NV shows `fetch_failed` because the audited

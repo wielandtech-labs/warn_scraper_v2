@@ -107,6 +107,9 @@ factual, dated, minimal:
   `/heal-scraper` to classify rather than asserting a regression.)
 - Note material backfills (big Active jumps, new year ranges, newly-live states) and
   any geo% drops they caused.
+- Never name the commercial enrichment vendor — this repo is public. Call that
+  tier "provider" (as in `enrichment_source == "provider"`), even if an older
+  block of this file or a prior audit used the vendor's name.
 
 Do **NOT** rewrite the Rubric, Legend, or the dated "Geocoding root cause"
 investigation log. No chart version bump — this is docs-only (see `CLAUDE.md`).
