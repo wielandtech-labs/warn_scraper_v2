@@ -88,6 +88,15 @@ class FamilyMemberOut(BaseModel):
     is_self: bool
 
 
+class MergedMemberOut(BaseModel):
+    """A company row consolidated into another (a duplicate or store variant)."""
+
+    company_id: int
+    name: str
+    notice_count: int
+    layoff_total: int
+
+
 class NoticeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

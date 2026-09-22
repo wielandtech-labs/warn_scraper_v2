@@ -317,6 +317,18 @@ const accountRoute = createRoute({
   component: AccountPage,
 });
 
+const adminCompaniesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/companies",
+  validateSearch: (search: Record<string, unknown>): { name?: string } => ({
+    name: (search.name as string) || undefined,
+  }),
+  component: lazyRouteComponent(
+    () => import("./routes/admin-companies"),
+    "AdminCompaniesPage",
+  ),
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   noticesRoute,
@@ -342,6 +354,7 @@ const routeTree = rootRoute.addChildren([
   signupRoute,
   accountRoute,
   alertsRoute,
+  adminCompaniesRoute,
 ]);
 
 // Rendered inside the root route's Layout for any URL that matches no route.

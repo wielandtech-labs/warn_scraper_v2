@@ -14,6 +14,7 @@ from starlette.responses import Response
 
 from warn_v2.api import ratelimit
 from warn_v2.api.routes import (
+    admin,
     auth,
     billing,
     companies,
@@ -94,6 +95,7 @@ def create_app(static_dir: Path | None = None) -> FastAPI:
     app.include_router(keys.router, prefix="/api")
     app.include_router(usage.router, prefix="/api")
     app.include_router(billing.router, prefix="/api")  # webhook must never 429
+    app.include_router(admin.router, prefix="/api")  # require_admin per route
     limited = [Depends(ratelimit.enforce_limits)]
     # Export routes register before notices/companies so /api/notices/export and
     # /api/companies/export aren't swallowed by the parametric /{id} routes.

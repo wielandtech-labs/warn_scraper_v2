@@ -16,6 +16,8 @@ import type {
   ForecastOut,
   IndustryScorecard,
   IndustryStat,
+  MergedMemberOut,
+  MergeResult,
   MonthStat,
   NoticeOut,
   OccupationMixOut,
@@ -198,6 +200,8 @@ export const api = {
 
   // ---------- Companies ----------
   listCompanies: (q: {
+    name?: string;
+    include_merged?: boolean;
     enriched?: boolean;
     has_duns?: boolean;
     sic_code?: string;
@@ -211,6 +215,8 @@ export const api = {
     get<Page<CompanyOut>>(
       "/api/companies" +
         qs({
+          name: q.name,
+          include_merged: q.include_merged ? "true" : undefined,
           enriched: q.enriched === undefined ? undefined : String(q.enriched),
           has_duns: q.has_duns === undefined ? undefined : String(q.has_duns),
           sic_code: q.sic_code,
@@ -228,6 +234,15 @@ export const api = {
   /** Sibling companies sharing this company's corporate family (empty if none). */
   getCompanyFamily: (id: number) =>
     get<FamilyMemberOut[]>(`/api/companies/${id}/family`),
+  /** Company rows consolidated into this one (duplicates / store variants). */
+  getCompanyMembers: (id: number) =>
+    get<MergedMemberOut[]>(`/api/companies/${id}/members`),
+
+  // ---------- Admin (require an admin session) ----------
+  adminMergeCompanies: (body: { target_id: number; source_ids: number[]; note?: string }) =>
+    post<MergeResult>("/api/admin/companies/merge", body),
+  adminUnmergeCompany: (id: number) =>
+    post<MergeResult>(`/api/admin/companies/${id}/unmerge`),
 
   // ---------- Scraper runs ----------
   listRuns: (q: { state?: string; status?: string; limit?: number; offset?: number } = {}) =>

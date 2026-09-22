@@ -26,6 +26,8 @@ export interface CompanyOut {
   // Workers affected (rolled up over merged dupes, superseded excluded).
   // Computed only by the companies list endpoint; null elsewhere.
   layoff_total?: number | null;
+  // Set when this row is a duplicate consolidated into another company.
+  canonical_company_id?: number | null;
   // Provider enrichment fields — present only for paid sessions and above; the API
   // omits the keys entirely for anonymous/free viewers. Raw DUNS identifiers
   // are enterprise/admin only.
@@ -243,6 +245,19 @@ export interface FamilyMemberOut {
   notice_count: number;
   layoff_total: number;
   is_self: boolean;
+}
+
+// A company row consolidated into another (duplicate or store variant).
+export interface MergedMemberOut {
+  company_id: number;
+  name: string;
+  notice_count: number;
+  layoff_total: number;
+}
+
+export interface MergeResult {
+  canonical_id: number; // the group's root after the change (its name is the label)
+  updated: number;
 }
 
 export interface ParentGroupStat {

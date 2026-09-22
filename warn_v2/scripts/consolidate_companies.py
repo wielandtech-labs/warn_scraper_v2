@@ -7,6 +7,8 @@ Strategy (per the consolidation plan):
            (same name + two DUNS = different companies -> skip, don't over-merge)
            OR when its members share one website domain (same name + same site =
            one company whose enrichment split across several DUNS, e.g. Boeing).
+  Then — admin overrides (``CompanyMergeOverride``, set from the admin UI) are
+           applied on top and win over both passes; see warn_v2/companies/merge.py.
 Each group keeps one canonical survivor (prefer enriched, higher confidence, a
 digit-free name, more notices, lower id); the rest get ``canonical_company_id``
 pointed at it. We NEVER touch ``Notice.company_id`` or delete rows, so the merge
@@ -33,8 +35,9 @@ from collections import defaultdict
 
 from sqlalchemy import func, select
 
+from warn_v2.companies.merge import apply_overrides, flatten
 from warn_v2.companies.normalize import canonical_name, website_domain
-from warn_v2.db.models import Company, Notice
+from warn_v2.db.models import Company, CompanyMergeOverride, Notice
 from warn_v2.db.session import session_scope
 
 log = logging.getLogger(__name__)
@@ -158,33 +161,33 @@ def consolidate_companies(*, dry_run: bool = True, force: bool = False) -> dict:
                 if m.id != surv.id:
                     merged_into[m.id] = surv.id
 
-        # Flatten chains: a hub that absorbed children in Pass 1 (child -> hub)
-        # can itself be merged in Pass 2 (hub -> survivor), leaving child -> hub
-        # -> survivor. canonical_company_id is followed only one level (by the
-        # rollup in stats/companies routes), so resolve every entry to its
-        # ultimate root here.
-        def _root(cid: int) -> int:
-            seen: set[int] = set()
-            while cid in merged_into and cid not in seen:
-                seen.add(cid)
-                cid = merged_into[cid]
-            return cid
-
-        merged_into = {cid: _root(cid) for cid in merged_into}
-
-        stats["merged"] = len(merged_into)
-
-        ratio = len(merged_into) / stats["total"] if stats["total"] else 0.0
+        # The guardrail judges only the heuristic merges: a large deliberate
+        # admin merge must not trip it.
+        auto_merged = len(merged_into)
+        ratio = auto_merged / stats["total"] if stats["total"] else 0.0
         if ratio > _GUARDRAIL and not force:
             log.warning(
                 "consolidate: %d/%d (%.0f%%) would be merged — exceeds %d%% "
                 "guardrail. Re-run with --force if this is expected.",
-                len(merged_into), stats["total"], ratio * 100, int(_GUARDRAIL * 100),
+                auto_merged, stats["total"], ratio * 100, int(_GUARDRAIL * 100),
             )
             session.rollback()
             stats["merged"] = 0
             stats["aborted"] = True
             return stats
+
+        # Admin overrides (newest first) win over the heuristics, then flatten:
+        # a hub that absorbed children in Pass 1 (child -> hub) can itself be
+        # merged in Pass 2 or by an override (hub -> survivor), and
+        # canonical_company_id is followed only one level by the rollups.
+        overrides = session.execute(
+            select(CompanyMergeOverride.company_id, CompanyMergeOverride.target_company_id)
+            .order_by(CompanyMergeOverride.decided_at.desc())
+        ).all()
+        stats["overrides"] = len(overrides)
+        merged_into = flatten(apply_overrides(merged_into, overrides))
+
+        stats["merged"] = len(merged_into)
 
         # Apply: dupes -> canonical pointer; canonical rows -> NULL + group key.
         for c in companies:

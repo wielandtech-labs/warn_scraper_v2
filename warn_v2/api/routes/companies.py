@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, aliased
 
 from warn_v2.api.deps import PaginationParams, ViewerSchemas, get_db
-from warn_v2.api.schemas import FamilyMemberOut, Page
+from warn_v2.api.schemas import FamilyMemberOut, MergedMemberOut, Page
 from warn_v2.companies.naics import naics_filter
 from warn_v2.db.models import Company, Notice
 
@@ -161,6 +161,37 @@ def list_company_notices(
     total = db.scalar(count_stmt) or 0
     items = list(db.scalars(stmt.offset(pagination.offset).limit(pagination.limit)))
     return view.notice_page(items, total, pagination.limit, pagination.offset)
+
+
+@router.get("/{company_id}/members", response_model=list[MergedMemberOut])
+def list_company_members(
+    company_id: int,
+    db: Session = Depends(get_db),
+) -> list[MergedMemberOut]:
+    """Company rows consolidated into this one (its duplicates / store variants)."""
+    if db.get(Company, company_id) is None:
+        raise HTTPException(status_code=404, detail="Company not found")
+    rows = db.execute(
+        select(
+            Company.id,
+            Company.name,
+            func.count(Notice.notice_id),
+            func.coalesce(func.sum(Notice.layoff_count), 0),
+        )
+        .select_from(Company)
+        .outerjoin(
+            Notice,
+            (Notice.company_id == Company.id) & Notice.is_superseded.is_(False),
+        )
+        .where(Company.canonical_company_id == company_id)
+        .group_by(Company.id, Company.name)
+    ).all()
+    out = [
+        MergedMemberOut(company_id=r[0], name=r[1], notice_count=int(r[2]), layoff_total=int(r[3]))
+        for r in rows
+    ]
+    out.sort(key=lambda m: (-m.layoff_total, m.name))
+    return out
 
 
 @router.get("/{company_id}/family", response_model=list[FamilyMemberOut])
