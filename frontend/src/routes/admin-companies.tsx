@@ -17,9 +17,12 @@ export function AdminCompaniesPage() {
   const navigate = useNavigate({ from: "/admin/companies" });
   const queryClient = useQueryClient();
 
+  // Selections survive a new search: the rows to merge and the row that labels
+  // them often turn up under different search terms ("k-mart" vs "kmart"), so
+  // both carry their names with them and are only cleared explicitly.
   const [draft, setDraft] = useState(name ?? "");
-  const [sources, setSources] = useState<Set<number>>(new Set());
-  const [target, setTarget] = useState<number | null>(null);
+  const [sources, setSources] = useState<Map<number, string>>(new Map());
+  const [target, setTarget] = useState<{ id: number; name: string } | null>(null);
   const [note, setNote] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
@@ -35,7 +38,7 @@ export function AdminCompaniesPage() {
     mutationFn: api.adminMergeCompanies,
     onSuccess: async (res) => {
       setMessage(`Merged — ${res.updated} rows updated; group label is company #${res.canonical_id}.`);
-      setSources(new Set());
+      setSources(new Map());
       setTarget(null);
       setNote("");
       // Merges change rollups everywhere (top employers, company pages, lists).
@@ -50,24 +53,22 @@ export function AdminCompaniesPage() {
   }
 
   const items = results.data?.items ?? [];
-  const selectable = items.filter((c) => c.id !== target);
-  const selected = [...sources].filter((id) => id !== target);
-  const targetRow = items.find((c) => c.id === target);
+  const selectable = items.filter((c) => c.id !== target?.id);
+  const selected = [...sources.keys()].filter((id) => id !== target?.id);
   const allChecked = selectable.length > 0 && selectable.every((c) => sources.has(c.id));
 
-  const toggle = (id: number) =>
+  const toggle = (id: number, rowName: string) =>
     setSources((prev) => {
-      const next = new Set(prev);
+      const next = new Map(prev);
       if (next.has(id)) next.delete(id);
-      else next.add(id);
+      else next.set(id, rowName);
       return next;
     });
 
   const submit = () => {
     if (target == null || selected.length === 0) return;
-    const label = targetRow?.name ?? `#${target}`;
-    if (!window.confirm(`Merge ${selected.length} companies into "${label}"?`)) return;
-    merge.mutate({ target_id: target, source_ids: selected, note: note || undefined });
+    if (!window.confirm(`Merge ${selected.length} companies into "${target.name}"?`)) return;
+    merge.mutate({ target_id: target.id, source_ids: selected, note: note || undefined });
   };
 
   return (
@@ -76,14 +77,14 @@ export function AdminCompaniesPage() {
         <h1 className="text-2xl font-semibold">Merge companies</h1>
         <p className="text-sm text-slate-600 dark:text-slate-400">
           Search, tick the rows that are the same company, pick the row whose name should
-          label the group, then merge. Undo from the company page (“Merged records”).
+          label the group, then merge. Ticks and the label row survive a new search, so
+          spelling variants (“kmart”, “k-mart”) can go into one merge. Undo from the
+          company page (“Merged records”).
         </p>
         <form
           className="flex gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            setSources(new Set());
-            setTarget(null);
             setMessage(null);
             navigate({ search: { name: draft.trim() || undefined } });
           }}
@@ -112,7 +113,15 @@ export function AdminCompaniesPage() {
                     aria-label="Select all"
                     checked={allChecked}
                     onChange={() =>
-                      setSources(allChecked ? new Set() : new Set(selectable.map((c) => c.id)))
+                      setSources((prev) => {
+                        const next = new Map(prev);
+                        // Only the rows on screen; ticks from other searches stay.
+                        for (const c of selectable) {
+                          if (allChecked) next.delete(c.id);
+                          else next.set(c.id, c.name);
+                        }
+                        return next;
+                      })
                     }
                   />
                 </th>
@@ -126,14 +135,14 @@ export function AdminCompaniesPage() {
                 <tr><td colSpan={4} className="px-3 py-3 text-slate-500">Loading…</td></tr>
               )}
               {items.map((c) => (
-                <tr key={c.id} className={c.id === target ? "bg-sky-50 dark:bg-sky-950" : ""}>
+                <tr key={c.id} className={c.id === target?.id ? "bg-sky-50 dark:bg-sky-950" : ""}>
                   <td className="px-3 py-2">
                     <input
                       type="checkbox"
                       aria-label={`Merge ${c.name}`}
-                      disabled={c.id === target}
-                      checked={sources.has(c.id) && c.id !== target}
-                      onChange={() => toggle(c.id)}
+                      disabled={c.id === target?.id}
+                      checked={sources.has(c.id) && c.id !== target?.id}
+                      onChange={() => toggle(c.id, c.name)}
                     />
                   </td>
                   <td className="px-3 py-2">
@@ -141,8 +150,8 @@ export function AdminCompaniesPage() {
                       type="radio"
                       name="target"
                       aria-label={`Use ${c.name} as label`}
-                      checked={c.id === target}
-                      onChange={() => setTarget(c.id)}
+                      checked={c.id === target?.id}
+                      onChange={() => setTarget({ id: c.id, name: c.name })}
                     />
                   </td>
                   <td className="px-3 py-2">
@@ -179,22 +188,63 @@ export function AdminCompaniesPage() {
         </div>
       )}
 
-      {name && (
-        <div className="card flex flex-wrap items-center gap-2">
-          <input
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Note (optional)"
-            className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
-          />
-          <button
-            type="button"
-            onClick={submit}
-            disabled={target == null || selected.length === 0 || merge.isPending}
-            className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
-          >
-            Merge {selected.length} into {targetRow ? `“${targetRow.name}”` : "…"}
-          </button>
+      {(selected.length > 0 || target) && (
+        <div className="card space-y-3">
+          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
+            <span>
+              <span className="text-slate-500 dark:text-slate-400">Label: </span>
+              {target ? (
+                <>
+                  {target.name}{" "}
+                  <button
+                    type="button"
+                    onClick={() => setTarget(null)}
+                    className="text-xs text-slate-500 hover:underline"
+                  >
+                    clear
+                  </button>
+                </>
+              ) : (
+                <span className="text-amber-700 dark:text-amber-500">
+                  none — pick one in the Label column (search for it if it isn’t listed)
+                </span>
+              )}
+            </span>
+            <span>
+              <span className="text-slate-500 dark:text-slate-400">Ticked: </span>
+              {selected.length}{" "}
+              {selected.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSources(new Map())}
+                  className="text-xs text-slate-500 hover:underline"
+                >
+                  clear
+                </button>
+              )}
+            </span>
+          </div>
+          {selected.length > 0 && (
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {selected.map((id) => sources.get(id)).join(" · ")}
+            </p>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Note (optional)"
+              className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+            />
+            <button
+              type="button"
+              onClick={submit}
+              disabled={target == null || selected.length === 0 || merge.isPending}
+              className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+            >
+              Merge {selected.length} into {target ? `“${target.name}”` : "…"}
+            </button>
+          </div>
         </div>
       )}
     </div>
