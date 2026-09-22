@@ -55,6 +55,74 @@ def test_name_collision_different_duns_not_merged(db) -> None:
     assert db.get(Company, b.id).canonical_company_id is None
 
 
+def test_multi_duns_same_website_merges(db) -> None:
+    # One company whose enrichment split across several DUNS, all at the same
+    # site -> merge despite the multi-DUNS guard (the Boeing case).
+    a = _company(db, "Boeing", duns="100000001", website="http://www.boeing.com")
+    b = _company(db, "Boeing Company", duns="100000002", website="https://boeing.com/careers")
+    c = _company(db, "The Boeing Company", duns="100000003", website="www.boeing.com")
+    db.commit()
+
+    res = consolidate_companies(dry_run=False, force=True)
+    assert res["website_groups"] == 1
+    assert res["merged"] == 2  # two fold into one survivor
+    db.expire_all()
+    # lowest id wins with no other tie-breaker; the other two point at it
+    assert db.get(Company, a.id).canonical_company_id is None
+    assert db.get(Company, b.id).canonical_company_id == a.id
+    assert db.get(Company, c.id).canonical_company_id == a.id
+
+
+def test_website_merge_flattens_child_chains(db) -> None:
+    # A hub that absorbed a Pass-1 DUNS child, then LOSES the website-path merge
+    # to another hub, must not leave the grandchild in a 2-hop chain — every
+    # member resolves to the single ultimate survivor.
+    # hub_a wins (lowest id); child shares hub_b's DUNS so Pass 1 puts it under
+    # the losing hub_b.
+    hub_a = _company(db, "Boeing", duns="500000001", website="http://www.boeing.com")
+    hub_b = _company(db, "Boeing Company", duns="500000002", website="https://boeing.com")
+    child = _company(db, "Boeing Field Office", duns="500000002")
+    db.commit()
+
+    consolidate_companies(dry_run=False, force=True)
+    db.expire_all()
+    surv = hub_a.id  # lowest id, no other tie-breaker
+    assert db.get(Company, hub_a.id).canonical_company_id is None
+    assert db.get(Company, hub_b.id).canonical_company_id == surv
+    # the grandchild (child of the losing hub) points straight at the ultimate
+    # survivor, not the intermediate losing hub
+    assert db.get(Company, child.id).canonical_company_id == surv
+
+
+def test_multi_duns_different_website_not_merged(db) -> None:
+    # Same normalized name + different DUNS + DIFFERENT sites = genuinely
+    # different companies -> keep apart.
+    a = _company(db, "Summit Inc", duns="200000001", website="http://summit-a.com")
+    b = _company(db, "Summit LLC", duns="200000002", website="http://summit-b.com")
+    db.commit()
+
+    res = consolidate_companies(dry_run=False, force=True)
+    assert res["merged"] == 0
+    assert res["website_groups"] == 0
+    db.expire_all()
+    assert db.get(Company, a.id).canonical_company_id is None
+    assert db.get(Company, b.id).canonical_company_id is None
+
+
+def test_multi_duns_partial_website_rides_along(db) -> None:
+    # An un-enriched (no-website) sibling doesn't block the merge; it rides along
+    # on the shared name and the one known domain.
+    a = _company(db, "Boeing", duns="400000001", website="http://www.boeing.com")
+    b = _company(db, "Boeing Co", duns="400000002")  # no website
+    db.commit()
+
+    res = consolidate_companies(dry_run=False, force=True)
+    assert res["merged"] == 1
+    assert res["website_groups"] == 1
+    db.expire_all()
+    assert db.get(Company, b.id).canonical_company_id == a.id
+
+
 def test_survivor_prefers_enriched(db) -> None:
     plain = _company(db, "Gamma Inc", duns="444444444")
     rich = _company(

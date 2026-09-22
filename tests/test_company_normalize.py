@@ -7,6 +7,7 @@ from warn_v2.companies.normalize import (
     is_unsearchable,
     match_is_consistent,
     search_name,
+    website_domain,
 )
 
 
@@ -36,6 +37,26 @@ def test_leading_the_collapses():
 def test_leading_the_only_token_kept():
     # A bare "The" has no other tokens — must not strip down to "".
     assert canonical_name("The") == "the"
+
+
+def test_website_domain_strips_scheme_www_and_path():
+    assert website_domain("http://www.boeing.com") == "boeing.com"
+    assert website_domain("https://boeing.com/careers?x=1") == "boeing.com"
+    assert website_domain("boeing.com") == "boeing.com"
+    assert website_domain("WWW.Boeing.COM") == "boeing.com"
+
+
+def test_website_domain_empty_for_missing():
+    assert website_domain(None) == ""
+    assert website_domain("") == ""
+    assert website_domain("   ") == ""
+
+
+def test_website_domain_rejects_non_domains():
+    # Junk/placeholder values must not become a matchable host.
+    assert website_domain("N/A") == ""
+    assert website_domain("none") == ""
+    assert website_domain("http://localhost") == ""
 
 
 def test_descriptive_words_preserved_no_over_merge():

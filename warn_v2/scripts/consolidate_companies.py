@@ -3,8 +3,10 @@
 Strategy (per the consolidation plan):
   Pass 1 — DUNS merge: rows sharing a non-null ``duns`` are the same legal entity.
   Pass 2 — name fallback: among rows not already merged, group by
-           ``name_normalized``; merge a group only if it spans <=1 distinct DUNS
-           (same name + two DUNS = different companies -> skip, don't over-merge).
+           ``name_normalized``; merge a group when it spans <=1 distinct DUNS
+           (same name + two DUNS = different companies -> skip, don't over-merge)
+           OR when its members share one website domain (same name + same site =
+           one company whose enrichment split across several DUNS, e.g. Boeing).
 Each group keeps one canonical survivor (prefer enriched, higher confidence, more
 notices, lower id); the rest get ``canonical_company_id`` pointed at it. We NEVER
 touch ``Notice.company_id`` or delete rows, so the merge is fully reversible.
@@ -30,13 +32,29 @@ from collections import defaultdict
 
 from sqlalchemy import func, select
 
-from warn_v2.companies.normalize import canonical_name
+from warn_v2.companies.normalize import canonical_name, website_domain
 from warn_v2.db.models import Company, Notice
 from warn_v2.db.session import session_scope
 
 log = logging.getLogger(__name__)
 
 _GUARDRAIL = 0.50  # abort if >50% of companies would be merged away
+
+
+def _same_website(members: list[Company]) -> bool:
+    """True when every member that has a website resolves to one shared domain
+    (and at least one member has a website).
+
+    Lets a same-name group that spans multiple DUNS still merge when their sites
+    agree — e.g. Boeing's several D&B records (``Boeing`` / ``Boeing Company`` /
+    ``The Boeing Company``), all at boeing.com: imperfect enrichment matched one
+    company to several DUNS, not genuinely different companies. Members with no
+    website are ignored (they ride along on the shared name), so one
+    un-enriched sibling doesn't block the merge.
+    """
+    domains = {website_domain(m.website) for m in members}
+    domains.discard("")
+    return len(domains) == 1
 
 
 def _survivor_key(c: Company, notice_counts: dict[int, int]) -> tuple:
@@ -63,7 +81,10 @@ def _parent_group_key(c: Company) -> str:
 
 def consolidate_companies(*, dry_run: bool = True, force: bool = False) -> dict:
     """Merge duplicate companies. Returns summary stats."""
-    stats: dict = {"total": 0, "merged": 0, "duns_groups": 0, "name_groups": 0}
+    stats: dict = {
+        "total": 0, "merged": 0, "duns_groups": 0,
+        "name_groups": 0, "website_groups": 0,
+    }
 
     with session_scope() as session:
         companies = list(session.scalars(select(Company)))
@@ -115,13 +136,33 @@ def consolidate_companies(*, dry_run: bool = True, force: bool = False) -> dict:
         for members in by_name.values():
             if len(members) < 2:
                 continue
-            if len({m.duns for m in members if m.duns}) >= 2:
-                continue
+            multi_duns = len({m.duns for m in members if m.duns}) >= 2
+            # A same-name group with >=2 distinct DUNS is normally different
+            # entities — unless the members share one website domain, which marks
+            # them as one company enrichment split across several DUNS records.
+            if multi_duns:
+                if not _same_website(members):
+                    continue
+                stats["website_groups"] += 1
             stats["name_groups"] += 1
             surv = pick(members)
             for m in members:
                 if m.id != surv.id:
                     merged_into[m.id] = surv.id
+
+        # Flatten chains: a hub that absorbed children in Pass 1 (child -> hub)
+        # can itself be merged in Pass 2 (hub -> survivor), leaving child -> hub
+        # -> survivor. canonical_company_id is followed only one level (by the
+        # rollup in stats/companies routes), so resolve every entry to its
+        # ultimate root here.
+        def _root(cid: int) -> int:
+            seen: set[int] = set()
+            while cid in merged_into and cid not in seen:
+                seen.add(cid)
+                cid = merged_into[cid]
+            return cid
+
+        merged_into = {cid: _root(cid) for cid in merged_into}
 
         stats["merged"] = len(merged_into)
 
@@ -149,14 +190,17 @@ def consolidate_companies(*, dry_run: bool = True, force: bool = False) -> dict:
             session.rollback()
             log.info(
                 "consolidate DRY RUN: would merge %d of %d (duns_groups=%d "
-                "name_groups=%d) — nothing written",
-                stats["merged"], stats["total"], stats["duns_groups"], stats["name_groups"],
+                "name_groups=%d website_groups=%d) — nothing written",
+                stats["merged"], stats["total"], stats["duns_groups"],
+                stats["name_groups"], stats["website_groups"],
             )
         else:
             session.commit()
             log.info(
-                "consolidate: merged %d of %d (duns_groups=%d name_groups=%d)",
-                stats["merged"], stats["total"], stats["duns_groups"], stats["name_groups"],
+                "consolidate: merged %d of %d (duns_groups=%d name_groups=%d "
+                "website_groups=%d)",
+                stats["merged"], stats["total"], stats["duns_groups"],
+                stats["name_groups"], stats["website_groups"],
             )
 
     return stats
@@ -172,7 +216,8 @@ def main() -> int:
     suffix = " (dry run)" if args.dry_run else ""
     print(
         f"merged={stats['merged']} duns_groups={stats['duns_groups']} "
-        f"name_groups={stats['name_groups']} total={stats['total']}{suffix}"
+        f"name_groups={stats['name_groups']} website_groups={stats['website_groups']} "
+        f"total={stats['total']}{suffix}"
     )
     return 0
 
