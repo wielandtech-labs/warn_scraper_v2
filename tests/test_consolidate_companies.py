@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from warn_v2.db.models import Company
+from warn_v2.db.models import Company, Notice
 from warn_v2.pipeline.storage import _get_or_create_company
 from warn_v2.scripts.consolidate_companies import consolidate_companies
 
@@ -136,6 +136,24 @@ def test_survivor_prefers_enriched(db) -> None:
     # the enriched row wins even though it has the higher id
     assert db.get(Company, rich.id).canonical_company_id is None
     assert db.get(Company, plain.id).canonical_company_id == rich.id
+
+
+def test_survivor_prefers_digit_free_name(db) -> None:
+    # The Kmart case: same DUNS, both enriched at the same confidence, and the
+    # store-numbered row has more notices — the clean name still wins, since the
+    # survivor's name is the label the whole group displays.
+    enriched = {"enriched_at": datetime.now(UTC), "enrichment_confidence": Decimal("1.00")}
+    store = _company(db, "KMART CORPORATION # 7435", duns="555555555", **enriched)
+    clean = _company(db, "Kmart Corporation", duns="555555555", **enriched)
+    for i in range(3):
+        db.add(Notice(notice_id=f"km{i}", state="MI", employer=store.name, company_id=store.id))
+    db.add(Notice(notice_id="km_clean", state="MI", employer=clean.name, company_id=clean.id))
+    db.commit()
+
+    consolidate_companies(dry_run=False, force=True)
+    db.expire_all()
+    assert db.get(Company, clean.id).canonical_company_id is None
+    assert db.get(Company, store.id).canonical_company_id == clean.id
 
 
 def test_parent_group_key_prefers_gu_id(db) -> None:
