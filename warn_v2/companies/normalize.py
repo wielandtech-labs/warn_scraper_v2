@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import html
 import re
+from urllib.parse import urlsplit
 
 # True legal-entity suffixes only. Order doesn't matter; matched token-wise after
 # punctuation is stripped, so "L.L.C" -> "llc" and "L L C" both normalize away.
@@ -409,3 +410,21 @@ def canonical_name(name: str | None) -> str:
     if not tokens:  # name was nothing but legal tokens — fall back to the lot
         tokens = _WS.sub(" ", _PUNCT.sub(" ", name.lower())).split()
     return " ".join(tokens)
+
+
+def website_domain(url: str | None) -> str:
+    """Bare host of a company website, for same-company matching.
+
+    Lowercases and strips the scheme, any userinfo/port, the path, and a leading
+    "www." so "http://www.boeing.com/careers" and "boeing.com" both yield
+    "boeing.com". Returns "" when there is no usable host.
+    """
+    if not url:
+        return ""
+    s = url.strip().lower()
+    if "//" not in s:  # bare "boeing.com/x" -> give urlsplit a netloc to find
+        s = "//" + s
+    host = urlsplit(s).hostname or ""
+    if host.startswith("www."):
+        host = host[4:]
+    return host
