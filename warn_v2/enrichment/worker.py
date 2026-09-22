@@ -21,8 +21,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from warn_v2.companies.normalize import (
+    alt_queries,
     cleaned_key,
-    dba_name,
     is_unsearchable,
     match_is_consistent,
     search_name,
@@ -425,11 +425,12 @@ def enrich_batch(
 
     Tiers (subset of {"provider", "edgar", "claude"}):
       1. ``provider.lookup()`` if a provider is configured — DUNS linkage,
-         the main value. When the legal-entity query misses and the filing
-         carries a dba/aka trade name, that gets one retry lookup. A provider
-         MISS stamps ``provider_attempted_at`` and leaves the company
-         unenriched (still queued, skipped on future provider-only runs)
-         instead of falling through.
+         the main value. When the primary query misses, each fallback query
+         (``alt_queries``: a dba/aka trade name, the entity before a glued-on
+         site or second entity) gets one retry lookup. A provider MISS stamps
+         ``provider_attempted_at`` and leaves the company unenriched (still
+         queued, skipped on future provider-only runs) instead of falling
+         through.
       2. EDGAR free lookup (SIC + approximate NAICS)
       3. Claude Haiku fallback (website + remaining gaps)
 
@@ -495,7 +496,7 @@ def enrich_batch(
     if not companies:
         log.info("enrich_batch: no pending companies found")
         return {"total": 0, "enriched": 0, "skipped": 0, "provider": 0,
-                "provider_miss": 0, "provider_rejected": 0, "provider_dba": 0,
+                "provider_miss": 0, "provider_rejected": 0, "provider_alt": 0,
                 "provider_errors": 0, "unsearchable": 0, "edgar": 0,
                 "claude": 0, "sibling": stats_sibling}
 
@@ -509,7 +510,7 @@ def enrich_batch(
     stats_provider_miss = 0
     stats_provider_errors = 0
     stats_provider_rejected = 0
-    stats_provider_dba = 0
+    stats_provider_alt = 0
     stats_unsearchable = 0
     stats_edgar = 0
     stats_claude = 0
@@ -638,14 +639,17 @@ def enrich_batch(
                     stats_provider += 1
                     continue
 
-                # The legal-entity query missed (or resolved inconsistently) —
-                # give the dba/aka trade name one shot before recording the miss.
-                # The attempt stamp above stays either way: the company got its
-                # real provider shot on the primary query.
-                alt = dba_name(company.name) if provider_ok else None
-                if alt:
+                # The primary query missed (or resolved inconsistently) — give
+                # each fallback query (the dba trade name, the entity before a
+                # glued-on site or second entity, ...) one shot before recording
+                # the miss. The attempt stamp above stays either way: the
+                # company got its real provider shot on the primary query.
+                alt_hit = None
+                for alt in alt_queries(company.name):
+                    if not provider_ok:
+                        break
                     log.info(
-                        "company_id=%d name=%r: dba retry with query %r",
+                        "company_id=%d name=%r: fallback retry with query %r",
                         company.id, company.name, alt,
                     )
                     try:
@@ -658,7 +662,7 @@ def enrich_batch(
                         provider_fails += 1
                         provider_ok = provider_fails < _MAX_PROVIDER_FAILURES
                         log.warning(
-                            "company_id=%d name=%r: provider unavailable on dba "
+                            "company_id=%d name=%r: provider unavailable on fallback "
                             "retry (%s) [%d/%d consecutive]%s",
                             company.id, company.name, e, provider_fails,
                             _MAX_PROVIDER_FAILURES,
@@ -670,7 +674,7 @@ def enrich_batch(
                         provider_fails += 1
                         provider_ok = provider_fails < _MAX_PROVIDER_FAILURES
                         log.exception(
-                            "provider.lookup failed on dba retry for company_id=%d "
+                            "provider.lookup failed on fallback retry for company_id=%d "
                             "name=%r [%d/%d consecutive]%s",
                             company.id, company.name, provider_fails,
                             _MAX_PROVIDER_FAILURES,
@@ -680,29 +684,32 @@ def enrich_batch(
                     else:
                         provider_fails = 0
 
-                    # Faithfulness is judged against the TRADE name — the legal
+                    # Faithfulness is judged against the RETRY query — a legal
                     # entity's tokens won't (and shouldn't) match its dba.
                     if pr2 is not None and not match_is_consistent(alt, pr2.entity_name):
                         log.warning(
-                            "company_id=%d name=%r: rejected dba retry match entity=%r "
-                            "conf=%.2f (shares no distinctive token with %r)",
+                            "company_id=%d name=%r: rejected fallback retry match "
+                            "entity=%r conf=%.2f (shares no distinctive token with %r)",
                             company.id, company.name, pr2.entity_name, pr2.confidence, alt,
                         )
                         pr2 = None
-
                     if pr2 is not None:
-                        log.info(
-                            "company_id=%d name=%r: dba retry hit duns=%r sic=%r "
-                            "naics=%r conf=%.2f",
-                            company.id, company.name, pr2.duns, pr2.sic_code,
-                            pr2.naics_code, pr2.confidence,
-                        )
-                        if not dry_run:
-                            _persist_provider_result(session, company, pr2)
-                            _add_donor(donors, company)
-                        enriched += 1
-                        stats_provider_dba += 1
-                        continue
+                        alt_hit = pr2
+                        break
+
+                if alt_hit is not None:
+                    log.info(
+                        "company_id=%d name=%r: fallback retry hit duns=%r sic=%r "
+                        "naics=%r conf=%.2f",
+                        company.id, company.name, alt_hit.duns, alt_hit.sic_code,
+                        alt_hit.naics_code, alt_hit.confidence,
+                    )
+                    if not dry_run:
+                        _persist_provider_result(session, company, alt_hit)
+                        _add_donor(donors, company)
+                    enriched += 1
+                    stats_provider_alt += 1
+                    continue
 
                 if rejected:
                     stats_provider_rejected += 1
@@ -808,7 +815,7 @@ def enrich_batch(
         "provider": stats_provider,
         "provider_miss": stats_provider_miss,
         "provider_rejected": stats_provider_rejected,
-        "provider_dba": stats_provider_dba,
+        "provider_alt": stats_provider_alt,
         "provider_errors": stats_provider_errors,
         "unsearchable": stats_unsearchable,
         "edgar": stats_edgar,

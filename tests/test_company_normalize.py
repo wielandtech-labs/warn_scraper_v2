@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from warn_v2.companies.normalize import (
+    alt_queries,
     canonical_name,
     dba_name,
     is_unsearchable,
@@ -457,3 +458,65 @@ def test_is_unsearchable_flags_over_long_queries():
     # action timeout — searching it wedges the whole run instead of missing.
     assert is_unsearchable("Acme Manufacturing " * 20)
     assert not is_unsearchable("Acme Manufacturing " * 2)
+
+
+def test_alt_queries_cut_to_the_company_the_filing_glued_things_onto():
+    # Legal entity followed by a site / second entity / facility.
+    assert alt_queries("Safeway Inc. Store 0137") == ["Safeway Inc."]
+    assert alt_queries("DRUMMOND CO., INC. SHOAL CREEK MINE") == ["DRUMMOND CO., INC."]
+    assert alt_queries("Hallmark Cards, Inc. and Hallmark Marketing Company, LLC") == [
+        "Hallmark Cards, Inc."
+    ]
+    assert alt_queries("Wickliffe Paper Company LLC-Verso Corp") == [
+        "Wickliffe Paper Company LLC"
+    ]
+    # Contractor at a client site.
+    assert alt_queries("Aramark at General Mills") == ["Aramark"]
+    assert alt_queries("Seville Farms @ Tyler") == ["Seville Farms"]
+    # Two entities joined by a slash: both sides, in order.
+    assert alt_queries("US Airways/America West Airlines") == [
+        "US Airways", "America West Airlines",
+    ]
+    # Unspaced site dash.
+    assert alt_queries("Halliburton-Elmendorf") == ["Halliburton"]
+    assert alt_queries("Walmart-Houston2") == ["Walmart"]
+    assert alt_queries("International Business Machines-Coppell") == [
+        "International Business Machines"
+    ]
+    # Zero-padded store number.
+    assert alt_queries("Pappasito's 09") == ["Pappasito's"]
+    # The dba trade name still comes first.
+    assert alt_queries("Managed Services-IDS (dba Cardinal Health)")[0] == "Cardinal Health"
+
+
+def test_alt_queries_leave_real_names_alone():
+    for name in [
+        "Ritz-Carlton", "The Ritz-Carlton Key Biscayne, Miami", "Coca-Cola Bottling",
+        "Kerr-McGee Chemical LLC", "Save-A-Lot", "Mercedes-Benz USA", "Jo-Ann Stores",
+        "Harley-Davidson Motor Co", "Hewlett-Packard Co", "Motel 6", "Pier 1 Imports",
+        "Toys R Us", "E*Trade", "Acme Inc",
+        # Only more suffixes after the first one: nothing new to search.
+        "ColoWyo Coal Company LP", "Grandpa's Bus Co., Inc.",
+        "Proterra Operating Company, Inc.",
+        # A hyphenated word, not a site.
+        "GE Healthcare Bio-Sciences Corp.",
+        None, "",
+    ]:
+        assert alt_queries(name) == [], name
+
+
+def test_alt_queries_skip_a_bare_place_after_a_slash():
+    # "Grenada" is a town, not a company; searching it alone risks a wrong DUNS.
+    assert alt_queries("Corinthian Furniture Corinth/Grenada") == [
+        "Corinthian Furniture Corinth"
+    ]
+    # One-letter markers (T/A = "trading as") are not entity separators: no
+    # "T" / "A Food Depot" sides, just the legal entity.
+    assert alt_queries("Red Run Corporation T/A Food Depot") == ["Red Run Corporation"]
+
+
+def test_alt_queries_cap_and_never_repeat_the_primary():
+    name = "Steward Medical Group, Inc./Carney Hospital at Brighton Campus/Other Place"
+    alts = alt_queries(name)
+    assert 1 <= len(alts) <= 2
+    assert search_name(name) not in alts

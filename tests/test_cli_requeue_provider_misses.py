@@ -114,3 +114,28 @@ def test_requeue_rejects_a_bad_timestamp(db_session_factory, runner) -> None:
     result = runner.invoke(main, ["requeue-provider-misses", "--since", "last tuesday"])
     assert result.exit_code == 1
     assert "not an ISO 8601 timestamp" in result.output
+
+
+def test_requeue_retryable_only_touches_misses_with_a_fallback_query(
+    db_session_factory, runner
+) -> None:
+    with db_session_factory() as session:
+        stamped = BAD_WINDOW_START + timedelta(hours=1)
+        session.add_all(
+            [
+                Company(name="Aramark at General Mills", provider_attempted_at=stamped),
+                Company(name="Mystery Corp", provider_attempted_at=stamped),
+            ]
+        )
+        session.commit()
+
+    result = runner.invoke(
+        main,
+        ["requeue-provider-misses", "--since", "2026-09-08T00:00:00", "--retryable"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "re-queued 1 companies" in result.output
+    stamps = _stamps(db_session_factory)
+    assert stamps["Aramark at General Mills"] is False  # "Aramark" is worth a retry
+    assert stamps["Mystery Corp"] is True  # nothing new to try

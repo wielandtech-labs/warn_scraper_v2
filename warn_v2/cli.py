@@ -247,7 +247,7 @@ def enrich(
         f"(provider={stats['provider']} edgar={stats['edgar']} claude={stats['claude']}) "
         f"provider_miss={stats['provider_miss']} "
         f"provider_rejected={stats.get('provider_rejected', 0)} "
-        f"provider_dba={stats.get('provider_dba', 0)} "
+        f"provider_alt={stats.get('provider_alt', 0)} "
         f"provider_errors={stats.get('provider_errors', 0)} "
         f"sibling={stats.get('sibling', 0)} "
         f"skipped={stats['skipped']} total={stats['total']}{suffix}"
@@ -824,8 +824,16 @@ def enrich_ga_cmd(limit: int | None, pdf_dir: Path, dry_run: bool) -> None:
     metavar="TIMESTAMP",
     help="Optional end of the window (exclusive); defaults to now",
 )
+@click.option(
+    "--retryable",
+    is_flag=True,
+    help="Only misses whose name now yields a fallback query (alt_queries) — "
+    "for re-trying old misses after the query ladder grows",
+)
 @click.option("--dry-run", is_flag=True, help="Preview counts without writing")
-def requeue_provider_misses_cmd(since: str, until: str | None, dry_run: bool) -> None:
+def requeue_provider_misses_cmd(
+    since: str, until: str | None, retryable: bool, dry_run: bool
+) -> None:
     """Un-stamp provider misses recorded during a window, re-queueing them.
 
     \b
@@ -841,14 +849,21 @@ def requeue_provider_misses_cmd(since: str, until: str | None, dry_run: bool) ->
     hit inside the window keeps its provenance.
 
     \b
+    ``--retryable`` narrows the window to misses a newer ``alt_queries`` would now
+    retry with a fallback query ("Aramark at General Mills" -> "Aramark"): those
+    were genuine misses on the primary query but never got the fallbacks.
+
+    \b
     Examples:
       warn-v2 requeue-provider-misses --since 2026-09-08T00:00:00 --dry-run
       warn-v2 requeue-provider-misses --since 2026-09-08T00:00:00
+      warn-v2 requeue-provider-misses --since 2026-01-01T00:00:00 --retryable
     """
     from datetime import UTC, datetime
 
     from sqlalchemy import and_, func, select, update
 
+    from warn_v2.companies.normalize import alt_queries
     from warn_v2.db.models import Company
     from warn_v2.db.session import session_scope
 
@@ -875,8 +890,18 @@ def requeue_provider_misses_cmd(since: str, until: str | None, dry_run: bool) ->
         cond = and_(cond, Company.provider_attempted_at < until_dt)
 
     with session_scope() as session:
+        if retryable:
+            # alt_queries is Python, not SQL: pick the ids here, then filter on them.
+            ids = [
+                cid
+                for cid, name in session.execute(select(Company.id, Company.name).where(cond))
+                if alt_queries(name)
+            ]
+            cond = and_(cond, Company.id.in_(ids))
         total = session.scalar(select(func.count()).where(cond)) or 0
         window = f"{since_dt.isoformat()} .. {until_dt.isoformat() if until_dt else 'now'}"
+        if retryable:
+            window += ", retryable only"
         if dry_run or total == 0:
             suffix = " (dry run — nothing written)" if dry_run else ""
             click.echo(f"{total} provider misses stamped in {window}{suffix}")

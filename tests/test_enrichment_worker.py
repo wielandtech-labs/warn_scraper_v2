@@ -429,7 +429,7 @@ def test_enrich_batch_provider_hit_skips_edgar_and_claude(db, monkeypatch) -> No
     stats = enrich_batch(db, _StubClient(), provider=_FakeProvider(), inter_delay_s=0)
     assert stats == {"total": 1, "enriched": 1, "skipped": 0,
                      "provider": 1, "provider_miss": 0, "provider_rejected": 0,
-                     "provider_dba": 0, "provider_errors": 0,
+                     "provider_alt": 0, "provider_errors": 0,
                      "unsearchable": 0, "edgar": 0, "claude": 0,
                      "sibling": 0}
     assert edgar_calls == []
@@ -478,7 +478,7 @@ def test_enrich_batch_edgar_hit_skips_claude(db, monkeypatch) -> None:
     stats = enrich_batch(db, _StubClient(), inter_delay_s=0)
     assert stats == {"total": 1, "enriched": 1, "skipped": 0,
                      "provider": 0, "provider_miss": 0, "provider_rejected": 0,
-                     "provider_dba": 0, "provider_errors": 0,
+                     "provider_alt": 0, "provider_errors": 0,
                      "unsearchable": 0, "edgar": 1, "claude": 0,
                      "sibling": 0}
     assert claude_calls == []
@@ -505,7 +505,7 @@ def test_enrich_batch_falls_through_to_claude(db, monkeypatch) -> None:
     stats = enrich_batch(db, _StubClient(), inter_delay_s=0)
     assert stats == {"total": 1, "enriched": 1, "skipped": 0,
                      "provider": 0, "provider_miss": 0, "provider_rejected": 0,
-                     "provider_dba": 0, "provider_errors": 0,
+                     "provider_alt": 0, "provider_errors": 0,
                      "unsearchable": 0, "edgar": 0, "claude": 1,
                      "sibling": 0}
 
@@ -740,7 +740,7 @@ def test_provider_miss_retries_with_dba_trade_name(db) -> None:
         db, _StubClient(), provider=provider, inter_delay_s=0, tiers={"provider"}
     )
     assert provider.calls == ["Managed Services-IDS", "Cardinal Health"]
-    assert stats["provider_dba"] == 1
+    assert stats["provider_alt"] == 1
     assert stats["provider_miss"] == 0
     assert stats["enriched"] == 1
 
@@ -760,7 +760,7 @@ def test_provider_miss_without_dba_makes_single_call(db) -> None:
     )
     assert provider.calls == ["Mystery Corp"]
     assert stats["provider_miss"] == 1
-    assert stats["provider_dba"] == 0
+    assert stats["provider_alt"] == 0
 
 
 def test_dba_retry_match_rejected_when_inconsistent(db) -> None:
@@ -786,7 +786,7 @@ def test_dba_retry_match_rejected_when_inconsistent(db) -> None:
         db, _StubClient(), provider=_WrongDbaProvider(), inter_delay_s=0,
         tiers={"provider"},
     )
-    assert stats["provider_dba"] == 0
+    assert stats["provider_alt"] == 0
     assert stats["provider_miss"] == 1
 
     db.refresh(c)
@@ -1240,3 +1240,55 @@ def test_provider_unavailable_falls_through_to_backup_in_mixed_run(db, monkeypat
     db.refresh(c)
     assert c.enrichment_source == "claude"
     assert c.provider_attempted_at is None  # provider never actually searched it
+
+
+def test_provider_miss_walks_the_fallback_ladder_until_a_hit(db) -> None:
+    """Each fallback query gets one shot, in order; the first faithful hit
+    persists and nothing after it is looked up."""
+    from warn_v2.enrichment.provider import ProviderResult
+
+    class _SecondSideProvider:
+        def __init__(self):
+            self.calls: list[str] = []
+
+        def lookup(self, company_name: str, state):
+            self.calls.append(company_name)
+            if company_name == "America West Airlines":
+                return ProviderResult(
+                    entity_name="America West Airlines, Inc.", duns="555555555",
+                    confidence=0.9,
+                )
+            return None
+
+        def close(self) -> None:
+            pass
+
+    c = _company(db, name="US Airways/America West Airlines")
+    db.commit()
+
+    provider = _SecondSideProvider()
+    stats = enrich_batch(
+        db, _StubClient(), provider=provider, inter_delay_s=0, tiers={"provider"}
+    )
+    assert provider.calls == [
+        "US Airways/America West Airlines", "US Airways", "America West Airlines",
+    ]
+    assert stats["provider_alt"] == 1
+    assert stats["provider_miss"] == 0
+
+    db.refresh(c)
+    assert c.duns == "555555555"
+    assert c.provider_attempted_at is not None
+
+
+def test_fallback_ladder_miss_is_recorded_once(db) -> None:
+    provider = _MissProviderCounting()
+    _company(db, name="Aramark at General Mills")
+    db.commit()
+
+    stats = enrich_batch(
+        db, _StubClient(), provider=provider, inter_delay_s=0, tiers={"provider"}
+    )
+    assert provider.calls == ["Aramark at General Mills", "Aramark"]
+    assert stats["provider_miss"] == 1
+    assert stats["provider_alt"] == 0
