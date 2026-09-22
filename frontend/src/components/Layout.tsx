@@ -53,6 +53,14 @@ function AccountArea() {
       <Link to="/account" className="text-sm text-slate-600 sm:hidden dark:text-slate-400">
         Account
       </Link>
+      {user.role === "admin" && (
+        <Link
+          to="/admin/companies"
+          className="text-sm text-slate-600 hover:underline dark:text-slate-400"
+        >
+          Admin
+        </Link>
+      )}
       {user.role !== "free" && (
         <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-900 dark:text-sky-300">
           {user.role}

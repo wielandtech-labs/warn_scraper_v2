@@ -265,7 +265,7 @@ def test_paid_session_gets_no_provider_fields_on_non_reshaped_endpoints(api_clie
 
 
 # ---------------------------------------------------------------------------
-# require_admin (no admin-only routes yet; unit-test the dependency)
+# require_admin (unit-test the dependency; routes are in test_api_admin.py)
 # ---------------------------------------------------------------------------
 
 def test_require_admin(db):

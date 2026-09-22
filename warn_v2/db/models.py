@@ -88,6 +88,33 @@ class Company(Base):
     parent_group_key: Mapped[str | None] = mapped_column(String(512), index=True)
 
 
+class CompanyMergeOverride(Base):
+    """An admin's merge decision for one company; wins over the consolidator.
+
+    target set  => merge this company into the target's group.
+    target NULL => keep this company separate (undo an automatic merge).
+    One row per company (latest decision wins); applied by
+    warn_v2/companies/merge.py both immediately (admin API) and nightly
+    (consolidate_companies), so the heuristic recompute can't revert it.
+    """
+
+    __tablename__ = "company_merge_overrides"
+
+    company_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("companies.id", ondelete="CASCADE"), primary_key=True
+    )
+    target_company_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("companies.id", ondelete="CASCADE")
+    )
+    decided_by: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL")
+    )
+    decided_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    note: Mapped[str | None] = mapped_column(Text)
+
+
 class Notice(Base):
     __tablename__ = "notices"
 

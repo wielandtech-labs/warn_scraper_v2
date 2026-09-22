@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 
 import { api } from "../api/client";
 import { SkeletonBlock } from "../components/Skeleton";
+import { useAuth } from "../hooks/useAuth";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { fmtDate, fmtNum } from "../lib/format";
 import { SOURCE_LABEL } from "./companies";
@@ -28,6 +29,21 @@ export function CompanyDetail() {
     queryKey: ["company", id, "family"],
     queryFn: () => api.getCompanyFamily(id),
     enabled: !Number.isNaN(id),
+  });
+
+  const members = useQuery({
+    queryKey: ["company", id, "members"],
+    queryFn: () => api.getCompanyMembers(id),
+    enabled: !Number.isNaN(id),
+  });
+
+  const auth = useAuth();
+  const isAdmin = auth.data?.role === "admin";
+  const queryClient = useQueryClient();
+  const unmerge = useMutation({
+    mutationFn: api.adminUnmergeCompany,
+    // Rollups change everywhere (this page, lists, top employers).
+    onSuccess: () => queryClient.invalidateQueries(),
   });
 
   useDocumentTitle(
@@ -70,6 +86,20 @@ export function CompanyDetail() {
       </div>
       <div className="card">
         <h1 className="text-2xl font-semibold">{c.name}</h1>
+        {c.canonical_company_id != null && (
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+            This record is counted under{" "}
+            <Link
+              to="/companies/$companyId"
+              params={{ companyId: String(c.canonical_company_id) }}
+              search={(prev) => prev}
+              className="text-sky-700 hover:underline dark:text-sky-400"
+            >
+              its main company record
+            </Link>
+            .
+          </p>
+        )}
         <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
           {c.website && (
             <Item
@@ -156,6 +186,59 @@ export function CompanyDetail() {
               </Link>
             ))}
           </div>
+        </section>
+      )}
+
+      {(isAdmin || (members.data && members.data.length > 0)) && (
+        <section>
+          <div className="mb-2 flex items-baseline justify-between gap-4">
+            <h2 className="text-lg font-semibold">
+              Merged records ({members.data?.length ?? 0})
+            </h2>
+            {isAdmin && (
+              <Link
+                to="/admin/companies"
+                search={{ name: c.name }}
+                className="text-sm text-sky-700 hover:underline dark:text-sky-400"
+              >
+                Merge more…
+              </Link>
+            )}
+          </div>
+          <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+            Filings under other names (duplicates, store numbers) counted as this company.
+          </p>
+          {members.data && members.data.length > 0 && (
+            <div className="card divide-y divide-slate-100 p-0 dark:divide-slate-800">
+              {members.data.map((m) => (
+                <div
+                  key={m.company_id}
+                  className="flex items-baseline justify-between gap-4 px-4 py-3"
+                >
+                  <div className="text-sm">{m.name}</div>
+                  <div className="flex items-baseline gap-3 text-sm text-slate-600 dark:text-slate-400">
+                    <span>
+                      {fmtNum(m.layoff_total)} affected · {fmtNum(m.notice_count)} notices
+                    </span>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        disabled={unmerge.isPending}
+                        onClick={() => {
+                          if (window.confirm(`Unmerge "${m.name}" from ${c.name}?`)) {
+                            unmerge.mutate(m.company_id);
+                          }
+                        }}
+                        className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
+                      >
+                        Unmerge
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
