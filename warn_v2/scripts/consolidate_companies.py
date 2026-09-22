@@ -150,6 +150,20 @@ def consolidate_companies(*, dry_run: bool = True, force: bool = False) -> dict:
                 if m.id != surv.id:
                     merged_into[m.id] = surv.id
 
+        # Flatten chains: a hub that absorbed children in Pass 1 (child -> hub)
+        # can itself be merged in Pass 2 (hub -> survivor), leaving child -> hub
+        # -> survivor. canonical_company_id is followed only one level (by the
+        # rollup in stats/companies routes), so resolve every entry to its
+        # ultimate root here.
+        def _root(cid: int) -> int:
+            seen: set[int] = set()
+            while cid in merged_into and cid not in seen:
+                seen.add(cid)
+                cid = merged_into[cid]
+            return cid
+
+        merged_into = {cid: _root(cid) for cid in merged_into}
+
         stats["merged"] = len(merged_into)
 
         ratio = len(merged_into) / stats["total"] if stats["total"] else 0.0

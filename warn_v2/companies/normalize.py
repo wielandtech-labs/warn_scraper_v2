@@ -427,4 +427,6 @@ def website_domain(url: str | None) -> str:
     host = urlsplit(s).hostname or ""
     if host.startswith("www."):
         host = host[4:]
+    if "." not in host:  # not a real domain ("N/A" -> "n", "none") -> no match
+        return ""
     return host

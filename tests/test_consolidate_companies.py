@@ -73,6 +73,27 @@ def test_multi_duns_same_website_merges(db) -> None:
     assert db.get(Company, c.id).canonical_company_id == a.id
 
 
+def test_website_merge_flattens_child_chains(db) -> None:
+    # A hub that absorbed a Pass-1 DUNS child, then LOSES the website-path merge
+    # to another hub, must not leave the grandchild in a 2-hop chain — every
+    # member resolves to the single ultimate survivor.
+    # hub_a wins (lowest id); child shares hub_b's DUNS so Pass 1 puts it under
+    # the losing hub_b.
+    hub_a = _company(db, "Boeing", duns="500000001", website="http://www.boeing.com")
+    hub_b = _company(db, "Boeing Company", duns="500000002", website="https://boeing.com")
+    child = _company(db, "Boeing Field Office", duns="500000002")
+    db.commit()
+
+    consolidate_companies(dry_run=False, force=True)
+    db.expire_all()
+    surv = hub_a.id  # lowest id, no other tie-breaker
+    assert db.get(Company, hub_a.id).canonical_company_id is None
+    assert db.get(Company, hub_b.id).canonical_company_id == surv
+    # the grandchild (child of the losing hub) points straight at the ultimate
+    # survivor, not the intermediate losing hub
+    assert db.get(Company, child.id).canonical_company_id == surv
+
+
 def test_multi_duns_different_website_not_merged(db) -> None:
     # Same normalized name + different DUNS + DIFFERENT sites = genuinely
     # different companies -> keep apart.

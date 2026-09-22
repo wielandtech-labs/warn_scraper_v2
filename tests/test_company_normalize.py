@@ -52,6 +52,13 @@ def test_website_domain_empty_for_missing():
     assert website_domain("   ") == ""
 
 
+def test_website_domain_rejects_non_domains():
+    # Junk/placeholder values must not become a matchable host.
+    assert website_domain("N/A") == ""
+    assert website_domain("none") == ""
+    assert website_domain("http://localhost") == ""
+
+
 def test_descriptive_words_preserved_no_over_merge():
     # These are DIFFERENT companies — must not collapse.
     assert canonical_name("Smith Services") != canonical_name("Smith Technologies")
