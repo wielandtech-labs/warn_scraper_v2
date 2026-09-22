@@ -223,6 +223,108 @@ def dba_name(name: str | None) -> str | None:
     return trade
 
 
+# Fallback-query shapes for alt_queries(). Each only ever SHORTENS the primary
+# query to a part of it, so a retry can't wander off to a name the filing never
+# mentions; the worker's faithfulness guard still vets every hit.
+# "Safeway Inc. Store" / "DRUMMOND CO., INC. SHOAL CREEK MINE" -> the legal
+# entity: everything up to the first legal suffix that has more words after it.
+# A run of suffixes stays together ("Wickliffe Paper Company LLC-Verso Corp").
+_LEGAL_HEAD = re.compile(
+    r"^(?P<head>.+?(?:[\s,]+(?:"
+    + "|".join(sorted(_LEGAL_SUFFIXES, key=len, reverse=True))
+    + r")\b\.?)+)(?=[\s,/-]+\w)",
+    re.IGNORECASE,
+)
+# "Aramark at General Mills" / "X @ Y" / "X c/o Y" -> the contractor, X.
+_AT_SITE = re.compile(r"\s+(?:at|@|c/o)\s+", re.IGNORECASE)
+# "Vistra Corp./Luminant" -> each side. The (?<!\b\w) / (?!\w\b) guards keep
+# one-letter markers ("d/b/a", "c/o", "T/A") from splitting.
+_SLASH = re.compile(r"(?<!\b\w)\s*/\s*(?!\w\b)")
+# "Halliburton-Elmendorf" / "Walmart-Houston2" -> the part before an UNSPACED
+# site dash (the spaced form is already stripped by _strip_dash_segment).
+_GLUED_SITE_DASH = re.compile(r"^(?P<head>.*[A-Za-z.)])\s?-\s?(?P<tail>[A-Z0-9][\w .']*)$")
+# "Pappasito's 09" -> a zero-padded store number.
+_PADDED_STORE_NO = re.compile(r"\s+0\d$")
+# Retries per company: each is a full provider lookup against the daily cap.
+_MAX_ALT_QUERIES = 2
+
+
+def _only_legal_suffixes(s: str) -> bool:
+    """True when ``s`` is nothing but legal suffixes and punctuation."""
+    return all(t in _LEGAL_SUFFIXES for t in _PUNCT.sub(" ", s.lower()).split())
+
+
+def _glued_site_head(q: str) -> str | None:
+    """Head of a ``Name-Site`` query, or None when the dash is part of the name.
+
+    "Ritz-Carlton", "Coca-Cola", "Kerr-McGee", "Save-A-Lot" and "Mercedes-Benz"
+    are hyphenated names, not sites. The split needs a head that can stand as a
+    company on its own: 2+ distinctive tokens, or one when the tail carries a
+    digit ("Walmart-Houston2") or the token is long ("Halliburton").
+    """
+    m = _GLUED_SITE_DASH.match(q)
+    if not m or "-" in m.group("head").split()[-1]:  # "Save-A-Lot", "Flex-N-Gate"
+        return None
+    head, tail = m.group("head").strip(" ,"), m.group("tail")
+    if _only_legal_suffixes(tail.split()[-1]):  # "GE Healthcare Bio-Sciences Corp."
+        return None
+    # Distinctive tokens only: "Managed Services-IDS" must not fall back to the
+    # generic "Managed Services", which a faithful-looking stranger could match.
+    words = _significant_tokens(head) - _GENERIC_MATCH_TOKENS
+    if len(words) >= 2 or (len(words) == 1 and (
+        any(ch.isdigit() for ch in tail) or len(next(iter(words))) >= 9
+    )):
+        return head
+    return None
+
+
+def alt_queries(name: str | None) -> list[str]:
+    """Fallback provider queries for a name whose primary query missed.
+
+    Generalizes the dba retry. The primary ``search_name`` query keeps the whole
+    cleaned string, which misses when the filing glues a second entity or a
+    site onto the company: the ~7,000 genuine misses at the 2026-09 halfway
+    point hit 6% for "X at Y", 14% for "X/Y" and 29% for "Name-City" against
+    ~60% overall. Returns up to ``_MAX_ALT_QUERIES`` distinct, searchable
+    queries, best first; never the primary query itself.
+    """
+    if not name:
+        return []
+    primary = search_name(name)
+    candidates: list[str | None] = [dba_name(name)]
+    m = _LEGAL_HEAD.match(primary)
+    if m and not _only_legal_suffixes(primary[m.end():]):  # not "Co., Inc." -> "Co."
+        candidates.append(m.group("head"))
+    parts = _AT_SITE.split(primary, maxsplit=1)
+    candidates.append(parts[0] if len(parts) > 1 else None)
+    sides = _SLASH.split(primary)
+    if len(sides) > 1:
+        # A later side is not anchored to the start of the name, so it can be a
+        # bare place ("Corinthian Furniture Corinth/Grenada"): demand two
+        # distinctive tokens before it's worth a lookup.
+        candidates.append(sides[0])
+        candidates.extend(
+            side for side in sides[1:]
+            if len(_significant_tokens(side) - _GENERIC_MATCH_TOKENS) >= 2
+        )
+    candidates.append(_glued_site_head(primary))
+    candidates.append(_PADDED_STORE_NO.sub("", primary))
+
+    out: list[str] = []
+    seen = {primary.lower()}
+    for c in candidates:
+        if not c:
+            continue
+        q = search_name(c)
+        if q.lower() in seen or is_unsearchable(q) or not _significant_tokens(q):
+            continue
+        seen.add(q.lower())
+        out.append(q)
+        if len(out) == _MAX_ALT_QUERIES:
+            break
+    return out
+
+
 def _strip_dash_segment(s: str) -> str:
     """Drop a trailing ' - <segment>' worksite tag.
 
