@@ -74,11 +74,13 @@ def run_state(scraper: StateScraper) -> ScraperRun:
             seen, new = upsert_notices(session, rows)
             run.rows_scraped = seen
             run.rows_new = new
+            # Set before add(): session_scope commits on exit, so an assignment
+            # after the block lands on a detached object and is never saved.
+            run.finished_at = datetime.now(UTC)
             session.add(run)
     except Exception as e:
         return _finish(run, status="storage_failed", error=f"{type(e).__name__}: {e}")
 
-    run.finished_at = datetime.now(UTC)
     return run
 
 

@@ -1,7 +1,7 @@
 """Runner handling of NotModified: a success run with no parse/store."""
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import pytest
 from sqlalchemy import select
@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from warn_v2.db.models import ScraperRun, SourceCache
 from warn_v2.pipeline.runner import run_state
-from warn_v2.scrapers.base import NotModified, ParseFailed
+from warn_v2.scrapers.base import NoticeRow, NotModified, ParseFailed
 
 
 class _NotModifiedScraper:
@@ -73,3 +73,31 @@ def test_post_fetch_failure_invalidates_source_cache(
     run = run_state(_ParseFailScraper())
     assert run.status == "parse_failed"
     assert db.execute(select(SourceCache)).scalars().all() == []
+
+
+class _OkScraper:
+    state = "NV"
+    source_url = "https://x"
+    expected_row_range = (1, 10)
+    required_fields = frozenset()
+    raw_notice_url_is_pdf = True
+
+    def fetch(self) -> bytes:
+        return b"content"
+
+    def parse(self, raw: bytes) -> list:
+        return [NoticeRow(state="NV", employer="Acme", notice_date=date(2026, 9, 1))]
+
+
+def test_ok_run_persists_finished_at(db_session_factory) -> None:
+    # finished_at must be written with the row, not assigned to the detached
+    # object after session_scope commits — the scrape-duration metric and
+    # last_finished_at only see runs with a stored finished_at.
+    run = run_state(_OkScraper())
+    assert run.status == "ok"
+
+    with db_session_factory() as fresh:
+        stored = fresh.execute(select(ScraperRun)).scalars().one()
+    assert stored.status == "ok"
+    assert stored.rows_new == 1
+    assert stored.finished_at is not None
