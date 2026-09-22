@@ -7,9 +7,10 @@ Strategy (per the consolidation plan):
            (same name + two DUNS = different companies -> skip, don't over-merge)
            OR when its members share one website domain (same name + same site =
            one company whose enrichment split across several DUNS, e.g. Boeing).
-Each group keeps one canonical survivor (prefer enriched, higher confidence, more
-notices, lower id); the rest get ``canonical_company_id`` pointed at it. We NEVER
-touch ``Notice.company_id`` or delete rows, so the merge is fully reversible.
+Each group keeps one canonical survivor (prefer enriched, higher confidence, a
+digit-free name, more notices, lower id); the rest get ``canonical_company_id``
+pointed at it. We NEVER touch ``Notice.company_id`` or delete rows, so the merge
+is fully reversible.
 
 Surviving canonical rows also get a ``parent_group_key`` for sibling-under-parent
 rollup, preferring the global-ultimate / parent DUNS over the name.
@@ -58,10 +59,17 @@ def _same_website(members: list[Company]) -> bool:
 
 
 def _survivor_key(c: Company, notice_counts: dict[int, int]) -> tuple:
-    """Higher tuple wins (via max): enriched, then confidence, then more notices,
-    then lower id."""
+    """Higher tuple wins (via max): enriched, then confidence, then a digit-free
+    name, then more notices, then lower id.
+
+    The survivor's raw name is the label the group shows everywhere (e.g. Top
+    Employers), so a clean ``Kmart Corporation`` must beat a store-numbered
+    ``KMART CORPORATION # 7435`` even when the store row has more notices. The
+    check is relative within a group: names that always carry digits (3M,
+    7-Eleven) tie on it and fall through to notice count."""
     conf = float(c.enrichment_confidence) if c.enrichment_confidence is not None else 0.0
-    return (c.enriched_at is not None, conf, notice_counts.get(c.id, 0), -c.id)
+    clean_name = not any(ch.isdigit() for ch in c.name)
+    return (c.enriched_at is not None, conf, clean_name, notice_counts.get(c.id, 0), -c.id)
 
 
 def _parent_group_key(c: Company) -> str:
