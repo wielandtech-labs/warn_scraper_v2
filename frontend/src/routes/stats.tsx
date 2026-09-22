@@ -39,16 +39,19 @@ export function StatsPage() {
     queryFn: () => api.statsByMonth(search),
   });
 
+  // /api/stats/by-state takes no state param, so this chart cannot honor a state
+  // filter — the card is hidden while one is set, and the fetch skipped with it.
+  const byStateParams = {
+    closure_category: search.closure_category,
+    industry: search.industry,
+    subsector: search.subsector,
+    after: search.after,
+    before: search.before,
+  };
   const byState = useQuery({
-    queryKey: ["stats", "by-state", search],
-    queryFn: () =>
-      api.statsByState({
-        closure_category: search.closure_category,
-        industry: search.industry,
-        subsector: search.subsector,
-        after: search.after,
-        before: search.before,
-      }),
+    queryKey: ["stats", "by-state", byStateParams],
+    queryFn: () => api.statsByState(byStateParams),
+    enabled: !search.state,
   });
 
   const top = useQuery({
@@ -177,46 +180,48 @@ export function StatsPage() {
         )}
       </ChartCard>
 
-      <ChartCard title="By state">
-        {byState.isLoading ? (
-          <SkeletonChart height={300} />
-        ) : byState.isError ? (
-          <QueryError message="Error loading the chart." onRetry={() => byState.refetch()} />
-        ) : (
-          <div role="img" aria-label="Bar chart of workers affected by state">
-            <ResponsiveContainer
-              width="100%"
-              height={Math.max(300, (byState.data?.length ?? 0) * 24)}
-            >
-              <BarChart
-                layout="vertical"
-                data={(byState.data ?? []).slice().sort((a, b) => b.layoff_total - a.layoff_total)}
-                margin={{ left: 10 }}
+      {!search.state && (
+        <ChartCard title="By state">
+          {byState.isLoading ? (
+            <SkeletonChart height={300} />
+          ) : byState.isError ? (
+            <QueryError message="Error loading the chart." onRetry={() => byState.refetch()} />
+          ) : (
+            <div role="img" aria-label="Bar chart of workers affected by state">
+              <ResponsiveContainer
+                width="100%"
+                height={Math.max(300, (byState.data?.length ?? 0) * 24)}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
-                <XAxis
-                  type="number"
-                  tick={{ fontSize: 12, fill: chart.axis }}
-                  tickFormatter={fmtCompact}
-                />
-                <YAxis
-                  dataKey="state"
-                  type="category"
-                  tick={{ fontSize: 12, fill: chart.axis }}
-                  width={40}
-                />
-                <Tooltip
-                  formatter={(v: number) => fmtNum(v)}
-                  contentStyle={chart.tooltip}
-                  labelStyle={chart.tooltipLabel}
-                  cursor={{ fill: chart.cursor }}
-                />
-                <Bar dataKey="layoff_total" name="Workers affected" fill={chart.notices} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </ChartCard>
+                <BarChart
+                  layout="vertical"
+                  data={(byState.data ?? []).slice().sort((a, b) => b.layoff_total - a.layoff_total)}
+                  margin={{ left: 10 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 12, fill: chart.axis }}
+                    tickFormatter={fmtCompact}
+                  />
+                  <YAxis
+                    dataKey="state"
+                    type="category"
+                    tick={{ fontSize: 12, fill: chart.axis }}
+                    width={40}
+                  />
+                  <Tooltip
+                    formatter={(v: number) => fmtNum(v)}
+                    contentStyle={chart.tooltip}
+                    labelStyle={chart.tooltipLabel}
+                    cursor={{ fill: chart.cursor }}
+                  />
+                  <Bar dataKey="layoff_total" name="Workers affected" fill={chart.notices} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </ChartCard>
+      )}
 
       <CountyImpact
         title="Hardest-hit counties"
