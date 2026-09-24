@@ -62,3 +62,27 @@ def test_md_raises_without_table() -> None:
     scraper = get_scraper("MD")
     with pytest.raises(ParseFailed):
         scraper.parse(b"<html><body><p>no table</p></body></html>")
+
+
+def test_md_fetch_impersonates_chrome(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Cloudflare 403s httpx's TLS fingerprint; fetch must go through curl_cffi
+    # with a browser impersonation profile.
+    from warn_v2.scrapers.states import md
+
+    seen: dict = {}
+
+    class _Resp:
+        content = b"<html></html>"
+
+        def raise_for_status(self) -> None:
+            pass
+
+    def fake_get(url, **kwargs):
+        seen["url"] = url
+        seen.update(kwargs)
+        return _Resp()
+
+    monkeypatch.setattr(md.cffi_requests, "get", fake_get)
+    assert get_scraper("MD").fetch() == b"<html></html>"
+    assert seen["url"] == md.SOURCE_URL
+    assert seen["impersonate"] == "chrome"

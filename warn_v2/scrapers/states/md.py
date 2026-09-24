@@ -18,6 +18,11 @@ Wayback Machine; they wrap the data table in banner/legend tables, put a bare
 city name in Location, use numeric Type Codes (1 = Plant Closure, 2 = Mass
 Layoff per the on-page legend), and carry 4-digit SIC codes in the "NAICS
 Code" column through ~2005.
+
+The live page sits behind Cloudflare bot detection (since 2026-09-23), which
+403s httpx's TLS fingerprint regardless of User-Agent; fetch() uses curl_cffi
+with ``impersonate="chrome"`` (same fix as TN). The Wayback backfill path is
+unaffected and stays on httpx.
 """
 from __future__ import annotations
 
@@ -26,6 +31,8 @@ import time
 
 import httpx
 from bs4 import BeautifulSoup
+from curl_cffi import requests as cffi_requests
+from curl_cffi.requests.exceptions import RequestException
 
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
@@ -59,10 +66,12 @@ class MDScraper:
 
     def fetch(self) -> bytes:
         try:
-            r = httpx.get(SOURCE_URL, headers=_UA, timeout=60, follow_redirects=True)
+            r = cffi_requests.get(
+                SOURCE_URL, impersonate="chrome", timeout=60, allow_redirects=True
+            )
             r.raise_for_status()
             return r.content
-        except httpx.HTTPError as e:
+        except RequestException as e:
             raise ScrapeFailed(f"GET {SOURCE_URL}: {e}") from e
 
     def parse(self, raw: bytes) -> list[NoticeRow]:
