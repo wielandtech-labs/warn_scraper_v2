@@ -44,6 +44,12 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version }}
   value: /var/snapshots
 - name: SITE_BASE_URL
   value: {{ printf "https://%s" .Values.api.ingress.host | quote }}
+{{- /* Omitted entirely when the list is empty, so adding this key to the chart
+       leaves the rendered pod spec unchanged and triggers no rollout. */}}
+{{- with .Values.api.ingress.redirectHosts }}
+- name: REDIRECT_HOSTS
+  value: {{ join "," . | quote }}
+{{- end }}
 {{- if .Values.smtp.enabled }}
 # Host, username, and password all come from the warn-v2-smtp SealedSecret, to
 # match the (working) w_tech website setup whose SMTP auth user/host differ from
