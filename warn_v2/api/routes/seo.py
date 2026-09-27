@@ -70,8 +70,13 @@ def _rss(title: str, description: str, path: str, notices: list[Notice]) -> Resp
         SubElement(item, "title").text = f"{n.employer} ({loc})" if loc else (n.employer or "")
         link = f"{base}/notices/{n.notice_id}"
         SubElement(item, "link").text = link
-        guid = SubElement(item, "guid", isPermaLink="true")
-        guid.text = link
+        # Deliberately NOT the URL. Feed readers de-duplicate on guid, so a
+        # URL guid makes every item look brand new to every subscriber the moment
+        # the canonical host changes — a burst of duplicate notifications for
+        # layoffs they have already seen. The notice id is stable across any
+        # future domain or path change; <link> above still carries the URL.
+        guid = SubElement(item, "guid", isPermaLink="false")
+        guid.text = f"warn-v2:notice:{n.notice_id}"
         parts = []
         if n.layoff_count:
             parts.append(f"{n.layoff_count:,} workers affected")
