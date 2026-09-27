@@ -37,7 +37,11 @@ spec:
            api.ingress.redirectHosts are 301'd to the canonical host by the app
            itself (see warn_v2/api/canonical.py), which needs them routed here
            to answer at all. */}}
-    {{- range prepend .Values.api.ingress.extraHosts .Values.api.ingress.host }}
+    {{- /* `default list` matters: prepend panics on a nil list, so an
+           `extraHosts:` key written with nothing under it would fail the whole
+           render and stop the HelmRelease reconciling. range over nil is a
+           no-op, so tlsHosts/extraTls above need no such guard. */}}
+    {{- range prepend (.Values.api.ingress.extraHosts | default list) .Values.api.ingress.host }}
     - host: {{ . | quote }}
       http:
         paths:
