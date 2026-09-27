@@ -62,7 +62,7 @@ def render_shell(*, preheader: str, content: str, footer: str, base: str) -> str
         "<!doctype html>"
         '<html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
-        "<title>WARN Tracker</title></head>"
+        "<title>WARN Index</title></head>"
         '<body style="margin:0;padding:0;background-color:#f8fafc;">'
         # Hidden preheader: shows as the inbox preview snippet, never in the body.
         '<div style="display:none;font-size:1px;line-height:1px;max-height:0;'
@@ -84,7 +84,7 @@ def render_shell(*, preheader: str, content: str, footer: str, base: str) -> str
         # Brand header: text wordmark, no logo image (images are blocked by default).
         f'<tr><td style="background-color:#0369a1;padding:16px 24px;{FONT};">'
         f'<a href="{escape(base)}/" style="color:#ffffff;text-decoration:none;'
-        'font-size:18px;font-weight:bold;">WARN '
+        'font-size:18px;font-weight:bold;">WARN Index '
         '<span style="color:#bae6fd;font-weight:normal;">&#183;</span> '
         '<span style="font-weight:normal;">Layoff notices</span></a></td></tr>'
         f"{content}"

@@ -19,7 +19,7 @@ from html import escape
 
 from warn_v2.states import state_name
 
-DEFAULT_TITLE = "WARN Tracker — US layoff & closure notices"
+DEFAULT_TITLE = "WARN Index — US layoff & closure notices"
 DEFAULT_DESCRIPTION = (
     "Search, map, and track WARN Act layoff and plant-closure notices across "
     "all 50 US states and DC, updated daily."
@@ -28,7 +28,7 @@ DEFAULT_DESCRIPTION = (
 
 def site_base_url() -> str:
     """Canonical origin for absolute URLs (canonical/OG/sitemap), no trailing slash."""
-    return os.getenv("SITE_BASE_URL", "https://warn.wielandtech.com").rstrip("/")
+    return os.getenv("SITE_BASE_URL", "https://warnindex.com").rstrip("/")
 
 
 @dataclass(frozen=True)
@@ -45,33 +45,33 @@ class PageMeta:
 # Static content pages (Phase 3) get their meta from this table. Keyed by path.
 _CONTENT_PAGES: dict[str, tuple[str, str]] = {
     "/about": (
-        "About — WARN Tracker",
-        "Who we are and how WARN Tracker collects, cleans, and publishes US "
+        "About — WARN Index",
+        "Who we are and how WARN Index collects, cleans, and publishes US "
         "layoff-notice data.",
     ),
     "/warn-act": (
-        "What is the WARN Act? — WARN Tracker",
+        "What is the WARN Act? — WARN Index",
         "A plain-English guide to the federal Worker Adjustment and Retraining "
         "Notification (WARN) Act: who must file, when, and what the notices mean.",
     ),
     "/methodology": (
-        "Methodology & data sources — WARN Tracker",
-        "How WARN Tracker scrapes 50+ state labor agencies, de-duplicates and "
+        "Methodology & data sources — WARN Index",
+        "How WARN Index scrapes 50+ state labor agencies, de-duplicates and "
         "enriches employers, and geocodes layoff notices.",
     ),
     "/faq": (
-        "FAQ — WARN Tracker",
+        "FAQ — WARN Index",
         "Frequently asked questions about WARN notices, our data, coverage, and "
         "how to use the layoff database.",
     ),
     "/cited-by": (
-        "Cited by — WARN Tracker",
-        "Newsrooms, researchers, and analysts that rely on WARN Tracker's "
+        "Cited by — WARN Index",
+        "Newsrooms, researchers, and analysts that rely on WARN Index's "
         "layoff-notice data.",
     ),
     "/api-docs": (
-        "Data & API — WARN Tracker",
-        "Use the WARN Tracker layoff dataset via a public JSON API or bulk "
+        "Data & API — WARN Index",
+        "Use the WARN Index layoff dataset via a public JSON API or bulk "
         "CSV/JSON downloads.",
     ),
 }
@@ -82,32 +82,32 @@ _CONTENT_PAGES: dict[str, tuple[str, str]] = {
 # paths (see routes/seo.py `_APP_PAGES`).
 _APP_PAGES_META: dict[str, tuple[str, str]] = {
     "/notices": (
-        "Layoff notices — WARN Tracker",
+        "Layoff notices — WARN Index",
         "Search and filter every WARN Act layoff and closure notice on record "
         "by state, employer, industry, and date. Export as CSV or JSON.",
     ),
     "/radar": (
-        "Upcoming layoffs radar — WARN Tracker",
+        "Upcoming layoffs radar — WARN Index",
         "Forward-looking calendar of WARN Act layoffs: separation dates still "
         "ahead, with estimated occupation mixes by industry.",
     ),
     "/companies": (
-        "Companies & corporate families — WARN Tracker",
+        "Companies & corporate families — WARN Index",
         "The employers behind US WARN notices, de-duplicated and enriched — "
         "with corporate family groupings and total workers affected.",
     ),
     "/map": (
-        "Layoff map — WARN Tracker",
+        "Layoff map — WARN Index",
         "Interactive map of US WARN Act layoff and closure notices, "
         "filterable by state, industry, and date.",
     ),
     "/stats": (
-        "Layoff statistics & trends — WARN Tracker",
+        "Layoff statistics & trends — WARN Index",
         "Charts of US WARN notices over time and by state, industry, and "
         "employer.",
     ),
     "/reports": (
-        "Economic sentiment & industry scorecards — WARN Tracker",
+        "Economic sentiment & industry scorecards — WARN Index",
         "Weekly layoff-trend scorecards for every NAICS industry sector plus "
         "a national outlook, computed from WARN Act notices.",
     ),
@@ -137,15 +137,15 @@ def page_meta_for_path(path: str) -> PageMeta:
 
     if path == "/status":
         return PageMeta(
-            "Scraper status — WARN Tracker",
-            "Live status of WARN Tracker's state scrapers: which jurisdictions "
+            "Scraper status — WARN Index",
+            "Live status of WARN Index's state scrapers: which jurisdictions "
             "are operational and when each last successfully updated.",
             "/status",
         )
 
     if path == "/states":
         return PageMeta(
-            "Layoffs by state — WARN Tracker",
+            "Layoffs by state — WARN Index",
             "Browse WARN Act layoff and closure notices by US state. Totals, "
             "trends, and the latest filings for each jurisdiction.",
             "/states",
@@ -157,7 +157,7 @@ def page_meta_for_path(path: str) -> PageMeta:
         name = state_name(code)
         if name:
             return PageMeta(
-                f"{name} layoffs & WARN notices — WARN Tracker",
+                f"{name} layoffs & WARN notices — WARN Index",
                 f"WARN Act layoff and plant-closure notices in {name}: latest "
                 f"filings, affected-worker totals, top employers, and trends.",
                 f"/states/{code}",
@@ -181,7 +181,7 @@ def _head_tags(meta: PageMeta) -> str:
     image = base + "/og-image.png"  # 1200x630 card in frontend/public/
     return (
         f'\n    <link rel="canonical" href="{url}" />'
-        f'\n    <meta property="og:site_name" content="WARN Tracker" />'
+        f'\n    <meta property="og:site_name" content="WARN Index" />'
         f'\n    <meta property="og:type" content="website" />'
         f'\n    <meta property="og:title" content="{t}" />'
         f'\n    <meta property="og:description" content="{d}" />'
@@ -194,7 +194,7 @@ def _head_tags(meta: PageMeta) -> str:
         f'\n    <meta name="twitter:description" content="{d}" />'
         f'\n    <meta name="twitter:image" content="{image}" />'
         f'\n    <link rel="alternate" type="application/rss+xml" '
-        f'title="WARN Tracker — latest notices" href="{feed}" />'
+        f'title="WARN Index — latest notices" href="{feed}" />'
     )
 
 

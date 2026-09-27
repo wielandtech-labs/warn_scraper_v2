@@ -76,8 +76,8 @@ export function IndustryReportPage() {
   const name = card?.sector_name ?? `NAICS ${sector}`;
   useDocumentTitle(
     missing
-      ? "Scorecard not found — WARN Tracker"
-      : `${name} layoff scorecard — WARN Tracker`,
+      ? "Scorecard not found — WARN Index"
+      : `${name} layoff scorecard — WARN Index`,
   );
 
   if (missing) {

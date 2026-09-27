@@ -322,7 +322,7 @@ function AlertsCard() {
 }
 
 export function AccountPage() {
-  useDocumentTitle("Account — WARN Tracker");
+  useDocumentTitle("Account — WARN Index");
   const auth = useAuth();
 
   if (auth.isLoading) return null;

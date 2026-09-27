@@ -85,7 +85,7 @@ function ScorecardGrid({ cards }: { cards: IndustryScorecard[] }) {
 }
 
 export function ReportsPage() {
-  useDocumentTitle("Economic sentiment — WARN Tracker");
+  useDocumentTitle("Economic sentiment — WARN Index");
 
   // [] until the first weekly report job populates the volume.
   const scorecards = useQuery({

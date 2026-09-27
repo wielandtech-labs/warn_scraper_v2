@@ -76,7 +76,7 @@ function ViewportWatcher({ onChange }: { onChange: (v: Viewport) => void }) {
 }
 
 export function MapPage() {
-  useDocumentTitle("Layoff map — WARN Tracker");
+  useDocumentTitle("Layoff map — WARN Index");
   const { resolved } = useTheme();
   const tiles = TILE_LAYERS[resolved];
   const navigate = useNavigate({ from: "/map" });

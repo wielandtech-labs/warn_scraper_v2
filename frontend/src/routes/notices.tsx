@@ -18,7 +18,7 @@ import type { NoticeOut } from "../api/types";
 const PAGE_SIZE = 50;
 
 export function NoticesPage() {
-  useDocumentTitle("Layoff notices — WARN Tracker");
+  useDocumentTitle("Layoff notices — WARN Index");
   const navigate = useNavigate({ from: "/notices" });
   const search = useSearch({ from: "/notices" });
   const page = search.page ?? 1;

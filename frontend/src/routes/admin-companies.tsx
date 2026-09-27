@@ -11,7 +11,7 @@ import { fmtNum } from "../lib/format";
 // variants) into one company. Decisions are stored as overrides that the
 // nightly consolidator re-applies, so they stick.
 export function AdminCompaniesPage() {
-  useDocumentTitle("Merge companies — WARN Tracker");
+  useDocumentTitle("Merge companies — WARN Index");
   const auth = useAuth();
   const { name } = useSearch({ from: "/admin/companies" });
   const navigate = useNavigate({ from: "/admin/companies" });

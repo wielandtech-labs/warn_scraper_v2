@@ -101,7 +101,7 @@ def _latest_notices(db: Session, state: str | None = None) -> list[Notice]:
 @router.get("/feed.rss")
 def feed_rss(db: Session = Depends(get_db)) -> Response:
     return _rss(
-        "WARN Tracker — latest layoff notices",
+        "WARN Index — latest layoff notices",
         "The most recent WARN Act layoff and closure notices across all states.",
         "/feed.rss",
         _latest_notices(db),
@@ -114,7 +114,7 @@ def state_feed_rss(code: str, db: Session = Depends(get_db)) -> Response:
         raise HTTPException(status_code=404, detail="Unknown state")
     name = state_name(code)
     return _rss(
-        f"WARN Tracker — latest {name} layoff notices",
+        f"WARN Index — latest {name} layoff notices",
         f"The most recent WARN Act layoff and closure notices in {name}.",
         f"/states/{code.upper()}/feed.rss",
         _latest_notices(db, state=code),

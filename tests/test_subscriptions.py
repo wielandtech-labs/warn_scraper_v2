@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
+from warn_v2.api.seo import site_base_url
 from warn_v2.db.models import Notice, Subscription
 from warn_v2.notifications.digest import render_digest, run_digest
 
@@ -391,7 +392,7 @@ def test_confirmation_email_uses_shell(api_client, db, sent):
     html = sent[0]["html"]
     assert "Layoff notices" in html  # brand wordmark header
     confirm_url = f"/api/subscriptions/confirm?token={sub.confirm_token}"
-    assert f'href="https://warn.wielandtech.com{confirm_url}"' in html
+    assert f'href="{site_base_url()}{confirm_url}"' in html
 
 
 def test_write_preview_html(db):

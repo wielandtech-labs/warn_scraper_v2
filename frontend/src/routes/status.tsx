@@ -67,7 +67,7 @@ function relDays(iso: string | null | undefined): string {
 }
 
 export function StatusPage() {
-  useDocumentTitle("Scraper status — WARN Tracker");
+  useDocumentTitle("Scraper status — WARN Index");
   const { resolved } = useTheme();
   const healthFills = HEALTH_FILLS[resolved];
 

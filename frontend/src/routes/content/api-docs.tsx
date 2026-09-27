@@ -6,8 +6,8 @@ export function ApiDocsPage() {
   return (
     <ContentPage
       title="Data & API access"
-      docTitle="Data & API — WARN Tracker"
-      intro="Use the WARN Tracker dataset programmatically or as bulk downloads."
+      docTitle="Data & API — WARN Index"
+      intro="Use the WARN Index dataset programmatically or as bulk downloads."
     >
       <p>
         All read endpoints return JSON and live under <code>/api</code>. The
@@ -23,7 +23,7 @@ export function ApiDocsPage() {
       </p>
       <pre className="overflow-x-auto rounded-md bg-slate-100 p-3 text-xs dark:bg-slate-800">
         {`curl -H "X-API-Key: warn_..." \\
-  "https://warn.wielandtech.com/api/notices?state=CA&limit=100"`}
+  "https://warnindex.com/api/notices?state=CA&limit=100"`}
       </pre>
       <div className="overflow-x-auto">
         <table className="mt-2 w-full text-sm">

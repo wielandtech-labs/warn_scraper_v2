@@ -11,7 +11,7 @@ const LABEL_CLS =
   "text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400";
 
 export function SignupPage() {
-  useDocumentTitle("Create account — WARN Tracker");
+  useDocumentTitle("Create account — WARN Index");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 

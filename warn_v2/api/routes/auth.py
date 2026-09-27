@@ -168,8 +168,8 @@ def signup(body: SignupIn, request: Request, db: Session = Depends(get_db)) -> d
     try:
         _send_link_email(
             email,
-            "Verify your WARN Tracker account",
-            "Confirm your email to activate your WARN Tracker API account:",
+            "Verify your WARN Index account",
+            "Confirm your email to activate your WARN Index API account:",
             f"{site_base_url()}/api/auth/verify?token={token}",
             "Verify email",
         )
@@ -209,8 +209,8 @@ def forgot_password(
     try:
         _send_link_email(
             email,
-            "Reset your WARN Tracker password",
-            "Use the link below to choose a new WARN Tracker password (valid for 1 hour):",
+            "Reset your WARN Index password",
+            "Use the link below to choose a new WARN Index password (valid for 1 hour):",
             f"{site_base_url()}/api/auth/reset-page?token={token}",
             "Reset password",
         )
