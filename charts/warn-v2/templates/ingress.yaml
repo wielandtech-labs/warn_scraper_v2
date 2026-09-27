@@ -1,8 +1,9 @@
 {{- if and .Values.api.enabled .Values.api.ingress.enabled }}
+{{- $fullName := include "warn-v2.fullname" . -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "warn-v2.fullname" . }}-api
+  name: {{ $fullName }}-api
   labels:
     {{- include "warn-v2.labels" . | nindent 4 }}
     app.kubernetes.io/component: api
@@ -14,19 +15,42 @@ spec:
   ingressClassName: {{ .Values.api.ingress.className | default "traefik" }}
   {{- if .Values.api.ingress.tls }}
   tls:
+    {{- /* The canonical host and any extra SANs share one cert; every other
+           domain gets its own entry from extraTls, so a failed ACME order on a
+           new domain cannot narrow or disturb a live cert. When adding a host
+           to an existing entry, keep the entry's host set exactly in step with
+           the Certificate's dnsNames or cert-manager re-issues it. */}}
     - hosts:
         - {{ .Values.api.ingress.host | quote }}
-      secretName: {{ include "warn-v2.fullname" . }}-tls
+        {{- range .Values.api.ingress.tlsHosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .Values.api.ingress.tlsSecretName | default (printf "%s-tls" $fullName) }}
+    {{- range .Values.api.ingress.extraTls }}
+    - hosts:
+        {{- toYaml .hosts | nindent 8 }}
+      secretName: {{ .secretName | quote }}
+    {{- end }}
   {{- end }}
   rules:
-    - host: {{ .Values.api.ingress.host | quote }}
+    {{- /* Extra hosts route to the same service; the ones listed in
+           api.ingress.redirectHosts are 301'd to the canonical host by the app
+           itself (see warn_v2/api/canonical.py), which needs them routed here
+           to answer at all. */}}
+    {{- /* `default list` matters: prepend panics on a nil list, so an
+           `extraHosts:` key written with nothing under it would fail the whole
+           render and stop the HelmRelease reconciling. range over nil is a
+           no-op, so tlsHosts/extraTls above need no such guard. */}}
+    {{- range prepend (.Values.api.ingress.extraHosts | default list) .Values.api.ingress.host }}
+    - host: {{ . | quote }}
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: {{ include "warn-v2.fullname" . }}-api
+                name: {{ $fullName }}-api
                 port:
                   name: http
+    {{- end }}
 {{- end }}

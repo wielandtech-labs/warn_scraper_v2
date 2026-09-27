@@ -13,6 +13,7 @@ from prometheus_client.exposition import choose_encoder
 from starlette.responses import Response
 
 from warn_v2.api import ratelimit
+from warn_v2.api.canonical import CanonicalHostMiddleware, redirect_hosts
 from warn_v2.api.routes import (
     admin,
     auth,
@@ -31,6 +32,7 @@ from warn_v2.api.routes import (
     subscriptions,
     usage,
 )
+from warn_v2.api.seo import site_base_url
 from warn_v2.observability.collector import WarnCollector
 
 log = logging.getLogger(__name__)
@@ -67,6 +69,15 @@ def create_app(static_dir: Path | None = None) -> FastAPI:
     # /api/map-pins (~1 MB → ~150 KB). Level 6, not the default 9 — the pod
     # is CPU-limited and 9 buys ~1% extra ratio for noticeably more CPU.
     app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
+
+    # 301 the site's secondary hostnames at the canonical origin. Added after
+    # GZip so it is the OUTERMOST layer (add_middleware prepends), letting a
+    # redirect short-circuit before any other work. Inert unless REDIRECT_HOSTS
+    # is set, so local dev and tests are unaffected.
+    if hosts := redirect_hosts():
+        app.add_middleware(
+            CanonicalHostMiddleware, hosts=hosts, canonical=site_base_url()
+        )
 
     # --- health probe (readiness + liveness) ---
     @app.get("/healthz", tags=["health"], include_in_schema=False)

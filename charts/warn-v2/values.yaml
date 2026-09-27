@@ -125,8 +125,21 @@ api:
   ingress:
     enabled: false   # flip on in HelmRelease to expose externally
     className: traefik
-    host: warn.wielandtech.com
+    # The canonical host: the primary ingress rule, the first TLS entry, and
+    # SITE_BASE_URL (see _helpers.tpl) all derive from it. Every absolute URL the
+    # app emits — canonical/OG tags, sitemap, robots, RSS, Stripe return URLs,
+    # email links — points here, so there is exactly one canonical origin however
+    # many hostnames the ingress answers on.
+    host: warnindex.com
     tls: true        # provisions a cert-manager Certificate when annotations include cluster-issuer
+    tlsSecretName: ""  # secret for the canonical TLS entry; default <fullname>-tls
+    tlsHosts: []       # extra SANs on the canonical cert, e.g. [www.warnindex.com]
+    extraHosts: []     # additional hostnames routed to the same service
+    redirectHosts: []  # subset of extraHosts the app 301s to `host`
+    # One entry per additional domain rather than extra SANs on the canonical
+    # cert, so a failed ACME order on one domain cannot disturb another domain's
+    # live secret. Shape: [{secretName: foo-tls, hosts: [foo.example, www.foo.example]}]
+    extraTls: []
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt-prod
       traefik.ingress.kubernetes.io/router.entrypoints: websecure
