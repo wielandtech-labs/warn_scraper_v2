@@ -75,7 +75,7 @@ def _finalize_use(**kw) -> _Block:
         website="https://acme.com",
         sic_code="3559",
         sic_desc="Special Industry Machinery, NEC",
-        duns=None,
+        unique_id=None,
         confidence=0.85,
         sources=["https://acme.com", "https://opencorporates.com/companies/us_ca/12345"],
     )
@@ -98,7 +98,7 @@ def test_happy_path_web_search_then_finalize():
     assert result.website == "https://acme.com"
     assert result.sic_code == "3559"
     assert result.sic_desc == "Special Industry Machinery, NEC"
-    assert result.duns is None
+    assert result.unique_id is None
     assert result.confidence == 0.85
     assert len(result.sources) == 2
     assert result.turns == 1
@@ -140,13 +140,13 @@ def test_max_turns_guard():
     assert "max_turns" in (result.last_message or "")
 
 
-def test_finalize_with_duns():
-    """DUNS is passed through when the agent finds it."""
-    responses = [_Response(content=[_finalize_use(duns="123456789", confidence=0.95)])]
+def test_finalize_with_unique_id():
+    """The unique id is passed through when the agent finds it."""
+    responses = [_Response(content=[_finalize_use(unique_id="123456789", confidence=0.95)])]
     result = run_enrichment(_ctx(), _FakeClient(responses))
 
     assert result.proposed is True
-    assert result.duns == "123456789"
+    assert result.unique_id == "123456789"
 
 
 def test_finalize_null_fields():
@@ -155,7 +155,7 @@ def test_finalize_null_fields():
         _Response(content=[
             _finalize_use(
                 website=None, sic_code=None, sic_desc=None,
-                duns=None, confidence=0.3, sources=[],
+                unique_id=None, confidence=0.3, sources=[],
             ),
         ]),
     ]

@@ -163,7 +163,7 @@ def enrich(
     recent_years: int | None,
     tiers: str,
 ) -> None:
-    """Enrich company records — provider first, DUNS linkage is the value.
+    """Enrich company records — provider first, unique-id linkage is the value.
 
     \b
     Main flow (default, what the CronJob runs):
@@ -362,13 +362,13 @@ def purge_impossible_dates_cmd(dry_run: bool, state: str | None) -> None:
 @click.option("--dry-run", is_flag=True, help="Preview merges without writing")
 @click.option("--force", is_flag=True, help="Bypass the 50%% guardrail")
 def consolidate_companies_cmd(dry_run: bool, force: bool) -> None:
-    """Merge duplicate Company rows (DUNS-first, name-normalization fallback).
+    """Merge duplicate Company rows (unique-id-first, name-normalization fallback).
 
     \b
     Non-destructive: sets canonical_company_id on duplicates (never touches
     Notice.company_id or deletes rows), so it's fully reversible. Survivors also
     get a parent_group_key for sibling-under-parent rollup. Re-run safely as
-    enrichment fills in more DUNS over time.
+    enrichment fills in more unique ids over time.
 
     Always run with --dry-run first and review the counts.
     """
@@ -379,7 +379,7 @@ def consolidate_companies_cmd(dry_run: bool, force: bool) -> None:
     if stats.get("aborted"):
         suffix = " (ABORTED by guardrail — re-run with --force)"
     click.echo(
-        f"merged={stats['merged']} duns_groups={stats['duns_groups']} "
+        f"merged={stats['merged']} unique_id_groups={stats['unique_id_groups']} "
         f"name_groups={stats['name_groups']} total={stats['total']}{suffix}"
     )
 
@@ -1284,9 +1284,9 @@ def cross_check_cmd(
     "--include-null-source",
     is_flag=True,
     help=(
-        "Also reset enriched rows with a NULL enrichment_source AND no DUNS "
+        "Also reset enriched rows with a NULL enrichment_source AND no unique id "
         "(pre-source-field EDGAR/Claude-era rows the --sources filter can't "
-        "target). Scoped to duns IS NULL so it never touches a real provider hit."
+        "target). Scoped to unique_id IS NULL so it never touches a real provider hit."
     ),
 )
 @click.option("--dry-run", is_flag=True, help="Preview counts without writing")
@@ -1317,12 +1317,12 @@ def reset_enrichment_cmd(sources: str, include_null_source: bool, dry_run: bool)
 
     cond = Company.enrichment_source.in_(wanted) if wanted else None
     if include_null_source:
-        # Enriched but source-less AND DUNS-less = legacy EDGAR/Claude rows; the
-        # duns guard keeps any old source-less provider hit out of scope.
+        # Enriched but source-less AND id-less = legacy EDGAR/Claude rows; the
+        # unique_id guard keeps any old source-less provider hit out of scope.
         null_cond = and_(
             Company.enriched_at.is_not(None),
             Company.enrichment_source.is_(None),
-            Company.duns.is_(None),
+            Company.unique_id.is_(None),
         )
         cond = null_cond if cond is None else or_(cond, null_cond)
 

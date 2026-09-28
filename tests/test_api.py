@@ -286,22 +286,22 @@ def test_companies_enriched_filter_true(api_client, db):
     assert body["items"][0]["name"] == "Enriched"
 
 
-def test_companies_has_duns_filter(api_client, db):
-    _company(db, name="No DUNS", enriched_at=datetime.now(UTC))  # enriched, but DUNS-less
-    _company(db, name="With DUNS", duns="123456789", enriched_at=datetime.now(UTC))
+def test_companies_has_unique_id_filter(api_client, db):
+    _company(db, name="No ID", enriched_at=datetime.now(UTC))  # enriched, but id-less
+    _company(db, name="With ID", unique_id="123456789", enriched_at=datetime.now(UTC))
     db.commit()
 
-    body = api_client.get("/api/companies?has_duns=true").json()
+    body = api_client.get("/api/companies?has_unique_id=true").json()
     assert body["total"] == 1
-    assert body["items"][0]["name"] == "With DUNS"
+    assert body["items"][0]["name"] == "With ID"
 
-    body = api_client.get("/api/companies?has_duns=false").json()
+    body = api_client.get("/api/companies?has_unique_id=false").json()
     assert body["total"] == 1
-    assert body["items"][0]["name"] == "No DUNS"
+    assert body["items"][0]["name"] == "No ID"
 
-    # enriched=true alone includes both — has_duns is the narrower filter
+    # enriched=true alone includes both — has_unique_id is the narrower filter
     assert api_client.get("/api/companies?enriched=true").json()["total"] == 2
-    assert api_client.get("/api/companies?enriched=true&has_duns=true").json()["total"] == 1
+    assert api_client.get("/api/companies?enriched=true&has_unique_id=true").json()["total"] == 1
 
 
 def test_companies_sort_by_confidence(api_client, db):
@@ -347,16 +347,16 @@ def test_company_detail_not_found(api_client, db):
 def test_company_detail_hides_internal_enrichment_fields(api_client, db):
     """provider-sourced fields are stored but must not be exposed by the public API.
 
-    Redistribution of DUNS / employee counts / corporate hierarchy is restricted
+    Redistribution of unique ids / employee counts / corporate hierarchy is restricted
     by the provider's terms, so CompanyOut deliberately omits them.
     """
     c = _company(
         db,
         name="Enriched Co",
-        duns="123456789",
+        unique_id="123456789",
         employee_count=5000,
         parent_company_name="Parent Holdings",
-        parent_duns="987654321",
+        parent_unique_id="987654321",
         global_ultimate_name="Global Ultimate Ltd",
         hq_address="1 Main St, Anytown, USA",
         website="https://enriched.example.com",
@@ -366,10 +366,10 @@ def test_company_detail_hides_internal_enrichment_fields(api_client, db):
 
     body = api_client.get(f"/api/companies/{c.id}").json()
     for hidden in (
-        "duns",
+        "unique_id",
         "employee_count",
         "parent_company_name",
-        "parent_duns",
+        "parent_unique_id",
         "global_ultimate_name",
         "hq_address",
     ):

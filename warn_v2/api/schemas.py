@@ -28,8 +28,8 @@ class CompanyOut(BaseModel):
     # Set when this row was consolidated into another (the canonical/survivor).
     # Null on canonical rows. Just a pointer — not provider data — so safe to expose.
     canonical_company_id: int | None
-    # NOTE: enrichment fields duns, employee_count, parent_company_name,
-    # parent_duns, global_ultimate_name, and hq_address are deliberately NOT
+    # NOTE: enrichment fields unique_id, employee_count, parent_company_name,
+    # parent_unique_id, global_ultimate_name, and hq_address are deliberately NOT
     # exposed here. They are stored for internal use only; publishing provider-sourced
     # data would conflict with its redistribution terms. Surface only low-risk
     # fields (website, industry codes) publicly.
@@ -48,7 +48,7 @@ class CompanyOut(BaseModel):
 
 
 class CompanyEnrichedOut(CompanyOut):
-    """CompanyOut + provider enrichment fields, minus raw DUNS identifiers.
+    """CompanyOut + provider enrichment fields, minus raw unique identifiers.
 
     Served to paid sessions and above. Anonymous and free-tier responses use
     CompanyOut, so these keys are absent (not null) for them — the public shape
@@ -62,14 +62,14 @@ class CompanyEnrichedOut(CompanyOut):
 
 
 class CompanyEnterpriseOut(CompanyEnrichedOut):
-    """CompanyEnrichedOut + raw DUNS identifiers.
+    """CompanyEnrichedOut + raw unique identifiers.
 
-    Served only to enterprise/admin sessions — DUNS numbers are the top-tier
+    Served only to enterprise/admin sessions — unique ids are the top-tier
     differentiator and never appear below this level.
     """
 
-    duns: str | None
-    parent_duns: str | None
+    unique_id: str | None
+    parent_unique_id: str | None
 
 
 class FamilyMemberOut(BaseModel):

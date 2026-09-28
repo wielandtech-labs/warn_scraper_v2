@@ -6,7 +6,7 @@ daily from the scraper's Postgres by `warn-v2 export-bigquery`
 (`warn_v2/scripts/bq_export.py` — the schema constants there are the source
 of truth; this file is the human-readable copy for the Analytics Hub listing).
 
-**Not included, by design:** raw DUNS identifiers (licensing), and notices
+**Not included, by design:** raw unique identifiers (licensing), and notices
 whose company has no enrichment yet (the export grows as enrichment coverage
 does — the full raw feed is available via the website and API).
 

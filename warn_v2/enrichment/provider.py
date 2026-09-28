@@ -42,7 +42,7 @@ class ProviderResult:
     """Structured result returned by an external enrichment provider."""
 
     entity_name: str
-    duns: str | None = None
+    unique_id: str | None = None
     sic_code: str | None = None
     sic_desc: str | None = None
     naics_code: str | None = None
@@ -50,9 +50,9 @@ class ProviderResult:
     website: str | None = None
     employee_count: int | None = None
     parent_company_name: str | None = None
-    parent_duns: str | None = None
+    parent_unique_id: str | None = None
     global_ultimate_name: str | None = None
-    global_ultimate_duns: str | None = None
+    global_ultimate_unique_id: str | None = None
     global_ultimate_id: str | None = None
     hq_address: str | None = None
     confidence: float = 0.0

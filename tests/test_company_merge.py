@@ -71,9 +71,9 @@ def test_manual_merge_survives_consolidator_run(db):
     assert db.get(Company, target.id).canonical_company_id is None
 
 
-def test_unmerge_override_beats_duns_merge(db):
-    a = _company(db, "Acme Inc", duns="111111111")
-    b = _company(db, "Acme Retail Stores", duns="111111111")
+def test_unmerge_override_beats_unique_id_merge(db):
+    a = _company(db, "Acme Inc", unique_id="111111111")
+    b = _company(db, "Acme Retail Stores", unique_id="111111111")
     _override(db, b, None)
     db.commit()
 

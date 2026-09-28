@@ -26,8 +26,8 @@ _SORT_COLUMNS = {
 def list_companies(
     name: str | None = Query(None, description="Company name (case-insensitive substring)"),
     enriched: bool | None = Query(None, description="Filter by enrichment status"),
-    has_duns: bool | None = Query(
-        None, description="Filter companies that have (or lack) a DUNS number"
+    has_unique_id: bool | None = Query(
+        None, description="Filter companies that have (or lack) a unique id"
     ),
     sic_code: str | None = Query(None, description="Exact SIC code match"),
     industry: str | None = Query(None, description="NAICS sector id (e.g. 31-33)"),
@@ -96,12 +96,12 @@ def list_companies(
         stmt = stmt.where(Company.enriched_at.is_(None))
         count_stmt = count_stmt.where(Company.enriched_at.is_(None))
 
-    if has_duns is True:
-        stmt = stmt.where(Company.duns.is_not(None))
-        count_stmt = count_stmt.where(Company.duns.is_not(None))
-    elif has_duns is False:
-        stmt = stmt.where(Company.duns.is_(None))
-        count_stmt = count_stmt.where(Company.duns.is_(None))
+    if has_unique_id is True:
+        stmt = stmt.where(Company.unique_id.is_not(None))
+        count_stmt = count_stmt.where(Company.unique_id.is_not(None))
+    elif has_unique_id is False:
+        stmt = stmt.where(Company.unique_id.is_(None))
+        count_stmt = count_stmt.where(Company.unique_id.is_(None))
 
     if sic_code:
         stmt = stmt.where(Company.sic_code == sic_code)

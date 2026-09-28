@@ -133,7 +133,7 @@ def test_key_authenticates_via_x_api_key_and_bearer(api_client, db):
 
 
 def test_key_gets_role_gated_fields(api_client, db):
-    c = Company(name="Acme Inc", duns="123456789", parent_company_name="Acme Holdings")
+    c = Company(name="Acme Inc", unique_id="123456789", parent_company_name="Acme Holdings")
     db.add(c)
     db.flush()
     paid = _user(db, "p@example.com", role="paid")
@@ -148,10 +148,10 @@ def test_key_gets_role_gated_fields(api_client, db):
 
     as_paid = client.get(f"/api/companies/{c.id}", headers={"X-API-Key": paid_raw}).json()
     assert as_paid["parent_company_name"] == "Acme Holdings"
-    assert "duns" not in as_paid
+    assert "unique_id" not in as_paid
 
     as_ent = client.get(f"/api/companies/{c.id}", headers={"X-API-Key": ent_raw}).json()
-    assert as_ent["duns"] == "123456789"
+    assert as_ent["unique_id"] == "123456789"
 
 
 def test_revoked_and_garbage_keys_are_anonymous(api_client, db):

@@ -52,8 +52,8 @@ def _login(api_client, email: str):
 def _enriched_company(db) -> Company:
     c = Company(
         name="Acme Inc",
-        duns="123456789",
-        parent_duns="987654321",
+        unique_id="123456789",
+        parent_unique_id="987654321",
         parent_company_name="Acme Holdings",
         global_ultimate_name="Acme Global",
         hq_address="1 Acme Way, Coyote, AZ",
@@ -84,9 +84,9 @@ ENRICHED_FIELDS = (
     "hq_address",
     "employee_count",
 )
-# Raw DUNS identifiers: enterprise/admin only.
-DUNS_FIELDS = ("duns", "parent_duns")
-DNB_FIELDS = DUNS_FIELDS + ENRICHED_FIELDS
+# Raw unique identifiers: enterprise/admin only.
+UNIQUE_ID_FIELDS = ("unique_id", "parent_unique_id")
+PROVIDER_FIELDS = UNIQUE_ID_FIELDS + ENRICHED_FIELDS
 
 
 # ---------------------------------------------------------------------------
@@ -173,19 +173,19 @@ def test_anonymous_and_free_get_no_provider_fields(api_client, db):
     n = _notice(db, c)
 
     for body in _company_bodies(api_client, c.id, n.notice_id):  # anonymous
-        for field in DNB_FIELDS:
+        for field in PROVIDER_FIELDS:
             assert field not in body  # key absent, not null — exact public shape
 
     _user(db, "free@example.com", role="free")
     _login(api_client, "free@example.com")
     for body in _company_bodies(api_client, c.id, n.notice_id):
-        for field in DNB_FIELDS:
+        for field in PROVIDER_FIELDS:
             assert field not in body
         assert body["name"] == "Acme Inc"
         assert body["website"] == "https://acme.example"
 
 
-def test_paid_gets_enriched_fields_but_no_duns(api_client, db):
+def test_paid_gets_enriched_fields_but_no_unique_ids(api_client, db):
     c = _enriched_company(db)
     n = _notice(db, c)
     _user(db, "paid@example.com", role="paid")
@@ -196,7 +196,7 @@ def test_paid_gets_enriched_fields_but_no_duns(api_client, db):
         assert body["global_ultimate_name"] == "Acme Global"
         assert body["hq_address"] == "1 Acme Way, Coyote, AZ"
         assert body["employee_count"] == 500
-        for field in DUNS_FIELDS:
+        for field in UNIQUE_ID_FIELDS:
             assert field not in body  # key absent, not null
 
 
@@ -208,8 +208,8 @@ def test_enterprise_and_admin_get_all_provider_fields(api_client, db, role):
     _login(api_client, f"{role}@example.com")
 
     for body in _company_bodies(api_client, c.id, n.notice_id):
-        assert body["duns"] == "123456789"
-        assert body["parent_duns"] == "987654321"
+        assert body["unique_id"] == "123456789"
+        assert body["parent_unique_id"] == "987654321"
         assert body["parent_company_name"] == "Acme Holdings"
         assert body["global_ultimate_name"] == "Acme Global"
         assert body["hq_address"] == "1 Acme Way, Coyote, AZ"
@@ -221,16 +221,16 @@ def test_logout_drops_back_to_public_shape(api_client, db):
     _notice(db, c)
     _user(db, "e@example.com", role="enterprise")
     _login(api_client, "e@example.com")
-    assert "duns" in api_client.get(f"/api/companies/{c.id}").json()
+    assert "unique_id" in api_client.get(f"/api/companies/{c.id}").json()
 
     api_client.post("/api/auth/logout")
-    assert "duns" not in api_client.get(f"/api/companies/{c.id}").json()
+    assert "unique_id" not in api_client.get(f"/api/companies/{c.id}").json()
 
 
 def _assert_no_provider_fields_anywhere(payload) -> None:
     """Recursively assert no provider field key appears anywhere in a JSON payload."""
     if isinstance(payload, dict):
-        for field in DNB_FIELDS:
+        for field in PROVIDER_FIELDS:
             assert field not in payload
         for v in payload.values():
             _assert_no_provider_fields_anywhere(v)

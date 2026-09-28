@@ -203,7 +203,7 @@ export const api = {
     name?: string;
     include_merged?: boolean;
     enriched?: boolean;
-    has_duns?: boolean;
+    has_unique_id?: boolean;
     sic_code?: string;
     industry?: string;
     subsector?: string;
@@ -218,7 +218,7 @@ export const api = {
           name: q.name,
           include_merged: q.include_merged ? "true" : undefined,
           enriched: q.enriched === undefined ? undefined : String(q.enriched),
-          has_duns: q.has_duns === undefined ? undefined : String(q.has_duns),
+          has_unique_id: q.has_unique_id === undefined ? undefined : String(q.has_unique_id),
           sic_code: q.sic_code,
           industry: q.industry,
           subsector: q.subsector,

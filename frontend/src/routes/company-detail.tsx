@@ -114,7 +114,7 @@ export function CompanyDetail() {
           <Item label="SIC" value={c.sic_code ? `${c.sic_code} · ${c.sic_desc ?? ""}` : "—"} />
           {/* provider fields are present in the payload only for paid/admin
               sessions — render whatever the API returned, no role logic here. */}
-          {c.duns != null && <Item label="DUNS" value={c.duns} />}
+          {c.unique_id != null && <Item label="ID" value={c.unique_id} />}
           {c.employee_count != null && (
             <Item label="Employees" value={fmtNum(c.employee_count)} />
           )}
@@ -122,14 +122,14 @@ export function CompanyDetail() {
             <Item
               label="Parent"
               value={
-                c.parent_duns != null
-                  ? `${c.parent_company_name} · DUNS ${c.parent_duns}`
+                c.parent_unique_id != null
+                  ? `${c.parent_company_name} · ID ${c.parent_unique_id}`
                   : c.parent_company_name
               }
             />
           )}
-          {c.parent_company_name == null && c.parent_duns != null && (
-            <Item label="Parent DUNS" value={c.parent_duns} />
+          {c.parent_company_name == null && c.parent_unique_id != null && (
+            <Item label="Parent ID" value={c.parent_unique_id} />
           )}
           {c.global_ultimate_name != null && (
             <Item label="Global ultimate" value={c.global_ultimate_name} />

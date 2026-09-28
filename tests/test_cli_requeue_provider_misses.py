@@ -44,7 +44,7 @@ def _seed(db_session_factory) -> None:
                     enriched_at=BAD_WINDOW_START + timedelta(hours=7),
                     enrichment_source="provider",
                     enrichment_confidence=Decimal("0.95"),
-                    duns="123456789",
+                    unique_id="123456789",
                 ),
                 # Never attempted at all.
                 Company(name="Untouched Co"),
