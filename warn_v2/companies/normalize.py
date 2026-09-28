@@ -37,7 +37,7 @@ _HASH_STORE_NO = re.compile(r"#\s*\d+")
 # WARN filings wrap around the real company name so provider/EDGAR type-ahead can find
 # it. Aggressive stripping is paired with acceptance-side certainty guards
 # (match_is_consistent / is_unsearchable + the provider's similarity threshold),
-# so casting a wide net can never persist a *wrong* DUNS — at worst it degrades
+# so casting a wide net can never persist a *wrong* unique id — at worst it degrades
 # to today's no-match.
 _TRAILING_SITE_NO = re.compile(r"(?:\s+\d{3,})+\s*$")
 # u2013 = en dash; some WARN sources use it instead of a hyphen. The dash rule
@@ -141,7 +141,7 @@ def search_name(name: str | None) -> str:
     search miss the actual entity. This strips all of that while preserving
     case. Aggressive by design: the acceptance-side guards (the provider's
     similarity threshold, ``is_unsearchable``, ``match_is_consistent``) ensure a
-    wrong strip degrades to a no-match rather than a wrong DUNS.
+    wrong strip degrades to a no-match rather than a wrong unique id.
     """
     if not name:
         return ""
@@ -476,7 +476,7 @@ def match_is_consistent(original: str, matched: str) -> bool:
         # Ampersand/short names ("AT&T", "H&M") reduce to no significant tokens
         # (punctuation dropped, single letters excluded), so there's nothing to
         # check faithfulness against. Auto-rejecting would lock every such
-        # company out of a DUNS forever; trust the provider's own match +
+        # company out of a unique id forever; trust the provider's own match +
         # similarity threshold instead.
         return True
     shared = orig & _significant_tokens(matched)

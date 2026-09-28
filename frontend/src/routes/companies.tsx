@@ -77,7 +77,7 @@ function CompaniesView() {
   const apiParams = {
     enriched:
       search.enriched === "true" ? true : search.enriched === "false" ? false : undefined,
-    has_duns: search.duns === "true" ? true : undefined,
+    has_unique_id: search.unique_id === "true" ? true : undefined,
     industry: search.industry,
     subsector: search.subsector,
     sort_by: sortBy,
@@ -100,13 +100,13 @@ function CompaniesView() {
   const selectedSubsectors =
     industriesQuery.data?.find((i) => i.sector === search.industry)?.subsectors ?? [];
 
-  // One status chip group: enriched and duns are mutually exclusive choices.
+  // One status chip group: enriched and unique_id are mutually exclusive choices.
   const setEnriched = (val: "true" | "false" | undefined) => {
-    navigate({ search: (prev) => ({ ...prev, enriched: val, duns: undefined, page: 1 }) });
+    navigate({ search: (prev) => ({ ...prev, enriched: val, unique_id: undefined, page: 1 }) });
   };
 
-  const setDuns = () => {
-    navigate({ search: (prev) => ({ ...prev, enriched: undefined, duns: "true", page: 1 }) });
+  const setUniqueId = () => {
+    navigate({ search: (prev) => ({ ...prev, enriched: undefined, unique_id: "true", page: 1 }) });
   };
 
   // Changing the sector clears any subsector selection.
@@ -239,7 +239,7 @@ function CompaniesView() {
         )}
         <div className="flex gap-1">
           <FilterChip
-            active={!search.enriched && !search.duns}
+            active={!search.enriched && !search.unique_id}
             onClick={() => setEnriched(undefined)}
             label="All"
           />
@@ -248,7 +248,7 @@ function CompaniesView() {
             onClick={() => setEnriched("true")}
             label="Enriched"
           />
-          <FilterChip active={search.duns === "true"} onClick={setDuns} label="DUNS" />
+          <FilterChip active={search.unique_id === "true"} onClick={setUniqueId} label="Has ID" />
           <FilterChip
             active={search.enriched === "false"}
             onClick={() => setEnriched("false")}
@@ -259,7 +259,7 @@ function CompaniesView() {
           basePath="/api/companies/export"
           params={{
             enriched: search.enriched,
-            has_duns: search.duns === "true" ? true : undefined,
+            has_unique_id: search.unique_id === "true" ? true : undefined,
             industry: search.industry,
             subsector: search.subsector,
           }}

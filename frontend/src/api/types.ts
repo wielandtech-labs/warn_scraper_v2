@@ -29,10 +29,10 @@ export interface CompanyOut {
   // Set when this row is a duplicate consolidated into another company.
   canonical_company_id?: number | null;
   // Provider enrichment fields — present only for paid sessions and above; the API
-  // omits the keys entirely for anonymous/free viewers. Raw DUNS identifiers
+  // omits the keys entirely for anonymous/free viewers. Raw unique identifiers
   // are enterprise/admin only.
-  duns?: string | null;
-  parent_duns?: string | null;
+  unique_id?: string | null;
+  parent_unique_id?: string | null;
   parent_company_name?: string | null;
   global_ultimate_name?: string | null;
   hq_address?: string | null;

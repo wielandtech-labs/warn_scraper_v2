@@ -1,7 +1,8 @@
 {{- if .Values.consolidator.enabled }}
-# Periodically merge duplicate Company rows (DUNS-first, name fallback). Uses the
-# public app image (no browser needed) and is non-destructive/idempotent, so it's
-# safe to run on a schedule — it sharpens as enrichment fills DUNS / GU ids.
+# Periodically merge duplicate Company rows (unique-id first, name fallback).
+# Uses the public app image (no browser needed) and is non-destructive and
+# idempotent, so it's safe to run on a schedule — it sharpens as enrichment
+# fills in more unique ids / GU ids.
 apiVersion: batch/v1
 kind: CronJob
 metadata:

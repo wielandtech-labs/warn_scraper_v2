@@ -71,7 +71,7 @@ def test_notices_export_csv(api_client, db):
     rows = _rows(resp.text)
     assert rows[0][:3] == ["notice_id", "state", "employer"]
     assert len(rows) == 3  # header + 2 notices
-    assert "company_duns" not in rows[0]  # enriched columns hidden for anon
+    assert "company_unique_id" not in rows[0]  # enriched columns hidden for anon
 
 
 def test_notices_export_json_and_state_filter(api_client, db):
@@ -83,7 +83,7 @@ def test_notices_export_json_and_state_filter(api_client, db):
     assert isinstance(body, list)
     assert len(body) == 1
     assert body[0]["employer"] == "Texas Co"
-    assert "company_duns" not in body[0]
+    assert "company_unique_id" not in body[0]
 
 
 def test_notices_export_excludes_superseded(api_client, db):
@@ -97,8 +97,8 @@ def test_notices_export_excludes_superseded(api_client, db):
     assert employers == {"Active Co"}
 
 
-def test_notices_export_paid_includes_enriched_columns_but_no_duns(api_client, db):
-    c = Company(name="Acme Inc", duns="123456789", parent_company_name="Acme Holdings",
+def test_notices_export_paid_includes_enriched_columns_but_no_unique_ids(api_client, db):
+    c = Company(name="Acme Inc", unique_id="123456789", parent_company_name="Acme Holdings",
                 employee_count=500)
     db.add(c)
     db.flush()
@@ -110,12 +110,12 @@ def test_notices_export_paid_includes_enriched_columns_but_no_duns(api_client, d
     body = api_client.get("/api/notices/export?format=json").json()
     assert body[0]["parent_company_name"] == "Acme Holdings"
     assert body[0]["employee_count"] == 500
-    assert "company_duns" not in body[0]  # DUNS is enterprise-only
+    assert "company_unique_id" not in body[0]  # unique ids are enterprise-only
 
 
 @pytest.mark.parametrize("role", ["enterprise", "admin"])
-def test_notices_export_enterprise_includes_duns(api_client, db, role):
-    c = Company(name="Acme Inc", duns="123456789", parent_company_name="Acme Holdings")
+def test_notices_export_enterprise_includes_unique_ids(api_client, db, role):
+    c = Company(name="Acme Inc", unique_id="123456789", parent_company_name="Acme Holdings")
     db.add(c)
     db.flush()
     _notice(db, employer="Acme Inc", company=c)
@@ -124,7 +124,7 @@ def test_notices_export_enterprise_includes_duns(api_client, db, role):
     _login(api_client, "e@example.com")
 
     body = api_client.get("/api/notices/export?format=json").json()
-    assert body[0]["company_duns"] == "123456789"
+    assert body[0]["company_unique_id"] == "123456789"
     assert body[0]["parent_company_name"] == "Acme Holdings"
 
 
@@ -148,13 +148,13 @@ def test_companies_export_csv_with_layoff_total(api_client, db):
     rows = _rows(api_client.get("/api/companies/export").text)
     assert rows[0][0] == "id"
     assert "layoff_total" in rows[0]
-    assert "duns" not in rows[0]  # enriched hidden for anon
+    assert "unique_id" not in rows[0]  # enriched hidden for anon
     lt_idx = rows[0].index("layoff_total")
     assert rows[1][lt_idx] == "100"
 
 
-def test_companies_export_enterprise_includes_duns_paid_does_not(api_client, db):
-    db.add(Company(name="Acme Inc", duns="123456789", parent_duns="987654321",
+def test_companies_export_enterprise_includes_unique_ids_paid_does_not(api_client, db):
+    db.add(Company(name="Acme Inc", unique_id="123456789", parent_unique_id="987654321",
                    hq_address="1 Acme Way"))
     _user(db, "p@example.com", role="paid")
     _user(db, "a@example.com", role="admin")
@@ -163,13 +163,13 @@ def test_companies_export_enterprise_includes_duns_paid_does_not(api_client, db)
     _login(api_client, "p@example.com")
     body = api_client.get("/api/companies/export?format=json").json()
     assert body[0]["hq_address"] == "1 Acme Way"
-    assert "duns" not in body[0]
-    assert "parent_duns" not in body[0]
+    assert "unique_id" not in body[0]
+    assert "parent_unique_id" not in body[0]
 
     _login(api_client, "a@example.com")
     body = api_client.get("/api/companies/export?format=json").json()
-    assert body[0]["duns"] == "123456789"
-    assert body[0]["parent_duns"] == "987654321"
+    assert body[0]["unique_id"] == "123456789"
+    assert body[0]["parent_unique_id"] == "987654321"
 
 
 def test_notices_export_invalid_format_rejected(api_client, db):

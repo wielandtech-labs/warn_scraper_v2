@@ -30,7 +30,7 @@ class FinalizeArgs:
     website: str | None
     sic_code: str | None
     sic_desc: str | None
-    duns: str | None
+    unique_id: str | None
     confidence: float
     sources: list[str]
 
@@ -88,11 +88,12 @@ TOOL_DEFS: list[dict] = [
                     "type": ["string", "null"],
                     "description": "SIC description, e.g. 'Special Industry Machinery, NEC'",
                 },
-                "duns": {
+                "unique_id": {
                     "type": ["string", "null"],
                     "description": (
-                        "9-digit D-U-N-S number if found in a public source "
-                        "(SEC EDGAR, OpenCorporates). Null if not found — do not guess."
+                        "The company's 9-digit unique business identifier, if one "
+                        "is stated in a public source (SEC EDGAR, OpenCorporates). "
+                        "Null if not found — do not guess."
                     ),
                 },
                 "confidence": {
@@ -107,7 +108,7 @@ TOOL_DEFS: list[dict] = [
                     "description": "List of URLs you retrieved information from.",
                 },
             },
-            "required": ["website", "sic_code", "sic_desc", "duns", "confidence", "sources"],
+            "required": ["website", "sic_code", "sic_desc", "unique_id", "confidence", "sources"],
         },
     },
 ]
@@ -128,7 +129,7 @@ def dispatch(name: str, args: dict[str, Any]) -> tuple[Any, FinalizeArgs | None]
             website=args.get("website"),
             sic_code=args.get("sic_code"),
             sic_desc=args.get("sic_desc"),
-            duns=args.get("duns"),
+            unique_id=args.get("unique_id"),
             confidence=float(args.get("confidence", 0.0)),
             sources=args.get("sources") or [],
         )

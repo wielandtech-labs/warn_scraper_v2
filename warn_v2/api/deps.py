@@ -80,7 +80,7 @@ class ViewerSchemas:
     """Company/notice output schemas for the requesting user's role.
 
     enterprise/admin sessions get the *EnterpriseOut subclasses (provider fields
-    including raw DUNS); paid sessions get *EnrichedOut (provider fields minus DUNS);
+    including raw unique ids); paid sessions get *EnrichedOut (provider fields minus unique ids);
     anonymous and free users get the base schemas — today's exact public shape.
     """
 

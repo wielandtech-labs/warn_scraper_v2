@@ -146,7 +146,7 @@ def test_search_name_degenerate_inputs():
 
 # ---------------------------------------------------------------------------
 # search_name — aggressive cleaning, driven by real WARN names that previously
-# fell through to claude/edgar without a DUNS (see PR notes).
+# fell through to claude/edgar without a unique id (see PR notes).
 # ---------------------------------------------------------------------------
 
 def test_search_name_strips_trailing_parentheticals():
@@ -401,7 +401,7 @@ def test_match_is_consistent_guard():
     assert match_is_consistent("Chevron (N. FM 1788)", "Chevron Corporation")
     assert match_is_consistent("Peraton 1875 Explorer St Reston, VA", "Peraton Inc")
     assert match_is_consistent("Crothall Healthcare", "Crothall Healthcare Services")
-    # Unfaithful: an over-strip resolved to an unrelated company → reject the DUNS.
+    # Unfaithful: an over-strip resolved to an unrelated company → reject the unique id.
     assert not match_is_consistent("Peraton 1875 Explorer St", "Booz Allen Hamilton")
     assert not match_is_consistent("Midwest Perishables Inc.", "Acme Corporation")
 
@@ -415,7 +415,7 @@ def test_match_is_consistent_rejects_generic_only_overlap():
 
 def test_match_is_consistent_trusts_provider_for_tokenless_names():
     # Ampersand/short names reduce to no significant tokens; auto-rejecting would
-    # lock them out of a DUNS forever, so trust the provider's match instead.
+    # lock them out of a unique id forever, so trust the provider's match instead.
     assert match_is_consistent("AT&T", "AT&T Inc")
     assert match_is_consistent("H&M", "H&M Inc")
 
@@ -506,7 +506,7 @@ def test_alt_queries_leave_real_names_alone():
 
 
 def test_alt_queries_skip_a_bare_place_after_a_slash():
-    # "Grenada" is a town, not a company; searching it alone risks a wrong DUNS.
+    # "Grenada" is a town, not a company; searching it alone risks a wrong unique id.
     assert alt_queries("Corinthian Furniture Corinth/Grenada") == [
         "Corinthian Furniture Corinth"
     ]

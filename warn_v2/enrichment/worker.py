@@ -71,7 +71,7 @@ def find_pending(
 
     ``order_by`` picks which end of the queue this batch works:
       - "impact" (default): total workers affected across the company's
-        non-superseded notices, descending — the scarce DUNS/provider lookups
+        non-superseded notices, descending — the scarce unique-id/provider lookups
         go to the biggest layoffs first.
       - "recency": most recent non-superseded notice date, descending —
         freshly-noticed companies enrich while they still fall inside the
@@ -186,7 +186,7 @@ def _persist_result(session: Session, company: Company, result: EnrichmentResult
     company.website = result.website
     company.sic_code = result.sic_code
     company.sic_desc = result.sic_desc
-    company.duns = result.duns
+    company.unique_id = result.unique_id
     company.enrichment_confidence = result_to_confidence_decimal(result)
     company.enrichment_sources = json.dumps(result.sources) if result.sources else None
     company.enrichment_source = "claude"
@@ -202,14 +202,14 @@ def _persist_provider_result(
     company.website = result.website
     company.sic_code = result.sic_code
     company.sic_desc = result.sic_desc
-    company.duns = result.duns
+    company.unique_id = result.unique_id
     company.naics_code = result.naics_code
     company.naics_desc = result.naics_desc
     company.employee_count = result.employee_count
     company.parent_company_name = result.parent_company_name
-    company.parent_duns = result.parent_duns
+    company.parent_unique_id = result.parent_unique_id
     company.global_ultimate_name = result.global_ultimate_name
-    company.global_ultimate_duns = result.global_ultimate_duns
+    company.global_ultimate_unique_id = result.global_ultimate_unique_id
     company.global_ultimate_id = result.global_ultimate_id
     company.hq_address = result.hq_address
     company.enrichment_confidence = Decimal(str(round(result.confidence, 2)))
@@ -238,7 +238,7 @@ def _persist_lookup_result(
 
 
 # Sentinel for a cleaned key whose provider-enriched donors carry >=2 distinct
-# DUNS: two different legal entities (franchisees) share the key — never
+# unique ids: two different legal entities (franchisees) share the key — never
 # propagate under it.
 _DONOR_CONFLICT = object()
 
@@ -253,14 +253,14 @@ def _add_donor(donors: dict, donor: Company) -> None:
         return
     if existing is None:
         donors[key] = donor
-    elif existing.duns != donor.duns:
+    elif existing.unique_id != donor.unique_id:
         donors[key] = _DONOR_CONFLICT
 
 
 def _load_donor_index(session: Session) -> dict:
     """Map cleaned_key -> provider-enriched donor Company (or _DONOR_CONFLICT).
 
-    Donors are provider hits with a DUNS only — the highest-quality anchor.
+    Donors are provider hits with a unique id only — the highest-quality anchor.
     edgar/claude enrichments are guesses and never propagate; siblings never
     chain (a 'sibling' row is not source='provider', so it can't donate).
     """
@@ -268,7 +268,7 @@ def _load_donor_index(session: Session) -> dict:
     rows = session.scalars(
         select(Company).where(
             Company.enriched_at.is_not(None),
-            Company.duns.is_not(None),
+            Company.unique_id.is_not(None),
             Company.enrichment_source == "provider",
         )
     )
@@ -288,14 +288,14 @@ def _persist_sibling_result(session: Session, company: Company, donor: Company) 
     company.website = donor.website
     company.sic_code = donor.sic_code
     company.sic_desc = donor.sic_desc
-    company.duns = donor.duns
+    company.unique_id = donor.unique_id
     company.naics_code = donor.naics_code
     company.naics_desc = donor.naics_desc
     company.employee_count = donor.employee_count
     company.parent_company_name = donor.parent_company_name
-    company.parent_duns = donor.parent_duns
+    company.parent_unique_id = donor.parent_unique_id
     company.global_ultimate_name = donor.global_ultimate_name
-    company.global_ultimate_duns = donor.global_ultimate_duns
+    company.global_ultimate_unique_id = donor.global_ultimate_unique_id
     company.global_ultimate_id = donor.global_ultimate_id
     company.hq_address = donor.hq_address
     company.enrichment_confidence = min(
@@ -332,8 +332,8 @@ def _propagate_siblings(session: Session, donors: dict, *, dry_run: bool = False
         if not match_is_consistent(name, donor.name):
             continue
         log.info(
-            "company_id=%d name=%r: sibling enrichment from company_id=%d name=%r duns=%r",
-            company_id, name, donor.id, donor.name, donor.duns,
+            "company_id=%d name=%r: sibling enrichment from company_id=%d name=%r unique_id=%r",
+            company_id, name, donor.id, donor.name, donor.unique_id,
         )
         if not dry_run:
             company = session.get(Company, company_id)
@@ -419,12 +419,12 @@ def enrich_batch(
 
     Before the batch, a sibling pre-pass copies provider enrichment onto ALL
     pending site-variant twins of already-enriched companies (same
-    ``cleaned_key``, single distinct DUNS, faithful match) — zero provider
+    ``cleaned_key``, a single distinct unique id, faithful match) — zero provider
     cost, and it reaches backlog twins whose ``provider_attempted_at`` stamp
     hides them from provider-only ``find_pending``.
 
     Tiers (subset of {"provider", "edgar", "claude"}):
-      1. ``provider.lookup()`` if a provider is configured — DUNS linkage,
+      1. ``provider.lookup()`` if a provider is configured — unique-id linkage,
          the main value. When the primary query misses, each fallback query
          (``alt_queries``: a dba/aka trade name, the entity before a glued-on
          site or second entity) gets one retry lookup. A provider MISS stamps
@@ -542,8 +542,8 @@ def enrich_batch(
         ):
             log.info(
                 "company_id=%d name=%r: sibling enrichment from company_id=%d "
-                "name=%r duns=%r",
-                company.id, company.name, donor.id, donor.name, donor.duns,
+                "name=%r unique_id=%r",
+                company.id, company.name, donor.id, donor.name, donor.unique_id,
             )
             if not dry_run:
                 _persist_sibling_result(session, company, donor)
@@ -614,7 +614,7 @@ def enrich_batch(
 
                 # Certainty guard: a heavily-stripped query can resolve to an
                 # unrelated company. Only accept a hit that shares a distinctive
-                # token with the ORIGINAL WARN name; otherwise reject (no DUNS).
+                # token with the ORIGINAL WARN name; otherwise reject (no unique id).
                 rejected = pr is not None and not match_is_consistent(
                     company.name, pr.entity_name
                 )
@@ -628,8 +628,9 @@ def enrich_batch(
 
                 if pr is not None:
                     log.info(
-                        "company_id=%d name=%r: provider hit duns=%r sic=%r naics=%r conf=%.2f",
-                        company.id, company.name, pr.duns, pr.sic_code, pr.naics_code,
+                        "company_id=%d name=%r: provider hit unique_id=%r sic=%r "
+                        "naics=%r conf=%.2f",
+                        company.id, company.name, pr.unique_id, pr.sic_code, pr.naics_code,
                         pr.confidence,
                     )
                     if not dry_run:
@@ -699,9 +700,9 @@ def enrich_batch(
 
                 if alt_hit is not None:
                     log.info(
-                        "company_id=%d name=%r: fallback retry hit duns=%r sic=%r "
+                        "company_id=%d name=%r: fallback retry hit unique_id=%r sic=%r "
                         "naics=%r conf=%.2f",
-                        company.id, company.name, alt_hit.duns, alt_hit.sic_code,
+                        company.id, company.name, alt_hit.unique_id, alt_hit.sic_code,
                         alt_hit.naics_code, alt_hit.confidence,
                     )
                     if not dry_run:

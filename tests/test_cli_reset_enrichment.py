@@ -23,7 +23,7 @@ def _seed(db_session_factory) -> None:
         session.add_all(
             [
                 Company(
-                    name="Provider Co", duns="123456789", enriched_at=now,
+                    name="Provider Co", unique_id="123456789", enriched_at=now,
                     enrichment_confidence=Decimal("1.00"), enrichment_source="provider",
                 ),
                 Company(
@@ -34,12 +34,12 @@ def _seed(db_session_factory) -> None:
                     name="Sec Co", sic_code="3721", enriched_at=now,
                     enrichment_confidence=Decimal("0.90"), enrichment_source="edgar",
                 ),
-                # Pre-source-field row: enriched, no source, no DUNS (the tail
+                # Pre-source-field row: enriched, no source, no unique id (the tail
                 # --include-null-source targets).
                 Company(name="Legacy Co", enriched_at=now, enrichment_source=None),
-                # Source-less but HAS a DUNS — an old provider hit; must stay untouched.
+                # Source-less but HAS a unique id — an old provider hit; must stay untouched.
                 Company(
-                    name="Legacy Provider Co", duns="987654321", enriched_at=now,
+                    name="Legacy Provider Co", unique_id="987654321", enriched_at=now,
                     enrichment_source=None,
                 ),
                 Company(name="Pending Co"),
@@ -92,22 +92,22 @@ def test_default_reset_leaves_null_source_rows(runner, db_session_factory):
     assert _by_name(db_session_factory, "Legacy Co").enriched_at is not None
 
 
-def test_include_null_source_resets_only_dunsless_legacy_rows(runner, db_session_factory):
+def test_include_null_source_resets_only_id_less_legacy_rows(runner, db_session_factory):
     _seed(db_session_factory)
     result = runner.invoke(
         main, ["reset-enrichment", "--sources", "claude,edgar", "--include-null-source"]
     )
     assert result.exit_code == 0, result.output
-    assert "null: 1" in result.output  # only the DUNS-less legacy row counted
+    assert "null: 1" in result.output  # only the id-less legacy row counted
     assert "reset 3 companies" in result.output  # claude + edgar + 1 legacy
 
     legacy = _by_name(db_session_factory, "Legacy Co")
     assert legacy.enriched_at is None  # re-queued
 
-    # The source-less row WITH a DUNS is a real provider hit — must be untouched.
+    # The source-less row WITH a unique id is a real provider hit — must be untouched.
     legacy_hit = _by_name(db_session_factory, "Legacy Provider Co")
     assert legacy_hit.enriched_at is not None
-    assert legacy_hit.duns == "987654321"
+    assert legacy_hit.unique_id == "987654321"
 
 
 def test_provider_source_refused(runner, db_session_factory):

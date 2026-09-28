@@ -82,7 +82,7 @@ const validateCompaniesSearch = (
 ): {
   view?: "families";
   enriched?: "true" | "false" | undefined;
-  duns?: "true";
+  unique_id?: "true";
   industry?: string;
   subsector?: string;
   page?: number;
@@ -94,7 +94,7 @@ const validateCompaniesSearch = (
     search.enriched === "true" || search.enriched === "false"
       ? (search.enriched as "true" | "false")
       : undefined,
-  duns: search.duns === "true" ? "true" : undefined,
+  unique_id: search.unique_id === "true" ? "true" : undefined,
   industry: (search.industry as string) || undefined,
   subsector: (search.subsector as string) || undefined,
   page: search.page ? Number(search.page) : undefined,

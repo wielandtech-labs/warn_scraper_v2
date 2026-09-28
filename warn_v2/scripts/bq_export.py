@@ -16,8 +16,8 @@ tables:
 Only notices whose CANONICAL company is enriched are exported — the fully
 attributed slice is the product; coverage grows as enrichment does.
 
-Raw DUNS identifiers are never exported: the column list below is the single
-source of truth and tests assert nothing duns-shaped appears in it.
+Raw unique identifiers are never exported: the column list below is the single
+source of truth and tests assert nothing unique_id-shaped appears in it.
 """
 from __future__ import annotations
 

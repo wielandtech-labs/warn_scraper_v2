@@ -1,4 +1,4 @@
-"""BigQuery export: row shaping, enriched-only filter, DUNS exclusion, load guard."""
+"""BigQuery export: row shaping, enriched-only filter, unique-id exclusion, load guard."""
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
@@ -103,8 +103,11 @@ def test_row_shape_matches_schema_and_coerces_scalars(db):
     assert row["exported_at"] == row["exported_at"]  # present on every row
 
 
-def test_no_duns_anywhere():
+def test_no_unique_ids_anywhere():
+    # Both spellings: the columns were renamed unique_id/parent_unique_id in the
+    # code but still sit behind their original physical names in Postgres.
     for name in [*SCHEMA_NAMES, bq_export.SNAPSHOT_EXTRA[0]]:
+        assert "unique_id" not in name.lower()
         assert "duns" not in name.lower()
 
 

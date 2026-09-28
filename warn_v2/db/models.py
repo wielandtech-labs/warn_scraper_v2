@@ -51,7 +51,10 @@ class Company(Base):
 
     id: Mapped[int] = mapped_column(BigIntPK, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(512), nullable=False, index=True)
-    duns: Mapped[str | None] = mapped_column(String(16), index=True)
+    # The three *_unique_id attributes keep their original physical column
+    # names (pinned positionally) — the rename was terminology-only, so no
+    # migration and no index churn. Never drop the explicit name.
+    unique_id: Mapped[str | None] = mapped_column("duns", String(16), index=True)
     sic_code: Mapped[str | None] = mapped_column(String(8))
     sic_desc: Mapped[str | None] = mapped_column(String(256))
     naics_code: Mapped[str | None] = mapped_column(String(8))
@@ -59,7 +62,9 @@ class Company(Base):
     website: Mapped[str | None] = mapped_column(String(512))
     employee_count: Mapped[int | None] = mapped_column(Integer)
     parent_company_name: Mapped[str | None] = mapped_column(String(512))
-    parent_duns: Mapped[str | None] = mapped_column(String(16), index=True)
+    parent_unique_id: Mapped[str | None] = mapped_column(
+        "parent_duns", String(16), index=True
+    )
     global_ultimate_name: Mapped[str | None] = mapped_column(String(512))
     hq_address: Mapped[str | None] = mapped_column(Text)
     enriched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -81,9 +86,14 @@ class Company(Base):
         BigInteger, ForeignKey("companies.id", ondelete="SET NULL"), index=True
     )  # set => duplicate of the canonical (same legal entity); canonical row = NULL
     name_normalized: Mapped[str | None] = mapped_column(String(512), index=True)
-    global_ultimate_duns: Mapped[str | None] = mapped_column(String(16), index=True)
+    # The global ultimate's own unique id — the same kind of identifier as
+    # ``unique_id`` above, one level up the corporate tree.
+    global_ultimate_unique_id: Mapped[str | None] = mapped_column(
+        "global_ultimate_duns", String(16), index=True
+    )
     global_ultimate_id: Mapped[str | None] = mapped_column(String(64), index=True)
-    # the provider's stable id for the global ultimate (from its profile href) — exact,
+    # A DIFFERENT identifier from global_ultimate_unique_id: the provider's own
+    # stable id for the global ultimate (from its profile href) — exact,
     # free sibling-grouping key shared by all subsidiaries of one parent.
     parent_group_key: Mapped[str | None] = mapped_column(String(512), index=True)
 

@@ -1,4 +1,4 @@
-"""Tests for consolidate_companies (DUNS-first + name fallback + parent grouping)."""
+"""Tests for consolidate_companies (unique-id-first + name fallback + parent grouping)."""
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -16,21 +16,21 @@ def _company(db, name: str, **kw) -> Company:
     return c
 
 
-def test_duns_merge(db) -> None:
-    a = _company(db, "Acme Industries Inc", duns="111111111")
-    b = _company(db, "Acme Industries LLC", duns="111111111")
+def test_unique_id_merge(db) -> None:
+    a = _company(db, "Acme Industries Inc", unique_id="111111111")
+    b = _company(db, "Acme Industries LLC", unique_id="111111111")
     db.commit()
 
     res = consolidate_companies(dry_run=False, force=True)
     assert res["merged"] == 1
-    assert res["duns_groups"] == 1
+    assert res["unique_id_groups"] == 1
     db.expire_all()
     # lower id is the canonical survivor (no other tie-breaker here)
     assert db.get(Company, a.id).canonical_company_id is None
     assert db.get(Company, b.id).canonical_company_id == a.id
 
 
-def test_name_fallback_merge_without_duns(db) -> None:
+def test_name_fallback_merge_without_unique_id(db) -> None:
     a = _company(db, "Beta Co")
     b = _company(db, "Beta, LLC")
     db.commit()
@@ -42,10 +42,10 @@ def test_name_fallback_merge_without_duns(db) -> None:
     assert db.get(Company, b.id).canonical_company_id == a.id
 
 
-def test_name_collision_different_duns_not_merged(db) -> None:
-    # Same normalized name but two distinct DUNS = different entities → keep apart.
-    a = _company(db, "Summit Inc", duns="222222222")
-    b = _company(db, "Summit LLC", duns="333333333")
+def test_name_collision_different_unique_ids_not_merged(db) -> None:
+    # Same normalized name but two distinct unique ids = different entities → keep apart.
+    a = _company(db, "Summit Inc", unique_id="222222222")
+    b = _company(db, "Summit LLC", unique_id="333333333")
     db.commit()
 
     res = consolidate_companies(dry_run=False, force=True)
@@ -55,12 +55,12 @@ def test_name_collision_different_duns_not_merged(db) -> None:
     assert db.get(Company, b.id).canonical_company_id is None
 
 
-def test_multi_duns_same_website_merges(db) -> None:
-    # One company whose enrichment split across several DUNS, all at the same
-    # site -> merge despite the multi-DUNS guard (the Boeing case).
-    a = _company(db, "Boeing", duns="100000001", website="http://www.boeing.com")
-    b = _company(db, "Boeing Company", duns="100000002", website="https://boeing.com/careers")
-    c = _company(db, "The Boeing Company", duns="100000003", website="www.boeing.com")
+def test_multi_unique_id_same_website_merges(db) -> None:
+    # One company whose enrichment split across several unique ids, all at the same
+    # site -> merge despite the multi-id guard (the Boeing case).
+    a = _company(db, "Boeing", unique_id="100000001", website="http://www.boeing.com")
+    b = _company(db, "Boeing Company", unique_id="100000002", website="https://boeing.com/careers")
+    c = _company(db, "The Boeing Company", unique_id="100000003", website="www.boeing.com")
     db.commit()
 
     res = consolidate_companies(dry_run=False, force=True)
@@ -74,14 +74,14 @@ def test_multi_duns_same_website_merges(db) -> None:
 
 
 def test_website_merge_flattens_child_chains(db) -> None:
-    # A hub that absorbed a Pass-1 DUNS child, then LOSES the website-path merge
+    # A hub that absorbed a Pass-1 unique-id child, then LOSES the website-path merge
     # to another hub, must not leave the grandchild in a 2-hop chain — every
     # member resolves to the single ultimate survivor.
-    # hub_a wins (lowest id); child shares hub_b's DUNS so Pass 1 puts it under
+    # hub_a wins (lowest id); child shares hub_b's unique id so Pass 1 puts it under
     # the losing hub_b.
-    hub_a = _company(db, "Boeing", duns="500000001", website="http://www.boeing.com")
-    hub_b = _company(db, "Boeing Company", duns="500000002", website="https://boeing.com")
-    child = _company(db, "Boeing Field Office", duns="500000002")
+    hub_a = _company(db, "Boeing", unique_id="500000001", website="http://www.boeing.com")
+    hub_b = _company(db, "Boeing Company", unique_id="500000002", website="https://boeing.com")
+    child = _company(db, "Boeing Field Office", unique_id="500000002")
     db.commit()
 
     consolidate_companies(dry_run=False, force=True)
@@ -94,11 +94,11 @@ def test_website_merge_flattens_child_chains(db) -> None:
     assert db.get(Company, child.id).canonical_company_id == surv
 
 
-def test_multi_duns_different_website_not_merged(db) -> None:
-    # Same normalized name + different DUNS + DIFFERENT sites = genuinely
+def test_multi_unique_id_different_website_not_merged(db) -> None:
+    # Same normalized name + different unique ids + DIFFERENT sites = genuinely
     # different companies -> keep apart.
-    a = _company(db, "Summit Inc", duns="200000001", website="http://summit-a.com")
-    b = _company(db, "Summit LLC", duns="200000002", website="http://summit-b.com")
+    a = _company(db, "Summit Inc", unique_id="200000001", website="http://summit-a.com")
+    b = _company(db, "Summit LLC", unique_id="200000002", website="http://summit-b.com")
     db.commit()
 
     res = consolidate_companies(dry_run=False, force=True)
@@ -109,11 +109,11 @@ def test_multi_duns_different_website_not_merged(db) -> None:
     assert db.get(Company, b.id).canonical_company_id is None
 
 
-def test_multi_duns_partial_website_rides_along(db) -> None:
+def test_multi_unique_id_partial_website_rides_along(db) -> None:
     # An un-enriched (no-website) sibling doesn't block the merge; it rides along
     # on the shared name and the one known domain.
-    a = _company(db, "Boeing", duns="400000001", website="http://www.boeing.com")
-    b = _company(db, "Boeing Co", duns="400000002")  # no website
+    a = _company(db, "Boeing", unique_id="400000001", website="http://www.boeing.com")
+    b = _company(db, "Boeing Co", unique_id="400000002")  # no website
     db.commit()
 
     res = consolidate_companies(dry_run=False, force=True)
@@ -124,9 +124,9 @@ def test_multi_duns_partial_website_rides_along(db) -> None:
 
 
 def test_survivor_prefers_enriched(db) -> None:
-    plain = _company(db, "Gamma Inc", duns="444444444")
+    plain = _company(db, "Gamma Inc", unique_id="444444444")
     rich = _company(
-        db, "Gamma LLC", duns="444444444",
+        db, "Gamma LLC", unique_id="444444444",
         enriched_at=datetime.now(UTC), enrichment_confidence=Decimal("0.95"),
     )
     db.commit()
@@ -139,12 +139,12 @@ def test_survivor_prefers_enriched(db) -> None:
 
 
 def test_survivor_prefers_digit_free_name(db) -> None:
-    # The Kmart case: same DUNS, both enriched at the same confidence, and the
+    # The Kmart case: same unique id, both enriched at the same confidence, and the
     # store-numbered row has more notices — the clean name still wins, since the
     # survivor's name is the label the whole group displays.
     enriched = {"enriched_at": datetime.now(UTC), "enrichment_confidence": Decimal("1.00")}
-    store = _company(db, "KMART CORPORATION # 7435", duns="555555555", **enriched)
-    clean = _company(db, "Kmart Corporation", duns="555555555", **enriched)
+    store = _company(db, "KMART CORPORATION # 7435", unique_id="555555555", **enriched)
+    clean = _company(db, "Kmart Corporation", unique_id="555555555", **enriched)
     for i in range(3):
         db.add(Notice(notice_id=f"km{i}", state="MI", employer=store.name, company_id=store.id))
     db.add(Notice(notice_id="km_clean", state="MI", employer=clean.name, company_id=clean.id))
@@ -158,9 +158,9 @@ def test_survivor_prefers_digit_free_name(db) -> None:
 
 def test_parent_group_key_prefers_gu_id(db) -> None:
     # Two siblings of one ultimate share the global_ultimate_id -> same group key.
-    a = _company(db, "Sub One", duns="555000001",
-                 global_ultimate_id="uuid-mega", global_ultimate_duns="999000111")
-    b = _company(db, "Sub Two", duns="555000002",
+    a = _company(db, "Sub One", unique_id="555000001",
+                 global_ultimate_id="uuid-mega", global_ultimate_unique_id="999000111")
+    b = _company(db, "Sub Two", unique_id="555000002",
                  global_ultimate_id="uuid-mega", global_ultimate_name="Mega Corp")
     db.commit()
     consolidate_companies(dry_run=False, force=True)
@@ -169,19 +169,19 @@ def test_parent_group_key_prefers_gu_id(db) -> None:
     assert db.get(Company, b.id).parent_group_key == "ult:uuid-mega"
 
 
-def test_parent_group_key_falls_back_to_gu_duns_then_name(db) -> None:
-    c = _company(db, "Sub Co", duns="555555555",
-                 global_ultimate_duns="999000111", global_ultimate_name="Mega Corp")
-    d = _company(db, "Other Sub", duns="555555556", global_ultimate_name="Mega Corp")
+def test_parent_group_key_falls_back_to_gu_unique_id_then_name(db) -> None:
+    c = _company(db, "Sub Co", unique_id="555555555",
+                 global_ultimate_unique_id="999000111", global_ultimate_name="Mega Corp")
+    d = _company(db, "Other Sub", unique_id="555555556", global_ultimate_name="Mega Corp")
     db.commit()
     consolidate_companies(dry_run=False, force=True)
     db.expire_all()
-    assert db.get(Company, c.id).parent_group_key == "duns:999000111"
+    assert db.get(Company, c.id).parent_group_key == "uid:999000111"
     assert db.get(Company, d.id).parent_group_key == "name:mega"  # 'corp' stripped
 
 
 def test_parent_group_key_name_fallback(db) -> None:
-    c = _company(db, "Orphan Inc")  # no duns, no parent
+    c = _company(db, "Orphan Inc")  # no unique_id, no parent
     db.commit()
     consolidate_companies(dry_run=False, force=True)
     db.expire_all()
@@ -189,8 +189,8 @@ def test_parent_group_key_name_fallback(db) -> None:
 
 
 def test_dry_run_writes_nothing(db) -> None:
-    _company(db, "Delta Inc", duns="666666666")
-    b = _company(db, "Delta LLC", duns="666666666")
+    _company(db, "Delta Inc", unique_id="666666666")
+    b = _company(db, "Delta LLC", unique_id="666666666")
     db.commit()
 
     res = consolidate_companies(dry_run=True, force=True)
@@ -200,8 +200,8 @@ def test_dry_run_writes_nothing(db) -> None:
 
 
 def test_idempotent(db) -> None:
-    _company(db, "Epsilon Inc", duns="777777777")
-    _company(db, "Epsilon LLC", duns="777777777")
+    _company(db, "Epsilon Inc", unique_id="777777777")
+    _company(db, "Epsilon LLC", unique_id="777777777")
     db.commit()
 
     first = consolidate_companies(dry_run=False, force=True)

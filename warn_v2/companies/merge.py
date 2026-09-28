@@ -1,7 +1,7 @@
 """Resolve company merge maps: admin overrides on top of the automatic merges.
 
 A merge map is ``{duplicate_id: canonical_id}``. The nightly consolidator builds
-one from DUNS/name heuristics; admins then correct it through
+one from unique-id/name heuristics; admins then correct it through
 ``CompanyMergeOverride`` rows (``target_company_id`` set = "merge into this",
 NULL = "keep separate"). Both the consolidator and the admin API run the same
 ``apply_overrides`` + ``flatten`` so a manual decision means the same thing

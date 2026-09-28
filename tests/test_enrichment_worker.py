@@ -53,7 +53,7 @@ class _StubResult:
     website: str | None = "https://acme.com"
     sic_code: str | None = "3559"
     sic_desc: str | None = "Special Industry Machinery"
-    duns: str | None = None
+    unique_id: str | None = None
     confidence: float = 0.85
     sources: list = None  # type: ignore[assignment]
     last_message: str | None = None
@@ -85,7 +85,7 @@ def _stub_run(result: _StubResult | None = None):
             website=stub.website,
             sic_code=stub.sic_code,
             sic_desc=stub.sic_desc,
-            duns=stub.duns,
+            unique_id=stub.unique_id,
             confidence=stub.confidence,
             sources=stub.sources or [],
             last_message=stub.last_message,
@@ -409,11 +409,11 @@ def test_enrich_batch_provider_hit_skips_edgar_and_claude(db, monkeypatch) -> No
                 sic_desc="Aircraft & Parts",
                 naics_code="336411",
                 naics_desc="Aircraft Manufacturing",
-                duns="009867000",
+                unique_id="009867000",
                 website="https://boeing.com",
                 employee_count=170000,
                 parent_company_name="The Boeing Company",
-                parent_duns="009867123",
+                parent_unique_id="009867123",
                 global_ultimate_name="The Boeing Company",
                 hq_address="929 Long Bridge Dr, Arlington, VA 22202",
                 confidence=0.95,
@@ -439,11 +439,11 @@ def test_enrich_batch_provider_hit_skips_edgar_and_claude(db, monkeypatch) -> No
     assert c.enrichment_source == "provider"
     assert c.sic_code == "3721"
     assert c.naics_code == "336411"
-    assert c.duns == "009867000"
+    assert c.unique_id == "009867000"
     assert c.website == "https://boeing.com"
     assert c.employee_count == 170000
     assert c.parent_company_name == "The Boeing Company"
-    assert c.parent_duns == "009867123"
+    assert c.parent_unique_id == "009867123"
     assert c.global_ultimate_name == "The Boeing Company"
     assert c.hq_address == "929 Long Bridge Dr, Arlington, VA 22202"
     assert c.enriched_at is not None
@@ -487,7 +487,7 @@ def test_enrich_batch_edgar_hit_skips_claude(db, monkeypatch) -> None:
     assert c.enrichment_source == "edgar"
     assert c.sic_code == "3612"
     assert c.naics_code == "335311"
-    assert c.duns is None  # EDGAR tier never sets DUNS
+    assert c.unique_id is None  # EDGAR tier never sets a unique id
     assert c.enriched_at is not None
 
 
@@ -604,7 +604,7 @@ def test_provider_only_miss_stamps_and_stays_queued(db, monkeypatch) -> None:
 
 def test_provider_match_rejected_when_inconsistent_with_original(db, monkeypatch) -> None:
     """Certainty guard: an aggressively-stripped query that resolves to an
-    unrelated company must NOT persist a DUNS — it's treated as a miss."""
+    unrelated company must NOT persist a unique id — it's treated as a miss."""
     from warn_v2.enrichment.provider import ProviderResult
 
     class _WrongMatchProvider:
@@ -612,7 +612,7 @@ def test_provider_match_rejected_when_inconsistent_with_original(db, monkeypatch
             # The query found *a* company, but not the one we asked about.
             return ProviderResult(
                 entity_name="Booz Allen Hamilton",
-                duns="111111111",
+                unique_id="111111111",
                 confidence=0.95,
             )
 
@@ -628,7 +628,7 @@ def test_provider_match_rejected_when_inconsistent_with_original(db, monkeypatch
     assert stats["enriched"] == 0
 
     db.refresh(c)
-    assert c.duns is None  # the dubious DUNS was NOT persisted
+    assert c.unique_id is None  # the dubious unique id was NOT persisted
     assert c.enriched_at is None
     assert c.provider_attempted_at is not None  # still stamped, won't be retried
 
@@ -640,7 +640,7 @@ def test_provider_match_accepted_when_consistent(db, monkeypatch) -> None:
     class _GoodMatchProvider:
         def lookup(self, company_name: str, state):
             return ProviderResult(
-                entity_name="Peraton Inc.", duns="222222222", confidence=0.92,
+                entity_name="Peraton Inc.", unique_id="222222222", confidence=0.92,
             )
 
     c = _company(db, name="Peraton 1875 Explorer St Reston, VA 20190")
@@ -654,7 +654,7 @@ def test_provider_match_accepted_when_consistent(db, monkeypatch) -> None:
     assert stats["provider_rejected"] == 0
 
     db.refresh(c)
-    assert c.duns == "222222222"
+    assert c.unique_id == "222222222"
     assert c.enrichment_source == "provider"
 
 
@@ -724,7 +724,7 @@ def test_provider_miss_retries_with_dba_trade_name(db) -> None:
             self.calls.append(company_name)
             if company_name == "Cardinal Health":
                 return ProviderResult(
-                    entity_name="Cardinal Health, Inc.", duns="333333333",
+                    entity_name="Cardinal Health, Inc.", unique_id="333333333",
                     confidence=0.95,
                 )
             return None
@@ -745,7 +745,7 @@ def test_provider_miss_retries_with_dba_trade_name(db) -> None:
     assert stats["enriched"] == 1
 
     db.refresh(c)
-    assert c.duns == "333333333"
+    assert c.unique_id == "333333333"
     assert c.enrichment_source == "provider"
     assert c.provider_attempted_at is not None
 
@@ -771,7 +771,7 @@ def test_dba_retry_match_rejected_when_inconsistent(db) -> None:
         def lookup(self, company_name: str, state):
             if company_name == "Arc":
                 return ProviderResult(
-                    entity_name="Booz Allen Hamilton", duns="444444444",
+                    entity_name="Booz Allen Hamilton", unique_id="444444444",
                     confidence=0.95,
                 )
             return None
@@ -790,7 +790,7 @@ def test_dba_retry_match_rejected_when_inconsistent(db) -> None:
     assert stats["provider_miss"] == 1
 
     db.refresh(c)
-    assert c.duns is None
+    assert c.unique_id is None
     assert c.provider_attempted_at is not None
 
 
@@ -866,10 +866,10 @@ def test_unsearchable_query_skips_backup_tiers(db, monkeypatch) -> None:
 # Sibling propagation
 # ---------------------------------------------------------------------------
 
-def _provider_enriched(db, name: str, duns: str, confidence="0.95", **kw) -> Company:
+def _provider_enriched(db, name: str, unique_id: str, confidence="0.95", **kw) -> Company:
     from datetime import UTC, datetime
     return _company(
-        db, name=name, duns=duns, enrichment_source="provider",
+        db, name=name, unique_id=unique_id, enrichment_source="provider",
         enriched_at=datetime.now(UTC), enrichment_confidence=Decimal(confidence),
         website="https://abm.example", sic_code="7349", naics_code="561720",
         employee_count=1000, parent_company_name="Parent Co",
@@ -897,7 +897,7 @@ def test_sibling_prepass_enriches_attempted_twin_without_provider_call(db) -> No
 
     db.refresh(twin)
     assert twin.enrichment_source == "sibling"
-    assert twin.duns == donor.duns
+    assert twin.unique_id == donor.unique_id
     assert twin.website == donor.website
     assert twin.naics_code == donor.naics_code
     assert twin.enrichment_confidence == Decimal("0.90")  # capped below donor
@@ -905,10 +905,10 @@ def test_sibling_prepass_enriches_attempted_twin_without_provider_call(db) -> No
     assert json.loads(twin.enrichment_sources) == [f"sibling:company_id={donor.id}"]
 
 
-def test_sibling_prepass_skips_conflicting_duns(db) -> None:
-    """Two donors under one key with different DUNS = different legal entities
+def test_sibling_prepass_skips_conflicting_unique_ids(db) -> None:
+    """Two donors under one key with different unique ids = different legal entities
     (franchisees) — never propagate under that key."""
-    # Both donors clean to the key 'hooters' but carry different DUNS.
+    # Both donors clean to the key 'hooters' but carry different unique ids.
     _provider_enriched(db, "Hooters - Austin", "111111111")
     _provider_enriched(db, "Hooters - Tampa", "222222222")
     twin = _company(db, name="Hooters - Alamo")
@@ -921,7 +921,7 @@ def test_sibling_prepass_skips_conflicting_duns(db) -> None:
     assert stats["sibling"] == 0
     db.refresh(twin)
     assert twin.enrichment_source != "sibling"
-    assert twin.duns is None
+    assert twin.unique_id is None
 
 
 def test_sibling_prepass_skips_generic_key_and_non_provider_donors(db) -> None:
@@ -946,7 +946,7 @@ def test_sibling_prepass_skips_generic_key_and_non_provider_donors(db) -> None:
     assert stats["sibling"] == 0
     db.refresh(generic_twin)
     db.refresh(edgar_twin)
-    assert generic_twin.duns is None
+    assert generic_twin.unique_id is None
     assert edgar_twin.enriched_at is None
     assert edgar_donor.enrichment_source == "edgar"
 
@@ -963,7 +963,7 @@ def test_sibling_propagates_in_run_after_fresh_provider_hit(db) -> None:
         def lookup(self, company_name: str, state):
             self.calls.append(company_name)
             return ProviderResult(
-                entity_name="Take 5 Oil Change LLC", duns="666666666",
+                entity_name="Take 5 Oil Change LLC", unique_id="666666666",
                 confidence=0.95,
             )
 
@@ -984,8 +984,8 @@ def test_sibling_propagates_in_run_after_fresh_provider_hit(db) -> None:
 
     db.refresh(first)
     db.refresh(second)
-    duns = {first.duns, second.duns}
-    assert duns == {"666666666"}
+    unique_id = {first.unique_id, second.unique_id}
+    assert unique_id == {"666666666"}
     sources = {first.enrichment_source, second.enrichment_source}
     assert sources == {"provider", "sibling"}
 
@@ -1004,8 +1004,8 @@ def test_sibling_prepass_requires_faithful_match(db) -> None:
     )
     assert stats["sibling"] == 0
     db.refresh(twin)
-    assert twin.duns is None
-    assert donor.duns == "777777777"
+    assert twin.unique_id is None
+    assert donor.unique_id == "777777777"
 
 
 def test_sibling_prepass_dry_run_writes_nothing(db) -> None:
@@ -1023,7 +1023,7 @@ def test_sibling_prepass_dry_run_writes_nothing(db) -> None:
     assert stats["sibling"] >= 1  # counted...
     db.refresh(twin)
     assert twin.enriched_at is None  # ...but nothing written
-    assert twin.duns is None
+    assert twin.unique_id is None
     assert twin.enrichment_source is None
 
 
@@ -1255,7 +1255,7 @@ def test_provider_miss_walks_the_fallback_ladder_until_a_hit(db) -> None:
             self.calls.append(company_name)
             if company_name == "America West Airlines":
                 return ProviderResult(
-                    entity_name="America West Airlines, Inc.", duns="555555555",
+                    entity_name="America West Airlines, Inc.", unique_id="555555555",
                     confidence=0.9,
                 )
             return None
@@ -1277,7 +1277,7 @@ def test_provider_miss_walks_the_fallback_ladder_until_a_hit(db) -> None:
     assert stats["provider_miss"] == 0
 
     db.refresh(c)
-    assert c.duns == "555555555"
+    assert c.unique_id == "555555555"
     assert c.provider_attempted_at is not None
 
 

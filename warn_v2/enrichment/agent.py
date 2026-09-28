@@ -2,7 +2,7 @@
 
 A multi-turn tool-use loop over the Anthropic Messages API. Given a company
 name and its WARN notice context, the agent searches the web and fetches
-public sources to determine the company's website, SIC code, and DUNS number,
+public sources to determine the company's website, SIC code, and unique id,
 then calls `finalize` to return a structured result.
 
 The `LLMClient` Protocol lets tests inject a fake client so we exercise the
@@ -27,7 +27,7 @@ DEFAULT_MAX_TOKENS = 2048
 
 SYSTEM_PROMPT = """\
 You are a company research agent for warn-v2 (US WARN layoff notices).
-Find the company's primary website URL. SIC/NAICS/DUNS were already tried elsewhere.
+Find the company's primary website URL. SIC/NAICS/unique ids were already tried elsewhere.
 
 BUDGET: 3 tool calls total (web_search + fetch_url combined). Use them wisely.
 Call finalize as soon as you have enough evidence — do not keep searching.
@@ -36,7 +36,7 @@ Steps:
 1. web_search the company name + state.
 2. Optionally fetch_url one candidate page to confirm it is the right company.
 3. Call finalize with the website (or null if not found), confidence 0.0-1.0,
-   and any DUNS you found in a public source (never guess).
+   and any unique business id you found in a public source (never guess).
 
 Do not call finalize if confidence < 0.4. If nothing is found, finalize with
 null website and confidence 0.3.
@@ -75,7 +75,7 @@ class EnrichmentResult:
     website: str | None = None
     sic_code: str | None = None
     sic_desc: str | None = None
-    duns: str | None = None
+    unique_id: str | None = None
     confidence: float = 0.0
     sources: list[str] = field(default_factory=list)
     last_message: str | None = None
@@ -179,7 +179,7 @@ def run_enrichment(
                 website=finalize_args.website,
                 sic_code=finalize_args.sic_code,
                 sic_desc=finalize_args.sic_desc,
-                duns=finalize_args.duns,
+                unique_id=finalize_args.unique_id,
                 confidence=finalize_args.confidence,
                 sources=finalize_args.sources,
                 last_message=last_text,

@@ -1,12 +1,13 @@
 # Auth operations
 
-The API has cookie-session auth with three roles:
+The API has cookie-session auth with four roles:
 
 | Role  | Sees                                                                  |
 |-------|-----------------------------------------------------------------------|
 | free  | Same as anonymous (the public site shape) — login adds nothing yet    |
-| paid  | + provider fields on companies: duns, parent_duns, parent_company_name, global_ultimate_name, hq_address, employee_count |
-| admin | Same as paid, plus `/admin/companies` (merge/unmerge company records; `require_admin`) |
+| paid  | + provider fields on companies: parent_company_name, global_ultimate_name, hq_address, employee_count |
+| enterprise | Same as paid, plus the raw unique ids: unique_id, parent_unique_id |
+| admin | Same as enterprise, plus `/admin/companies` (merge/unmerge company records; `require_admin`) |
 
 Accounts are **admin-provisioned only** — there is no signup endpoint. User
 management is via the CLI (`create-user`, `set-role`, `list-users`,

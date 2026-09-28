@@ -5,8 +5,8 @@ Bulk CSV/JSON download reusing the same filters as the list endpoints
 
 - anonymous / free    -> capped at FREE_EXPORT_CAP rows, public columns only
 - paid                -> up to PAID_EXPORT_CAP rows, plus provider-enriched columns
-                         (minus raw DUNS identifiers)
-- enterprise / admin  -> paid columns plus raw DUNS identifiers
+                         (minus raw unique identifiers)
+- enterprise / admin  -> paid columns plus raw unique identifiers
 
 Memory discipline: exports select plain column tuples (never ORM entities) and
 stream through a server-side cursor (yield_per), so peak memory is one batch
@@ -48,7 +48,7 @@ _NOTICE_PUBLIC_COLS = [
 _NOTICE_ENRICHED_COLS = [
     "parent_company_name", "global_ultimate_name", "employee_count",
 ]
-_NOTICE_ENTERPRISE_COLS = ["company_duns"]
+_NOTICE_ENTERPRISE_COLS = ["company_unique_id"]
 
 _COMPANY_PUBLIC_COLS = [
     "id", "name", "sic_code", "sic_desc", "naics_code", "naics_desc", "website",
@@ -57,7 +57,7 @@ _COMPANY_PUBLIC_COLS = [
 _COMPANY_ENRICHED_COLS = [
     "parent_company_name", "global_ultimate_name", "hq_address", "employee_count",
 ]
-_COMPANY_ENTERPRISE_COLS = ["duns", "parent_duns"]
+_COMPANY_ENTERPRISE_COLS = ["unique_id", "parent_unique_id"]
 
 
 class ExportAccess:
@@ -151,7 +151,7 @@ def export_notices(
             Location.city, Location.county, Location.zip, Location.lat, Location.lon,
             Notice.source_url, Notice.raw_notice_url,
             Company.parent_company_name, Company.global_ultimate_name,
-            Company.employee_count, Company.duns.label("company_duns"),
+            Company.employee_count, Company.unique_id.label("company_unique_id"),
         )
         .select_from(Notice)
         .outerjoin(Company, Company.id == Notice.company_id)
@@ -180,7 +180,7 @@ def export_notices(
 def export_companies(
     name: str | None = Query(None),
     enriched: bool | None = Query(None),
-    has_duns: bool | None = Query(None),
+    has_unique_id: bool | None = Query(None),
     sic_code: str | None = Query(None),
     industry: str | None = Query(None),
     subsector: str | None = Query(None),
@@ -212,7 +212,7 @@ def export_companies(
             func.coalesce(totals_sq.c.layoff_total, 0).label("layoff_total"),
             Company.parent_company_name, Company.global_ultimate_name,
             Company.hq_address, Company.employee_count,
-            Company.duns, Company.parent_duns,
+            Company.unique_id, Company.parent_unique_id,
         )
         .outerjoin(totals_sq, totals_sq.c.cid == Company.id)
         .order_by(Company.name)
@@ -225,10 +225,10 @@ def export_companies(
         stmt = stmt.where(Company.enriched_at.is_not(None))
     elif enriched is False:
         stmt = stmt.where(Company.enriched_at.is_(None))
-    if has_duns is True:
-        stmt = stmt.where(Company.duns.is_not(None))
-    elif has_duns is False:
-        stmt = stmt.where(Company.duns.is_(None))
+    if has_unique_id is True:
+        stmt = stmt.where(Company.unique_id.is_not(None))
+    elif has_unique_id is False:
+        stmt = stmt.where(Company.unique_id.is_(None))
     if sic_code:
         stmt = stmt.where(Company.sic_code == sic_code)
     ind = naics_filter(Company.naics_code, industry, subsector)
