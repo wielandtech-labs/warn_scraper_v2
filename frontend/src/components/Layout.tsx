@@ -88,7 +88,7 @@ export function Layout({ children }: { children: ReactNode }) {
             to="/"
             className="whitespace-nowrap text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100"
           >
-            WARN <span className="text-sky-600 dark:text-sky-400">·</span>{" "}
+            WARN Index <span className="text-sky-600 dark:text-sky-400">·</span>{" "}
             <span className="font-normal text-slate-500 dark:text-slate-400">Layoff notices</span>
           </Link>
           {/* Desktop nav + account (md and up). */}

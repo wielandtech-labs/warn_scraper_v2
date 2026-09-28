@@ -1,6 +1,6 @@
 # Coverage cross-check vs. external aggregators — 2026-07-07
 
-Comparison of warn.wielandtech.com coverage against the two big public WARN
+Comparison of warnindex.com coverage against the two big public WARN
 aggregators, per the project policy in [historical-sources.md](historical-sources.md):
 aggregators are a **completeness cross-check only**, never ingested. The goal is to
 find coverage gaps (states / date ranges) that are not already handled by a drafted

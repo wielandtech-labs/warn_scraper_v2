@@ -51,7 +51,7 @@ export function StateDetailPage() {
   const name = stateName(code);
 
   useDocumentTitle(
-    valid ? `${name} layoffs & WARN notices — WARN Tracker` : "Unknown state — WARN Tracker",
+    valid ? `${name} layoffs & WARN notices — WARN Index` : "Unknown state — WARN Index",
   );
 
   const [range, setRange] = useState<TimeRange>("all");

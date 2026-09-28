@@ -43,7 +43,7 @@ function occupationChip(o: OccupationEstimate, filed: boolean): string {
 }
 
 export function RadarPage() {
-  useDocumentTitle("Upcoming layoffs radar — WARN Tracker");
+  useDocumentTitle("Upcoming layoffs radar — WARN Index");
   const navigate = useNavigate({ from: "/radar" });
   const search = useSearch({ from: "/radar" });
   // Clamp URL-supplied numbers into the API's accepted ranges so a mangled

@@ -28,7 +28,7 @@ import { withProjectionSeries } from "../lib/projection";
 import { CHART_COLORS } from "../lib/themeColors";
 
 export function StatsPage() {
-  useDocumentTitle("Layoff statistics & trends — WARN Tracker");
+  useDocumentTitle("Layoff statistics & trends — WARN Index");
   const { resolved } = useTheme();
   const chart = CHART_COLORS[resolved];
   const navigate = useNavigate({ from: "/stats" });

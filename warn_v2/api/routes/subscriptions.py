@@ -235,7 +235,7 @@ def _send_confirmation(sub: Subscription) -> None:
     )
     send_email(
         sub.email,
-        "Confirm your WARN Tracker alerts",
+        "Confirm your WARN Index alerts",
         f"Confirm your email to start receiving WARN layoff alerts for {scope}:\n\n"
         f"{confirm_url}\n\nIf you didn't request this, ignore this message.",
         html_body,
@@ -251,13 +251,13 @@ def _send_manage_link(sub: Subscription, *, already_subscribed: bool = False) ->
     base = site_base_url()
     url = manage_url(sub, base)
     lead = (
-        f"You're already subscribed to WARN Tracker alerts for {describe_scope(sub)}. "
+        f"You're already subscribed to WARN Index alerts for {describe_scope(sub)}. "
         "Use the link below to change or remove your alerts:"
         if already_subscribed
-        else "Use the link below to view, change or remove your WARN Tracker alerts:"
+        else "Use the link below to view, change or remove your WARN Index alerts:"
     )
     html_body = render_shell(
-        preheader="Manage your WARN Tracker alerts.",
+        preheader="Manage your WARN Index alerts.",
         content=(
             f'<tr><td style="padding:24px 24px 8px;{FONT};font-size:15px;line-height:22px;'
             f'color:#0f172a;">{escape(lead)}</td></tr>'
@@ -269,7 +269,7 @@ def _send_manage_link(sub: Subscription, *, already_subscribed: bool = False) ->
     )
     send_email(
         sub.email,
-        "Your WARN Tracker alerts",
+        "Your WARN Index alerts",
         f"{lead}\n\n{url}\n\nIf you didn't request this, ignore this message.",
         html_body,
     )
@@ -370,7 +370,7 @@ def _delete_by_token(db: Session, token: str) -> None:
 def unsubscribe(token: str = Query(...), db: Session = Depends(get_db)) -> HTMLResponse:
     _delete_by_token(db, token)
     # Always show success so the link doesn't leak which tokens are valid.
-    return _page("Unsubscribed", "You won't receive any further WARN Tracker alerts.")
+    return _page("Unsubscribed", "You won't receive any further WARN Index alerts.")
 
 
 @router.post("/unsubscribe")

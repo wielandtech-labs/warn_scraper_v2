@@ -3,12 +3,12 @@ import { ContentPage } from "./ContentPage";
 export function AboutPage() {
   return (
     <ContentPage
-      title="About WARN Tracker"
-      docTitle="About — WARN Tracker"
+      title="About WARN Index"
+      docTitle="About — WARN Index"
       intro="A free, searchable database of US layoff and plant-closure notices."
     >
       <p>
-        WARN Tracker collects layoff and closure notices filed under the federal{" "}
+        WARN Index collects layoff and closure notices filed under the federal{" "}
         <a href="/warn-act">WARN Act</a> and state "mini-WARN" laws, standardizes them
         into one dataset, and makes them searchable, mappable, and downloadable.
       </p>

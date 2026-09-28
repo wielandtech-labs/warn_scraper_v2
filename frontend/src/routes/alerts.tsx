@@ -241,7 +241,7 @@ function RequestLinkCard() {
 }
 
 export function AlertsPage() {
-  useDocumentTitle("Your alerts — WARN Tracker");
+  useDocumentTitle("Your alerts — WARN Index");
   const { token } = useSearch({ from: "/alerts" });
   const auth = useAuth();
   // A session lists the same alerts without a token — the API accepts it only

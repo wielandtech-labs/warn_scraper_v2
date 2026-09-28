@@ -179,6 +179,26 @@ def test_feed_rss_returns_recent_notices(api_client, db):
     assert "Texas Co (TX)" in titles
 
 
+def test_feed_rss_guid_is_domain_independent(api_client, db, monkeypatch):
+    """guid must not embed the host, or a domain change re-notifies every subscriber."""
+    n = _notice(db, state="CA", employer="Acme Inc")
+    db.commit()
+
+    def guids() -> list[str]:
+        root = fromstring(api_client.get("/feed.rss").content)
+        items = root.findall(".//item")
+        assert all(it.find("guid").get("isPermaLink") == "false" for it in items)
+        return [it.findtext("guid") for it in items]
+
+    before = guids()
+    assert before == [f"warn-v2:notice:{n.notice_id}"]
+    monkeypatch.setenv("SITE_BASE_URL", "https://moved.example")
+    # The link follows the new origin; the guid does not.
+    root = fromstring(api_client.get("/feed.rss").content)
+    assert root.findtext(".//item/link").startswith("https://moved.example/")
+    assert guids() == before
+
+
 def test_feed_rss_excludes_superseded(api_client, db):
     _notice(db, state="CA", employer="Active Co")
     sup = _notice(db, state="CA", employer="Old Co", notice_date=date(2026, 1, 1))

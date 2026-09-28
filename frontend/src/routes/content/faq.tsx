@@ -4,7 +4,7 @@ export function FaqPage() {
   return (
     <ContentPage
       title="Frequently asked questions"
-      docTitle="FAQ — WARN Tracker"
+      docTitle="FAQ — WARN Index"
     >
       <h2>What is a WARN notice?</h2>
       <p>

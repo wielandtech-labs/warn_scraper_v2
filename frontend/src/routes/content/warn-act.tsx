@@ -4,7 +4,7 @@ export function WarnActPage() {
   return (
     <ContentPage
       title="What is the WARN Act?"
-      docTitle="What is the WARN Act? — WARN Tracker"
+      docTitle="What is the WARN Act? — WARN Index"
       intro="A plain-English guide to the federal law behind these layoff notices."
     >
       <p>

@@ -75,7 +75,7 @@ def render_digest(sub: Subscription, notices: list[Notice]) -> tuple[str, str, s
     scope = describe_scope(sub)
     n = len(notices)
     plural = "s" if n != 1 else ""
-    subject = f"WARN Tracker: {n} new {scope} layoff notice{plural}"
+    subject = f"WARN Index: {n} new {scope} layoff notice{plural}"
     unsub = unsubscribe_url(sub, base)
     manage = manage_url(sub, base)
 
@@ -114,11 +114,11 @@ def render_digest(sub: Subscription, notices: list[Notice]) -> tuple[str, str, s
         f"{button(notices_url(sub, base), 'View all matching notices')}</td></tr>"
     )
     footer = (
-        "You're receiving this because you subscribed to WARN Tracker alerts "
+        "You're receiving this because you subscribed to WARN Index alerts "
         f"for {escape(scope)}.<br>"
         f'<a href="{manage}" style="color:#64748b;">Manage your alerts</a> &#183; '
         f'<a href="{unsub}" style="color:#64748b;">Unsubscribe</a> &#183; '
-        f'<a href="{base}/" style="color:#64748b;">WARN Tracker</a>'
+        f'<a href="{base}/" style="color:#64748b;">WARN Index</a>'
     )
     preheader = f"{n} new WARN notice{plural}"
     if notices:

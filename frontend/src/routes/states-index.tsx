@@ -9,7 +9,7 @@ import { STATE_NAMES, US_STATES, fmtNum } from "../lib/format";
 import { NO_COUNTS } from "../lib/unavailable";
 
 export function StatesIndexPage() {
-  useDocumentTitle("Layoffs by state — WARN Tracker");
+  useDocumentTitle("Layoffs by state — WARN Index");
 
   const byState = useQuery({
     queryKey: ["stats", "by-state"],

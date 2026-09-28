@@ -47,7 +47,7 @@ export function CompanyDetail() {
   });
 
   useDocumentTitle(
-    company.data ? `${company.data.name} — WARN Tracker` : undefined,
+    company.data ? `${company.data.name} — WARN Index` : undefined,
   );
 
   if (Number.isNaN(id)) {

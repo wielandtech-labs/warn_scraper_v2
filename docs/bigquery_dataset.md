@@ -1,6 +1,6 @@
 # BigQuery dataset: `warn_notices`
 
-The published, fully-attributed slice of the WARN Tracker dataset: layoff
+The published, fully-attributed slice of the WARN Index dataset: layoff
 notices whose company has been resolved and industry-classified. Refreshed
 daily from the scraper's Postgres by `warn-v2 export-bigquery`
 (`warn_v2/scripts/bq_export.py` — the schema constants there are the source

@@ -4,12 +4,12 @@ export function TermsPage() {
   return (
     <ContentPage
       title="Terms of use"
-      docTitle="Terms — WARN Tracker"
+      docTitle="Terms — WARN Index"
       intro="Plain-language terms for the website, API, and datasets."
     >
       <h2>The data</h2>
       <p>
-        WARN Tracker compiles layoff and plant-closure notices from public state
+        WARN Index compiles layoff and plant-closure notices from public state
         WARN Act filings, then normalizes, deduplicates, geocodes, and
         industry-classifies them. The underlying records are public; our
         value-added fields (stable ids, geocoding, industry classification,
@@ -28,7 +28,7 @@ export function TermsPage() {
         </li>
         <li>
           Attribution is required when publishing work based on this data:
-          link to warn.wielandtech.com (see Cited by for examples).
+          link to warnindex.com (see Cited by for examples).
         </li>
       </ul>
 

@@ -50,7 +50,7 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 def create_app(static_dir: Path | None = None) -> FastAPI:
     app = FastAPI(
-        title="WARN Scraper",
+        title="WARN Index",
         version="2",
         description=(
             "Read-only API for WARN Act layoff notices, companies, and scraper audit logs.\n\n"

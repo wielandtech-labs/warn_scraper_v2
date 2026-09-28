@@ -17,7 +17,7 @@ export function NoticeDetail() {
   });
 
   useDocumentTitle(
-    query.data ? `${query.data.employer} — WARN notice — WARN Tracker` : undefined,
+    query.data ? `${query.data.employer} — WARN notice — WARN Index` : undefined,
   );
 
   if (query.isLoading) {

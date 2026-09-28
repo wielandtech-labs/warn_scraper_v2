@@ -20,9 +20,9 @@ def page(title: str, body: str, extra_html: str = "") -> HTMLResponse:
     return HTMLResponse(
         f"<!doctype html><html><head><meta charset='utf-8'>"
         f"<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        f"<title>{escape(title)} — WARN Tracker</title></head>"
+        f"<title>{escape(title)} — WARN Index</title></head>"
         f"<body style='{_BODY_STYLE}'>"
         f"<h1 style='font-size:1.25rem'>{escape(title)}</h1><p>{escape(body)}</p>"
         f"{extra_html}"
-        f"<p><a href='{base}/'>← Back to WARN Tracker</a></p></body></html>"
+        f"<p><a href='{base}/'>← Back to WARN Index</a></p></body></html>"
     )

@@ -24,7 +24,7 @@ export const SOURCE_LABEL: Record<string, string> = {
 };
 
 export function CompaniesPage() {
-  useDocumentTitle("Companies & corporate families — WARN Tracker");
+  useDocumentTitle("Companies & corporate families — WARN Index");
   const navigate = useNavigate({ from: "/companies" });
   const search = useSearch({ from: "/companies" });
   const view = search.view ?? "companies";

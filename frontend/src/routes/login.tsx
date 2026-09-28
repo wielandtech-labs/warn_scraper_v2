@@ -6,7 +6,7 @@ import { api, ApiError } from "../api/client";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 export function LoginPage() {
-  useDocumentTitle("Sign in — WARN Tracker");
+  useDocumentTitle("Sign in — WARN Index");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const navigate = useNavigate();

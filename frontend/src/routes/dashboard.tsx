@@ -35,7 +35,7 @@ import { withProjectionSeries } from "../lib/projection";
 import { CHART_COLORS } from "../lib/themeColors";
 
 export function Dashboard() {
-  useDocumentTitle("WARN Tracker — US layoff & closure notices");
+  useDocumentTitle("WARN Index — US layoff & closure notices");
   const { resolved } = useTheme();
   const chart = CHART_COLORS[resolved];
   const [range, setRange] = useState<TimeRange>("all");
