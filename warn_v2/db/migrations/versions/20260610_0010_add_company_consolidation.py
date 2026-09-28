@@ -1,11 +1,13 @@
 """Add company-consolidation columns.
 
 Non-destructive, all nullable:
-  canonical_company_id  self-FK; set => this row is a duplicate of the canonical
-                        (same legal entity). Canonical rows are NULL.
-  name_normalized       normalized name for fallback matching + forward-prevention.
-  global_ultimate_duns  DUNS of the global ultimate parent (sibling-grouping key).
-  parent_group_key      resolved sibling-grouping key (GU DUNS preferred).
+  ``canonical_company_id``  self-FK; set => this row is a duplicate of the
+                            canonical (same legal entity). Canonical rows are NULL.
+  ``name_normalized``       normalized name for fallback matching + forward-prevention.
+  ``global_ultimate_duns``  the global ultimate parent's unique id (a
+                            sibling-grouping key).
+  ``parent_group_key``      resolved sibling-grouping key (the GU unique id
+                            preferred).
 
 See warn_v2/scripts/consolidate_companies.py.
 

@@ -107,8 +107,8 @@ def test_no_unique_ids_anywhere():
     # Both spellings: the columns were renamed unique_id/parent_unique_id in the
     # code but still sit behind their original physical names in Postgres.
     for name in [*SCHEMA_NAMES, bq_export.SNAPSHOT_EXTRA[0]]:
-        assert "unique_id" not in name.lower()
-        assert "duns" not in name.lower()
+        for banned in ("unique_id", "duns"):
+            assert banned not in name.lower()
 
 
 def test_schema_has_descriptions():
