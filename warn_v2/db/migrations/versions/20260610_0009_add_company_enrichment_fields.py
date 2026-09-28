@@ -1,7 +1,7 @@
 """Add company enrichment fields for the provider tier.
 
 Captures the richer company data the provider can resolve:
-  employee_count, parent_company_name, parent_duns, global_ultimate_name,
+  employee_count, parent_company_name, ``parent_duns``, global_ultimate_name,
   hq_address.
 
 Additive migration — all nullable, no data risk. Rows enriched before this
