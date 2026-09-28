@@ -15,6 +15,18 @@ interface ChartColors {
   cursor: string;
   tooltip: CSSProperties;
   tooltipLabel: CSSProperties;
+  /* Categorical series for the BLS indicator cards, assigned in this fixed
+     order within each card (never cycled, never reassigned when a series
+     drops out). Deliberately NOT the notices/layoffs hues: a BLS series
+     measures something different from a WARN count, and sharing a color
+     would imply they are the same quantity.
+
+     Validated with the dataviz palette checker at both surfaces: CVD
+     separation, normal-vision floor and contrast all pass across every pair.
+     They sit above the checker's dark lightness band, which is calibrated for
+     a near-black surface -- the same deliberate deviation the notices/layoffs
+     dark steps already make so series stay legible on slate-900. */
+  indicators: [string, string, string];
 }
 
 export const CHART_COLORS: Record<ResolvedTheme, ChartColors> = {
@@ -30,6 +42,7 @@ export const CHART_COLORS: Record<ResolvedTheme, ChartColors> = {
       color: "#0f172a",
     },
     tooltipLabel: { color: "#0f172a" },
+    indicators: ["#7c3aed", "#d97706", "#0d9488"], // violet-600, amber-600, teal-600
   },
   dark: {
     grid: "#334155", // slate-700
@@ -43,6 +56,7 @@ export const CHART_COLORS: Record<ResolvedTheme, ChartColors> = {
       color: "#f1f5f9",
     },
     tooltipLabel: { color: "#f1f5f9" },
+    indicators: ["#a78bfa", "#f59e0b", "#14b8a6"], // violet-400, amber-500, teal-500
   },
 };
 

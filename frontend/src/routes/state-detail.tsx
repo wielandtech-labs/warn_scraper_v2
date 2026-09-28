@@ -16,6 +16,7 @@ import { api, ApiError } from "../api/client";
 import { AlertSignup } from "../components/AlertSignup";
 import { CountyImpact } from "../components/CountyImpact";
 import { ForecastNote } from "../components/ForecastNote";
+import { IndicatorChart } from "../components/IndicatorChart";
 import { NoticeMap } from "../components/NoticeMap";
 import { ProjectionNote } from "../components/ProjectionNote";
 import { ProjectionTooltip } from "../components/ProjectionTooltip";
@@ -142,6 +143,10 @@ export function StateDetailPage() {
   // segments would just be noise.
   const { data: projectedData, hasProjection } = withProjectionSeries(labeledTimeData);
   const timeData = hasForecast ? forecastData : projectedData;
+  // Periods the indicator cards plot onto, so their x-axes match the chart
+  // above. From the raw response, not timeData, whose forecast/projection
+  // padding adds periods that carry no recorded notices.
+  const indicatorPeriods = (overTime.data ?? []).map((r) => r.period);
 
   return (
     <div className="space-y-6">
@@ -341,6 +346,28 @@ export function StateDetailPage() {
           </>
         )}
       </div>
+
+      {/* How this state's labour market was doing over the same span. Skipped
+          on the 30-day range: every BLS series here is monthly, so there is
+          nothing to plot against a daily axis. */}
+      {bucket !== "day" && (
+        <>
+          <IndicatorChart
+            dataset="unemployment"
+            state={code}
+            bucket={bucket}
+            after={after}
+            periods={indicatorPeriods}
+          />
+          <IndicatorChart
+            dataset="jolts"
+            state={code}
+            bucket={bucket}
+            after={after}
+            periods={indicatorPeriods}
+          />
+        </>
+      )}
 
       <div className="card">
         <h2 className="mb-3 text-lg font-semibold">Layoffs across {name}</h2>

@@ -101,7 +101,7 @@ The scraper runs in a K3s homelab cluster managed by Flux GitOps (see
   app uses `postgres-cluster-rw.database.svc.cluster.local:5432/warn_v2`
 - **Alembic**: initial migration (`revision a1b2c3d4e5f6`) ran 2026-05-26;
   all four tables live (`locations`, `companies`, `notices`, `scraper_runs`)
-- **CronJobs**: `warn-v2-warn-v2-scraper` runs daily at 07:17 (`scrape-all`); `warn-v2-warn-v2-enricher` runs every 6 h at `:23` (`enrich`, 50 companies/run, 30 s between companies); `warn-v2-warn-v2-cross-check` (opt-in via `crossCheck.enabled`) runs daily at 09:17 (`cross-check`), re-fetching each state's live WARN page and recording drift vs. stored notices to `cross_check_runs`; `warn-v2-warn-v2-sentiment-report` runs weekly Mon 02:07 (`sentiment-report`, see [Sentiment reports](#sentiment-reports--industry-scorecards))
+- **CronJobs**: `warn-v2-warn-v2-scraper` runs daily at 07:17 (`scrape-all`); `warn-v2-warn-v2-enricher` runs every 6 h at `:23` (`enrich`, 50 companies/run, 30 s between companies); `warn-v2-warn-v2-cross-check` (opt-in via `crossCheck.enabled`) runs daily at 09:17 (`cross-check`), re-fetching each state's live WARN page and recording drift vs. stored notices to `cross_check_runs`; `warn-v2-warn-v2-sentiment-report` runs weekly Mon 02:07 (`sentiment-report`, see [Sentiment reports](#sentiment-reports--industry-scorecards)); `warn-v2-warn-v2-bls` (opt-in via `bls.enabled`) runs weekly Wed 12:40 (`fetch-bls`, see [Economic indicators](#economic-indicators))
 - **Snapshots PVC**: `synostorage-iscsi-retain`, 10 Gi, mounted at `/var/snapshots`
 
 **Secrets in `warn-v2` namespace** (all SealedSecrets, reconciled by Flux):
@@ -221,6 +221,41 @@ cluster access (reproduction is live), so it runs fine off the dev machine.
 |----------|---------|---------|
 | `SNAPSHOT_DIR` | `./snapshots` | Where the runner writes raw failure snapshots (replay material) |
 
+## Economic indicators
+
+WARN notices count *announced* layoffs at larger employers. On their own they
+can't say whether a spike is a loosening labour market or noise against a
+strong one, so each layoff time series carries a companion card of official
+BLS context on the same period span — `/stats`, every state page, and the
+industry reports.
+
+Three datasets, all monthly and seasonally adjusted, stored in `bls_series`
+keyed by raw BLS series id:
+
+| Dataset | Series | Coverage |
+|---|---|---|
+| `unemployment` | CPS U-3 + U-6 nationally, LAUS rates per state | 50 states + DC + PR. BLS publishes no monthly **state U-6** |
+| `payrolls` | CES all-employees levels, total nonfarm or by NAICS sector | National. Sector figures use the closest CES supersector, broader than NAICS where several sectors share one |
+| `jolts` | Layoffs & discharges, job openings, quits | National + 50 states and DC. **State estimates are modelled and republished annually**, so they run ~9 months behind the national series |
+
+`warn-v2 fetch-bls` refreshes them (default: a rolling three-year window, which
+picks up BLS revisions; `--start-year 2000` backfills). Series ids are built in
+`warn_v2/labor/catalog.py` — the only module that knows their layouts, because
+**a malformed id is not an error**: it comes back inside `Results.series` with
+an empty `data` list, indistinguishable from a real series with no data in the
+requested span. The job therefore fails on *coverage* rather than on status, and
+`tests/test_labor_catalog.py` pins each layout.
+
+`BLS_API_KEY` (free registration) is effectively required: unregistered callers
+get 10 series and 10 years per request and 25 requests a day, and the catalogue
+is ~225 series. With a key it is 50 series, 20 years and 500 requests. Supply it
+via the `warn-v2-bls` SealedSecret; the key is scoped to this CronJob, not to
+the API pods.
+
+Not included: LISEP's True Rate of Unemployment. Their terms of use forbid
+redistributing it, and it ships only as a monthly spreadsheet on a rotating CDN
+path. U-6 is the closest public-domain equivalent.
+
 ## Sentiment reports & industry scorecards
 
 `warn_v2/reports/` generates weekly markdown reports — one per state, a national
@@ -241,7 +276,9 @@ and rendered on the SPA's state pages (below the hardest-hit counties) and
    changes (total nonfarm + closest supersector per sector) and the unemployment
    rate, aligned to the same months, injected as `bls_context` into the national
    and industry payloads. Strictly fail-open: any API problem and the reports
-   render without it. `BLS_API_KEY` optional.
+   render without it. Shares its HTTP client and series ids with the
+   `fetch-bls` ingester (see [Economic indicators](#economic-indicators)),
+   which is *not* fail-open.
 3. **LLM narrative** (`ollama.py`, `generate.py`) — gpt-oss:20b on the cluster's
    shared Ollama writes the Sentiment section from the JSON payload only.
    Self-healing: one fresh attempt after a client failure, up to two corrective

@@ -234,7 +234,8 @@ export interface CountyImpactStat {
   layoff_total: number;
   employment_base: number;
   impact_pct: number; // layoff_total / employment_base * 100
-  cbp_year: number | null;
+  employment_year: number | null;
+  employment_source: string | null;
 }
 
 // A member of a corporate family (siblings sharing a parent). Anonymous by
@@ -307,6 +308,17 @@ export interface ForecastPointOut {
   layoff_total_lo: number;
   layoff_total_hi: number;
 }
+
+/* One period of a BLS indicator dataset. `values` is a measure -> number map
+   rather than fixed fields because the datasets carry different measures
+   (u3/u6, employment, layoffs/openings/quits) and one chart component renders
+   all of them; measures with no data in a period are absent, not null. */
+export interface IndicatorStat {
+  period: string; // "YYYY-MM" for month buckets, "YYYY" for year buckets
+  values: Record<string, number>;
+}
+
+export type IndicatorDataset = "unemployment" | "payrolls" | "jolts";
 
 export interface ForecastOut {
   state: string; // state code or "US"

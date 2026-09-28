@@ -1,11 +1,14 @@
-"""(state, county) → county employment base lookup (Census CBP).
+"""(state, county) → county employment base lookup.
 
-Backed by a bundled gzipped JSON file derived from Census County Business
-Patterns (county-total employment, all industries, ~3.2 k entries). The file
-is loaded lazily on first lookup and cached for the lifetime of the process.
+Backed by a bundled gzipped JSON file of county-total employment, all
+industries, ~3.2 k entries. The file is loaded lazily on first lookup and
+cached for the lifetime of the process. Its source is whichever
+``fetch_county_employment.py`` last built it — BLS QCEW by default, Census CBP
+optionally — so callers surface ``data_source()`` rather than naming one.
 
 Data file path: ``warn_v2/geo/_data/county_employment.json.gz`` — a JSON
-object ``{"year": <CBP year>, "counties": {...}}`` where ``counties`` maps
+object ``{"year": <year>, "source": "QCEW"|"CBP", "counties": {...}}`` where
+``counties`` maps
 ``"{STATE}|{county_normalized}"`` strings to employment integers, with
 ``county_normalized = county.lower().strip()`` minus legal-type suffixes
 (" county", " parish", " borough", etc.) — the same key scheme as
@@ -34,6 +37,7 @@ _DATA_PATH = Path(__file__).parent / "_data" / "county_employment.json.gz"
 _lock = threading.Lock()
 _cache: dict[str, int] | None = None
 _year: int | None = None
+_source: str | None = None
 
 # Legal-type suffixes that appear in scraper county names and must be
 # stripped before lookup (same list as in county_centroids.py).
@@ -85,7 +89,7 @@ def display_name(county: str) -> str:
 
 def _load() -> dict[str, int]:
     """Load the employment table into memory once."""
-    global _cache, _year
+    global _cache, _year, _source
     with _lock:
         if _cache is not None:
             return _cache
@@ -111,10 +115,13 @@ def _load() -> dict[str, int]:
             _year = int(raw.get("year"))
         except (TypeError, ValueError):
             _year = None
+        # Files built before the source was recorded are all CBP.
+        _source = str(raw.get("source") or "CBP")
         _cache = loaded
         log.info(
-            "Loaded %d county employment bases (CBP %s) from %s",
+            "Loaded %d county employment bases (%s %s) from %s",
             len(loaded),
+            _source,
             _year,
             _DATA_PATH,
         )
@@ -139,14 +146,23 @@ def lookup_key(key: str) -> int | None:
 
 
 def data_year() -> int | None:
-    """The CBP vintage of the bundled data, or ``None`` if unavailable."""
+    """The reference year of the bundled data, or ``None`` if unavailable."""
     _load()
     return _year
 
 
-def reload_for_testing(data: dict[str, int], year: int | None = None) -> None:
+def data_source() -> str | None:
+    """Which survey the bundled data came from ("QCEW" or "CBP")."""
+    _load()
+    return _source
+
+
+def reload_for_testing(
+    data: dict[str, int], year: int | None = None, source: str | None = "QCEW"
+) -> None:
     """Replace the in-memory cache (tests only). Pass an empty dict to clear."""
-    global _cache, _year
+    global _cache, _year, _source
     with _lock:
         _cache = dict(data)
         _year = year
+        _source = source

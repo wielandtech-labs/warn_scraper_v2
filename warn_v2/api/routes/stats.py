@@ -9,7 +9,7 @@ import calendar
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import String, cast, func, select
 from sqlalchemy.orm import Session, aliased
@@ -22,8 +22,9 @@ from warn_v2.companies.naics import (
     subsector_for_code,
     subsector_name,
 )
-from warn_v2.db.models import Company, Location, Notice
+from warn_v2.db.models import BlsSeries, Company, Location, Notice
 from warn_v2.geo import county_employment
+from warn_v2.labor import catalog
 
 router = APIRouter(prefix="/stats", tags=["stats"])
 
@@ -59,6 +60,19 @@ class PeriodStat(BaseModel):
     projected_layoff_total: int | None = None
 
 
+class IndicatorStat(BaseModel):
+    """One period of a BLS indicator dataset.
+
+    `values` is a measure -> number map rather than fixed columns because the
+    three datasets carry different measures (u3/u6, employment, layoffs/
+    openings/quits) and one frontend chart component renders all of them.
+    Measures with no data in a period are omitted rather than sent as null.
+    """
+
+    period: str  # "YYYY-MM" for month buckets, "YYYY" for year buckets
+    values: dict[str, float]
+
+
 class EmployerStat(BaseModel):
     employer: str
     company_id: int | None
@@ -86,9 +100,13 @@ class CountyImpactStat(BaseModel):
     county: str  # display name, legal-type suffix stripped ("Sedgwick")
     notice_count: int
     layoff_total: int
-    employment_base: int  # CBP county-total employment
+    employment_base: int  # county-total employment, all industries
     impact_pct: float  # layoff_total / employment_base * 100
-    cbp_year: int | None  # CBP vintage of employment_base
+    # Vintage and survey behind employment_base. Named for the measure rather
+    # than the survey because the bundled denominator can be rebuilt from
+    # either QCEW or CBP (see warn_v2/scripts/fetch_county_employment.py).
+    employment_year: int | None
+    employment_source: str | None
 
 
 class ParentGroupStat(BaseModel):
@@ -340,6 +358,93 @@ def over_time(
     proj = _pace_projection(rows, substr_len=substr_len, after=after, before=before)
     if proj is not None:
         out[-1].projected_notice_count, out[-1].projected_layoff_total = proj
+    return out
+
+
+def _roll_up(values: list[float]) -> float:
+    """Collapse a year's monthly observations into one number.
+
+    Always the mean, including for the flow measures (layoffs, quits) where an
+    annual *total* would be the more natural summary. The deciding factor is
+    the partial current year: the state pages default to the all-time range,
+    whose last bucket is always an incomplete year, and a summed flow would
+    plot that year as a collapse rather than as missing months. A mean is
+    unbiased across complete and partial years alike, so the series stays
+    comparable. Callers label the axis "monthly average" accordingly.
+
+    Rounded to 1 decimal, matching BLS's own published precision for rates.
+    """
+    return round(sum(values) / len(values), 1)
+
+
+@router.get("/indicators", response_model=list[IndicatorStat])
+def indicators(
+    dataset: str = Query(
+        ..., description="unemployment | payrolls | jolts"
+    ),
+    state: str | None = Query(None, description="State code; omit for national"),
+    industry: str | None = Query(
+        None, description="NAICS sector id (payrolls only, e.g. 31-33)"
+    ),
+    bucket: str = Query("month", description="Time bucket: month | year"),
+    after: date | None = Query(None, description="Only periods on or after this date"),
+    before: date | None = Query(None, description="Only periods on or before this date"),
+    db: Session = Depends(get_db),
+) -> list[IndicatorStat]:
+    """Official BLS context for the layoff charts, from the bls_series table.
+
+    Companion to /stats/over-time: same period keys, so the frontend can align
+    an indicator chart's x-axis with the notice/layoff chart above it. Day
+    buckets are not offered — every series here is monthly.
+
+    Returns [] when the table has no matching rows (e.g. before the first
+    fetch-bls run, or for a state/measure BLS doesn't publish), so callers
+    render nothing rather than an error.
+    """
+    if dataset not in catalog.DATASETS:
+        raise HTTPException(status_code=422, detail=f"unknown dataset {dataset!r}")
+    if bucket not in ("month", "year"):
+        raise HTTPException(status_code=422, detail="bucket must be month or year")
+
+    area = state.upper() if state else "US"
+    # measure -> series id, dropping combinations BLS doesn't publish (e.g.
+    # there is no monthly state U-6).
+    wanted: dict[str, str] = {}
+    for measure in catalog.measures(dataset, area=area):
+        series_id = catalog.series_id(
+            dataset, area=area, measure=measure, industry=industry
+        )
+        if series_id is not None:
+            wanted[measure] = series_id
+    if not wanted:
+        return []
+
+    stmt = select(BlsSeries.series_id, BlsSeries.period, BlsSeries.value).where(
+        BlsSeries.series_id.in_(set(wanted.values()))
+    )
+    # period is "YYYY-MM"; both bounds compare lexically against that prefix.
+    if after is not None:
+        stmt = stmt.where(BlsSeries.period >= after.isoformat()[:7])
+    if before is not None:
+        stmt = stmt.where(BlsSeries.period <= before.isoformat()[:7])
+    rows = db.execute(stmt).all()
+    if not rows:
+        return []
+
+    by_series = {series_id: measure for measure, series_id in wanted.items()}
+    # period -> measure -> list of monthly values (one entry per month for the
+    # month bucket, up to twelve when rolling a year up).
+    grouped: dict[str, dict[str, list[float]]] = {}
+    for series_id, period, value in rows:
+        key = period if bucket == "month" else period[:4]
+        grouped.setdefault(key, {}).setdefault(by_series[series_id], []).append(value)
+
+    out: list[IndicatorStat] = []
+    for period in sorted(grouped):
+        values = {
+            measure: _roll_up(vals) for measure, vals in grouped[period].items()
+        }
+        out.append(IndicatorStat(period=period, values=values))
     return out
 
 
@@ -618,6 +723,7 @@ def county_impact(
         group["layoff_total"] += _coerce_int(layoffs)
 
     year = county_employment.data_year()
+    source = county_employment.data_source()
     out: list[CountyImpactStat] = []
     for key, group in merged.items():
         if group["layoff_total"] < min_layoffs:
@@ -633,7 +739,8 @@ def county_impact(
                 layoff_total=group["layoff_total"],
                 employment_base=emp,
                 impact_pct=round(group["layoff_total"] / emp * 100, 3),
-                cbp_year=year,
+                employment_year=year,
+                employment_source=source,
             )
         )
     out.sort(key=lambda s: (-s.impact_pct, s.state, s.county))
