@@ -8,7 +8,11 @@ from fastapi.testclient import TestClient
 
 from warn_v2.db.models import Location, Notice
 from warn_v2.geo import county_employment
-from warn_v2.scripts.fetch_county_employment import _parse_cbp, _parse_gazetteer
+from warn_v2.scripts.fetch_county_employment import (
+    _parse_cbp,
+    _parse_gazetteer,
+    _parse_qcew,
+)
 
 
 @pytest.fixture()
@@ -35,17 +39,18 @@ def _fixed_today(monkeypatch):
 
 @pytest.fixture()
 def cbp():
-    """Seed the county employment table with a small fake CBP dataset."""
+    """Seed the county employment table with a small fake dataset."""
     county_employment.reload_for_testing(
         {
             "KS|sedgwick": 200_000,
             "KS|riley": 30_000,
             "TX|loving": 500,
         },
-        year=2023,
+        year=2025,
+        source="QCEW",
     )
     yield
-    county_employment.reload_for_testing({}, year=None)
+    county_employment.reload_for_testing({}, year=None, source=None)
 
 
 def _notice(
@@ -104,7 +109,8 @@ def test_ratio_math_and_ordering(api_client, db, cbp):
     assert sedgwick["impact_pct"] == 0.5
     assert sedgwick["layoff_total"] == 1000
     assert sedgwick["notice_count"] == 2
-    assert sedgwick["cbp_year"] == 2023
+    assert sedgwick["employment_year"] == 2025
+    assert sedgwick["employment_source"] == "QCEW"
 
 
 def test_suffix_variants_merge(api_client, db, cbp):
@@ -218,7 +224,8 @@ def test_lookup_uses_seeded_data(cbp):
     assert county_employment.lookup("KS", "Sedgwick County") == 200_000
     assert county_employment.lookup("KS", "sedgwick") == 200_000
     assert county_employment.lookup("KS", "Nowhere") is None
-    assert county_employment.data_year() == 2023
+    assert county_employment.data_year() == 2025
+    assert county_employment.data_source() == "QCEW"
 
 
 # ---------------------------------------------------------------------------
@@ -247,3 +254,38 @@ def test_fetch_parsers():
 
     counties = _parse_cbp(_CBP_CSV, geo)
     assert counties == {"KS|sedgwick": 237173, "LA|orleans": 177086}
+
+
+# A QCEW annual industry slice carries far more than counties. Only
+# agglvl_code 70 with own_code 0 is a county total across all ownerships;
+# the rest here are decoys the parser must drop, in order: a single-ownership
+# county row (agglvl 71), a sector row (agglvl 74), the national aggregate,
+# a statewide aggregate, an "unknown or undefined" pseudo-county (FIPS ending
+# 999, which has no gazetteer match), and a disclosure-suppressed county
+# reporting zero employment.
+_QCEW_CSV = """area_fips,own_code,industry_code,agglvl_code,disclosure_code,annual_avg_emplvl
+20173,0,10,70,,260000
+20173,5,10,71,,200000
+20173,0,31-33,74,,30000
+22071,0,10,70,,180000
+US000,0,10,10,,150000000
+20,0,10,50,,1400000
+20999,0,10,70,,100
+20174,0,10,70,N,0
+"""
+
+
+def test_parse_qcew_keeps_county_totals_only():
+    geo = _parse_gazetteer(_GAZ_TSV)
+    counties = _parse_qcew(_QCEW_CSV, geo)
+    assert counties == {"KS|sedgwick": 260000, "LA|orleans": 180000}
+
+
+_BAD_QCEW_CSV = """area_fips,own_code
+20173,0
+"""
+
+
+def test_parse_qcew_rejects_unexpected_columns():
+    with pytest.raises(RuntimeError, match="missing"):
+        _parse_qcew(_BAD_QCEW_CSV, {})

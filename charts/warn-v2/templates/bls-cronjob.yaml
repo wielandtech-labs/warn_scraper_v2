@@ -1,0 +1,45 @@
+{{- if .Values.bls.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "warn-v2.fullname" . }}-bls
+  labels:
+    {{- include "warn-v2.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.bls.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            {{- include "warn-v2.labels" . | nindent 12 }}
+            app.kubernetes.io/component: bls
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: bls
+              image: {{ include "warn-v2.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              args:
+                - fetch-bls
+              env:
+                {{- include "warn-v2.envSecrets" . | nindent 16 }}
+                {{- /* Scoped to this job rather than envSecrets: only the
+                       fetcher talks to BLS, and the API pods have no use for
+                       the key. Unset is survivable — the job falls back to the
+                       unregistered limits (10 series and 10 years per request,
+                       25 requests a day), which the full catalogue exceeds. */}}
+                {{- if .Values.bls.apiKeySecretName }}
+                - name: BLS_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.bls.apiKeySecretName }}
+                      key: {{ .Values.bls.apiKeySecretKey }}
+                {{- end }}
+              resources:
+                {{- toYaml .Values.bls.resources | nindent 16 }}
+{{- end }}

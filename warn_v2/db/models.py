@@ -9,6 +9,7 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -432,3 +433,26 @@ class CrossCheckRun(Base):
     missing_from_db: Mapped[int | None] = mapped_column(Integer)
     extra_in_db: Mapped[int | None] = mapped_column(Integer)
     sample: Mapped[str | None] = mapped_column(Text)
+
+
+class BlsSeries(Base):
+    """One observation of one BLS timeseries: (series_id, month) -> value.
+
+    Backs the indicator charts that sit under the layoff time series, filled by
+    ``warn-v2 fetch-bls``. Rows are keyed by the raw BLS series id rather than
+    by (dataset, area, measure) because the fetcher already returns them that
+    way, so the upsert needs no mapping layer and a series we stop charting is
+    inert rather than orphaned. The id layouts live in
+    ``warn_v2.labor.catalog``, which is the only module that builds them.
+
+    ``value``'s unit depends on the series — a percent for unemployment rates,
+    thousands of jobs for CES levels and JOLTS flows — so callers must resolve
+    it through the catalog rather than assuming. Values are revised in place:
+    BLS re-benchmarks, so a refetch updates an existing row.
+    """
+
+    __tablename__ = "bls_series"
+
+    series_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    period: Mapped[str] = mapped_column(String(7), primary_key=True)  # "YYYY-MM"
+    value: Mapped[float] = mapped_column(Float, nullable=False)

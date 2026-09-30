@@ -81,7 +81,8 @@ export function CountyImpact({
     ...r,
     label: `${r.county}, ${r.state}`,
   }));
-  const cbpYear = rows[0]?.cbp_year;
+  const empYear = rows[0]?.employment_year;
+  const empSource = rows[0]?.employment_source;
 
   return (
     <div className="card">
@@ -126,11 +127,14 @@ export function CountyImpact({
           </div>
           <DataTable data={rows} columns={columns} />
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Share of {cbpYear ?? "latest"} county employment (Census County Business
-            Patterns) over the selected period — the trailing 12 months when no
-            start date is chosen. Only notices with a reported layoff count are
-            included, so shares understate true impact; counties without a CBP
-            match or with fewer than 10 reported layoffs are omitted.
+            Share of {empYear ?? "latest"} county employment (
+            {empSource === "CBP"
+              ? "Census County Business Patterns"
+              : "BLS Quarterly Census of Employment and Wages"}
+            ) over the selected period — the trailing 12 months when no start
+            date is chosen. Only notices with a reported layoff count are
+            included, so shares understate true impact; counties without an
+            employment match or with fewer than 10 reported layoffs are omitted.
           </p>
         </div>
       )}

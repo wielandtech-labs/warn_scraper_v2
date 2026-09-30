@@ -14,6 +14,8 @@ import type {
   EmployerStat,
   FamilyMemberOut,
   ForecastOut,
+  IndicatorDataset,
+  IndicatorStat,
   IndustryScorecard,
   IndustryStat,
   MergedMemberOut,
@@ -282,6 +284,16 @@ export const api = {
       before?: string;
     } = {},
   ) => get<PeriodStat[]>("/api/stats/over-time" + qs(q)),
+  statsIndicators: (
+    q: {
+      dataset: IndicatorDataset;
+      state?: string;
+      industry?: string;
+      bucket?: "month" | "year";
+      after?: string;
+      before?: string;
+    },
+  ) => get<IndicatorStat[]>("/api/stats/indicators" + qs(q)),
   statsTopEmployers: (
     q: {
       limit?: number;

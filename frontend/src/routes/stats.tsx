@@ -16,6 +16,7 @@ import {
 
 import { api } from "../api/client";
 import { CountyImpact } from "../components/CountyImpact";
+import { IndicatorChart } from "../components/IndicatorChart";
 import { FilterBar, type FilterValues } from "../components/FilterBar";
 import { ProjectionNote } from "../components/ProjectionNote";
 import { ProjectionTooltip } from "../components/ProjectionTooltip";
@@ -74,6 +75,11 @@ export function StatsPage() {
       monthLabel: fmtMonth(r.month),
     })),
   );
+
+  // The indicator cards below plot onto these exact periods so their x-axes
+  // line up with the chart above. Taken from the raw response rather than
+  // monthData, whose projection padding adds no real month.
+  const indicatorPeriods = (byMonth.data ?? []).map((r) => r.month);
 
   return (
     <div className="space-y-6">
@@ -179,6 +185,26 @@ export function StatsPage() {
           </>
         )}
       </ChartCard>
+
+      {/* Official BLS context on the same period span as the chart above, so
+          a spike in notices can be read against the labour market it landed
+          in. Both follow the state filter. */}
+      <IndicatorChart
+        dataset="unemployment"
+        state={search.state}
+        bucket="month"
+        after={search.after}
+        before={search.before}
+        periods={indicatorPeriods}
+      />
+      <IndicatorChart
+        dataset="jolts"
+        state={search.state}
+        bucket="month"
+        after={search.after}
+        before={search.before}
+        periods={indicatorPeriods}
+      />
 
       {!search.state && (
         <ChartCard title="By state">

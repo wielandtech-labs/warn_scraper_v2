@@ -203,6 +203,22 @@ crossCheck:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 1000m, memory: 1Gi }
 
+# Official BLS context behind the indicator charts (warn-v2 fetch-bls):
+# CPS unemployment rates, LAUS state rates, CES payrolls, JOLTS turnover.
+# Weekly rather than daily — every series is monthly, and one run covers the
+# first-Friday CPS release, the mid-month LAUS/JOLTS releases and CES revisions.
+bls:
+  enabled: false          # flip on in HelmRelease
+  schedule: "40 12 * * 3" # weekly Wednesday 12:40
+  # Free BLS registration key. Without it the job is capped at 10 series and
+  # 10 years per request and 25 requests a day, which the ~225-series catalogue
+  # does not fit. Leave the name empty to run unregistered anyway.
+  apiKeySecretName: warn-v2-bls
+  apiKeySecretKey: api-key
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+
 # Transactional email for alert subscriptions. SMTP implicit TLS (port 465);
 # the password comes from a SealedSecret, everything else is plain config.
 smtp:

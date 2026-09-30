@@ -1211,6 +1211,58 @@ def cadence_report_cmd(
         click.echo(render_table(rows))
 
 
+@main.command("fetch-bls")
+@click.option(
+    "--start-year",
+    type=int,
+    default=None,
+    metavar="YYYY",
+    help="Earliest year to fetch (default: three years back, enough to catch revisions)",
+)
+@click.option(
+    "--end-year",
+    type=int,
+    default=None,
+    metavar="YYYY",
+    help="Latest year to fetch (default: this year)",
+)
+def fetch_bls_cmd(start_year: int | None, end_year: int | None) -> None:
+    """Refresh BLS economic indicators into the bls_series table.
+
+    Fetches every catalogued series — CPS unemployment rates, LAUS state rates,
+    CES payroll levels and JOLTS turnover — and upserts them, so revised BLS
+    figures overwrite what we stored. Backs the indicator charts that sit under
+    the layoff time series.
+
+    Fails the run if too few series come back with data: a wrong series id
+    returns an empty result rather than an error, so coverage is the only
+    signal that the id layouts still match what BLS publishes.
+
+    
+    Examples:
+      warn-v2 fetch-bls                    # rolling three-year refresh
+      warn-v2 fetch-bls --start-year 2000  # full history backfill
+    """
+    from datetime import UTC, datetime
+
+    from warn_v2.db.session import session_scope
+    from warn_v2.labor.ingest import refresh_bls
+
+    start = start_year if start_year is not None else datetime.now(UTC).year - 3
+    with session_scope() as session:
+        result = refresh_bls(session, start_year=start, end_year=end_year)
+    click.echo(
+        f"{result.with_data}/{result.requested} series "
+        f"({result.coverage:.0%}), {result.rows_written} rows upserted"
+    )
+    if result.empty_series:
+        click.echo(
+            f"no data in span for {len(result.empty_series)} series: "
+            f"{', '.join(result.empty_series[:10])}",
+            err=True,
+        )
+
+
 @main.command("cross-check")
 @click.option("--state", default=None, help="Limit to one state abbreviation, e.g. CA")
 @click.option("--json", "as_json", is_flag=True, help="Emit machine-readable JSON")

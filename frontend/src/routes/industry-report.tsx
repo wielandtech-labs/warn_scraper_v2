@@ -12,6 +12,7 @@ import {
 } from "recharts";
 
 import { ApiError, api } from "../api/client";
+import { IndicatorChart } from "../components/IndicatorChart";
 import { NoticeMap } from "../components/NoticeMap";
 import { ProjectionNote } from "../components/ProjectionNote";
 import { ProjectionTooltip } from "../components/ProjectionTooltip";
@@ -72,6 +73,9 @@ export function IndustryReportPage() {
       label: fmtPeriod(r.period, bucket),
     })),
   );
+  // Periods the payroll card plots onto, so its x-axis matches the chart
+  // above it.
+  const indicatorPeriods = (overTime.data ?? []).map((r) => r.period);
 
   const name = card?.sector_name ?? `NAICS ${sector}`;
   useDocumentTitle(
@@ -224,6 +228,19 @@ export function IndustryReportPage() {
             </>
           )}
         </div>
+      )}
+
+      {/* How many jobs the sector holds nationally, for scale: a thousand-job
+          notice reads very differently against a sector of 300 thousand than
+          against one of twelve million. */}
+      {vouched && bucket !== "day" && (
+        <IndicatorChart
+          dataset="payrolls"
+          industry={sector}
+          bucket={bucket}
+          after={after}
+          periods={indicatorPeriods}
+        />
       )}
 
       <div className="card">
