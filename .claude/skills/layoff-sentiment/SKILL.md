@@ -38,6 +38,11 @@ that payload. You add the judgment: what moved, where, and whether it matters.
 
 ## Step 1: Fetch the payloads
 
+`SCRATCH` is a directory outside the repo: your session's scratchpad
+directory if you have one, otherwise a fresh `mktemp -d`. Each shell call
+starts fresh, so put the **absolute path** into every command below (and into
+the subagent prompts). Never leave `$SCRATCH` unset, or the files land in `/`.
+
 ```bash
 curl -sS -D "$SCRATCH/headers.txt" -o "$SCRATCH/payloads.json" https://warnindex.com/api/reports/payloads
 ```
