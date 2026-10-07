@@ -10,7 +10,6 @@ import { ThemeToggle } from "./ThemeToggle";
 const NAV = [
   { to: "/", label: "Dashboard" },
   { to: "/notices", label: "Notices" },
-  { to: "/radar", label: "Radar" },
   { to: "/companies", label: "Companies" },
   { to: "/states", label: "States" },
   { to: "/map", label: "Map" },

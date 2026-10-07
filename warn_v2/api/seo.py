@@ -86,11 +86,6 @@ _APP_PAGES_META: dict[str, tuple[str, str]] = {
         "Search and filter every WARN Act layoff and closure notice on record "
         "by state, employer, industry, and date. Export as CSV or JSON.",
     ),
-    "/radar": (
-        "Upcoming layoffs radar — WARN Index",
-        "Forward-looking calendar of WARN Act layoffs: separation dates still "
-        "ahead, with estimated occupation mixes by industry.",
-    ),
     "/companies": (
         "Companies & corporate families — WARN Index",
         "The employers behind US WARN notices, de-duplicated and enriched — "

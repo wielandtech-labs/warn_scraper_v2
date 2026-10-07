@@ -26,7 +26,6 @@ router = APIRouter(tags=["seo"], include_in_schema=False)
 _APP_PAGES = [
     "/",
     "/notices",
-    "/radar",
     "/companies",
     "/map",
     "/stats",
