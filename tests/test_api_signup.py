@@ -199,3 +199,35 @@ def test_expired_token_rejected_and_consumed(api_client, db, sent):
         "/api/auth/reset", json={"token": token, "password": "whatever-password-9"}
     ).status_code == 400
     assert db.scalar(select(AuthToken).where(AuthToken.purpose == "reset")) is None
+
+
+# ---------------------------------------------------------------------------
+# Invite links (issued by `warn-v2 invite-user`) reuse the reset endpoints
+# ---------------------------------------------------------------------------
+
+def test_invite_token_sets_password_and_verifies(api_client, db, monkeypatch):
+    monkeypatch.delenv("SIGNUP_ENABLED")  # invites must work with signup off
+    user = User(email="invitee@example.com", password_hash=auth.hash_password("x" * 32))
+    db.add(user)
+    db.flush()
+    token = auth.issue_token(db, user, "invite")
+    db.commit()
+
+    page = api_client.get(f"/api/auth/reset-page?token={token}&invite=1")
+    assert page.status_code == 200
+    assert "Set your password" in page.text
+
+    assert api_client.post(
+        "/api/auth/reset", json={"token": token, "password": PASSWORD}
+    ).status_code == 200
+    db.refresh(user)
+    assert user.email_verified_at is not None
+    assert api_client.post(
+        "/api/auth/login", json={"email": user.email, "password": PASSWORD}
+    ).status_code == 200
+
+    # Single-use.
+    assert api_client.post(
+        "/api/auth/reset", json={"token": token, "password": PASSWORD}
+    ).status_code == 400
+

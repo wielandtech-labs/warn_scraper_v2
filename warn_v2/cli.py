@@ -1458,6 +1458,72 @@ def create_user_cmd(email: str, role: str, password_stdin: bool) -> None:
     click.echo(f"created {email} role={role}")
 
 
+@main.command("invite-user")
+@click.option("--email", required=True)
+@click.option("--role", type=_ROLES, default="free", show_default=True)
+def invite_user_cmd(email: str, role: str) -> None:
+    """Create an account and email a single-use link to set its password.
+
+    Re-running for an existing account sends a fresh link (and applies --role).
+    The link is valid for 7 days and is never printed. Needs SMTP_* configured,
+    so run it in the api pod:
+
+    
+      kubectl -n warn-v2 exec deploy/warn-v2-warn-v2-api --
+        uv run warn-v2 invite-user --email a@b.com --role admin
+    """
+    import secrets
+
+    from sqlalchemy import select
+
+    from warn_v2 import auth
+    from warn_v2.api.routes.auth import _EMAIL_RE, send_link_email
+    from warn_v2.api.seo import site_base_url
+    from warn_v2.db.models import User
+    from warn_v2.db.session import session_scope
+    from warn_v2.notifications.email import EmailNotConfigured
+
+    email = email.strip().lower()
+    if not _EMAIL_RE.match(email):
+        click.echo(f"invalid email address: {email}", err=True)
+        sys.exit(1)
+
+    try:
+        with session_scope() as session:
+            user = session.scalar(select(User).where(User.email == email))
+            if user is None:
+                # Unusable random password: the account can't be logged into
+                # until the invitee sets one through the emailed link.
+                user = User(
+                    email=email,
+                    password_hash=auth.hash_password(secrets.token_urlsafe(32)),
+                    role=role,
+                )
+                session.add(user)
+                session.flush()
+                action = "invited"
+            else:
+                if user.role != role:
+                    click.echo(f"role {user.role} -> {role}")
+                    user.role = role
+                action = "re-invited"
+            token = auth.issue_token(session, user, "invite")
+            # Sent before session_scope commits: a failed send rolls back the
+            # new account and token instead of leaving an unreachable user.
+            send_link_email(
+                email,
+                "You're invited to WARN Index",
+                "You've been given a WARN Index account. Use the link below to "
+                "set your password (valid for 7 days):",
+                f"{site_base_url()}/api/auth/reset-page?token={token}&invite=1",
+                "Set your password",
+            )
+    except EmailNotConfigured:
+        click.echo("SMTP is not configured (SMTP_HOST/USERNAME/PASSWORD); nothing sent", err=True)
+        sys.exit(1)
+    click.echo(f"{action} {email} role={role}; link valid 7 days")
+
+
 @main.command("set-password")
 @click.option("--email", required=True)
 @click.option(

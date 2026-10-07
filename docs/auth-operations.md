@@ -9,62 +9,55 @@ The API has cookie-session auth with four roles:
 | enterprise | Same as paid, plus the raw unique ids: unique_id, parent_unique_id |
 | admin | Same as enterprise, plus `/admin/companies` (merge/unmerge company records; `require_admin`) |
 
-Accounts are **admin-provisioned only** — there is no signup endpoint. User
-management is via the CLI (`create-user`, `set-role`, `list-users`,
-`delete-user`), run inside the cluster so it can reach the database.
+Accounts are admin-provisioned (self-signup exists but ships dark behind
+`SIGNUP_ENABLED`). User management is via the CLI (`invite-user`,
+`create-user`, `set-role`, `list-users`, `delete-user`), run inside the
+cluster so it can reach the database.
 
 Sessions: 30-day absolute expiry, httpOnly+Secure+SameSite=Lax cookie
 (`warn_session`); the DB stores only a sha256 of the token. Expired rows are
 pruned opportunistically at each login. `AUTH_COOKIE_SECURE=0` disables the
 Secure flag for plain-HTTP local dev only.
 
-## Creating a user in production (one-off Job)
+## Inviting a user in production
 
-Never put the password in the manifest or shell history of the pod spec —
-stage it in a short-lived Secret and pipe it via `--password-stdin`:
+`invite-user` creates the account and emails a single-use link where the
+invitee sets their own password — no password ever passes through you, a
+manifest, or an inbox. Run it in the api pod, which already has the DB and
+SMTP env:
 
 ```bash
-# 1. ad-hoc secret with the password (generate one, e.g. openssl rand -base64 24)
-kubectl -n warn-v2 create secret generic warn-v2-user-bootstrap \
-  --from-literal=password='<the-password>'
-
-# 2. one-off Job (set the image to the currently deployed tag)
-kubectl -n warn-v2 apply -f - <<'EOF'
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: warn-v2-create-user
-spec:
-  backoffLimit: 0
-  template:
-    spec:
-      restartPolicy: Never
-      containers:
-        - name: create-user
-          image: ghcr.io/wielandtech-labs/warn-v2:<CURRENT_TAG>
-          command: ["sh", "-c"]
-          args:
-            - printf '%s' "$BOOTSTRAP_PASSWORD" |
-              uv run warn-v2 create-user
-              --email "$BOOTSTRAP_EMAIL" --role admin --password-stdin
-          env:
-            - name: BOOTSTRAP_EMAIL
-              value: you@example.com
-            - name: BOOTSTRAP_PASSWORD
-              valueFrom:
-                secretKeyRef: { name: warn-v2-user-bootstrap, key: password }
-            - name: DATABASE_URL
-              valueFrom:
-                secretKeyRef: { name: warn-v2-db, key: url }
-EOF
-
-# 3. verify, then clean up BOTH the Job and the secret
-kubectl -n warn-v2 logs job/warn-v2-create-user
-kubectl -n warn-v2 delete job warn-v2-create-user secret/warn-v2-user-bootstrap
+kubectl -n warn-v2 exec deploy/warn-v2-warn-v2-api -- \
+  uv run warn-v2 invite-user --email someone@example.com --role admin
 ```
 
-`set-role` / `delete-user` / `list-users` work the same way (no password
-needed — drop the secret and the stdin pipe).
+- The link (`/api/auth/reset-page?token=…&invite=1`) is valid for **7 days**
+  and works once. Using it sets the password and marks the email verified.
+- Until then the account has an unusable random password, so nobody can log in.
+- Re-running for an existing email sends a fresh link (and applies `--role`)
+  instead of failing — use it when an invite expired or a previous attempt was
+  left half-done. The existing password keeps working until the link is used.
+- The link is never printed. If SMTP isn't configured the command exits 1
+  and creates nothing.
+
+`set-role` / `delete-user` / `list-users` run the same way via `kubectl exec`.
+
+## Creating a user with a known password (no email)
+
+`create-user` sets the password directly (interactive prompt or
+`--password-stdin`) and marks the account verified. Prefer `invite-user`; use
+this only when email isn't an option, and never put the password in a
+manifest or shell history — pipe it from a short-lived Secret:
+
+```bash
+kubectl -n warn-v2 create secret generic warn-v2-user-bootstrap \
+  --from-literal=password='<the-password>'
+# then a one-off Job running:
+#   printf '%s' "$BOOTSTRAP_PASSWORD" | uv run warn-v2 create-user \
+#     --email "$BOOTSTRAP_EMAIL" --role admin --password-stdin
+# with BOOTSTRAP_PASSWORD from that secret and DATABASE_URL from warn-v2-db;
+# delete both the Job and the secret afterwards.
+```
 
 ## Data-exposure note
 
