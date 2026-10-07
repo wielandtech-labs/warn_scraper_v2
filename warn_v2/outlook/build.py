@@ -261,7 +261,7 @@ def build_outlook(session: Session, *, as_of: date | None = None) -> dict[str, A
         },
         "method": {
             "trend": "quasi-Poisson GLM with month-of-year dummies; AR(1)-inflated SE; t(df) test",
-            "coverage": "per-state masks drop pre-coverage months, holes and an incomplete trailing edge",
+            "coverage": "per-state masks drop pre-coverage months, holes and a short trailing edge",
             "multiple_testing": "Benjamini-Hochberg q-values within each family",
             "pooling": "DerSimonian-Laird random effects; empirical-Bayes shrinkage",
             "settle_days": SETTLE_DAYS,
