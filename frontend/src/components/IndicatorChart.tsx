@@ -165,7 +165,10 @@ export function IndicatorChart({
       <h2 className="mb-3 text-lg font-semibold">{spec.title}</h2>
       <div role="img" aria-label={`Line chart of ${spec.title.toLowerCase()} over time`}>
         <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={data}>
+          {/* The chart above has a 60px right-hand axis for workers affected;
+              reserve the same space (plus the default 5px margin) so both
+              plot areas, and so the periods, line up. */}
+          <LineChart data={data} margin={{ top: 5, right: 65, bottom: 5, left: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
             <XAxis
               dataKey="label"
@@ -173,11 +176,12 @@ export function IndicatorChart({
               minTickGap={24}
             />
             {/* One axis: every measure in a dataset shares a unit, which is
-                why these are three cards and not three extra lines above. */}
+                why these are three cards and not three extra lines above.
+                60px = recharts' default width, matching the chart above. */}
             <YAxis
               tick={{ fontSize: 12, fill: chart.axis }}
               tickFormatter={spec.format}
-              width={56}
+              width={60}
             />
             <Tooltip
               formatter={(value) => spec.format(Number(value))}

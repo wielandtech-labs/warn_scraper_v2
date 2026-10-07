@@ -17,7 +17,7 @@ import {
 import { api } from "../api/client";
 import { CountyImpact } from "../components/CountyImpact";
 import { IndicatorChart } from "../components/IndicatorChart";
-import { FilterBar, type FilterValues } from "../components/FilterBar";
+import { FilterBar, type FilterValues, resolveAfter } from "../components/FilterBar";
 import { ProjectionNote } from "../components/ProjectionNote";
 import { ProjectionTooltip } from "../components/ProjectionTooltip";
 import { QueryError } from "../components/QueryError";
@@ -28,12 +28,20 @@ import { fmtCompact, fmtMonth, fmtNum } from "../lib/format";
 import { withProjectionSeries } from "../lib/projection";
 import { CHART_COLORS } from "../lib/themeColors";
 
+// With no dates set the page opens on the last five years rather than all
+// time: the full span is dominated by the 2020 spike and by early years that
+// mostly show states joining our coverage. "All" is one click away.
+const DEFAULT_DAYS = 365 * 5;
+
 export function StatsPage() {
   useDocumentTitle("Layoff statistics & trends — WARN Index");
   const { resolved } = useTheme();
   const chart = CHART_COLORS[resolved];
   const navigate = useNavigate({ from: "/stats" });
-  const search = useSearch({ from: "/stats" });
+  const urlSearch = useSearch({ from: "/stats" });
+  // Everything below queries with the resolved window; only the FilterBar
+  // sees the raw URL params.
+  const search = { ...urlSearch, after: resolveAfter(urlSearch, DEFAULT_DAYS) };
 
   const byMonth = useQuery({
     queryKey: ["stats", "by-month", search],
@@ -85,10 +93,11 @@ export function StatsPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Trends</h1>
       <FilterBar
-        values={search}
+        values={urlSearch}
         onChange={handleFilterChange}
         showEmployer={false}
         industries={industriesQuery.data}
+        defaultDays={DEFAULT_DAYS}
       />
 
       <ChartCard title="Notices and layoffs by month">
