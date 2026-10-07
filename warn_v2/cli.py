@@ -1734,51 +1734,46 @@ def send_alert_digest_cmd() -> None:
     type=click.Path(file_okay=False, path_type=Path),
     help="Directory for the markdown reports",
 )
-@click.option("--skip-llm", is_flag=True, help="Write deterministic tables only (no Ollama call)")
 @click.option("--dry-run", is_flag=True, help="Compute and render but write no files")
 def sentiment_report_cmd(
     state: str | None,
     industry: str | None,
     national: bool,
     reports_dir: Path,
-    skip_llm: bool,
     dry_run: bool,
 ) -> None:
-    """Generate economic sentiment markdown reports.
+    """Generate the deterministic layoff-trend reports.
 
-    Deterministic layoff-trend figures (trailing 90 days vs the prior 90, plus
-    a 12-month series) with a narrative written by the cluster's Ollama
-    service (OLLAMA_BASE_URL / OLLAMA_MODEL). The default run covers every
-    state, a national roll-up (US.md), and a scorecard per NAICS sector
-    (industry_{sector}.md + industries.json). A failed narrative degrades that
-    report to figures-only; the run exits non-zero only when every attempted
-    narrative failed (systemic outage).
+    Figures only (trailing 90 days vs the prior 90, the same window last
+    year, a 12-month series, and a 6-month forecast). The default run covers
+    every state, a national roll-up (US.md), and a scorecard per NAICS sector
+    (industry_{sector}.md + industries.json), and also writes forecasts.json
+    and payloads.json -- the figures the /layoff-sentiment Claude Code skill
+    writes its analysis from.
 
-    Before generating anything, one narrate() call checks Ollama is actually
-    serving (not just reachable -- a service that's up but can't generate,
-    e.g. a broken GPU passthrough, would otherwise only surface once per
-    report). If it fails, every report still writes figures-only rather than
-    each independently retrying against a service already known to be down.
-
-    \b
+    
     Examples:
       warn-v2 sentiment-report                       # states + national + industries
       warn-v2 sentiment-report --state CA            # one state
       warn-v2 sentiment-report --industry 31-33      # one sector scorecard
       warn-v2 sentiment-report --national            # US roll-up only
-      warn-v2 sentiment-report --skip-llm --dry-run  # offline smoke test
+      warn-v2 sentiment-report --dry-run             # offline smoke test
     """
+    import json
+    from datetime import date
+
     from warn_v2.companies.naics import NAICS_SECTORS, SECTOR_NAME
     from warn_v2.db.session import session_scope
     from warn_v2.reports.aggregate import NATIONAL_CODE
     from warn_v2.reports.bls import fetch_bls_context
     from warn_v2.reports.generate import (
+        _atomic_write,
         generate_industry_reports,
         generate_national_report,
         generate_reports,
+        write_payloads,
         write_report,
     )
-    from warn_v2.reports.ollama import DeadClient, build_ollama_client, check_ollama_health
     from warn_v2.states import is_valid_state
 
     if state and industry:
@@ -1794,38 +1789,18 @@ def sentiment_report_cmd(
         click.echo(f"unknown industry: {industry!r}", err=True)
         sys.exit(1)
 
-    client = None if skip_llm else build_ollama_client()
-    # Up-front health check: one narrate() call (with its own built-in
-    # retries) instead of discovering a systemic outage one narrative at a
-    # time across every report, each paying its own retry-with-backoff cost.
-    # A failure swaps in DeadClient, which fails every subsequent narrate()
-    # call instantly -- reports still write with the same llm_unavailable
-    # figures-only degradation as an isolated per-report failure, just
-    # without hammering a service already known to be down.
-    ollama_healthy = True
-    if client is not None:
-        ollama_healthy = check_ollama_health(client)
-        if not ollama_healthy:
-            click.echo(
-                "ollama health check failed; narratives will be skipped this run "
-                "(deterministic figures and forecasts still generate)",
-                err=True,
-            )
-            client = DeadClient()
-    # BLS macro context feeds only the national + industry narratives; skip
-    # the fetch when no narrative will be written. Fail-open: None is fine.
+    full_run = state is None and industry is None and not national
+    as_of = date.today()
+    # BLS macro context rides only in the national + industry payloads.
+    # Fail-open: None is fine.
     bls = None
-    if client is not None and ollama_healthy and state is None:
+    if state is None:
         target_sectors = [industry] if industry else [sid for sid, _, _ in NAICS_SECTORS]
         bls = fetch_bls_context(target_sectors)
         click.echo(f"bls_context={'ok' if bls else 'unavailable'}")
-    stats = {
-        "generated": 0,
-        "insufficient": 0,
-        "narrative_ok": 0,
-        "narrative_failed": 0,
-        "total": 0,
-    }
+    stats = {"generated": 0, "insufficient": 0, "total": 0}
+    jurisdictions: dict = {}
+    industries: dict = {}
 
     def merge(group: dict[str, int]) -> None:
         for k in stats:
@@ -1836,66 +1811,67 @@ def sentiment_report_cmd(
             merge(
                 generate_reports(
                     session,
-                    client,
                     reports_dir=reports_dir,
                     states=[state] if state else None,
                     dry_run=dry_run,
+                    as_of=as_of,
+                    payloads=jurisdictions,
                     progress=click.echo,
                 )
             )
         if state is None and industry is None:
-            content, status = generate_national_report(session, client, bls=bls)
+            content, status, payload = generate_national_report(
+                session, as_of=as_of, bls=bls
+            )
+            jurisdictions[NATIONAL_CODE] = payload
             if not dry_run:
                 write_report(reports_dir, NATIONAL_CODE, content)
-            key = {
-                "ok": "narrative_ok",
-                "llm_unavailable": "narrative_failed",
-                "insufficient_data": "insufficient",
-            }.get(status)
-            if key:
-                stats[key] += 1
+            if status == "insufficient_data":
+                stats["insufficient"] += 1
             stats["generated"] += 1
             stats["total"] += 1
-            click.echo(f"{NATIONAL_CODE} narrative={status} chars={len(content)}")
+            click.echo(f"{NATIONAL_CODE} status={status} chars={len(content)}")
         if state is None and not national:
             merge(
                 generate_industry_reports(
                     session,
-                    client,
                     reports_dir=reports_dir,
                     sectors=[industry] if industry else None,
                     dry_run=dry_run,
+                    as_of=as_of,
                     bls=bls,
+                    payloads=industries,
                     progress=click.echo,
                 )
             )
-        if state is None and industry is None and not national:
+        if full_run:
             # Full default run only -- mirrors industries.json semantics so a
-            # targeted run never shrinks the file. Fail-open: a forecasts.json
-            # build failure must never break the weekly report run.
+            # targeted run never shrinks these files.
+            if not dry_run:
+                write_payloads(
+                    reports_dir,
+                    as_of=as_of,
+                    jurisdictions=jurisdictions,
+                    industries=industries,
+                )
+            click.echo(f"payloads={len(jurisdictions) + len(industries)}")
+            # Fail-open: a forecasts.json build failure must never break the
+            # weekly report run.
             try:
-                import json
-
                 from warn_v2.reports.forecast import FORECASTS_JSON, build_forecasts
-                from warn_v2.reports.generate import _atomic_write
 
-                payload = build_forecasts(session)
+                forecasts = build_forecasts(session)
                 if not dry_run:
-                    _atomic_write(reports_dir, FORECASTS_JSON, json.dumps(payload, indent=2))
-                click.echo(f"forecasts={len(payload['jurisdictions'])}")
+                    _atomic_write(reports_dir, FORECASTS_JSON, json.dumps(forecasts, indent=2))
+                click.echo(f"forecasts={len(forecasts['jurisdictions'])}")
             except Exception as exc:
                 click.echo(f"forecasts=failed ({exc})", err=True)
 
     suffix = " (dry run — nothing written)" if dry_run else ""
     click.echo(
         f"generated={stats['generated']} insufficient={stats['insufficient']} "
-        f"narrative_ok={stats['narrative_ok']} narrative_failed={stats['narrative_failed']} "
         f"total={stats['total']}{suffix}"
     )
-    # Partial narrative failures are degraded output, not job failures; all
-    # attempted narratives failing means Ollama is down — surface that.
-    if stats["narrative_failed"] and not stats["narrative_ok"]:
-        sys.exit(1)
 
 
 if __name__ == "__main__":

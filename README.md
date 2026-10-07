@@ -270,7 +270,7 @@ and rendered on the SPA's state pages (below the hardest-hit counties) and
    days vs the prior 90 (momentum), the same 90-day window one year earlier
    (seasonal baseline), trailing 12 months vs the 12 before (long run), and a
    12-month monthly series where each month carries the same month a year
-   earlier. Percent changes are pre-computed into the LLM payload; the sector
+   earlier. Percent changes are pre-computed into the payload; the sector
    scorecards add a 0-100 score + grade from a documented formula.
 2. **BLS macro context** (`bls.py`) — official CES payroll month-over-month
    changes (total nonfarm + closest supersector per sector) and the unemployment
@@ -279,24 +279,18 @@ and rendered on the SPA's state pages (below the hardest-hit counties) and
    render without it. Shares its HTTP client and series ids with the
    `fetch-bls` ingester (see [Economic indicators](#economic-indicators)),
    which is *not* fail-open.
-3. **LLM narrative** (`ollama.py`, `generate.py`) — gpt-oss:20b on the cluster's
-   shared Ollama writes the Sentiment section from the JSON payload only.
-   Self-healing: one fresh attempt after a client failure, up to two corrective
-   retries for banned growth vocabulary ("added/grew/gained" is banned — every
-   figure is workers losing jobs) or truncation-length drafts. `num_predict`
-   must budget thinking + content combined for a reasoning model, and thinking
-   scales with payload size — 8000 as of 2026-07-10; if the biggest payloads
-   grow again, "empty narrative content" failures on the US report are the
-   symptom.
-4. **Render + publish** (`render.py`) — narrative is sanitized (heading demotion,
-   HTML escape, sentence-boundary length cap) and embedded between deterministic
-   tables; files are atomically written to the reports PVC (`/var/reports`).
-   A failed narrative degrades that report to figures-only; the next weekly run
-   self-heals.
+3. **Render + publish** (`render.py`, `generate.py`) — deterministic tables are
+   atomically written to the reports PVC (`/var/reports`). A full run also
+   writes `payloads.json` — every report's figures (aggregates + forecast +
+   BLS context) — served at `/api/reports/payloads`.
+4. **Written analysis** — no LLM runs in-cluster. The `/layoff-sentiment`
+   Claude Code skill reads `/api/reports/payloads` on demand and writes the
+   analysis (banned growth vocabulary — "added/grew/gained" — still applies:
+   every figure is workers losing jobs).
 
 ```powershell
 uv run warn-v2 sentiment-report --state CA          # one state
 uv run warn-v2 sentiment-report --national          # US roll-up only
 uv run warn-v2 sentiment-report --industry 31-33    # one sector scorecard
-uv run warn-v2 sentiment-report --skip-llm --dry-run  # offline smoke test
+uv run warn-v2 sentiment-report --dry-run            # offline smoke test
 ```
