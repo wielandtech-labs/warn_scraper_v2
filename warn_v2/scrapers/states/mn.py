@@ -1,15 +1,22 @@
 """Minnesota WARN scraper.
 
-Source: Monthly "Plant Closings/Mass Layoffs/WARN Report" PDFs published by
-the Minnesota DEED (Dept of Employment and Economic Development) Rapid Response Team.
+Live source: the "Minnesota WARN Notices" list on DEED's Layoff Resources page —
+one entry per WARN notice received ("<a href=notice.pdf>Employer</a> - M/D/YYYY").
+The page is Radware bot-protected: plain httpx (and headless browsers) get a 302
+to a validate.perfdrive.com challenge, but curl_cffi with ``impersonate="chrome"``
+receives the real page (verified 2026-10-07). The list carries no worker count or
+city — those live only in the free-form notice letters.
 
-The DEED reports index page is Radware bot-protected (headless browsers blocked).
-Discovery uses the Wayback Machine CDX API which indexes all mn.gov PDFs without
-bot protection. PDFs are then downloaded directly from mn.gov via httpx.
+Until 2026-10 the live scrape read DEED's monthly "Plant Closings/Mass
+Layoffs/WARN Report" PDFs (discovered via Wayback CDX) and kept the WARN Act=YES
+rows. That source silently went stale: Wayback stopped capturing new monthlies
+after June 2026, the June report's new layout ("Yes", a "WAR / N Act" header)
+parsed to 0 rows, and the monthlies only list notices the Rapid Response Team
+worked on — Jan-Apr 2026 had 3 WARN=YES rows against 10 notices on the WARN
+list. The monthly-PDF parsers below remain for the historical backfill
+(``backfill-historical --state MN``).
 
-Only rows where the "WARN Act" column = "YES" are actual WARN Act filings.
-
-PDF format changed between 2025 and 2026:
+Monthly PDF format changed between 2025 and 2026:
   2025: wide merged-cell table; text extraction used for parsing.
   2026: clean 10-column table; pdfplumber.extract_table() works.
 Both formats are detected automatically.
@@ -27,17 +34,18 @@ _drop_cumulative_reports).
 """
 from __future__ import annotations
 
-import base64
 import calendar
 import io
-import json
 import logging
 import re
 from bisect import bisect_right
-from datetime import date, timedelta
+from datetime import date
 
 import httpx
 import pdfplumber
+from bs4 import BeautifulSoup
+from curl_cffi import requests as cffi_requests
+from curl_cffi.requests.exceptions import RequestException
 
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
@@ -45,8 +53,9 @@ from warn_v2.scrapers.registry import register
 
 log = logging.getLogger(__name__)
 
+_PAGE_URL = "https://mn.gov/deed/business/layoff-resources/"
+_BASE_URL = "https://mn.gov"
 _CDX_API = "http://web.archive.org/cdx/search/cdx"
-_CDX_PATTERN = "mn.gov/deed/assets/plant-closing-mass-layoff-warn*"
 
 _UA = {
     "User-Agent": (
@@ -54,9 +63,6 @@ _UA = {
         "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     )
 }
-
-# Lookback window: last 18 months of PDFs to ensure ≥1 WARN filing found
-_LOOKBACK_MONTHS = 18
 
 # Wayback CDX returns transient 503s under load (seen repeatedly 2026-07-08);
 # a single failure otherwise aborts discovery → 0 rows. Retry with backoff.
@@ -91,85 +97,98 @@ _WARN_YES_RE = re.compile(
 _TABLE_SETTINGS = {"vertical_strategy": "lines", "horizontal_strategy": "lines"}
 
 
+# Radware occasionally challenges even an impersonated handshake; retry a few times.
+_FETCH_ATTEMPTS = 3
+_FETCH_BACKOFF = 5.0
+_WARN_SECTION = "Minnesota WARN Notices"
+# "7/30/2026", "2/24/26", "3/24/26 Revised" — the received date follows the link.
+_LIST_DATE_RE = re.compile(r"(\d{1,2})/(\d{1,2})/(\d{4}|\d{2})\b")
+_REVISION_RE = re.compile(r"\s*\(revis(?:ion|ed)[^)]*\)\s*$", re.I)
+
+
 class MNScraper:
     state = "MN"
-    source_url = "https://mn.gov/deed/programs-services/dislocated-worker-program/reports/"
+    source_url = _PAGE_URL
     expected_row_range = (1, 500)
     required_fields = frozenset({"employer", "notice_date"})
 
     def fetch(self) -> bytes:
-        """Discover PDF URLs via Wayback Machine CDX API, then download PDFs."""
-        # Step 1: get all unique mn.gov plant-closing PDF URLs from CDX
-        entries = _cdx_query(
-            {
-                "url": _CDX_PATTERN,
-                "output": "json",
-                "fl": "original,timestamp",
-                "filter": "statuscode:200",
-                "collapse": "urlkey",
-                "limit": 200,
-            }
-        )
+        """GET the Layoff Resources page with a Chrome TLS fingerprint."""
+        import time
 
-        # Filter to PDFs published in the last _LOOKBACK_MONTHS months
-        cutoff = date.today() - timedelta(days=_LOOKBACK_MONTHS * 31)
-        recent_urls: list[str] = []
-        for entry in entries[1:]:  # skip header row ["original", "timestamp"]
-            if len(entry) < 2:
-                continue
-            url, ts = entry[0], entry[1]
-            if not url.endswith(".pdf"):
-                continue
+        last: Exception | None = None
+        for attempt in range(1, _FETCH_ATTEMPTS + 1):
             try:
-                archived_date = date(int(ts[:4]), int(ts[4:6]), int(ts[6:8]))
-            except (ValueError, IndexError):
-                continue
-            if archived_date >= cutoff:
-                recent_urls.append(url)
-
-        if not recent_urls:
-            raise ScrapeFailed("MN: no recent PDF URLs found in Wayback Machine CDX")
-
-        # Step 2: download each PDF
-        pdfs: list[dict[str, str]] = []
-        with httpx.Client(headers=_UA, timeout=60, follow_redirects=True) as client:
-            for url in recent_urls:
-                try:
-                    resp = client.get(url)
-                    resp.raise_for_status()
-                    if resp.content[:4] != b"%PDF":
-                        continue
-                    pdfs.append(
-                        {
-                            "url": url,
-                            "pdf_b64": base64.b64encode(resp.content).decode(),
-                        }
-                    )
-                except httpx.HTTPError:
-                    continue
-
-        if not pdfs:
-            raise ScrapeFailed("MN: could not download any PDFs")
-        return json.dumps({"pdfs": pdfs}).encode()
+                r = cffi_requests.get(
+                    _PAGE_URL, impersonate="chrome", timeout=60, allow_redirects=True
+                )
+                r.raise_for_status()
+                if _WARN_SECTION.encode() in r.content:
+                    return r.content
+                # Radware challenge pages come back 200 too — retry, then fail loud.
+                last = ScrapeFailed(f"MN: '{_WARN_SECTION}' missing (bot challenge?)")
+            except RequestException as exc:
+                last = exc
+            if attempt < _FETCH_ATTEMPTS:
+                time.sleep(_FETCH_BACKOFF)
+        raise ScrapeFailed(f"MN: GET {_PAGE_URL}: {last}") from last
 
     def parse(self, raw: bytes) -> list[NoticeRow]:
-        try:
-            data = json.loads(raw)
-        except Exception as exc:
-            raise ParseFailed(f"MN: raw bytes are not valid JSON: {exc}") from exc
-
-        pdfs = data.get("pdfs", [])
-        if not pdfs:
-            raise ParseFailed("MN: JSON payload contains no PDFs")
-
-        rows: list[NoticeRow] = []
-        for entry in pdfs:
-            pdf_bytes = base64.b64decode(entry["pdf_b64"])
-            url = entry.get("url", self.source_url)
-            rows.extend(_parse_pdf(pdf_bytes, url))
-
-        # MN may have months with 0 WARN filings — don't error on that
+        rows = _parse_warn_list(raw, self.source_url)
+        if rows is None:
+            raise ParseFailed(f"MN: no '{_WARN_SECTION}' section on the page")
         return rows
+
+
+def _parse_warn_list(raw: bytes, source_url: str) -> list[NoticeRow] | None:
+    """Rows from the "Minnesota WARN Notices" accordion; None if it's absent.
+
+    A "(Revision)" entry re-files an earlier notice already on the list
+    (Pearson's 7/30 original, 9/15 revision), so it's dropped when its base
+    employer is listed too; a revision whose original was replaced on the page
+    (Nilfisk, listed once as "3/24/26 Revised") is the only record and is kept.
+    """
+    soup = BeautifulSoup(raw, "html.parser")
+    answer = None
+    for question in soup.select("div.question"):
+        if " ".join(question.get_text().split()) == _WARN_SECTION:
+            answer = question.find_next_sibling("div")
+            break
+    if answer is None:
+        return None
+
+    entries: list[tuple[str, bool, date, str]] = []  # (employer, is_revision, date, pdf)
+    for li in answer.find_all("li"):
+        a = li.find("a", href=True)
+        if a is None or not a["href"].lower().endswith(".pdf"):
+            continue
+        name = " ".join(a.get_text().split())  # also folds the NBSPs DEED uses
+        trailing = " ".join(li.get_text().split())[len(name):]
+        m = _LIST_DATE_RE.search(trailing)
+        if not name or not m:
+            continue
+        month, day, year = (int(g) for g in m.groups())
+        try:
+            notice_date = date(year + 2000 if year < 100 else year, month, day)
+        except ValueError:
+            continue
+        employer = _REVISION_RE.sub("", name)
+        href = a["href"]
+        pdf_url = href if href.startswith("http") else _BASE_URL + href
+        entries.append((employer, employer != name, notice_date, pdf_url))
+
+    originals = {e.lower() for e, is_rev, _, _ in entries if not is_rev}
+    return [
+        NoticeRow(
+            state="MN",
+            employer=employer,
+            notice_date=notice_date,
+            source_url=source_url,
+            raw_notice_url=pdf_url,
+        )
+        for employer, is_rev, notice_date, pdf_url in entries
+        if not (is_rev and employer.lower() in originals)
+    ]
 
 
 def _parse_pdf(pdf_bytes: bytes, url: str) -> list[NoticeRow]:
