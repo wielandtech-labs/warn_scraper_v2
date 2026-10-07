@@ -1,5 +1,5 @@
-"""Tests for `warn-v2 sentiment-report`, focused on file output: which files
-each scope writes, and the payloads the /layoff-sentiment skill reads."""
+"""Tests for `warn-v2 sentiment-report`: the JSON files it writes, and the
+payloads the /layoff-sentiment skill reads."""
 from __future__ import annotations
 
 import json
@@ -60,31 +60,29 @@ def _bls_fixture() -> dict:
 
 
 def test_national_payload_carries_bls_context(db):
-    from warn_v2.reports.generate import generate_national_report
+    from warn_v2.reports.generate import build_national_payload
 
     _seed_state(db, "CA")
-    _, status, payload = generate_national_report(db, bls=_bls_fixture())
-    assert status == "pending"
+    payload = build_national_payload(db, bls=_bls_fixture())
     assert payload["sufficient"] is True
     assert payload["bls_context"]["industry"] == "Total nonfarm"
     assert payload["bls_context"]["unemployment_rate"]["value"] == 4.2
 
     # Without BLS data the payload has no bls_context key.
-    _, _, payload = generate_national_report(db, bls=None)
+    payload = build_national_payload(db, bls=None)
     assert "bls_context" not in payload
 
 
 def test_industry_payload_carries_sector_bls_context(db):
-    from warn_v2.reports.generate import generate_industry_report
+    from warn_v2.reports.generate import build_industry_payload
 
     _seed_state(db, "CA", naics="311999")
-    _, status, payload, _ = generate_industry_report(db, "31-33", bls=_bls_fixture())
-    assert status == "pending"
+    payload, _ = build_industry_payload(db, "31-33", bls=_bls_fixture())
     assert payload["bls_context"]["industry"] == "Manufacturing"
 
     # A sector missing from the BLS blocks gets no bls_context key.
     _seed_state(db, "TX", naics="111000")
-    _, _, payload, _ = generate_industry_report(db, "11", bls=_bls_fixture())
+    payload, _ = build_industry_payload(db, "11", bls=_bls_fixture())
     assert "bls_context" not in payload
 
 
@@ -119,104 +117,47 @@ def _seed_monthly_history(db, state: str, *, as_of: date, months: int = 40) -> N
 
 
 def test_state_and_national_payload_carry_forecast_with_sufficient_history(db):
-    from warn_v2.reports.generate import generate_national_report, generate_state_report
+    from warn_v2.reports.generate import build_national_payload, build_state_payload
 
     as_of = date(2026, 7, 1)
     _seed_monthly_history(db, "CA", as_of=as_of)
 
-    state_md, state_status, state_payload = generate_state_report(db, "CA", as_of=as_of)
-    assert state_status == "pending"
+    state_payload = build_state_payload(db, "CA", as_of=as_of)
     assert state_payload["forecast"]["model"] in {"ets-seasonal", "ets-trend", "ets-level"}
     assert len(state_payload["forecast"]["points"]) == 6
-    assert "## Outlook — next 6 months (model estimate)" in state_md
 
-    national_md, _, national_payload = generate_national_report(db, as_of=as_of)
-    assert "forecast" in national_payload
-    assert "## Outlook — next 6 months (model estimate)" in national_md
+    assert "forecast" in build_national_payload(db, as_of=as_of)
 
 
-def test_sparse_history_has_no_forecast_key_or_section(db):
-    from warn_v2.reports.generate import generate_state_report
+def test_sparse_history_has_no_forecast_key(db):
+    from warn_v2.reports.generate import build_state_payload
 
     # _seed_state puts every notice on a single day -- one month of history,
     # far below even the lowest forecast ladder tier.
     _seed_state(db, "CA")
-    md, status, payload = generate_state_report(db, "CA")
-    assert status == "pending"
-    assert "forecast" not in payload
-    assert "Outlook" not in md
+    assert "forecast" not in build_state_payload(db, "CA")
 
 
-def test_single_state_writes_pending_report(db, tmp_path):
-    _seed_state(db, "CA")
-    result = CliRunner().invoke(
-        cli.main, ["sentiment-report", "--state", "CA", "--reports-dir", str(tmp_path)]
+def _run(tmp_path, *extra):
+    return CliRunner().invoke(
+        cli.main, ["sentiment-report", "--reports-dir", str(tmp_path), *extra]
     )
-    assert result.exit_code == 0, result.output
-    content = (tmp_path / "CA.md").read_text(encoding="utf-8")
-    assert "Written analysis pending" in content
-    assert "CA status=pending" in result.output
 
 
-def test_dry_run_writes_nothing(db, tmp_path):
-    _seed_state(db, "CA")
-    result = CliRunner().invoke(
-        cli.main,
-        ["sentiment-report", "--state", "CA", "--reports-dir", str(tmp_path), "--dry-run"],
-    )
-    assert result.exit_code == 0, result.output
-    assert list(tmp_path.iterdir()) == []
-    assert "(dry run — nothing written)" in result.output
-
-
-def test_insufficient_state_written_and_exits_0(db, tmp_path):
-    result = CliRunner().invoke(
-        cli.main, ["sentiment-report", "--state", "WY", "--reports-dir", str(tmp_path)]
-    )
-    assert result.exit_code == 0, result.output
-    assert "Insufficient recent WARN activity" in (tmp_path / "WY.md").read_text(encoding="utf-8")
-    assert "insufficient=1" in result.output
-
-
-def test_unknown_state_rejected(db, tmp_path):
-    result = CliRunner().invoke(
-        cli.main, ["sentiment-report", "--state", "ZZ", "--reports-dir", str(tmp_path)]
-    )
-    assert result.exit_code == 1
-    assert "unknown state" in result.output
-
-
-def test_state_run_writes_no_national_or_industry_files(db, tmp_path):
-    _seed_state(db, "CA")
-    result = CliRunner().invoke(
-        cli.main, ["sentiment-report", "--state", "CA", "--reports-dir", str(tmp_path)]
-    )
-    assert result.exit_code == 0, result.output
-    assert sorted(p.name for p in tmp_path.iterdir()) == ["CA.md"]
-
-
-def test_full_run_writes_national_and_industry_files(db, tmp_path):
+def test_run_writes_only_json(db, tmp_path):
     _seed_state(db, "CA", naics="311999")
-    result = CliRunner().invoke(cli.main, ["sentiment-report", "--reports-dir", str(tmp_path)])
+    result = _run(tmp_path)
     assert result.exit_code == 0, result.output
-    names = {p.name for p in tmp_path.iterdir()}
-    assert "CA.md" in names and "WY.md" in names  # all states
-    assert "US.md" in names
-    assert "industry_31-33.md" in names and "industry_92.md" in names  # all sectors
-    assert "industries.json" in names
+    assert sorted(p.name for p in tmp_path.iterdir()) == [
+        "forecasts.json", "industries.json", "payloads.json",
+    ]
     # 51 states + national + 20 sectors.
-    assert "total=72" in result.output
-    us = (tmp_path / "US.md").read_text(encoding="utf-8")
-    assert us.startswith("# United States (US)")
-    assert "by state" in us
-    scorecard = (tmp_path / "industry_31-33.md").read_text(encoding="utf-8")
-    assert "Industry Scorecard" in scorecard
-    assert "Score:" in scorecard
+    assert "payloads=72" in result.output
 
 
-def test_full_run_writes_payloads_json(db, tmp_path):
+def test_run_writes_payloads_json(db, tmp_path):
     _seed_state(db, "CA", naics="311999")
-    result = CliRunner().invoke(cli.main, ["sentiment-report", "--reports-dir", str(tmp_path)])
+    result = _run(tmp_path)
     assert result.exit_code == 0, result.output
     doc = json.loads((tmp_path / "payloads.json").read_text(encoding="utf-8"))
     assert doc["schema"] == 1
@@ -226,100 +167,30 @@ def test_full_run_writes_payloads_json(db, tmp_path):
     ca = doc["jurisdictions"]["CA"]
     assert ca["sufficient"] is True
     assert ca["totals"]["layoffs_current"] == 60
+    assert doc["jurisdictions"]["US"]["state_name"] == "United States"
     assert doc["jurisdictions"]["WY"]["sufficient"] is False
     assert doc["industries"]["31-33"]["sector_name"]
-    assert "payloads=72" in result.output
+    scorecards = json.loads((tmp_path / "industries.json").read_text(encoding="utf-8"))
+    assert len(scorecards) == 20
 
 
-def test_industry_run_writes_single_scorecard_no_json(db, tmp_path):
+def test_dry_run_writes_nothing(db, tmp_path):
     _seed_state(db, "CA", naics="311999")
-    result = CliRunner().invoke(
-        cli.main, ["sentiment-report", "--industry", "31-33", "--reports-dir", str(tmp_path)]
-    )
-    assert result.exit_code == 0, result.output
-    assert sorted(p.name for p in tmp_path.iterdir()) == ["industry_31-33.md"]
-
-
-def test_national_run_writes_only_us_md(db, tmp_path):
-    _seed_state(db, "CA")
-    result = CliRunner().invoke(
-        cli.main, ["sentiment-report", "--national", "--reports-dir", str(tmp_path)]
-    )
-    assert result.exit_code == 0, result.output
-    assert sorted(p.name for p in tmp_path.iterdir()) == ["US.md"]
-
-
-def test_national_and_state_mutually_exclusive(db, tmp_path):
-    result = CliRunner().invoke(
-        cli.main,
-        ["sentiment-report", "--national", "--state", "CA", "--reports-dir", str(tmp_path)],
-    )
-    assert result.exit_code == 1
-    assert "mutually exclusive" in result.output
-
-
-def test_national_and_industry_mutually_exclusive(db, tmp_path):
-    result = CliRunner().invoke(
-        cli.main,
-        ["sentiment-report", "--national", "--industry", "31-33",
-         "--reports-dir", str(tmp_path)],
-    )
-    assert result.exit_code == 1
-    assert "mutually exclusive" in result.output
-
-
-def test_unknown_industry_rejected(db, tmp_path):
-    result = CliRunner().invoke(
-        cli.main, ["sentiment-report", "--industry", "ZZ", "--reports-dir", str(tmp_path)]
-    )
-    assert result.exit_code == 1
-    assert "unknown industry" in result.output
-
-
-def test_state_and_industry_mutually_exclusive(db, tmp_path):
-    result = CliRunner().invoke(
-        cli.main,
-        ["sentiment-report", "--state", "CA", "--industry", "31-33",
-         "--reports-dir", str(tmp_path)],
-    )
-    assert result.exit_code == 1
-    assert "mutually exclusive" in result.output
-
-
-def test_full_dry_run_writes_nothing(db, tmp_path):
-    _seed_state(db, "CA", naics="311999")
-    result = CliRunner().invoke(
-        cli.main, ["sentiment-report", "--reports-dir", str(tmp_path), "--dry-run"]
-    )
+    result = _run(tmp_path, "--dry-run")
     assert result.exit_code == 0, result.output
     assert list(tmp_path.iterdir()) == []
+    assert "(dry run — nothing written)" in result.output
 
 
-def test_full_run_writes_forecasts_json(db, tmp_path):
+def test_run_writes_forecasts_json(db, tmp_path):
     _seed_monthly_history(db, "CA", as_of=date.today())
-    result = CliRunner().invoke(cli.main, ["sentiment-report", "--reports-dir", str(tmp_path)])
+    result = _run(tmp_path)
     assert result.exit_code == 0, result.output
-    names = {p.name for p in tmp_path.iterdir()}
-    assert "forecasts.json" in names
     payload = json.loads((tmp_path / "forecasts.json").read_text(encoding="utf-8"))
     assert payload["schema"] == 1
     assert "CA" in payload["jurisdictions"]
     assert "US" in payload["jurisdictions"]
     assert any(line.startswith("forecasts=") for line in result.output.splitlines())
-
-
-@pytest.mark.parametrize(
-    "extra_args", [["--state", "CA"], ["--national"], ["--industry", "31-33"]]
-)
-def test_targeted_runs_do_not_write_forecasts_or_payloads(db, tmp_path, extra_args):
-    _seed_state(db, "CA", naics="311999")
-    result = CliRunner().invoke(
-        cli.main, ["sentiment-report", "--reports-dir", str(tmp_path), *extra_args]
-    )
-    assert result.exit_code == 0, result.output
-    names = {p.name for p in tmp_path.iterdir()}
-    assert "forecasts.json" not in names
-    assert "payloads.json" not in names
 
 
 def test_forecasts_build_failure_does_not_abort_run(db, tmp_path, monkeypatch):
@@ -331,9 +202,9 @@ def test_forecasts_build_failure_does_not_abort_run(db, tmp_path, monkeypatch):
         lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")),
     )
     _seed_state(db, "CA", naics="311999")
-    result = CliRunner().invoke(cli.main, ["sentiment-report", "--reports-dir", str(tmp_path)])
+    result = _run(tmp_path)
     assert result.exit_code == 0, result.output
     assert "forecasts=failed" in result.output
     names = {p.name for p in tmp_path.iterdir()}
     assert "forecasts.json" not in names
-    assert "US.md" in names and "payloads.json" in names  # the rest still completed
+    assert "payloads.json" in names  # the rest still completed

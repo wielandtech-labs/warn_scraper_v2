@@ -241,17 +241,18 @@ alertDigest:
     requests: { cpu: 50m, memory: 128Mi }
     limits:   { cpu: 300m, memory: 256Mi }
 
-# Storage for the per-state economic sentiment markdown reports. Written by
-# the weekly sentimentReport CronJob, read (read-only) by the api pod for
-# GET /api/reports/{state}. 51 small markdown files — 1Gi is generous.
+# Storage for the report JSON (payloads.json, industries.json,
+# forecasts.json). Written by the weekly sentimentReport CronJob, read
+# (read-only) by the api pod. The markdown reports themselves ship in the
+# image (warn_v2/reports/published/). A few MB — 1Gi is generous.
 reportStorage:
   enabled: false        # flip on in HelmRelease
   storageClass: synostorage-nfs
   size: 1Gi
 
-# Weekly deterministic report figures (warn-v2 sentiment-report): trend
-# tables, industries.json, forecasts.json, and payloads.json — the input the
-# /layoff-sentiment Claude Code skill writes its analysis from. No LLM runs
+# Weekly deterministic report figures (warn-v2 sentiment-report):
+# industries.json, forecasts.json, and payloads.json — the input the
+# /layoff-sentiment Claude Code skill writes the reports from. No LLM runs
 # in-cluster. Requires reportStorage.enabled.
 sentimentReport:
   enabled: false            # flip on in HelmRelease after reportStorage

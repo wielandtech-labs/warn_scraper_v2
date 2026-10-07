@@ -72,6 +72,7 @@ install WSL2 (`wsl --install`), or build and `docker run` the image.
 | `warn_v2/enrichment/` | Claude-driven company enrichment |
 | `warn_v2/reports/` | Weekly sentiment reports + industry scorecards (see below) |
 | `.claude/commands/heal-scraper.md` | Claude Code op that repairs a broken scraper |
+| `.claude/skills/layoff-sentiment/` | Claude Code skill that writes the sentiment reports |
 | `warn_v2/api/` | FastAPI read-only API |
 | `warn_v2/db/` | SQLAlchemy models + Alembic |
 | `charts/warn-v2/` | Helm chart for K3s deploy via Flux |
@@ -258,10 +259,12 @@ path. U-6 is the closest public-domain equivalent.
 
 ## Sentiment reports & industry scorecards
 
-`warn_v2/reports/` generates weekly markdown reports — one per state, a national
-roll-up (`US.md`), and a scorecard per NAICS sector — served at `/api/reports/*`
-and rendered on the SPA's state pages (below the hardest-hit counties) and
-`/reports` page.
+Markdown reports — one per state, a national roll-up (`US.md`), and a scorecard
+per NAICS sector — committed to `warn_v2/reports/published/`, served at
+`/api/reports/*`, and rendered on the SPA's state pages (below the hardest-hit
+counties) and `/reports` page. Claude writes them on demand with the
+`/layoff-sentiment` skill (`.claude/skills/layoff-sentiment/`) from figures the
+weekly CronJob computes; they ship in the image, so a report PR is a deploy.
 
 **Pipeline** (`sentiment-report` CLI; CronJob Mon 02:07 UTC):
 
@@ -279,18 +282,18 @@ and rendered on the SPA's state pages (below the hardest-hit counties) and
    render without it. Shares its HTTP client and series ids with the
    `fetch-bls` ingester (see [Economic indicators](#economic-indicators)),
    which is *not* fail-open.
-3. **Render + publish** (`render.py`, `generate.py`) — deterministic tables are
-   atomically written to the reports PVC (`/var/reports`). A full run also
-   writes `payloads.json` — every report's figures (aggregates + forecast +
-   BLS context) — served at `/api/reports/payloads`.
-4. **Written analysis** — no LLM runs in-cluster. The `/layoff-sentiment`
-   Claude Code skill reads `/api/reports/payloads` on demand and writes the
-   analysis (banned growth vocabulary — "added/grew/gained" — still applies:
-   every figure is workers losing jobs).
+3. **Export** (`generate.py`) — `payloads.json` (every report's figures:
+   aggregates + forecast + BLS context, served at `/api/reports/payloads`),
+   `industries.json` (the `/reports` scorecard grid), and `forecasts.json`
+   (the forecast charts), atomically written to the reports PVC
+   (`/var/reports`). No LLM runs in-cluster.
+4. **Write + publish** (`/layoff-sentiment` skill) — Claude reads the payloads,
+   writes the reports to the template in its SKILL.md, and opens a PR. Its
+   `validate.py` is the gate: every number and date must appear in the
+   payload, growth vocabulary ("added/grew/gained") is banned — every figure
+   is workers losing jobs — and only the markdown subset the SPA renders is
+   allowed.
 
 ```powershell
-uv run warn-v2 sentiment-report --state CA          # one state
-uv run warn-v2 sentiment-report --national          # US roll-up only
-uv run warn-v2 sentiment-report --industry 31-33    # one sector scorecard
-uv run warn-v2 sentiment-report --dry-run            # offline smoke test
+uv run warn-v2 sentiment-report --dry-run   # offline smoke test of the export
 ```

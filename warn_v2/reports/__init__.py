@@ -1,8 +1,7 @@
 """Economic sentiment reports: per-state, national, and per-NAICS-sector.
 
-Deterministic aggregation (aggregate, industry) feeds a template renderer
-(render), with official BLS payroll context on the national and sector
-payloads (bls); generate orchestrates the pipeline and file output. The
-written analysis comes from the /layoff-sentiment Claude Code skill, which
-reads the exported payloads.json.
+Deterministic aggregation (aggregate, industry) and forecasts (forecast), with
+official BLS payroll context on the national and sector payloads (bls);
+generate exports them as payloads.json. The reports themselves are written by
+the /layoff-sentiment Claude Code skill and committed to published/.
 """

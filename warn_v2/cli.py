@@ -1715,163 +1715,58 @@ def send_alert_digest_cmd() -> None:
 
 
 @main.command("sentiment-report")
-@click.option("--state", default=None, help="One state abbreviation, e.g. CA (default: all)")
-@click.option(
-    "--industry",
-    default=None,
-    metavar="SECTOR",
-    help="One NAICS sector id, e.g. 31-33 (generates only that scorecard)",
-)
-@click.option(
-    "--national",
-    is_flag=True,
-    help="Only the US-wide roll-up (US.md)",
-)
 @click.option(
     "--reports-dir",
     default="/var/reports",
     show_default=True,
     type=click.Path(file_okay=False, path_type=Path),
-    help="Directory for the markdown reports",
+    help="Directory for the JSON outputs",
 )
-@click.option("--dry-run", is_flag=True, help="Compute and render but write no files")
-def sentiment_report_cmd(
-    state: str | None,
-    industry: str | None,
-    national: bool,
-    reports_dir: Path,
-    dry_run: bool,
-) -> None:
-    """Generate the deterministic layoff-trend reports.
+@click.option("--dry-run", is_flag=True, help="Compute everything but write no files")
+def sentiment_report_cmd(reports_dir: Path, dry_run: bool) -> None:
+    """Export the weekly report figures as JSON.
 
-    Figures only (trailing 90 days vs the prior 90, the same window last
-    year, a 12-month series, and a 6-month forecast). The default run covers
-    every state, a national roll-up (US.md), and a scorecard per NAICS sector
-    (industry_{sector}.md + industries.json), and also writes forecasts.json
-    and payloads.json -- the figures the /layoff-sentiment Claude Code skill
-    writes its analysis from.
-
-    
-    Examples:
-      warn-v2 sentiment-report                       # states + national + industries
-      warn-v2 sentiment-report --state CA            # one state
-      warn-v2 sentiment-report --industry 31-33      # one sector scorecard
-      warn-v2 sentiment-report --national            # US roll-up only
-      warn-v2 sentiment-report --dry-run             # offline smoke test
+    Writes payloads.json (per state, US, and NAICS sector: trailing 90 days
+    vs the prior 90, the same window last year, trailing 12 months, a
+    12-month series, a 6-month forecast, and BLS context), industries.json
+    (the scorecard grid), and forecasts.json (the forecast charts). The
+    reports themselves are written by the /layoff-sentiment Claude Code
+    skill from payloads.json, served at /api/reports/payloads.
     """
     import json
     from datetime import date
 
-    from warn_v2.companies.naics import NAICS_SECTORS, SECTOR_NAME
+    from warn_v2.companies.naics import NAICS_SECTORS
     from warn_v2.db.session import session_scope
-    from warn_v2.reports.aggregate import NATIONAL_CODE
     from warn_v2.reports.bls import fetch_bls_context
-    from warn_v2.reports.generate import (
-        _atomic_write,
-        generate_industry_reports,
-        generate_national_report,
-        generate_reports,
-        write_payloads,
-        write_report,
-    )
-    from warn_v2.states import is_valid_state
+    from warn_v2.reports.forecast import FORECASTS_JSON, build_forecasts
+    from warn_v2.reports.generate import _atomic_write, generate_payloads
 
-    if state and industry:
-        click.echo("--state and --industry are mutually exclusive", err=True)
-        sys.exit(1)
-    if national and (state or industry):
-        click.echo("--national is mutually exclusive with --state and --industry", err=True)
-        sys.exit(1)
-    if state and not is_valid_state(state):
-        click.echo(f"unknown state: {state!r}", err=True)
-        sys.exit(1)
-    if industry and industry not in SECTOR_NAME:
-        click.echo(f"unknown industry: {industry!r}", err=True)
-        sys.exit(1)
-
-    full_run = state is None and industry is None and not national
-    as_of = date.today()
-    # BLS macro context rides only in the national + industry payloads.
+    # BLS macro context rides in the national + industry payloads.
     # Fail-open: None is fine.
-    bls = None
-    if state is None:
-        target_sectors = [industry] if industry else [sid for sid, _, _ in NAICS_SECTORS]
-        bls = fetch_bls_context(target_sectors)
-        click.echo(f"bls_context={'ok' if bls else 'unavailable'}")
-    stats = {"generated": 0, "insufficient": 0, "total": 0}
-    jurisdictions: dict = {}
-    industries: dict = {}
-
-    def merge(group: dict[str, int]) -> None:
-        for k in stats:
-            stats[k] += group[k]
-
+    bls = fetch_bls_context([sid for sid, _, _ in NAICS_SECTORS])
+    click.echo(f"bls_context={'ok' if bls else 'unavailable'}")
     with session_scope() as session:
-        if industry is None and not national:
-            merge(
-                generate_reports(
-                    session,
-                    reports_dir=reports_dir,
-                    states=[state] if state else None,
-                    dry_run=dry_run,
-                    as_of=as_of,
-                    payloads=jurisdictions,
-                    progress=click.echo,
-                )
-            )
-        if state is None and industry is None:
-            content, status, payload = generate_national_report(
-                session, as_of=as_of, bls=bls
-            )
-            jurisdictions[NATIONAL_CODE] = payload
+        stats = generate_payloads(
+            session,
+            reports_dir=reports_dir,
+            as_of=date.today(),
+            bls=bls,
+            dry_run=dry_run,
+            progress=click.echo,
+        )
+        # Fail-open: a forecasts.json build failure must never break the
+        # weekly run.
+        try:
+            forecasts = build_forecasts(session)
             if not dry_run:
-                write_report(reports_dir, NATIONAL_CODE, content)
-            if status == "insufficient_data":
-                stats["insufficient"] += 1
-            stats["generated"] += 1
-            stats["total"] += 1
-            click.echo(f"{NATIONAL_CODE} status={status} chars={len(content)}")
-        if state is None and not national:
-            merge(
-                generate_industry_reports(
-                    session,
-                    reports_dir=reports_dir,
-                    sectors=[industry] if industry else None,
-                    dry_run=dry_run,
-                    as_of=as_of,
-                    bls=bls,
-                    payloads=industries,
-                    progress=click.echo,
-                )
-            )
-        if full_run:
-            # Full default run only -- mirrors industries.json semantics so a
-            # targeted run never shrinks these files.
-            if not dry_run:
-                write_payloads(
-                    reports_dir,
-                    as_of=as_of,
-                    jurisdictions=jurisdictions,
-                    industries=industries,
-                )
-            click.echo(f"payloads={len(jurisdictions) + len(industries)}")
-            # Fail-open: a forecasts.json build failure must never break the
-            # weekly report run.
-            try:
-                from warn_v2.reports.forecast import FORECASTS_JSON, build_forecasts
-
-                forecasts = build_forecasts(session)
-                if not dry_run:
-                    _atomic_write(reports_dir, FORECASTS_JSON, json.dumps(forecasts, indent=2))
-                click.echo(f"forecasts={len(forecasts['jurisdictions'])}")
-            except Exception as exc:
-                click.echo(f"forecasts=failed ({exc})", err=True)
+                _atomic_write(reports_dir, FORECASTS_JSON, json.dumps(forecasts, indent=2))
+            click.echo(f"forecasts={len(forecasts['jurisdictions'])}")
+        except Exception as exc:
+            click.echo(f"forecasts=failed ({exc})", err=True)
 
     suffix = " (dry run — nothing written)" if dry_run else ""
-    click.echo(
-        f"generated={stats['generated']} insufficient={stats['insufficient']} "
-        f"total={stats['total']}{suffix}"
-    )
+    click.echo(f"payloads={stats['total']} insufficient={stats['insufficient']}{suffix}")
 
 
 if __name__ == "__main__":
