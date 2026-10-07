@@ -1,15 +1,19 @@
 """Routes: /reports — economic sentiment markdown (states, national, industries).
 
-Serves the files written by `warn-v2 sentiment-report` (weekly CronJob) from
-the shared reports volume, including payloads.json for the /layoff-sentiment
-skill. Public, like /stats — the reports contain only
-aggregated public WARN data.
+Two sources:
+- The markdown reports are written by the /layoff-sentiment Claude Code skill
+  and committed to warn_v2/reports/published/, so they ship inside the image.
+- The JSON files (industries.json, forecasts.json, payloads.json) are written
+  by `warn-v2 sentiment-report` (weekly CronJob) to the shared reports volume.
+
+Public, like /stats — everything here is aggregated public WARN data.
 """
 from __future__ import annotations
 
 import json
 import logging
 import os
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -28,6 +32,11 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/reports", tags=["reports"])
 
 _REPORTS_DIR = Path(os.getenv("REPORTS_DIR", "/var/reports"))
+_PUBLISHED_DIR = Path(__file__).resolve().parents[2] / "reports" / "published"
+
+# Every report opens with an italic "_Generated YYYY-MM-DD ..." line. File
+# mtimes inside the image are checkout time, not report time.
+_GENERATED_RE = re.compile(r"^_Generated (\d{4}-\d{2}-\d{2})", re.MULTILINE)
 
 # The report surface is the state list plus the national roll-up. "US" stays
 # out of STATE_NAMES itself — that dict feeds the sitemap/state pages.
@@ -37,7 +46,7 @@ _REPORT_NAMES: dict[str, str] = {NATIONAL_CODE: NATIONAL_NAME, **STATE_NAMES}
 class ReportInfo(BaseModel):
     state: str
     state_name: str
-    generated_at: datetime  # file mtime
+    generated_at: datetime  # the report's "_Generated" date
 
 
 class IndustryScorecard(BaseModel):
@@ -71,14 +80,32 @@ class ForecastOut(BaseModel):
     points: list[ForecastPointOut]
 
 
+def _generated_at(path: Path) -> datetime:
+    """The date in the report's "_Generated" line; mtime if it has none."""
+    match = _GENERATED_RE.search(path.read_text(encoding="utf-8"))
+    if match:
+        try:
+            return datetime.fromisoformat(match.group(1)).replace(tzinfo=UTC)
+        except ValueError:
+            pass
+    return datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
+
+
+def _markdown(path: Path) -> Response:
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Report not available")
+    return Response(
+        path.read_text(encoding="utf-8"), media_type="text/markdown; charset=utf-8"
+    )
+
+
 @router.get("", response_model=list[ReportInfo])
 def list_reports() -> list[ReportInfo]:
-    """Jurisdictions with an available report (states + US), newest content
-    indicated by mtime."""
-    if not _REPORTS_DIR.is_dir():
+    """Jurisdictions with an available report (states + US)."""
+    if not _PUBLISHED_DIR.is_dir():
         return []
     out: list[ReportInfo] = []
-    for path in sorted(_REPORTS_DIR.glob("*.md")):
+    for path in sorted(_PUBLISHED_DIR.glob("*.md")):
         code = path.stem
         if code not in _REPORT_NAMES:
             continue
@@ -86,7 +113,7 @@ def list_reports() -> list[ReportInfo]:
             ReportInfo(
                 state=code,
                 state_name=_REPORT_NAMES[code],
-                generated_at=datetime.fromtimestamp(path.stat().st_mtime, tz=UTC),
+                generated_at=_generated_at(path),
             )
         )
     return out
@@ -120,15 +147,10 @@ def list_industry_scorecards() -> list[IndustryScorecard]:
 
 @router.get("/industries/{sector}")
 def get_industry_report(sector: str) -> Response:
-    """The latest scorecard for one NAICS sector, as markdown."""
+    """The published scorecard for one NAICS sector, as markdown."""
     if sector not in SECTOR_NAME:  # whitelist doubles as a path-traversal guard
         raise HTTPException(status_code=404, detail="Unknown sector")
-    path = _REPORTS_DIR / f"industry_{sector}.md"
-    if not path.is_file():
-        raise HTTPException(status_code=404, detail="Report not available")
-    return Response(
-        path.read_text(encoding="utf-8"), media_type="text/markdown; charset=utf-8"
-    )
+    return _markdown(_PUBLISHED_DIR / f"industry_{sector}.md")
 
 
 def _forecast_point_out(row: dict) -> ForecastPointOut:
@@ -191,13 +213,8 @@ def get_payloads() -> Response:
 
 @router.get("/{state}")
 def get_state_report(state: str) -> Response:
-    """The latest sentiment report for one state (or US), as markdown."""
+    """The published report for one state (or US), as markdown."""
     code = state.upper()
     if code not in _REPORT_NAMES:  # whitelist doubles as a path-traversal guard
         raise HTTPException(status_code=404, detail="Unknown state")
-    path = _REPORTS_DIR / f"{code}.md"
-    if not path.is_file():
-        raise HTTPException(status_code=404, detail="Report not available")
-    return Response(
-        path.read_text(encoding="utf-8"), media_type="text/markdown; charset=utf-8"
-    )
+    return _markdown(_PUBLISHED_DIR / f"{code}.md")

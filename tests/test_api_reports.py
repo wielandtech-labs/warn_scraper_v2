@@ -14,7 +14,10 @@ def client(tmp_path, monkeypatch: pytest.MonkeyPatch, db) -> TestClient:
     from warn_v2.api import app
     from warn_v2.api.deps import get_db
 
+    # One tmp dir stands in for both sources: the committed markdown
+    # (_PUBLISHED_DIR) and the CronJob's JSON on the volume (_REPORTS_DIR).
     monkeypatch.setattr(reports_mod, "_REPORTS_DIR", tmp_path)
+    monkeypatch.setattr(reports_mod, "_PUBLISHED_DIR", tmp_path)
 
     # Reports content comes from the filesystem, but the routes now sit behind
     # the rate limiter, whose dependency chain opens a DB session — so the
@@ -62,13 +65,35 @@ def test_list_reports(client, tmp_path):
     assert body[0]["generated_at"]
 
 
+def test_list_reports_generated_at_from_report_line(client, tmp_path):
+    (tmp_path / "CA.md").write_text(
+        "# California (CA) — WARN Layoff Trends\n\n_Generated 2026-10-05 · windows_\n",
+        encoding="utf-8",
+    )
+    body = client.get("/api/reports").json()
+    assert body[0]["generated_at"].startswith("2026-10-05")
+
+
+def test_published_dir_ships_every_report():
+    """The committed reports cover every state, US, and every NAICS sector
+    (the SPA 404s a missing one) and each carries a parseable date."""
+    from warn_v2.companies.naics import SECTOR_NAME
+
+    published = reports_mod._PUBLISHED_DIR
+    expected = {f"{c}.md" for c in reports_mod._REPORT_NAMES}
+    expected |= {f"industry_{s}.md" for s in SECTOR_NAME}
+    assert {p.name for p in published.glob("*.md")} == expected
+    for path in published.glob("*.md"):
+        assert reports_mod._GENERATED_RE.search(path.read_text(encoding="utf-8")), path.name
+
+
 def test_list_reports_empty_or_missing_dir(client, tmp_path, monkeypatch):
     resp = client.get("/api/reports")  # dir exists but is empty
     assert resp.status_code == 200
     assert resp.json() == []
 
-    monkeypatch.setattr(reports_mod, "_REPORTS_DIR", tmp_path / "nope")
-    resp = client.get("/api/reports")  # dir doesn't exist (job never ran)
+    monkeypatch.setattr(reports_mod, "_PUBLISHED_DIR", tmp_path / "nope")
+    resp = client.get("/api/reports")  # dir doesn't exist (nothing published)
     assert resp.status_code == 200
     assert resp.json() == []
 

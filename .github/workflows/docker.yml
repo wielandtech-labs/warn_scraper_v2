@@ -1,17 +1,24 @@
 name: Build and Push Docker Image
 
 on:
+  # `paths` with ordered negations (paths-ignore can't re-include): docs are
+  # not deploys, EXCEPT the /layoff-sentiment reports, which ship in the
+  # image — a report-only PR must still build, or the reports never go live.
   push:
     branches: [ main ]
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
-      - ".github/workflows/ci.yml"
+    paths:
+      - "**"
+      - "!**.md"
+      - "!docs/**"
+      - "!.github/workflows/ci.yml"
+      - "warn_v2/reports/published/**"
   pull_request:
     branches: [ main ]
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
+    paths:
+      - "**"
+      - "!**.md"
+      - "!docs/**"
+      - "warn_v2/reports/published/**"
 
 concurrency:
   group: docker-${{ github.ref }}
