@@ -129,13 +129,56 @@ def test_county_deltas_and_unknown_bucket(db):
 
     agg = compute_state_aggregates(db, "CA", as_of=AS_OF)
     by_key = {r.key: r for r in agg.counties}
-    alameda = by_key["Alameda"]
+    alameda = by_key["CA|alameda"]
+    assert alameda.name == "Alameda"
     assert (alameda.cur_layoffs, alameda.prior_layoffs) == (50, 20)
     assert alameda.delta_layoffs == 30
     assert alameda.pct_change == 150.0
     unknown = by_key["Unknown"]
     assert unknown.cur_layoffs == 30
     assert unknown.pct_change is None  # prior was 0 → rendered as "new"
+
+
+def test_county_label_variants_merge(db):
+    # Scraped labels and backfilled Census NAMEs share locations.county.
+    for county, day, n in [
+        ("Fairfax", date(2026, 5, 1), 100),
+        ("Fairfax County", date(2026, 5, 2), 50),
+        ("Fairfax County", date(2026, 5, 3), 25),
+        ("Fairfax city", date(2026, 5, 4), 7),  # independent city: distinct
+        ("Loudoun  County", date(2026, 2, 1), 40),
+        ("Loudoun", date(2026, 5, 5), 10),
+        ("Unknown", date(2026, 5, 6), 3),
+    ]:
+        _notice(db, state="VA", notice_date=day, layoff_count=n, county=county)
+    _notice(db, state="VA", notice_date=date(2026, 5, 7), layoff_count=4)
+    db.commit()
+
+    agg = compute_state_aggregates(db, "VA", as_of=AS_OF)
+    by_name = {r.name: r for r in agg.counties}
+    assert set(by_name) == {"Fairfax", "Fairfax city", "Loudoun", "Unknown"}
+    fairfax = by_name["Fairfax"]
+    assert (fairfax.cur_notices, fairfax.cur_layoffs) == (3, 175)
+    assert by_name["Fairfax city"].cur_layoffs == 7
+    loudoun = by_name["Loudoun"]
+    assert (loudoun.cur_layoffs, loudoun.prior_layoffs) == (10, 40)
+    assert by_name["Unknown"].cur_layoffs == 7  # literal "Unknown" + unlocated
+
+
+def test_county_independent_city_kept_apart(db):
+    for county, n in [
+        ("Balto Co.", 10), ("Baltimore County", 20),
+        ("Baltimore City", 5), ("Baltimore city", 6),
+    ]:
+        _notice(db, state="MD", notice_date=date(2026, 5, 1), layoff_count=n, county=county)
+    db.commit()
+
+    agg = compute_state_aggregates(db, "MD", as_of=AS_OF)
+    by_key = {r.key: r for r in agg.counties}
+    assert set(by_key) == {"MD|baltimore", "MD|baltimore city"}
+    assert by_key["MD|baltimore"].cur_layoffs == 30
+    assert by_key["MD|baltimore"].name == "Baltimore"
+    assert by_key["MD|baltimore city"].cur_layoffs == 11
 
 
 def test_sector_rollup_31_33(db):
