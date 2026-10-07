@@ -5,6 +5,7 @@ which session_scope() uses, so commands hit the in-memory SQLite DB directly.
 """
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -13,7 +14,7 @@ from sqlalchemy import select
 
 from warn_v2 import auth
 from warn_v2.cli import main
-from warn_v2.db.models import User, UserSession
+from warn_v2.db.models import AuthToken, User, UserSession
 
 PASSWORD = "correct-horse-battery"
 
@@ -164,3 +165,80 @@ def test_delete_user_removes_sessions(runner, db_session_factory):
 
     missing = runner.invoke(main, ["delete-user", "--email", "gone@example.com"])
     assert missing.exit_code == 1
+
+
+# ---------------------------------------------------------------------------
+# invite-user: account + emailed single-use set-password link
+# ---------------------------------------------------------------------------
+
+@pytest.fixture()
+def outbox(monkeypatch):
+    sent: list[dict] = []
+
+    def _fake(to, subject, text_body, html_body=None, **kwargs):
+        sent.append({"to": to, "subject": subject, "text": text_body})
+
+    monkeypatch.setattr("warn_v2.api.routes.auth.send_email", _fake)
+    return sent
+
+
+def _invite_token_row(db_session_factory, text: str) -> AuthToken | None:
+    m = re.search(r"reset-page\?token=([A-Za-z0-9_-]+)&invite=1", text)
+    assert m, text
+    with db_session_factory() as session:
+        return session.scalar(
+            select(AuthToken).where(AuthToken.token_sha256 == auth._sha256(m.group(1)))
+        )
+
+
+def test_invite_user_creates_account_and_emails_link(runner, db_session_factory, outbox):
+    result = runner.invoke(
+        main, ["invite-user", "--email", " Jason@Example.com ", "--role", "admin"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "token=" not in result.output  # the link is a credential; never echo it
+
+    user = _get_user(db_session_factory, "jason@example.com")
+    assert user is not None
+    assert user.role == "admin"
+    assert user.email_verified_at is None  # verified when the link is used
+
+    assert len(outbox) == 1
+    assert outbox[0]["to"] == "jason@example.com"
+    row = _invite_token_row(db_session_factory, outbox[0]["text"])
+    assert row is not None
+    assert row.purpose == "invite"
+    assert row.user_id == user.id
+    expires_at = row.expires_at.replace(tzinfo=UTC)
+    assert expires_at - datetime.now(UTC) > timedelta(days=6)
+
+
+def test_invite_user_reinvites_existing_account(runner, db_session_factory, outbox):
+    runner.invoke(
+        main,
+        ["create-user", "--email", "re@example.com", "--password-stdin"],
+        input=f"{PASSWORD}\n",
+    )
+    before = _get_user(db_session_factory, "re@example.com").password_hash
+
+    result = runner.invoke(main, ["invite-user", "--email", "re@example.com", "--role", "admin"])
+    assert result.exit_code == 0, result.output
+    user = _get_user(db_session_factory, "re@example.com")
+    assert user.role == "admin"
+    assert user.password_hash == before  # untouched until the link is used
+    assert len(outbox) == 1
+    assert _invite_token_row(db_session_factory, outbox[0]["text"]) is not None
+
+
+def test_invite_user_rejects_invalid_email(runner, db_session_factory, outbox):
+    result = runner.invoke(main, ["invite-user", "--email", "not-an-email"])
+    assert result.exit_code == 1
+    assert outbox == []
+
+
+def test_invite_user_without_smtp_creates_nothing(runner, db_session_factory, monkeypatch):
+    for var in ("SMTP_HOST", "SMTP_USERNAME", "SMTP_PASSWORD"):
+        monkeypatch.delenv(var, raising=False)
+    result = runner.invoke(main, ["invite-user", "--email", "nosmtp@example.com"])
+    assert result.exit_code == 1
+    assert _get_user(db_session_factory, "nosmtp@example.com") is None

@@ -130,7 +130,7 @@ _PENDING_MSG = "If that address is new, a verification email is on its way."
 _RESET_MSG = "If that address has an account, a reset email is on its way."
 
 
-def _send_link_email(to: str, subject: str, intro: str, url: str, cta: str) -> None:
+def send_link_email(to: str, subject: str, intro: str, url: str, cta: str) -> None:
     base = site_base_url()
     html_body = render_shell(
         preheader=intro,
@@ -166,7 +166,7 @@ def signup(body: SignupIn, request: Request, db: Session = Depends(get_db)) -> d
     db.flush()
     token = auth.issue_token(db, user, "verify")
     try:
-        _send_link_email(
+        send_link_email(
             email,
             "Verify your WARN Index account",
             "Confirm your email to activate your WARN Index API account:",
@@ -207,7 +207,7 @@ def forgot_password(
 
     token = auth.issue_token(db, user, "reset")
     try:
-        _send_link_email(
+        send_link_email(
             email,
             "Reset your WARN Index password",
             "Use the link below to choose a new WARN Index password (valid for 1 hour):",
@@ -222,8 +222,8 @@ def forgot_password(
 
 
 @router.get("/reset-page")
-def reset_page(token: str = Query(...)) -> HTMLResponse:
-    """Self-contained password form for the emailed reset link.
+def reset_page(token: str = Query(...), invite: bool = Query(False)) -> HTMLResponse:
+    """Self-contained password form for the emailed reset (or invite) link.
 
     Works without the SPA: an inline script POSTs JSON to /api/auth/reset.
     The token isn't validated here — the POST is the single point of truth.
@@ -254,12 +254,17 @@ document.getElementById('f').addEventListener('submit', async (e) => {{
     : (await resp.json()).detail || 'Something went wrong.';
 }});
 </script>"""
+    if invite:
+        return _page("Set your password", "Choose a password for your new account.", form)
     return _page("Reset your password", "Choose a new password for your account.", form)
 
 
 @router.post("/reset")
 def reset_password(body: ResetIn, db: Session = Depends(get_db)) -> dict[str, str]:
-    user = auth.consume_token(db, body.token, "reset")
+    # Invite links (`warn-v2 invite-user`) set the first password the same way.
+    user = auth.consume_token(db, body.token, "reset") or auth.consume_token(
+        db, body.token, "invite"
+    )
     if user is None:
         db.commit()
         raise HTTPException(status_code=400, detail="Invalid or expired reset link")

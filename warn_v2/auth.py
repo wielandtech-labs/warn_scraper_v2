@@ -21,8 +21,8 @@ SESSION_TTL = timedelta(days=30)
 COOKIE_NAME = "warn_session"
 MIN_PASSWORD_LEN = 12
 
-# Emailed single-use tokens (auth_tokens): verification links live long enough
-# to survive a busy inbox; reset links are deliberately short-lived.
+# Emailed single-use tokens (auth_tokens): verification and invite links live
+# long enough to survive a busy inbox; reset links are deliberately short-lived.
 VERIFY_TTL = timedelta(days=7)
 RESET_TTL = timedelta(hours=1)
 
@@ -91,11 +91,12 @@ def end_session(db: Session, token: str) -> None:
 
 
 def issue_token(db: Session, user: User, purpose: str) -> str:
-    """Create a single-use emailed token ('verify' | 'reset'); returns the raw value.
+    """Create a single-use emailed token ('verify' | 'reset' | 'invite').
 
-    Does not commit — the caller owns the transaction (and sends the email).
+    Returns the raw value. Does not commit — the caller owns the transaction
+    (and sends the email).
     """
-    ttl = VERIFY_TTL if purpose == "verify" else RESET_TTL
+    ttl = RESET_TTL if purpose == "reset" else VERIFY_TTL
     raw = secrets.token_urlsafe(32)
     db.add(
         AuthToken(
