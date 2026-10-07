@@ -99,3 +99,18 @@ def test_ms_raises_on_bad_pdf() -> None:
     scraper = get_scraper("MS")
     with pytest.raises(ParseFailed):
         scraper.parse(b"this is not a pdf file")
+
+
+def test_ms_company_name_in_ghost_column() -> None:
+    """PY2025-Q4: one employer sits in the ghost columns right of an empty
+    Company Name cell, wrapped over continuation rows; it was silently dropped.
+    """
+    raw = (FIXTURE.parent / "sample_ghost_company.pdf").read_bytes()
+    rows = get_scraper("MS").parse(raw)
+    assert len(rows) == 6  # the PDF's own summary: 6 WARN notices
+    lp = next(r for r in rows if r.notice_date == date(2026, 5, 11))
+    assert lp.employer == "Leggett & Platt Flooring Products"
+    assert lp.layoff_count == 86
+    assert lp.city == "Houston"
+    assert lp.county == "Chickasaw"
+    assert lp.effective_date == date(2026, 6, 11)

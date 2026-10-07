@@ -224,8 +224,16 @@ def _parse_pdf(raw: bytes, source_url: str | None = None) -> list[NoticeRow]:
         # Skip header row, add only non-continuation rows
         for row in t[1:]:
             if row[0] is None:
+                # Continuation lines that land in unlabelled ghost columns
+                # belong to the previous row's cell there; labelled columns
+                # are read as-is, so leave them untouched.
+                if data_rows:
+                    prev = data_rows[-1]
+                    for i, c in enumerate(row):
+                        if c and i < len(page_hdr) and i < len(prev) and not page_hdr[i]:
+                            prev[i] = f"{prev[i]}\n{c}" if prev[i] else c
                 continue
-            data_rows.append(row)
+            data_rows.append(list(row))
 
     rows = _extract_rows(header, data_rows) if header is not None else []
     if not rows:
@@ -612,6 +620,15 @@ def _extract_rows(
             employer = " ".join(lines)
         else:
             employer = _cell(raw_row, i_company)
+            if not employer:
+                # The name sometimes lands in the ghost columns right of an
+                # empty Company Name cell (PY2025-Q4 Leggett & Platt).
+                j = i_company + 1
+                ghosts = []
+                while j < len(header) and not header[j]:
+                    ghosts.append(_cell(raw_row, j))
+                    j += 1
+                employer = " ".join(g for g in ghosts if g)
             city = as_str(_cell(raw_row, i_city))
             county = as_str(_cell(raw_row, i_county))
 
