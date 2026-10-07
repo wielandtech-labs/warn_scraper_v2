@@ -714,7 +714,7 @@ def county_impact(
             key,
             {
                 "state": st,
-                "county": county_employment.display_name(county_raw),
+                "county": county_employment.canonical_name(st, county_raw),
                 "notice_count": 0,
                 "layoff_total": 0,
             },

@@ -216,8 +216,38 @@ def test_normalize_key_and_display_name():
     assert county_employment.normalize_key("LA", "Orleans Parish") == "LA|orleans"
     assert county_employment.normalize_key("KS", None) is None
     assert county_employment.normalize_key(None, "Sedgwick") is None
-    assert county_employment.display_name("McLean County") == "McLean"
-    assert county_employment.display_name("DeKalb") == "DeKalb"
+    assert county_employment.canonical_name("IL", "McLean County") == "McLean"
+    assert county_employment.canonical_name("GA", "DeKalb") == "DeKalb"
+
+
+@pytest.mark.parametrize(
+    ("state", "raw", "key", "name"),
+    [
+        ("VA", "Fairfax", "VA|fairfax", "Fairfax"),
+        ("VA", "Fairfax County", "VA|fairfax", "Fairfax"),
+        ("VA", "Fairfax city", "VA|fairfax city", "Fairfax city"),
+        ("AZ", "Maricopa County", "AZ|maricopa", "Maricopa"),
+        ("KY", "Jefferson County - Louisville", "KY|jefferson", "Jefferson"),
+        ("LA", "Jefferson Parish", "LA|jefferson", "Jefferson"),
+        ("MD", "Balto Co.", "MD|baltimore", "Baltimore"),
+        ("MD", "Montgomery Co.", "MD|montgomery", "Montgomery"),
+        ("MD", "Baltimore City", "MD|baltimore city", "Baltimore City"),
+        ("MO", "St. Louis (county)", "MO|st. louis", "St. Louis"),
+        ("MO", "St. Louis city", "MO|st. louis city", "St. Louis city"),
+        ("UT", "Utah County", "UT|utah", "Utah"),
+        ("IL", "Cook                         (and other counties)", "IL|cook", "Cook"),
+        ("PA", "Schuykill", "PA|schuylkill", "Schuylkill"),
+        ("IA", "Harrision", "IA|harrison", "Harrison"),
+        ("MS", "Lefore", "MS|leflore", "Leflore"),
+        ("CT", "Capitol Planning Region", "CT|capitol planning region",
+         "Capitol Planning Region"),
+        ("FL", "Miami-Dade", "FL|miami-dade", "Miami-Dade"),
+        ("CO", "   ", None, None),
+    ],
+)
+def test_label_variants_normalize(state, raw, key, name):
+    assert county_employment.normalize_key(state, raw) == key
+    assert county_employment.canonical_name(state, raw) == name
 
 
 def test_lookup_uses_seeded_data(cbp):

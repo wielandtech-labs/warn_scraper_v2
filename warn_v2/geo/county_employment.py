@@ -27,6 +27,7 @@ from __future__ import annotations
 import gzip
 import json
 import logging
+import re
 import threading
 from pathlib import Path
 
@@ -52,39 +53,74 @@ _COUNTY_SUFFIXES: tuple[str, ...] = (
 )
 
 
-def normalize_key(state: str | None, county: str | None) -> str | None:
-    """Return the canonical lookup key ``"{STATE}|{county_lower}"`` or ``None``.
+# Misspellings / abbreviations seen in scraped county columns, keyed by state
+# then by the lowercased base name (suffix already stripped). Values are the
+# Census spelling, case preserved, so they double as display names.
+_COUNTY_ALIASES: dict[str, dict[str, str]] = {
+    "IA": {"harrision": "Harrison"},
+    "MD": {"balto": "Baltimore", "balto city": "Baltimore City"},
+    "MS": {"lefore": "Leflore"},
+    "PA": {"schuykill": "Schuylkill"},
+}
 
-    Strips legal-type suffixes so "Madison County" and "Madison" both map
-    to ``"KY|madison"``. Public because the stats route uses it to merge
-    differently-spelled county rows before ranking.
+# Parenthetical qualifiers that name the legal type ("St. Louis (county)")
+# become a plain suffix; any other parenthetical ("(and other counties)") is
+# dropped.
+_PAREN_RE = re.compile(r"\s*\(([^)]*)\)")
+_PAREN_TYPES = frozenset({"county", "city", "parish", "borough"})
+# "Jefferson County - Louisville": the trailing qualifier names the seat/city.
+_DASH_QUALIFIER_RE = re.compile(r"\s+-\s+.*$")
+# "Balto Co." / "Montgomery Co"
+_CO_ABBREV_RE = re.compile(r"\s+co\.?$", re.IGNORECASE)
+
+
+def canonical_name(state: str | None, county: str | None) -> str | None:
+    """Clean a raw county label to its suffix-less display name, or ``None``.
+
+    Scraped counties and the Census NAMEs written by the county backfill share
+    ``locations.county``, so one county arrives as "Fairfax" / "Fairfax
+    County", "Balto Co." / "Baltimore County", "Cook  (and other counties)".
+    This collapses those to one spelling ("Fairfax", "Baltimore", "Cook")
+    while keeping genuinely different places apart: "Baltimore City" and
+    "Fairfax city" (independent cities) and CT planning regions keep their
+    full names because " city" / " planning region" are not stripped.
+    Original casing is kept (McLean, DeKalb).
     """
     if not state or not county:
         return None
-    s = state.strip().upper()
-    c = county.strip().lower()
-    for suffix in _COUNTY_SUFFIXES:
-        if c.endswith(suffix):
-            c = c[: -len(suffix)].strip()
-            break
-    if not s or not c:
-        return None
-    return f"{s}|{c}"
+    c = " ".join(county.split())
 
+    def _paren(m: re.Match) -> str:
+        inner = m.group(1).strip().lower()
+        return f" {inner}" if inner in _PAREN_TYPES else ""
 
-def display_name(county: str) -> str:
-    """County name with any legal-type suffix removed, original case kept.
-
-    "Madison County" → "Madison", "McLean" → "McLean" (title-casing the
-    normalized key would mangle names like McLean/DeKalb, so strip from the
-    raw string instead).
-    """
-    c = county.strip()
+    c = _PAREN_RE.sub(_paren, c)
+    c = _DASH_QUALIFIER_RE.sub("", c)
+    c = _CO_ABBREV_RE.sub(" County", c).strip()
     low = c.lower()
     for suffix in _COUNTY_SUFFIXES:
         if low.endswith(suffix):
-            return c[: -len(suffix)].strip()
-    return c
+            c = c[: -len(suffix)].strip()
+            break
+    if not c:
+        return None
+    return _COUNTY_ALIASES.get(state.strip().upper(), {}).get(c.lower(), c)
+
+
+def normalize_key(state: str | None, county: str | None) -> str | None:
+    """Return the canonical lookup key ``"{STATE}|{county_lower}"`` or ``None``.
+
+    Built on :func:`canonical_name`, so "Madison County", "Madison" and
+    "Madison Co." all map to ``"KY|madison"``. Public because the stats route
+    and the report aggregation use it to merge differently-spelled county rows
+    before ranking.
+    """
+    if not state or not state.strip():
+        return None
+    name = canonical_name(state, county)
+    if name is None:
+        return None
+    return f"{state.strip().upper()}|{name.lower()}"
 
 
 def _load() -> dict[str, int]:

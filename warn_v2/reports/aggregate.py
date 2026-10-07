@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from warn_v2.companies.naics import SECTOR_NAME, sector_for_code
 from warn_v2.db.models import Company, Location, Notice
+from warn_v2.geo import county_employment
 from warn_v2.states import STATE_NAMES
 
 # Below this many notices across both 90-day windows the deltas are noise, so
@@ -29,12 +30,15 @@ MIN_NOTICES = 5
 NATIONAL_CODE = "US"
 NATIONAL_NAME = "United States"
 
+# County bucket for unlocated notices (and labels that clean to nothing).
+UNKNOWN_COUNTY = "Unknown"
+
 
 @dataclass(slots=True)
 class DeltaRow:
     """Current-vs-prior-window totals for one county or NAICS sector."""
 
-    key: str  # county string or sector id ("31-33")
+    key: str  # normalized county key ("VA|fairfax"), state, or sector id ("31-33")
     name: str  # display name
     cur_notices: int
     cur_layoffs: int
@@ -218,21 +222,58 @@ def _closure_split(
 
 def _county_window(
     session: Session, state: str | None, start: date, end: date
-) -> dict[str, tuple[int, int]]:
-    """(notices, layoffs) per county; unlocated notices land in "Unknown"."""
-    county = func.coalesce(Location.county, "Unknown")
+) -> dict[str | None, tuple[int, int]]:
+    """(notices, layoffs) per raw ``Location.county`` label (None = unlocated)."""
     stmt = (
         select(
-            county,
+            Location.county,
             func.count(Notice.notice_id),
             func.coalesce(func.sum(Notice.layoff_count), 0),
         )
         .select_from(Notice)
         .join(Location, Notice.location_id == Location.id, isouter=True)
-        .group_by(county)
+        .group_by(Location.county)
     )
     rows = session.execute(_in_window(stmt, state, start, end)).all()
     return {r[0]: (_int(r[1]), _int(r[2])) for r in rows}
+
+
+def _county_deltas(
+    state: str,
+    cur_raw: dict[str | None, tuple[int, int]],
+    prior_raw: dict[str | None, tuple[int, int]],
+) -> list[DeltaRow]:
+    """Merge raw county labels on their normalized key, then diff the windows.
+
+    One county arrives under several spellings ("Fairfax" / "Fairfax County",
+    "Balto Co." / "Baltimore County") — grouping on the raw string split its
+    totals and corrupted the ranking. Unlocated or unparseable labels land in
+    "Unknown". Each group is named by its most-cited spelling across both
+    windows, so the current and prior rows always line up under one name.
+    """
+    labels: dict[str, dict[str, int]] = {}
+
+    def _group(raw: dict[str | None, tuple[int, int]]) -> dict[str, tuple[int, int]]:
+        out: dict[str, tuple[int, int]] = {}
+        for county, (n, lay) in raw.items():
+            name = county_employment.canonical_name(state, county) or UNKNOWN_COUNTY
+            key = (
+                UNKNOWN_COUNTY
+                if name.lower() == UNKNOWN_COUNTY.lower()
+                else county_employment.normalize_key(state, county)
+            )
+            votes = labels.setdefault(key, {})
+            votes[name] = votes.get(name, 0) + n
+            prev = out.get(key, (0, 0))
+            out[key] = (prev[0] + n, prev[1] + lay)
+        return out
+
+    cur = _group(cur_raw)
+    prior = _group(prior_raw)
+    names = {
+        k: min(v.items(), key=lambda kv: (-kv[1], kv[0]))[0] for k, v in labels.items()
+    }
+    return _merge_deltas(cur, prior, names.__getitem__)
 
 
 def _sector_window(
@@ -413,10 +454,10 @@ def _compute_aggregates(
             lambda k: STATE_NAMES.get(k, k),
         )
     else:
-        counties = _merge_deltas(
+        counties = _county_deltas(
+            code,
             _county_window(session, code, cur_start, as_of),
             _county_window(session, code, prior_start, prior_end),
-            lambda k: k,
         )
         states = []
     sectors = _merge_deltas(
