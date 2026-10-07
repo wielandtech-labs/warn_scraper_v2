@@ -148,13 +148,8 @@ def _sentiment_section(
             f"trend narrative ({agg.cur_notices + agg.prior_notices} notices in "
             f"the last {days} days)."
         )
-    if narrative_status == "llm_unavailable":
-        return (
-            "Narrative unavailable this week (LLM service unreachable). "
-            "The deterministic figures below are current."
-        )
-    # "skipped" (--skip-llm)
-    return "Narrative generation was skipped. The deterministic figures below are current."
+    # "pending": the written analysis comes from the /layoff-sentiment skill.
+    return "Written analysis pending. The deterministic figures below are current."
 
 
 def render_report(
@@ -166,7 +161,7 @@ def render_report(
     forecast: Forecast | None = None,
 ) -> str:
     """Assemble the full report. narrative_status is one of:
-    ok | insufficient_data | llm_unavailable | skipped. forecast is omitted
+    ok | insufficient_data | pending. forecast is omitted
     (None) whenever the state's history doesn't clear the lowest forecast
     ladder tier — the Outlook section is simply absent in that case."""
     days = (agg.cur_end - agg.cur_start).days + 1
@@ -245,13 +240,8 @@ def _industry_sentiment_section(
             f"support a trend narrative ({agg.cur_notices + agg.prior_notices} "
             f"notices in the last {days} days)."
         )
-    if narrative_status == "llm_unavailable":
-        return (
-            "Narrative unavailable this week (LLM service unreachable). "
-            "The deterministic figures below are current."
-        )
-    # "skipped" (--skip-llm)
-    return "Narrative generation was skipped. The deterministic figures below are current."
+    # "pending": the written analysis comes from the /layoff-sentiment skill.
+    return "Written analysis pending. The deterministic figures below are current."
 
 
 def _scorecard_line(agg: SectorAggregates) -> str:

@@ -1,7 +1,8 @@
 """Routes: /reports — economic sentiment markdown (states, national, industries).
 
 Serves the files written by `warn-v2 sentiment-report` (weekly CronJob) from
-the shared reports volume. Public, like /stats — the reports contain only
+the shared reports volume, including payloads.json for the /layoff-sentiment
+skill. Public, like /stats — the reports contain only
 aggregated public WARN data.
 """
 from __future__ import annotations
@@ -19,7 +20,7 @@ from pydantic import BaseModel, ValidationError
 from warn_v2.companies.naics import SECTOR_NAME
 from warn_v2.reports.aggregate import NATIONAL_CODE, NATIONAL_NAME
 from warn_v2.reports.forecast import FORECASTS_JSON
-from warn_v2.reports.generate import INDUSTRIES_JSON
+from warn_v2.reports.generate import INDUSTRIES_JSON, PAYLOADS_JSON
 from warn_v2.states import STATE_NAMES
 
 log = logging.getLogger(__name__)
@@ -174,6 +175,18 @@ def get_forecast(state: str) -> ForecastOut:
     except (OSError, json.JSONDecodeError, ValidationError, TypeError) as exc:
         log.warning("unreadable %s: %s", FORECASTS_JSON, exc)
         raise HTTPException(status_code=404, detail="Forecast not available") from None
+
+
+# Declared before /{state}: same route-order requirement as /industries.
+@router.get("/payloads")
+def get_payloads() -> Response:
+    """Every report's pre-computed figures (payloads.json, written by the
+    weekly CronJob) -- the input the /layoff-sentiment skill writes its
+    analysis from. Served raw: it is already JSON and only aggregated data."""
+    path = _REPORTS_DIR / PAYLOADS_JSON
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Payloads not available")
+    return Response(path.read_bytes(), media_type="application/json")
 
 
 @router.get("/{state}")

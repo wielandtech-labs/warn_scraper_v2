@@ -278,3 +278,20 @@ def test_get_forecast_not_swallowed_by_state_route(client, tmp_path):
     resp = client.get("/api/reports/forecasts/CA")
     assert resp.status_code == 200
     assert resp.json()["state"] == "CA"
+
+
+def test_get_payloads_ok(client, tmp_path):
+    doc = {"schema": 1, "as_of": "2026-10-05", "jurisdictions": {"CA": {}}, "industries": {}}
+    (tmp_path / "payloads.json").write_text(json.dumps(doc), encoding="utf-8")
+    resp = client.get("/api/reports/payloads")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
+    assert resp.json() == doc
+
+
+def test_get_payloads_missing_file(client):
+    # Also proves /payloads is matched before /{state}: a swallowed route
+    # would answer "Unknown state" instead.
+    resp = client.get("/api/reports/payloads")
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Payloads not available"
