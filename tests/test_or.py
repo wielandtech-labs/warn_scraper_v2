@@ -4,7 +4,9 @@ import json
 from datetime import date
 from pathlib import Path
 
+import httpx
 import pytest
+import respx
 
 from warn_v2.pipeline.validate import validate
 from warn_v2.scrapers.base import ParseFailed
@@ -98,3 +100,39 @@ def test_or_raises_on_empty_rows() -> None:
     payload = json.dumps({"rows": []}).encode()
     with pytest.raises(ParseFailed):
         scraper.parse(payload)
+
+
+_LIST_UNFILTERED = FIXTURE.with_name("list_unfiltered_2026-10.html")
+_LIST_MULTNOMAH = FIXTURE.with_name("list_multnomah_2026-10.html")
+
+
+@respx.mock
+def test_or_fetch_crawls_unfiltered_list_and_annotates_county() -> None:
+    """Countyless notices must still be scraped.
+
+    As of Oct 2026 no 2026 notice sits under any ?County= filter (e.g. track
+    9637, Rainforest Routes, 2026-10-06), so the county-only crawl froze OR in
+    mid-2026 with runs reporting ok / rows_new=0. The unfiltered list is the
+    complete set; the county pass only labels the tracks it knows.
+    """
+    def page(request: httpx.Request) -> httpx.Response:
+        county = request.url.params.get("County")
+        n = request.url.params.get("page")
+        if county is None:
+            # Multnomah's notices sit deeper in the unfiltered list.
+            body = {"1": _LIST_UNFILTERED, "2": _LIST_MULTNOMAH}.get(n)
+        else:
+            body = _LIST_MULTNOMAH if (county, n) == ("Multnomah", "1") else None
+        return httpx.Response(200, content=body.read_bytes() if body else b"<html></html>")
+
+    respx.get(url__startswith="https://ccwd.hecc.oregon.gov/Layoff/WARN").mock(side_effect=page)
+
+    scraper = get_scraper("OR")
+    rows = scraper.parse(scraper.fetch())
+    by_track = {r.extra["track_number"]: r for r in rows}
+
+    assert len(by_track) == 40
+    newest = by_track["9637"]
+    assert newest.notice_date == date(2026, 10, 6)
+    assert newest.county is None
+    assert by_track["9299"].county == "Multnomah"

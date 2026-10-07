@@ -56,8 +56,14 @@ _UA = {
     "Referer": _ARCHIVE_URL,
 }
 
-# Matches href containing MonthlyWARN or Monthly WARN (both .xlsx and .xls)
-_XL_HREF_RE = re.compile(r"[Mm]onthly.?[Ww][Aa][Rr][Nn].*\.xlsx?", re.I)
+# "<Month>[ ]<YYYY>" in a monthly report filename, after unquoting. The naming
+# drifts month to month ('June2026MonthlyWARNReport', 'Aug 2026 Monthly WARN
+# Report', 'WARN Report Monthly July 2026'), so the latest file is picked by
+# the date in its name rather than by a filename pattern or page order.
+_FILE_MONTH_RE = re.compile(
+    r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s*(\d{4})(?!\d)", re.I
+)
+_MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
 
 # Workers-affected column header variants: current files use "WORKERS AFFECTED:",
 # archive files from 2020 through mid-2025 use "# WORKERS AFFECTED:".
@@ -108,30 +114,20 @@ def _workers_count(val: object) -> int | None:
     return sum(int(t) for t in tokens) if tokens else None
 
 
-def _discover_latest_url() -> str:
-    """Scrape the archive page and return the URL of the most recent Excel file."""
-    try:
-        r = httpx.get(_ARCHIVE_URL, headers=_UA, timeout=30, follow_redirects=True)
-        r.raise_for_status()
-    except httpx.HTTPError as e:
-        raise ScrapeFailed(f"IL: archive page fetch error: {e}") from e
+def _file_month(url: str) -> tuple[int, int] | None:
+    """(year, month) named in a monthly report URL's filename, else None."""
+    m = _FILE_MONTH_RE.search(unquote(url.rsplit("/", 1)[-1]))
+    if m is None:
+        return None
+    return int(m.group(2)), _MONTHS.index(m.group(1).lower()) + 1
 
-    soup = BeautifulSoup(r.content, "lxml")
-    for a in soup.find_all("a", href=True):
-        href = a["href"]
-        if _XL_HREF_RE.search(href):
-            # href may be a relative _layouts/download.aspx?SourceUrl=... wrapper
-            # (SourceUrl itself may be absolute or site-relative) or a direct
-            # /DownloadPrint/... path.
-            if href.startswith("/_layouts"):
-                m = re.search(r"SourceUrl=([^&]+)", href)
-                if m:
-                    url = m.group(1)
-                    return url if url.startswith("http") else _BASE_URL + url
-            if href.startswith("http"):
-                return href
-            return _BASE_URL + href
-    raise ScrapeFailed("IL: could not find monthly WARN Excel link on archive page")
+
+def _discover_latest_url() -> str:
+    """Return the URL of the most recent monthly Excel file on the archive page."""
+    dated = [(ym, u) for u in _discover_archive_xlsx_urls() if (ym := _file_month(u))]
+    if not dated:
+        raise ScrapeFailed("IL: could not find monthly WARN Excel link on archive page")
+    return max(dated, key=lambda t: t[0])[1]
 
 
 def _discover_archive_xlsx_urls() -> list[str]:

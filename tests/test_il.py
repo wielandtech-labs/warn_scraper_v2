@@ -471,6 +471,33 @@ def test_il_discover_latest_url_resolves_relative_sourceurl() -> None:
     assert url == "https://www.illinoisworknet.com/DownloadPrint/June2026MonthlyWARNReport.xlsx"
 
 
+# Top of the live archive page, 2026-10-07: three naming schemes in a row. The
+# old 'Monthly.?WARN' href regex matched only the no-space June name, so fetch()
+# kept re-reading June 2026 (`not_modified`) while July and August went unread.
+_ARCHIVE_HTML_2026_10 = (
+    "<html><body>\n"
+    '<a href="/_layouts/download.aspx?SourceUrl=/DownloadPrint/'
+    'WARN%20Report%20Monthly%20July%202026.xlsx">July 2026</a>\n'
+    '<a href="/_layouts/download.aspx?SourceUrl=/DownloadPrint/'
+    'Aug%202026%20Monthly%20WARN%20Report.xlsx">Aug 2026</a>\n'
+    '<a href="/_layouts/download.aspx?SourceUrl=/DownloadPrint/'
+    'June2026MonthlyWARNReport.xlsx">June 2026</a>\n'
+    '<a href="/_layouts/download.aspx?SourceUrl=https://www.illinoisworknet.com'
+    '/DownloadPrint/Dec%202025%20Monthly%20WARN%20Report.xlsx">Dec 2025</a>\n'
+    "</body></html>\n"
+)
+
+
+@respx.mock
+def test_il_discover_latest_url_picks_newest_month_across_naming_schemes() -> None:
+    respx.get(_ARCHIVE_URL).mock(
+        return_value=httpx.Response(200, content=_ARCHIVE_HTML_2026_10)
+    )
+    assert _discover_latest_url() == (
+        "https://www.illinoisworknet.com/DownloadPrint/"
+        "Aug%202026%20Monthly%20WARN%20Report.xlsx"
+    )
+
 @respx.mock
 def test_il_discover_archive_xlsx_urls_resolves_relative_sourceurl() -> None:
     respx.get(_ARCHIVE_URL).mock(

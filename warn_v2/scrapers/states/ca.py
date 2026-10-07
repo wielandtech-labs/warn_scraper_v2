@@ -1,6 +1,10 @@
 """California WARN scraper.
 
-Source: https://edd.ca.gov/Jobs_and_Training/warn/WARN_Report.xlsx
+Source: the "Latest WARN report (XLSX)" link on
+https://edd.ca.gov/Jobs_and_Training/Layoff_Services_WARN.htm, resolved on
+every fetch — EDD renames the current-fiscal-year file (FY2026-27 moved to
+warn_report1.xlsx and the old WARN_Report.xlsx kept serving a stale file, so a
+hardcoded URL went silently `not_modified` for three months).
 Format: XLSX, header on a row that is *not* row 0 (varies year-to-year).
 
 Vs V1 (which used hardcoded `header=3` and `iloc[:-2, [0,1,2,4,5,8,10,12]]`),
@@ -29,7 +33,7 @@ from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.http_cache import conditional_get
 from warn_v2.scrapers.registry import register
 
-SOURCE_URL = "https://edd.ca.gov/Jobs_and_Training/warn/WARN_Report.xlsx"
+SOURCE_URL = "https://edd.ca.gov/siteassets/files/jobs_and_training/warn/warn_report1.xlsx"
 _ARCHIVE_PAGE = "https://edd.ca.gov/Jobs_and_Training/Layoff_Services_WARN.htm"
 _UA = {
     "User-Agent": (
@@ -54,12 +58,7 @@ _CDX_RETRY_BACKOFFS = (5, 15, 30, 60)
 _CA_DETAIL_RE = re.compile(r"eddwarncn(?:da|dbd|del|dmr|ds|dtz)(\d{2})\.pdf$", re.I)
 
 
-def _discover_archive_urls() -> list[str]:
-    """Scrape EDD WARN archive page; return absolute URLs for all historical files.
-
-    EDD publishes fiscal-year WARN reports as PDFs (and occasionally XLSX).
-    Excludes the current-year XLSX (WARN_Report.xlsx) handled by the regular scraper.
-    """
+def _archive_soup():
     from bs4 import BeautifulSoup
 
     try:
@@ -67,9 +66,45 @@ def _discover_archive_urls() -> list[str]:
         r.raise_for_status()
     except httpx.HTTPError as e:
         raise ScrapeFailed(f"CA archive page: {e}") from e
+    return BeautifulSoup(r.text, "html.parser")
 
-    soup = BeautifulSoup(r.text, "html.parser")
-    base = "https://edd.ca.gov"
+
+def _abs(href: str) -> str:
+    return href if href.startswith("http") else "https://edd.ca.gov" + href
+
+
+def _current_report_href(soup) -> str | None:
+    """The archive page's current-fiscal-year XLSX link ("Latest WARN report").
+
+    Matched by its label, not its filename: the filename is what EDD renames.
+    No guess when the label is missing — fetch() fails loudly instead of
+    reading an archived file.
+    """
+    for a in soup.find_all("a", href=True):
+        href = a["href"].lower()
+        if (
+            href.endswith(".xlsx") and "warn" in href
+            and "latest" in a.get_text(" ", strip=True).lower()
+        ):
+            return a["href"]
+    return None
+
+
+def _discover_current_report_url() -> str:
+    href = _current_report_href(_archive_soup())
+    if href is None:
+        raise ScrapeFailed(f"CA: no current-report XLSX link on {_ARCHIVE_PAGE}")
+    return _abs(href)
+
+
+def _discover_archive_urls() -> list[str]:
+    """Scrape EDD WARN archive page; return absolute URLs for all historical files.
+
+    EDD publishes fiscal-year WARN reports as PDFs (and occasionally XLSX).
+    Excludes the current-year XLSX handled by the regular scraper.
+    """
+    soup = _archive_soup()
+    current = _current_report_href(soup)
     urls: list[str] = []
     for a in soup.find_all("a", href=True):
         href: str = a["href"]
@@ -78,9 +113,9 @@ def _discover_archive_urls() -> list[str]:
             continue
         if "warn" not in lower:
             continue
-        if href == "/Jobs_and_Training/warn/WARN_Report.xlsx":
+        if href == current:
             continue
-        full = href if href.startswith("http") else base + href
+        full = _abs(href)
         if full not in urls:
             urls.append(full)
     return urls
@@ -133,10 +168,11 @@ class CAScraper:
     required_fields = frozenset({"employer", "notice_date"})
 
     def fetch(self) -> bytes:
+        url = _discover_current_report_url()
         try:
-            return conditional_get(self.source_url, state=self.state, timeout=60)
+            return conditional_get(url, state=self.state, timeout=60)
         except httpx.HTTPError as e:
-            raise ScrapeFailed(f"GET {self.source_url}: {e}") from e
+            raise ScrapeFailed(f"GET {url}: {e}") from e
 
     def parse(self, raw: bytes) -> list[NoticeRow]:
         try:

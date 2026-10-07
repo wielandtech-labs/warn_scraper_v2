@@ -1,0 +1,776 @@
+<meta http-equiv="x-ua-compatible" content="IE=edge">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+    <title>Layoff List - Oregon Rapid Response Activity Tracking System</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="apple-touch-icon" sizes="57x57" href="Content/favicon/apple-touch-icon-57x57.png" />
+    <link rel="apple-touch-icon" sizes="60x60" href="Content/favicon/apple-touch-icon-60x60.png" />
+    <link rel="apple-touch-icon" sizes="72x72" href="Content/favicon/apple-touch-icon-72x72.png" />
+    <link rel="apple-touch-icon" sizes="76x76" href="Content/favicon/apple-touch-icon-76x76.png" />
+    <link rel="apple-touch-icon" sizes="114x114" href="Content/favicon/apple-touch-icon-114x114.png" />
+    <link rel="apple-touch-icon" sizes="120x120" href="Content/favicon/apple-touch-icon-120x120.png" />
+    <link rel="apple-touch-icon" sizes="144x144" href="Content/favicon/apple-touch-icon-144x144.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="Content/favicon/apple-touch-icon-152x152.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="Content/favicon/apple-touch-icon-180x180.png" />
+    <link rel="icon" type="image/png" href="Content/favicon/favicon-32x32.png" sizes="32x32" />
+    <link rel="icon" type="image/png" href="Content/favicon/favicon-194x194.png" sizes="194x194" />
+    <link rel="icon" type="image/png" href="Content/favicon/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/png" href="Content/favicon/android-chrome-192x192.png" sizes="192x192" />
+    <link rel="icon" type="image/png" href="Content/favicon/favicon-16x16.png" sizes="16x16" />
+    <link rel="manifest" href="Content/favicon/manifest.json" />
+    <link rel="mask-icon" href="Content/favicon/safari-pinned-tab.svg" color="#5bbad5" />
+    <link rel="shortcut icon" href="Content/favicon/favicon.ico" />
+    <meta name="msapplication-TileColor" content="#da532c" />
+    <meta name="msapplication-TileImage" content="Content/favicon/mstile-144x144.png" />
+    <meta name="msapplication-config" content="Content/favicon/browserconfig.xml" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link href="/Layoff/Content/css?v=-N7TZrnI3jrvYcB8uGYcmIkWZPraDQDKS2rvotNywfI1" rel="stylesheet"/>
+
+    <script src="/Layoff/bundles/modernizr?v=wBEWDufH_8Md-Pbioxomt90vm6tJN2Pyy9u9zHtWsPo1"></script>
+
+</head>
+<body>
+    <nav role="navigation" class="navbar navbar-inverse navbar-fixed-top">
+        <div class="navbar-header">
+            <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+        </div>
+        <div class="navbar-collapse collapse">
+            <ul class="nav navbar-nav">
+                <li><a href="/Layoff/"><span class="glyphicon glyphicon-home"></span> Home</a></li>
+                <li><a href="/Layoff/WARN"><span class="glyphicon glyphicon-list"></span> WARN List </a></li>
+                                                <li><a href="/Layoff/Home/Contact"><span class="glyphicon glyphicon-question-sign"></span> Contact</a></li>
+            </ul>
+                <ul class="nav navbar-nav navbar-right">
+        <li>
+            <a href="/Layoff/Account/Login" id="loginLink">Log in</a>
+        </li>
+    </ul>
+
+        </div>
+    </nav>
+    <div id="title">
+    <table style="width:100%;">
+        <tr>
+            <td style="width:220px"><img src="/Layoff/Content/images/HECC-Mark-Color-Web.jpg" alt="Logo"  height="75"></td>
+            <td style="padding-left:10px; vertical-align:top">
+                <h1 style="color:#75966B; text-shadow: 2px 1px #452E05">
+                    <strong>
+                        Oregon Rapid Response <br />
+                        Activity Tracking System
+                    </strong>
+                </h1>
+            </td>
+        </tr>
+    </table>
+
+    <table class="table" id="header">
+        <tr>
+            <th>
+                The ultimate goal of Rapid Response is to enable affected workers to return to work as quickly
+                as possible following a layoff or to avoid unemployment altogether.
+            </th>
+        </tr>
+    </table>
+</div>
+
+
+    <div style="clear: both;">
+        
+
+
+
+
+    </div>  
+    <div class="body-content">
+        
+<link href="/Layoff/Content/PagedList.css" rel="stylesheet"/>
+
+
+
+<table style="width: 100%;">
+    <tr>
+        <td>
+            <h2>WARN Listings</h2>
+        </td>
+        <td style="text-align: right; vertical-align: bottom;">
+            <h5>
+                <a class="btn btn-primary" href="/Layoff/WARN/Download">
+                    <span class="glyphicon glyphicon-download-alt"></span> Download
+                </a>
+            </h5>
+        </td>
+    </tr>
+</table>
+
+<link href="/Layoff/Content/Accordion.css" rel="stylesheet"/>
+
+
+<button class="accordion"><b> <span class="glyphicon glyphicon-search"> </span> Filtered Search</b></button>
+<div class="panel">
+<form action="/Layoff/WARN" method="post">        <div class="form-horizontal">
+            <div class="form-group">
+                <label class="control-label col-md-2" for="LOType">Layoff Type:</label>
+                <div class="col-md-4">
+                    <select class="form-control" id="LOType" name="LOType"><option value="">Include All</option>
+<option>Large Layoff - 10 or more workers</option>
+<option>Other</option>
+<option>Permanent closure</option>
+<option>Reduction</option>
+<option>Small Layoff  1 – 10 workers</option>
+<option>Temporary Layoff</option>
+</select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="control-label col-md-2" for="Employer">Employer:</label>
+                <div class="col-md-4">
+                    <input class="form-control" id="Employer" name="Employer" type="text" value="" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="control-label col-md-2" for="City">City:</label>
+                <div class="col-md-4">
+                    <input class="form-control" id="City" name="City" type="text" value="" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="control-label col-md-2" for="County">County:</label>
+                <div class="col-md-4">
+                    <select class="form-control" id="County" name="County"><option value="">Include All</option>
+<option>Baker</option>
+<option>Benton</option>
+<option>Clackamas</option>
+<option>Clatsop</option>
+<option>Columbia</option>
+<option>Coos</option>
+<option>Crook</option>
+<option>Curry</option>
+<option>Deschutes</option>
+<option>Douglas</option>
+<option>Gilliam</option>
+<option>Grant</option>
+<option>Harney</option>
+<option>Hood River</option>
+<option>Jackson</option>
+<option>Jefferson</option>
+<option>Josephine</option>
+<option>Klamath</option>
+<option>Lake</option>
+<option>Lane</option>
+<option>Lincoln</option>
+<option>Linn</option>
+<option>Malheur</option>
+<option>Marion</option>
+<option>Morrow</option>
+<option>Multnomah</option>
+<option>Polk</option>
+<option>Sherman</option>
+<option>Tillamook</option>
+<option>Umatilla</option>
+<option>Union</option>
+<option>Wallowa</option>
+<option>Wasco</option>
+<option>Washington</option>
+<option>Wheeler</option>
+<option>Yamhill</option>
+</select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="col-md-offset-2 col-md-10">
+                    <button type="submit"><i class="glyphicon glyphicon-search"></i> Search </button>
+                </div>
+            </div>
+        </div>
+</form></div>
+
+<script>
+    /* Toggle between adding and removing the "active" and "show" classes when the user clicks on one of the "Section" buttons. The "active" class is used to add a background color to the current button when its belonging panel is open. The "show" class is used to open the specific accordion panel */
+    var acc = document.getElementsByClassName("accordion");
+    var i;
+
+    for (i = 0; i < acc.length; i++) {
+        acc[i].onclick = function () {
+            this.classList.toggle("active");
+            this.nextElementSibling.classList.toggle("show");
+        }
+    }
+</script>
+
+
+<table class="table" id="index">
+    <tr>
+        <th>
+            <a href="/Layoff/WARN?SortOrder=TrackNum">Track #</a>
+        </th>
+        <th>
+            <a href="/Layoff/WARN?SortOrder=EstDate">Notification Date</a>
+        </th>
+        <th>
+            <a href="/Layoff/WARN?SortOrder=LOType">Layoff Type</a>
+        </th>
+        <th>
+            <a href="/Layoff/WARN?SortOrder=Count">Count</a>
+        </th>
+        <th>
+            <a href="/Layoff/WARN?SortOrder=Employer">Employer</a>
+        </th>
+        <th>
+            <a href="/Layoff/WARN?SortOrder=City">City</a>
+        </th>
+        <th>
+            NoticeLink
+        </th>
+    </tr>
+
+            <tr>
+                <td>
+                    9637
+                </td>
+                <td>
+                    10/6/2026 12:00:00 AM
+                </td>
+                <td>
+                    Large Layoff - 10 or more workers
+                </td>
+                <td>
+                    170
+                </td>
+                <td>
+                    Rainforest Routes, LLC
+                </td>
+                <td>
+                    Tualitin
+                </td>
+                <td>
+
+                    <a href="/Layoff/WARN/UploadIndex/9637" aria-label="Open notice link attachment" title="Open notice link attachment">
+ <span class="glyphicon glyphicon-file"></span>                     </a>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    9612
+                </td>
+                <td>
+                    9/23/2026 12:00:00 AM
+                </td>
+                <td>
+                    Large Layoff - 10 or more workers
+                </td>
+                <td>
+                    80
+                </td>
+                <td>
+                    Kenco Logistics Services, LLC
+                </td>
+                <td>
+                    Chattanooga, TN
+                </td>
+                <td>
+
+                    <a href="/Layoff/WARN/UploadIndex/9612" aria-label="Open notice link attachment" title="Open notice link attachment">
+ <span class="glyphicon glyphicon-file"></span>                     </a>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    9591
+                </td>
+                <td>
+                    9/1/2026 12:00:00 AM
+                </td>
+                <td>
+                    Large Layoff - 10 or more workers
+                </td>
+                <td>
+                    87
+                </td>
+                <td>
+                    Schneider Electric
+                </td>
+                <td>
+                    Boston, MA
+                </td>
+                <td>
+
+                    <a href="/Layoff/WARN/UploadIndex/9591" aria-label="Open notice link attachment" title="Open notice link attachment">
+ <span class="glyphicon glyphicon-file"></span>                     </a>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    9590
+                </td>
+                <td>
+                    8/31/2026 12:00:00 AM
+                </td>
+                <td>
+                    Large Layoff - 10 or more workers
+                </td>
+                <td>
+                    55
+                </td>
+                <td>
+                    Watterson Environmental Group, LLC Subsidiary J.R. Johnson, LLC
+                </td>
+                <td>
+                    Schaumburg, IL
+                </td>
+                <td>
+
+                    <a href="/Layoff/WARN/UploadIndex/9590" aria-label="Open notice link attachment" title="Open notice link attachment">
+ <span class="glyphicon glyphicon-file"></span>                     </a>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    9588
+                </td>
+                <td>
+                    8/25/2026 12:00:00 AM
+                </td>
+                <td>
+                    Large Layoff - 10 or more workers
+                </td>
+                <td>
+                    74
+                </td>
+                <td>
+                    Amentum
+                </td>
+                <td>
+                    Chantilly, VA
+                </td>
+                <td>
+
+                    <a href="/Layoff/WARN/UploadIndex/9588" aria-label="Open notice link attachment" title="Open notice link attachment">
+ <span class="glyphicon glyphicon-file"></span>                     </a>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    9556
+                </td>
+                <td>
+                    8/10/2026 12:00:00 AM
+                </td>
+                <td>
+                    Permanent closure
+                </td>
+                <td>
+                    106
+                </td>
+                <td>
+                    JeniusBank
+                </td>
+                <td>
+                    New York, NY
+                </td>
+                <td>
+
+                    <a href="/Layoff/WARN/UploadIndex/9556" aria-label="Open notice link attachment" title="Open notice link attachment">
+ <span class="glyphicon glyphicon-file"></span>                     </a>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    9555
+                </td>
+                <td>
+                    7/31/2026 12:00:00 AM
+                </td>
+                <td>
+                    Large Layoff - 10 or more workers
+                </td>
+                <td>
+                    43
+                </td>
+                <td>
+                    Bowtech, LLC
+                </td>
+                <td>
+                    Eugene
+                </td>
+                <td>
+
+                    <a href="/Layoff/WARN/UploadIndex/9555" aria-label="Open notice link attachment" title="Open notice link attachment">
+ <span class="glyphicon glyphicon-file"></span>                     </a>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    9553
+                </td>
+                <td>
+                    8/5/2026 12:00:00 AM
+                </td>
+                <td>
+                    Permanent closure
+                </td>
+                <td>
+                    62
+                </td>
+                <td>
+                    Impact Outsourcing Solutions, LLC
+                </td>
+                <td>
+                    Griffin, GA
+                </td>
+                <td>
+
+                    <a href="/Layoff/WARN/UploadIndex/9553" aria-label="Open notice link attachment" title="Open notice link attachment">
+ <span class="glyphicon glyphicon-file"></span>                     </a>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    9550
+                </td>
+                <td>
+                    8/3/2026 12:00:00 AM
+                </td>
+                <td>
+                    Large Layoff - 10 or more workers
+                </td>
+                <td>
+                    129
+                </td>
+                <td>
+                    Avamere Health Services, LLC
+                </td>
+                <td>
+                    Tigard
+                </td>
+                <td>
+
+                    <a href="/Layoff/WARN/UploadIndex/9550" aria-label="Open notice link attachment" title="Open notice link attachment">
+ <span class="glyphicon glyphicon-file"></span>                     </a>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    9549
+                </td>
+                <td>
+                    7/30/2026 12:00:00 AM
+                </td>
+                <td>
+                    Permanent closure
+                </td>
+                <td>
+                    387
+                </td>
+                <td>
+                    Daimler Truck North America, LLC
+                </td>
+                <td>
+                    Portland
+                </td>
+                <td>
+
+                    <a href="/Layoff/WARN/UploadIndex/9549" aria-label="Open notice link attachment" title="Open notice link attachment">
+ <span class="glyphicon glyphicon-file"></span>                     </a>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    9534
+                </td>
+                <td>
+                    6/29/2026 12:00:00 AM
+                </td>
+                <td>
+                    Large Layoff - 10 or more workers
+                </td>
+                <td>
+                    17
+                </td>
+                <td>
+                    Conduent Commercial Solutions, LLC
+                </td>
+                <td>
+                    Florham Park, NJ
+                </td>
+                <td>
+
+                    <a href="/Layoff/WARN/UploadIndex/9534" aria-label="Open notice link attachment" title="Open notice link attachment">
+ <span class="glyphicon glyphicon-file"></span>                     </a>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    9532
+                </td>
+                <td>
+                    6/24/2026 12:00:00 AM
+                </td>
+                <td>
+                    Large Layoff - 10 or more workers
+                </td>
+                <td>
+                    13
+                </td>
+                <td>
+                    Adventist Health Systems/West
+                </td>
+                <td>
+                    Roseville, CA
+                </td>
+                <td>
+
+                    <a href="/Layoff/WARN/UploadIndex/9532" aria-label="Open notice link attachment" title="Open notice link attachment">
+ <span class="glyphicon glyphicon-file"></span>                     </a>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    9517
+                </td>
+                <td>
+                    5/29/2026 12:00:00 AM
+                </td>
+                <td>
+                    Large Layoff - 10 or more workers
+                </td>
+                <td>
+                    97
+                </td>
+                <td>
+                    PacificSource
+                </td>
+                <td>
+                    Springfield
+                </td>
+                <td>
+
+                    <a href="/Layoff/WARN/UploadIndex/9517" aria-label="Open notice link attachment" title="Open notice link attachment">
+ <span class="glyphicon glyphicon-file"></span>                     </a>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    9511
+                </td>
+                <td>
+                    5/26/2026 12:00:00 AM
+                </td>
+                <td>
+                    Large Layoff - 10 or more workers
+                </td>
+                <td>
+                    69
+                </td>
+                <td>
+                    Safeway Albertsons - Portland Division
+                </td>
+                <td>
+                    Clackamas
+                </td>
+                <td>
+
+                    <a href="/Layoff/WARN/UploadIndex/9511" aria-label="Open notice link attachment" title="Open notice link attachment">
+ <span class="glyphicon glyphicon-file"></span>                     </a>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    9509
+                </td>
+                <td>
+                    5/19/2026 12:00:00 AM
+                </td>
+                <td>
+                    Large Layoff - 10 or more workers
+                </td>
+                <td>
+                    160
+                </td>
+                <td>
+                    Republic National Distributing Company
+                </td>
+                <td>
+                    Grand Prairie, TX
+                </td>
+                <td>
+
+                    <a href="/Layoff/WARN/UploadIndex/9509" aria-label="Open notice link attachment" title="Open notice link attachment">
+ <span class="glyphicon glyphicon-file"></span>                     </a>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    9507
+                </td>
+                <td>
+                    5/13/2026 12:00:00 AM
+                </td>
+                <td>
+                    Large Layoff - 10 or more workers
+                </td>
+                <td>
+                    83
+                </td>
+                <td>
+                    Augusta Sportswear, Inc.
+                </td>
+                <td>
+                    Grovetown, GA
+                </td>
+                <td>
+
+                    <a href="/Layoff/WARN/UploadIndex/9507" aria-label="Open notice link attachment" title="Open notice link attachment">
+ <span class="glyphicon glyphicon-file"></span>                     </a>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    9495
+                </td>
+                <td>
+                    4/29/2026 12:00:00 AM
+                </td>
+                <td>
+                    Large Layoff - 10 or more workers
+                </td>
+                <td>
+                    66
+                </td>
+                <td>
+                    Milestone Technologies, Inc.
+                </td>
+                <td>
+                    Fremont, CA
+                </td>
+                <td>
+
+                    <a href="/Layoff/WARN/UploadIndex/9495" aria-label="Open notice link attachment" title="Open notice link attachment">
+ <span class="glyphicon glyphicon-file"></span>                     </a>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    9474
+                </td>
+                <td>
+                    4/6/2026 12:00:00 AM
+                </td>
+                <td>
+                    Large Layoff - 10 or more workers
+                </td>
+                <td>
+                    65
+                </td>
+                <td>
+                    Nelson Global Products, Inc.
+                </td>
+                <td>
+                    Stoughton, WI
+                </td>
+                <td>
+
+                    <a href="/Layoff/WARN/UploadIndex/9474" aria-label="Open notice link attachment" title="Open notice link attachment">
+ <span class="glyphicon glyphicon-file"></span>                     </a>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    9473
+                </td>
+                <td>
+                    4/2/2026 12:00:00 AM
+                </td>
+                <td>
+                    Large Layoff - 10 or more workers
+                </td>
+                <td>
+                    175
+                </td>
+                <td>
+                    Sunstone Way
+                </td>
+                <td>
+                    Portland
+                </td>
+                <td>
+
+                    <a href="/Layoff/WARN/UploadIndex/9473" aria-label="Open notice link attachment" title="Open notice link attachment">
+ <span class="glyphicon glyphicon-file"></span>                     </a>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    9470
+                </td>
+                <td>
+                    4/6/2026 12:00:00 AM
+                </td>
+                <td>
+                    Large Layoff - 10 or more workers
+                </td>
+                <td>
+                    106
+                </td>
+                <td>
+                    Direct Marketing Solutions
+                </td>
+                <td>
+                    Portland
+                </td>
+                <td>
+
+                    <a href="/Layoff/WARN/UploadIndex/9470" aria-label="Open notice link attachment" title="Open notice link attachment">
+ <span class="glyphicon glyphicon-file"></span>                     </a>
+                </td>
+            </tr>
+
+
+</table>
+    <div class="col-sm-10">
+        <div class="pagination-container"><ul class="pagination"><li class="disabled PagedList-skipToFirst"><a>««</a></li><li class="disabled PagedList-skipToPrevious"><a rel="prev">«</a></li><li class="active"><a>1</a></li><li><a href="/Layoff/WARN?page=2">2</a></li><li><a href="/Layoff/WARN?page=3">3</a></li><li><a href="/Layoff/WARN?page=4">4</a></li><li><a href="/Layoff/WARN?page=5">5</a></li><li><a href="/Layoff/WARN?page=6">6</a></li><li><a href="/Layoff/WARN?page=7">7</a></li><li><a href="/Layoff/WARN?page=8">8</a></li><li><a href="/Layoff/WARN?page=9">9</a></li><li><a href="/Layoff/WARN?page=10">10</a></li><li class="PagedList-skipToNext"><a href="/Layoff/WARN?page=2" rel="next">»</a></li><li class="PagedList-skipToLast"><a href="/Layoff/WARN?page=10">»»</a></li></ul></div>
+    </div>
+
+        <hr />
+        <footer>
+            <table style="width:100%;">
+                <tr>
+                    <td>
+                        <p>&copy; 2026 - Oregon Rapid Response Activity Tracking System</p>
+                    </td>
+                    <td style="text-align:right; vertical-align:bottom;">
+                        <p><a href='mailto:hecc.dw-oregon@hecc.oregon.gov?subject=Rapid Response Tracking System Question'>Webmaster</a></p>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="padding-top: 15px;">
+                        <p style="font-size: 12px; color: #666; text-align: justify;">
+                            Enforcement of WARN requirements is through the United States district courts. While the Higher Education Coordinating Commission, Office of Workforce Investments (HECC, OWI) can provide guidance and information about the WARN Act, it does not issue formal interpretations of the law or the regulations. HECC may provide advice that represents its best judgment about WARNs, but it is not binding in the courts, and it does not replace the advice of an attorney. HECC OWI will only retain WARN records for six years.
+                        </p>
+                    </td>
+                </tr>
+            </table>
+        </footer>
+    </div>
+
+    <script src="/Layoff/bundles/jquery?v=rD9yxcIfC-_zwpaJ_9UPbUY1Niam5dFE8OFiugxkBeM1"></script>
+
+    <script src="/Layoff/bundles/bootstrap?v=S9-VFjJll7-h6B6vedKZxuNRBdqXLY3XTPKv3OQRv1w1"></script>
+
+    
+    <script src="/Layoff/Scripts/LayOff.js"></script>
+
+</body>
+</html>
