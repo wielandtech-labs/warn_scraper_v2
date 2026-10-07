@@ -37,7 +37,7 @@ UNSUPPORTED = [
     (re.compile(r"^\s*\d+[.)]\s", re.MULTILINE), "numbered list"),
     (re.compile(r"(?<![*\w])\*(?!\*)[^*\n]+?(?<!\*)\*(?![*\w])"), "*single* italics"),
     (re.compile(r"<[A-Za-z/!]"), "raw HTML"),
-    (re.compile(r"^\s+[-*]\s", re.MULTILINE), "nested list"),
+    (re.compile(r"^[ \t]+[-*][ \t]", re.MULTILINE), "nested list"),
 ]
 # Fixed figures a report may cite that aren't payload values: the window
 # lengths (90 days, 12 months, 6-month outlook, 80% band), the score formula

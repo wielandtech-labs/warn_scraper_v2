@@ -179,6 +179,17 @@ def test_payload_percentage_may_be_cited_at_lower_precision(tmp_path, doc):
     assert _check(tmp_path, doc, ok) == []
 
 
+def test_top_level_list_after_blank_line_is_fine(tmp_path, doc):
+    # Regression: the nested-list check once matched "\n- " across a blank line.
+    p = doc["jurisdictions"]["CA"]
+    text = _report(p, doc["as_of"], _good_sentiment(p)).replace(
+        "## Where layoffs", "## Analysis\n\nWorth watching:\n\n- the trend\n\n## Where layoffs", 1
+    )
+    assert _check(tmp_path, doc, text) == []
+    nested = text.replace("- the trend", "- the trend\n  - a sub-point", 1)
+    assert any("nested list" in m for m in _check(tmp_path, doc, nested))
+
+
 def test_county_name_with_banned_substring_in_table_is_fine(tmp_path, doc):
     # Banned-word scanning skips table rows: scraped place names are data.
     p = doc["jurisdictions"]["CA"]

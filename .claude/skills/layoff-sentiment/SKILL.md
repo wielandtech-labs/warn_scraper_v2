@@ -115,6 +115,13 @@ fixes them until they pass. For a handful of targets, write them yourself.
 - **Coverage.** If `naics_coverage_pct` is below 50, say that the industry
   figures cover only a minority of notices. Industry reports always note that
   their figures cover only NAICS-enriched notices and are directional.
+- **Partial month.** The `monthly` row for `as_of`'s own month is partial:
+  it holds only the days so far. Never read it as a trend or compare it with
+  its `layoffs_year_earlier`. Say it is partial if you mention it.
+- **Reporting lag.** States post WARN notices late, so the last weeks of the
+  current window tend to be revised upward. When a sharp drop against the
+  prior window drives the headline, add one neutral sentence saying recent
+  weeks may rise as late filings arrive. That is a data caveat, not a cause.
 - **Facts.** Never invent causes, companies, or events that aren't in the
   payload. Don't speculate about why something moved.
 - **Tone.** Neutral and analytical: an economic bulletin, not news copy.
