@@ -258,7 +258,9 @@ missing BLS block). End it with the attribution line from the session's
 system reminder.
 
 Merging deploys the reports. They ship inside the image, and the API serves
-them as-is.
+them as-is. `docker.yml` normally skips `**.md` changes but re-includes
+`warn_v2/reports/published/**`, so a report-only PR still builds. Keep that
+filter if you ever touch it.
 
 ## Step 6: Summarize
 
