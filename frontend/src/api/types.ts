@@ -355,3 +355,82 @@ export interface SubscriptionOut extends AlertFilters {
   created_at: string | null;
   last_notified_at: string | null;
 }
+
+// ---------- Outlook (GET /api/reports/outlook, written weekly) ----------
+
+/** One jurisdiction's (or sector's) trend test. Sector rows carry no
+ *  last_month or layoff fit. */
+export interface OutlookTrendRow {
+  code: string;
+  name: string;
+  pct_per_year: number;
+  ci_lo_pct: number;
+  ci_hi_pct: number;
+  t: number;
+  p: number;
+  q: number;
+  months: number;
+  notices: number;
+  last_month?: string;
+  layoffs_pct_per_year: number | null;
+  layoffs_t: number | null;
+  shrunk_pct?: number;
+  shrunk_z?: number;
+}
+
+/** A random-effects pooled estimate across states. */
+export interface OutlookPooled {
+  pct: number;
+  ci_lo_pct: number;
+  ci_hi_pct: number;
+  z: number;
+  tau_pct: number;
+  n_states: number;
+}
+
+export interface OutlookLinkRow {
+  code: string;
+  name: string;
+  pct: number; // % change in notices per 1-point rise in unemployment
+  ci_lo_pct: number;
+  ci_hi_pct: number;
+  t: number;
+  p: number;
+  q: number;
+  months: number;
+}
+
+export interface OutlookClaim {
+  id: string;
+  horizon: "near" | "mid" | "long";
+  kind: string;
+  subject: string;
+  statement: string;
+  effect_pct: number;
+  ci_lo_pct: number;
+  ci_hi_pct: number;
+  q: number | null;
+  confidence: "high" | "medium" | "watch";
+}
+
+export interface Outlook {
+  schema: number;
+  as_of: string;
+  window: { first_month: string | null; last_month: string | null; months: number };
+  method: Record<string, string | number>;
+  trends: {
+    states: OutlookTrendRow[];
+    excluded: Record<string, string>;
+    pooled: OutlookPooled | null;
+  };
+  sectors: OutlookTrendRow[];
+  unemployment_link: {
+    regressor: string;
+    first_month: string;
+    last_month: string;
+    states: OutlookLinkRow[];
+    pooled: OutlookPooled | null;
+    pooled_ex_2020: OutlookPooled | null;
+  } | null;
+  claims: OutlookClaim[];
+}

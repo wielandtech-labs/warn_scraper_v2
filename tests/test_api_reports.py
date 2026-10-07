@@ -320,3 +320,17 @@ def test_get_payloads_missing_file(client):
     resp = client.get("/api/reports/payloads")
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Payloads not available"
+
+
+def test_get_outlook_served_raw(client, tmp_path):
+    (tmp_path / "outlook.json").write_text('{"schema": 1, "claims": []}', encoding="utf-8")
+    resp = client.get("/api/reports/outlook")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
+    assert resp.json() == {"schema": 1, "claims": []}
+
+
+def test_get_outlook_missing_is_json_404(client):
+    resp = client.get("/api/reports/outlook")
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Outlook not available"

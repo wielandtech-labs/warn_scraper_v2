@@ -22,6 +22,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, ValidationError
 
 from warn_v2.companies.naics import SECTOR_NAME
+from warn_v2.outlook.build import OUTLOOK_JSON
 from warn_v2.reports.aggregate import NATIONAL_CODE, NATIONAL_NAME
 from warn_v2.reports.forecast import FORECASTS_JSON
 from warn_v2.reports.generate import INDUSTRIES_JSON, PAYLOADS_JSON
@@ -197,6 +198,18 @@ def get_forecast(state: str) -> ForecastOut:
     except (OSError, json.JSONDecodeError, ValidationError, TypeError) as exc:
         log.warning("unreadable %s: %s", FORECASTS_JSON, exc)
         raise HTTPException(status_code=404, detail="Forecast not available") from None
+
+
+# Declared before /{state}: same route-order requirement as /industries.
+@router.get("/outlook")
+def get_outlook() -> Response:
+    """The weekly outlook (outlook.json, written by the CronJob): trend tests,
+    the unemployment link, and the claims that cleared their statistical
+    gates. Served raw, like /payloads."""
+    path = _REPORTS_DIR / OUTLOOK_JSON
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Outlook not available")
+    return Response(path.read_bytes(), media_type="application/json")
 
 
 # Declared before /{state}: same route-order requirement as /industries.

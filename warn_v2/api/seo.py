@@ -111,6 +111,11 @@ _APP_PAGES_META: dict[str, tuple[str, str]] = {
         "Weekly layoff-trend scorecards for every NAICS industry sector plus "
         "a national outlook, computed from WARN Act notices.",
     ),
+    "/outlook": (
+        "Layoff outlook — WARN Index",
+        "Statistically tested findings on where US layoffs are heading: state "
+        "and industry trends and the link to unemployment, from WARN notices.",
+    ),
 }
 
 

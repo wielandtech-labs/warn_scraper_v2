@@ -236,6 +236,12 @@ const reportsRoute = createRoute({
   component: ReportsPage,
 });
 
+const outlookRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/outlook",
+  component: lazyRouteComponent(() => import("./routes/outlook"), "OutlookPage"),
+});
+
 const industryReportRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/reports/industry/$sector",
@@ -341,6 +347,7 @@ const routeTree = rootRoute.addChildren([
   statesIndexRoute,
   stateDetailRoute,
   reportsRoute,
+  outlookRoute,
   industryReportRoute,
   statusRoute,
   aboutRoute,
