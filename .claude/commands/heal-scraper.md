@@ -41,6 +41,50 @@ registered state:
 "$PY" -c "from warn_v2.scrapers.registry import all_states; print(' '.join(all_states()))"
 ```
 
+## Staleness check (run once, before the per-state loop)
+
+A scraper that reads the **wrong** source never fails. It reports `not_modified`
+or `ok` with `rows_new=0`, and the step-1 repro passes because it re-reads the
+same stale file. (Seen 2026-10-07: CA, IL and OR froze for 3-4 months this way.
+CA's file was renamed, IL's link regex missed new filenames, and OR notices
+stopped carrying the county the crawl filtered on.) So also check prod's
+**newest notice date** against the state's own cadence:
+
+```bash
+"$PY" - <<'PY'
+import datetime as dt, httpx
+from warn_v2.scrapers.registry import all_states
+API = "https://warnindex.com/api/notices"
+today = dt.date.today()
+for s in all_states():
+    q = {"state": s, "limit": 1, "sort_by": "notice_date", "sort_dir": "desc"}
+    items = httpx.get(API, params=q, timeout=30).json()["items"]
+    if not items:
+        print(f"{s} STALE? no notices in prod"); continue
+    newest = dt.date.fromisoformat(items[0]["notice_date"])
+    # Typical gap from the year *before* the newest notice, so a frozen
+    # stretch doesn't shrink its own baseline.
+    n = httpx.get(API, params={**q, "after": str(newest - dt.timedelta(days=365)),
+                               "before": str(newest)}, timeout=30).json()["total"]
+    limit = max(60, round(3 * 365 / max(n, 1)))
+    age = (today - newest).days
+    if age > limit:
+        print(f"{s} STALE? newest={newest} age={age}d limit={limit}d (n_prev_year={n})")
+PY
+```
+
+A state is flagged when its newest notice is older than `max(60 days, 3x its
+typical gap)`. So CA (~1,500/yr) trips at 60 days, while a ~5/yr state like ND
+gets ~7 months. Treat every flagged state as a target even if it isn't in
+`$ARGUMENTS`. In step 1, a flagged state's `VALIDATE ok=True` does **not** mean
+"ok". The scraper agreeing with itself proves nothing. Open the state's
+human-facing landing page (the module docstring names it) and confirm there is
+nothing newer than prod's newest date: a renamed current-year file, a new
+fiscal/program-year link, notices outside the filter the scraper crawls. If
+something newer exists, it's a real break (diagnose, fix, PR as below). If the
+source is genuinely quiet (or its next quarterly/monthly file isn't out yet),
+report `quiet (verified <source>, newest <date>)` and move on.
+
 ## Per state `XX` (module `warn_v2/scrapers/states/<xx>.py`, fixtures `warn_v2/scrapers/fixtures/<xx>/`)
 
 ### 1. Reproduce the break live (no DB, no cluster)
@@ -79,7 +123,8 @@ PY
   suspect the network, not the scrapers.)
 - `PARSE_RAISED` or `VALIDATE ok=False` → a **real break**. The snapshot path is
   printed; you'll replay against it. Continue.
-- `VALIDATE ok=True` → nothing to fix. Report "ok" and move on.
+- `VALIDATE ok=True` → nothing to fix. Report "ok" and move on, **unless** the
+  staleness check flagged the state (see above).
 
 ### 2. Diagnose
 
@@ -126,7 +171,8 @@ If an open PR already exists for `XX`, stop and report it. Otherwise:
 ### 6. Summarize
 
 One line per state: `fixed (PR #N)` / `ok (no change)` / `skipped (fetch_failed)`
-/ `existing PR #N`. End with a short roll-up.
+/ `existing PR #N` / `quiet (verified ...)` / `stale, unresolved (why)`. End with
+a short roll-up.
 
 ---
 
