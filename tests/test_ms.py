@@ -76,11 +76,16 @@ def test_ms_closure_type_populated(ms_sample_pdf: bytes) -> None:
 def test_ms_non_warn_rows_tagged(ms_sample_pdf: bytes) -> None:
     """Reason/Comments "Non-WARN ..." rows are kept but tagged, so the storage
     upsert can bucket them as closure_category "Non-WARN"; "WARN ..." reasons
-    must not trip the tag."""
+    must not trip the tag.  The PDF's own summary: 4 WARN, 3 NON-WARN (two of
+    the three print their reason in a ghost column)."""
     scraper = get_scraper("MS")
     rows = scraper.parse(ms_sample_pdf)
     flagged = [r for r in rows if r.extra.get("non_warn")]
-    assert [r.employer for r in flagged] == ["NOV Energy Products Services"]
+    assert [r.employer for r in flagged] == [
+        "NOV Energy Products Services",
+        "Birdsong Peanuts- Aberdeen",
+        "New Way Trucks",
+    ]
     assert flagged[0].extra["non_warn"] == "1"
     assert flagged[0].extra["reason"].startswith("Non-WARN")
     regency = next(r for r in rows if "Regency" in r.employer)
@@ -101,9 +106,10 @@ def test_ms_raises_on_bad_pdf() -> None:
         scraper.parse(b"this is not a pdf file")
 
 
-def test_ms_company_name_in_ghost_column() -> None:
-    """PY2025-Q4: one employer sits in the ghost columns right of an empty
-    Company Name cell, wrapped over continuation rows; it was silently dropped.
+def test_ms_values_in_ghost_columns() -> None:
+    """PY2025-Q4: one employer and one Reason/Comments sit in the ghost
+    columns right of their empty labelled cells, wrapped over continuation
+    rows; the employer's row was silently dropped and the reason lost.
     """
     raw = (FIXTURE.parent / "sample_ghost_company.pdf").read_bytes()
     rows = get_scraper("MS").parse(raw)
@@ -114,3 +120,15 @@ def test_ms_company_name_in_ghost_column() -> None:
     assert lp.city == "Houston"
     assert lp.county == "Chickasaw"
     assert lp.effective_date == date(2026, 6, 11)
+    aramark = next(r for r in rows if r.employer.startswith("Aramark"))
+    assert aramark.extra["reason"].endswith(
+        "Due Businesses Circumstances/in negotiations with buyer"
+    )
+    assert [r.employer for r in rows] == [
+        "Greenwood Leflore Hospital",
+        "Stanley Black & Decker",
+        "Laboratory Corporation of America",
+        "Aramark Services, Inc",
+        "Leggett & Platt Flooring Products",
+        "Wheeler Fleet Solutions",
+    ]
