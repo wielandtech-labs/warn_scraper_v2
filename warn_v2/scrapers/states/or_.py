@@ -5,9 +5,12 @@ Data:   Per-county paginated HTML tables served by the Oregon Rapid Response
         Activity Tracking System (HECC/OWI). The system retains records for
         six years.
 
-There is no single-query "all notices" endpoint; results must be fetched
-county-by-county with pagination (?County=Name&page=N).  fetch() iterates
-all 36 Oregon counties and returns a JSON blob:
+fetch() pages through the unfiltered list (?page=N), which is the complete
+set, then walks the per-county filter (?County=Name&page=N) only to attach a
+county to each track. Most notices (every 2026 notice as of Oct 2026, many
+out-of-state worksites) carry no county and never appear under any county
+filter — crawling counties alone silently froze OR in mid-2026. It returns
+a JSON blob:
   {"rows": [{"track":..., "date":..., "type":..., "count":...,
              "employer":..., "city":..., "county":..., "notice_url":...}]}
 
@@ -94,15 +97,15 @@ def _parse_date(raw: str) -> object:
         return None
 
 
-def _scrape_county(county: str, client: httpx.Client) -> list[dict]:
-    """Fetch all pages for one county and return a list of row dicts."""
+def _scrape_county(county: str | None, client: httpx.Client) -> list[dict]:
+    """Fetch all pages for one county (None = the unfiltered list) as row dicts."""
     rows: list[dict] = []
     seen: set[str] = set()
     page = 1
-    county_param = county.replace(" ", "+")
+    county_param = f"County={county.replace(' ', '+')}&" if county else ""
 
     while True:
-        url = f"{_SOURCE_URL}?County={county_param}&page={page}"
+        url = f"{_SOURCE_URL}?{county_param}page={page}"
         try:
             r = client.get(url, timeout=20)
             r.raise_for_status()
@@ -142,7 +145,7 @@ def _scrape_county(county: str, client: httpx.Client) -> list[dict]:
                         "count": tds[3].get_text(strip=True),
                         "employer": tds[4].get_text(strip=True),
                         "city": tds[5].get_text(strip=True),
-                        "county": county,
+                        "county": county or "",
                         "notice_url": notice_url,
                     }
                 )
@@ -166,16 +169,13 @@ class ORScraper:
     required_fields = frozenset({"employer", "notice_date"})
 
     def fetch(self) -> bytes:
-        all_rows: list[dict] = []
-        seen_tracks: set[str] = set()
-
         with httpx.Client(headers=_UA, follow_redirects=True) as client:
+            by_track = {row["track"]: row for row in _scrape_county(None, client)}
             for county in _OR_COUNTIES:
-                county_rows = _scrape_county(county, client)
-                for row in county_rows:
-                    if row["track"] not in seen_tracks:
-                        seen_tracks.add(row["track"])
-                        all_rows.append(row)
+                for row in _scrape_county(county, client):
+                    known = by_track.setdefault(row["track"], row)
+                    known["county"] = known["county"] or county
+        all_rows = list(by_track.values())
 
         if not all_rows:
             raise ScrapeFailed("OR: no WARN notices found across all counties")

@@ -1,11 +1,16 @@
 from collections import Counter
 from datetime import date
+from pathlib import Path
 
+import httpx
 import pandas as pd
+import pytest
+import respx
 
 from warn_v2.db.models import Notice
 from warn_v2.pipeline.storage import upsert_notices
 from warn_v2.pipeline.validate import validate
+from warn_v2.scrapers.base import ScrapeFailed
 from warn_v2.scrapers.registry import get_scraper
 from warn_v2.scrapers.states.ca import _parse_df
 
@@ -99,3 +104,55 @@ def test_ca_end_to_end_persists(ca_golden_xlsx_bytes, ca_golden_expected, db) ->
     seen2, new2 = upsert_notices(db, rows)
     db.commit()
     assert (seen2, new2) == (len(rows), 0)
+
+
+_ARCHIVE_FIXTURE = (
+    Path(__file__).resolve().parents[1]
+    / "warn_v2" / "scrapers" / "fixtures" / "ca" / "archive_page_2026-10.html"
+)
+
+
+@respx.mock
+def test_ca_fetch_follows_latest_report_link() -> None:
+    """fetch() downloads the page's "Latest WARN report" link, not a fixed URL.
+
+    For FY2026-27 EDD moved the current report to warn_report1.xlsx while the
+    old WARN_Report.xlsx kept serving a stale file — so the hardcoded URL went
+    `not_modified` from July to October 2026 with no error.
+    """
+    from warn_v2.scrapers.http_cache import bypass
+    from warn_v2.scrapers.states.ca import _ARCHIVE_PAGE
+
+    respx.get(_ARCHIVE_PAGE).mock(
+        return_value=httpx.Response(200, content=_ARCHIVE_FIXTURE.read_bytes())
+    )
+    current = respx.get(
+        "https://edd.ca.gov/siteassets/files/jobs_and_training/warn/warn_report1.xlsx"
+    ).mock(return_value=httpx.Response(200, content=b"xlsx"))
+
+    with bypass():
+        assert get_scraper("CA").fetch() == b"xlsx"
+    assert current.called
+
+
+@respx.mock
+def test_ca_archive_urls_exclude_latest_report() -> None:
+    from warn_v2.scrapers.states.ca import _ARCHIVE_PAGE, _discover_archive_urls
+
+    respx.get(_ARCHIVE_PAGE).mock(
+        return_value=httpx.Response(200, content=_ARCHIVE_FIXTURE.read_bytes())
+    )
+    urls = _discover_archive_urls()
+    assert not any(u.endswith(".xlsx") for u in urls)
+    assert urls[0].endswith("warn-report-for-7-1-25-to-6-30-26.pdf")
+
+
+@respx.mock
+def test_ca_fetch_fails_loudly_without_latest_link() -> None:
+    from warn_v2.scrapers.states.ca import _ARCHIVE_PAGE
+
+    respx.get(_ARCHIVE_PAGE).mock(
+        return_value=httpx.Response(200, content=b"<a href='/x/warn-old.pdf'>old</a>")
+    )
+    with pytest.raises(ScrapeFailed):
+        get_scraper("CA").fetch()

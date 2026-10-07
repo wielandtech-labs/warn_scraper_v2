@@ -76,7 +76,7 @@ def test_ca_discover_urls_finds_pdf_and_xlsx_hrefs():
         b"<a href='/Jobs_and_Training/warn/WARN_Report_FY23-24.pdf'>FY23-24 (PDF)</a>"
         b"<a href='/Jobs_and_Training/warn/WARN_Report_FY22-23.pdf'>FY22-23 (PDF)</a>"
         b"<a href='/Jobs_and_Training/warn/WARN_Report_FY21-22.xlsx'>FY21-22</a>"
-        b"<a href='/Jobs_and_Training/warn/WARN_Report.xlsx'>Current</a>"
+        b"<a href='/Jobs_and_Training/warn/WARN_Report.xlsx'>Latest WARN report (XLSX)</a>"
         b"<a href='/some/other-doc.pdf'>unrelated</a>"
         b"</body></html>"
     )
