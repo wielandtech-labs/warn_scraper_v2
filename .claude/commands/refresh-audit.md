@@ -21,7 +21,8 @@ loop until actually met, not until it "looks right":
    any minimal, factual annotation reconciliation.
 3. A PR is open with the change, and it is merged **only** behind the Step 3 guards.
    Merging `main` is normally a production deploy, but a `STATE_AUDIT.md`-only diff
-   is not: `docker.yml` is `paths-ignore: "**.md"`, so no image is built and the
+   is not: `docker.yml`'s `paths` filter skips `**.md` (re-including only
+   `warn_v2/reports/published/**`), so no image is built and the
    image-tag chain in `CLAUDE.md` never fires. Any diff reaching beyond
    `STATE_AUDIT.md` is **not** merged by this routine.
 
