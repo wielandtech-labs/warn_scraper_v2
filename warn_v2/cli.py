@@ -1729,7 +1729,8 @@ def sentiment_report_cmd(reports_dir: Path, dry_run: bool) -> None:
     Writes payloads.json (per state, US, and NAICS sector: trailing 90 days
     vs the prior 90, the same window last year, trailing 12 months, a
     12-month series, a 6-month forecast, and BLS context), industries.json
-    (the scorecard grid), and forecasts.json (the forecast charts). The
+    (the scorecard grid), forecasts.json (the forecast charts), and
+    outlook.json (trend tests, the unemployment link, and claims). The
     reports themselves are written by the /layoff-sentiment Claude Code
     skill from payloads.json, served at /api/reports/payloads.
     """
@@ -1764,6 +1765,16 @@ def sentiment_report_cmd(reports_dir: Path, dry_run: bool) -> None:
             click.echo(f"forecasts={len(forecasts['jurisdictions'])}")
         except Exception as exc:
             click.echo(f"forecasts=failed ({exc})", err=True)
+        # Fail-open, same as forecasts.json.
+        try:
+            from warn_v2.outlook.build import OUTLOOK_JSON, build_outlook
+
+            outlook = build_outlook(session)
+            if not dry_run:
+                _atomic_write(reports_dir, OUTLOOK_JSON, json.dumps(outlook, indent=2))
+            click.echo(f"outlook_claims={len(outlook['claims'])}")
+        except Exception as exc:
+            click.echo(f"outlook=failed ({exc})", err=True)
 
     suffix = " (dry run — nothing written)" if dry_run else ""
     click.echo(f"payloads={stats['total']} insufficient={stats['insufficient']}{suffix}")

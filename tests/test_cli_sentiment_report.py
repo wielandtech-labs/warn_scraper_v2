@@ -149,7 +149,7 @@ def test_run_writes_only_json(db, tmp_path):
     result = _run(tmp_path)
     assert result.exit_code == 0, result.output
     assert sorted(p.name for p in tmp_path.iterdir()) == [
-        "forecasts.json", "industries.json", "payloads.json",
+        "forecasts.json", "industries.json", "outlook.json", "payloads.json",
     ]
     # 51 states + national + 20 sectors.
     assert "payloads=72" in result.output
@@ -208,3 +208,31 @@ def test_forecasts_build_failure_does_not_abort_run(db, tmp_path, monkeypatch):
     names = {p.name for p in tmp_path.iterdir()}
     assert "forecasts.json" not in names
     assert "payloads.json" in names  # the rest still completed
+
+
+def test_run_writes_outlook_json(db, tmp_path):
+    _seed_state(db, "CA", naics="311999")
+    result = _run(tmp_path)
+    assert result.exit_code == 0, result.output
+    doc = json.loads((tmp_path / "outlook.json").read_text(encoding="utf-8"))
+    assert doc["schema"] == 1
+    assert doc["as_of"] == date.today().isoformat()
+    assert isinstance(doc["claims"], list)
+    assert "outlook_claims=" in result.output
+
+
+def test_outlook_build_failure_does_not_abort_run(db, tmp_path, monkeypatch):
+    from warn_v2.outlook import build as outlook_build
+
+    monkeypatch.setattr(
+        outlook_build,
+        "build_outlook",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    _seed_state(db, "CA", naics="311999")
+    result = _run(tmp_path)
+    assert result.exit_code == 0, result.output
+    assert "outlook=failed" in result.output
+    names = {p.name for p in tmp_path.iterdir()}
+    assert "outlook.json" not in names
+    assert "payloads.json" in names

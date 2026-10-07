@@ -14,6 +14,7 @@ import type {
   EmployerStat,
   FamilyMemberOut,
   ForecastOut,
+  Outlook,
   IndicatorDataset,
   IndicatorStat,
   IndustryScorecard,
@@ -345,6 +346,9 @@ export const api = {
    *  "US" returns the national forecast. */
   getForecast: (state: string) =>
     get<ForecastOut>(`/api/reports/forecasts/${encodeURIComponent(state)}`),
+  /** Trend tests, the unemployment link and gated claims (404 until the
+   *  weekly job has run). */
+  getOutlook: () => get<Outlook>("/api/reports/outlook"),
 
   // ---------- Search ----------
   search: (q: string, limit = 8) =>

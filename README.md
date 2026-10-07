@@ -297,3 +297,33 @@ weekly CronJob computes; they ship in the image, so a report PR is a deploy.
 ```powershell
 uv run warn-v2 sentiment-report --dry-run   # offline smoke test of the export
 ```
+
+## Outlook
+
+`warn_v2/outlook/` turns the WARN panel into forward-looking findings that
+must pass a statistical test before they are published. The same weekly
+`sentiment-report` run writes `outlook.json` (fail-open, like
+`forecasts.json`). It is served raw at `/api/reports/outlook` and rendered on
+the SPA's `/outlook` page.
+
+- **Trends** (`trends.py`): per-state monthly notice counts over the last 36
+  settled months, fitted with a quasi-Poisson GLM using month-of-year dummies.
+  The standard errors are inflated for AR(1) autocorrelation. Newey-West SEs
+  rejected 19-25% of null series at nominal 5% in simulation, so they were
+  dropped. Results are reported as Benjamini-Hochberg q-values per family,
+  with DerSimonian-Laird pooling plus empirical-Bayes shrinkage across states.
+- **Sectors**: the trend in each NAICS sector's *share* of classified notices,
+  not its count, because enrichment coverage drifts over time.
+- **Coverage** (`coverage.py`): per-state month masks treat these as missing
+  data, not zeros:
+  - months before a state's first notice;
+  - a series' improbably low trailing edge (publication lag or a stale
+    scraper);
+  - improbable interior zero-runs.
+- **Unemployment link**: the effect of the lagged 12-month change in state
+  unemployment (LAUS, from `bls_series`) on monthly filings, pooled across
+  states and re-fitted without 2020-21.
+- **Claims** (`claims.py`): templated statements gated on q < 0.05 (or a 95%
+  CI excluding zero). Weaker signals (q < 0.20) appear as a clearly labelled
+  watch list. Templates obey the job-losses wording rule, and a test enforces
+  it.

@@ -16,6 +16,7 @@ const NAV = [
   { to: "/map", label: "Map" },
   { to: "/stats", label: "Trends" },
   { to: "/reports", label: "Reports" },
+  { to: "/outlook", label: "Outlook" },
 ];
 
 function AccountArea() {
