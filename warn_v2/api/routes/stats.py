@@ -366,8 +366,8 @@ def _roll_up(values: list[float]) -> float:
 
     Always the mean, including for the flow measures (layoffs, quits) where an
     annual *total* would be the more natural summary. The deciding factor is
-    the partial current year: the state pages default to the all-time range,
-    whose last bucket is always an incomplete year, and a summed flow would
+    the partial current year: the state pages' all-time range buckets by year,
+    so its last bucket is always an incomplete year, where a summed flow would
     plot that year as a collapse rather than as missing months. A mean is
     unbiased across complete and partial years alike, so the series stays
     comparable. Callers label the axis "monthly average" accordingly.

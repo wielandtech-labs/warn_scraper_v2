@@ -44,12 +44,31 @@ export interface FilterBarProps {
   showDates?: boolean;
   /** When provided, render an Industry (NAICS sector) dropdown of these options. */
   industries?: IndustryStat[];
+  /** Window (in days) the page applies when no dates are set — that preset
+   *  shows as active, and "All" writes `after=ALL_TIME` so it stays
+   *  distinguishable from the default. Resolve with `resolveAfter()`. */
+  defaultDays?: number;
+}
+
+/** `after` value meaning "no cutoff" on pages with a `defaultDays` window. */
+export const ALL_TIME = "all";
+
+/** The `after` to send to the API for a page with a `defaultDays` window:
+ *  the default cutoff when no dates are set, none for ALL_TIME. */
+export function resolveAfter(
+  values: Pick<FilterValues, "after" | "before">,
+  defaultDays: number,
+): string | undefined {
+  if (values.after === ALL_TIME) return undefined;
+  if (!values.after && !values.before) return daysAgoIso(defaultDays);
+  return values.after;
 }
 
 const PRESETS = [
   { label: "30d", days: 30 },
   { label: "90d", days: 90 },
   { label: "1yr", days: 365 },
+  { label: "5yr", days: 365 * 5 },
   { label: "All", days: null },
 ] as const;
 
@@ -59,6 +78,7 @@ export function FilterBar({
   showEmployer = true,
   showDates = true,
   industries,
+  defaultDays,
 }: FilterBarProps) {
   const update = (patch: Partial<FilterValues>, opts?: { replace?: boolean }) => {
     const next: FilterValues = { ...values, ...patch };
@@ -228,7 +248,7 @@ export function FilterBar({
           <input
             type="date"
             className="rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
-            value={values.after || ""}
+            value={values.after === ALL_TIME ? "" : values.after || ""}
             onChange={(e) => update({ after: e.target.value || undefined })}
           />
         </label>
@@ -254,10 +274,14 @@ export function FilterBar({
           <>
         <span className="text-xs text-slate-400 dark:text-slate-500">Quick:</span>
         {PRESETS.map(({ label, days }) => {
+          const noDates = !values.after && !values.before;
           const active =
             days === null
-              ? !values.after && !values.before
-              : values.after === daysAgoIso(days) && !values.before;
+              ? defaultDays === undefined
+                ? noDates
+                : values.after === ALL_TIME && !values.before
+              : (values.after === daysAgoIso(days) && !values.before) ||
+                (days === defaultDays && noDates);
           return (
             <button
               key={label}
@@ -265,7 +289,10 @@ export function FilterBar({
               aria-pressed={active}
               onClick={() =>
                 days === null
-                  ? update({ after: undefined, before: undefined })
+                  ? update({
+                      after: defaultDays === undefined ? undefined : ALL_TIME,
+                      before: undefined,
+                    })
                   : update({ after: daysAgoIso(days), before: undefined })
               }
               className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${

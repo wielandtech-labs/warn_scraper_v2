@@ -55,7 +55,7 @@ export function StateDetailPage() {
     valid ? `${name} layoffs & WARN notices — WARN Index` : "Unknown state — WARN Index",
   );
 
-  const [range, setRange] = useState<TimeRange>("all");
+  const [range, setRange] = useState<TimeRange>("5y");
   const { after, bucket } = toRangeQuery(range);
 
   // Hooks must run unconditionally; `enabled` keeps them idle for bad codes.
@@ -144,9 +144,8 @@ export function StateDetailPage() {
   const { data: projectedData, hasProjection } = withProjectionSeries(labeledTimeData);
   const timeData = hasForecast ? forecastData : projectedData;
   // Periods the indicator cards plot onto, so their x-axes match the chart
-  // above. From the raw response, not timeData, whose forecast/projection
-  // padding adds periods that carry no recorded notices.
-  const indicatorPeriods = (overTime.data ?? []).map((r) => r.period);
+  // above — including its forecast months, which the cards leave blank.
+  const indicatorPeriods = timeData.map((r) => r.period);
 
   return (
     <div className="space-y-6">
