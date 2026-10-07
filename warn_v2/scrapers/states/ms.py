@@ -597,7 +597,19 @@ def _extract_rows(
     i_county = None if merged_location else _find("county")
 
     def _cell(row: list, i: int | None) -> str:
-        return _normalize_cell(row[i]) if i is not None and i < len(row) else ""
+        if i is None or i >= len(row):
+            return ""
+        value = _normalize_cell(row[i])
+        if value:
+            return value
+        # A value sometimes lands in the unlabelled ghost columns right of
+        # its empty labelled cell (PY2025-Q3/Q4 Company Name and Reason).
+        ghosts = []
+        j = i + 1
+        while j < min(len(header), len(row)) and not header[j]:
+            ghosts.append(_normalize_cell(row[j]))
+            j += 1
+        return " ".join(g for g in ghosts if g)
 
     rows: list[NoticeRow] = []
     for raw_row in data_rows:
@@ -620,15 +632,6 @@ def _extract_rows(
             employer = " ".join(lines)
         else:
             employer = _cell(raw_row, i_company)
-            if not employer:
-                # The name sometimes lands in the ghost columns right of an
-                # empty Company Name cell (PY2025-Q4 Leggett & Platt).
-                j = i_company + 1
-                ghosts = []
-                while j < len(header) and not header[j]:
-                    ghosts.append(_cell(raw_row, j))
-                    j += 1
-                employer = " ".join(g for g in ghosts if g)
             city = as_str(_cell(raw_row, i_city))
             county = as_str(_cell(raw_row, i_county))
 
