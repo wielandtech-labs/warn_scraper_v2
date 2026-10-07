@@ -1,6 +1,9 @@
 """North Dakota WARN scraper.
 
-Source: https://www.jobsnd.com/employers/warn-notices
+Source: the cumulative PDF at _PDF_URL.  Its landing page
+        (https://www.jobsnd.com/employers/warn-notices) was removed in the
+        2026 site restructure (404 since at least 2026-10-07) and nothing on
+        jobsnd.com links the PDF any more; the PDF URL itself still serves.
 Data:   Single cumulative PDF (2015 to present) at a stable URL.
 
 Schema (as of 2026):
@@ -30,7 +33,7 @@ _PDF_URL = (
     "https://jobsnd.com/sites/www/files/documents/jsnd-documents/"
     "WARN%20Notices%202015%20to%20present.pdf"
 )
-_SOURCE_URL = "https://www.jobsnd.com/employers/warn-notices"
+_SOURCE_URL = _PDF_URL  # the landing page 404s; link users to the PDF
 
 _UA = {
     "User-Agent": (

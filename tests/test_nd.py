@@ -78,3 +78,11 @@ def test_nd_raises_on_bad_pdf() -> None:
     scraper = get_scraper("ND")
     with pytest.raises(ParseFailed):
         scraper.parse(b"this is not a pdf file")
+
+
+def test_nd_rows_link_the_pdf(nd_sample_pdf: bytes) -> None:
+    """The old landing page 404s (2026 site restructure); rows link the PDF."""
+    from warn_v2.scrapers.states.nd import _PDF_URL
+
+    rows = get_scraper("ND").parse(nd_sample_pdf)
+    assert {r.source_url for r in rows} == {_PDF_URL}
