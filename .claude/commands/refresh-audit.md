@@ -30,8 +30,7 @@ loop until actually met, not until it "looks right":
 
 ```bash
 # kubectl/flux live in WSL (project CLAUDE.md) — every kubectl call is `wsl kubectl`.
-# gh needs a token (global CLAUDE.md — stale keyring auth on this host):
-export GH_TOKEN=$(printf 'protocol=https\nhost=github.com\n' | git credential fill | sed -n 's/^password=//p')
+# gh auth: GH_TOKEN is preset in Bash by a SessionStart hook (global CLAUDE.md).
 ```
 
 ## Step 1 — Run the audit in-cluster, capture the table
@@ -184,8 +183,8 @@ biggest deltas vs the previous table, and the PR number.
 
 Unlike `/heal-scraper` (local-only), this routine **needs WSL `kubectl` cluster
 access** and `gh` auth. Validate `claude -p "/refresh-audit"` once interactively —
-confirm WSL `kubectl` reaches the cluster and the `GH_TOKEN` shim resolves
-non-interactively — before trusting a scheduled run.
+confirm WSL `kubectl` reaches the cluster and `gh` auth (`GH_TOKEN` from the
+SessionStart hook) resolves non-interactively — before trusting a scheduled run.
 
 **Auto mode (no prompts).** In headless `-p` mode there's no one to answer a
 permission prompt, and the **first un-allowlisted tool call aborts the whole run**
@@ -193,9 +192,7 @@ with a non-zero exit (it doesn't hang or skip). `--permission-mode acceptEdits`
 auto-approves file edits but **not** the `wsl kubectl` / `git` / `gh` Bash this
 routine runs — so it would abort at the first `git` step, *after* touching the
 cluster. For a trusted, bounded task, run with **`--dangerously-skip-permissions`**
-(≡ `--permission-mode bypassPermissions`), which skips all prompts. This also avoids
-allowlisting the `GH_TOKEN` shim (a `git credential fill` pipeline that's awkward to
-express as an allow rule).
+(≡ `--permission-mode bypassPermissions`), which skips all prompts.
 
 This routine *does* merge, which is normally exactly what you must not hand this
 flag to. It is safe here only because the merge is gated on a machine-checked

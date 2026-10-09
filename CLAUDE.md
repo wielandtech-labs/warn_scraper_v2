@@ -2,7 +2,7 @@
 
 ## Repo overview
 
-`warn_scrapper_v2` — WARN Act layoff-notice scraper. 48 jurisdictions live.
+`warn_scraper_v2` — WARN Act layoff-notice scraper. 48 jurisdictions live.
 K3s deployment via Flux + Helm chart in `charts/warn-v2/`.
 
 ## Helm chart version (`charts/warn-v2/Chart.yaml`)
@@ -64,12 +64,12 @@ otherwise touch).
 
 ## Test suite
 
-Run with: `cd warn_scrapper_v2 && .venv\Scripts\pytest` (uv not on PATH here;
-use the local venv). All 500+ tests should pass with 0 failures before opening
-a PR.
+Run with: `.venv\Scripts\python.exe -m pytest` from the main checkout root
+(`uv` is on PATH too; `uv sync` refreshes the venv). All 1900+ tests should
+pass with 0 failures before opening a PR.
 
 From a git worktree (which has no `.venv` of its own): run
-`C:\Users\rapha\workspace\warn_scrapper_v2\.venv\Scripts\python.exe -m pytest`
+`C:\Users\rapha\workspace\warn_scraper_v2\.venv\Scripts\python.exe -m pytest`
 with the worktree as cwd — `-m` puts the cwd first on `sys.path`, so the
 worktree's `warn_v2` shadows the venv's editable install and the worktree code
 is what actually gets tested (verify once with

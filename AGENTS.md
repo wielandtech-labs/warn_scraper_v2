@@ -57,17 +57,20 @@ upgrade head && alembic downgrade -1` on a scratch SQLite DB. (Full
 
 ## Kubernetes access
 
-`kubectl` is not configured in the Windows shell but works via WSL:
+**Reads:** use the `homelab-ro` MCP tools (`pods`, `logs`, `events`,
+`k8s_get`), or plain Windows `kubectl get|logs|describe ...` — its only context
+is the read-only tailnet one (global CLAUDE.md), and those verbs are allowlisted.
+Don't hand-roll `curl` against the tailnet API.
+
+**Writes** (e.g. the `/refresh-audit` Job): `wsl kubectl` is the **admin**
+context — use it only where a skill says so; the auto-mode classifier may block it.
 
 ```bash
-wsl kubectl get nodes
-wsl kubectl apply -f - -n warn-v2 <<'EOF'
+kubectl get pods -n warn-v2                      # read-only, Windows
+wsl kubectl apply -f - -n warn-v2 <<'EOF'        # admin, writes only
 ...
 EOF
-wsl kubectl logs -n warn-v2 -l job-name=my-job -f
 ```
-
-All `kubectl` commands in this project should be prefixed with `wsl`.
 
 ---
 
