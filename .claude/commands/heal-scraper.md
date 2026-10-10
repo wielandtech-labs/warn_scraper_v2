@@ -24,12 +24,11 @@ style. **Never merge** a PR: merging `main` is a production deploy.
 ## Setup (run once at the start)
 
 ```bash
-# Work from the repo/worktree root. The scraper deps live in the sibling venv
-# (project CLAUDE.md): use its python with the worktree as cwd so the worktree's
-# warn_v2 shadows the venv's editable install.
-PY="C:/Users/rapha/workspace/warn_scrapper_v2/.venv/Scripts/python.exe"
-# gh needs a token (global CLAUDE.md — stale keyring auth on this host):
-export GH_TOKEN=$(printf 'protocol=https\nhost=github.com\n' | git credential fill | sed -n 's/^password=//p')
+# Work from the repo/worktree root. The scraper deps live in the main checkout's
+# venv (project CLAUDE.md): use its python with the worktree as cwd so the
+# worktree's warn_v2 shadows the venv's editable install.
+PY="C:/Users/rapha/workspace/warn_scraper_v2/.venv/Scripts/python.exe"
+# gh auth: GH_TOKEN is preset in Bash by a SessionStart hook (global CLAUDE.md).
 ```
 
 ## Targets
@@ -208,4 +207,4 @@ merges.
 Output is draft PRs for human review — nothing deploys until you merge. Validate
 the headless `claude -p "/heal-scraper"` invocation once interactively before
 trusting the scheduled run; confirm `gh` auth resolves non-interactively in that
-context (the `GH_TOKEN` shim above).
+context (`GH_TOKEN` from the SessionStart hook).
