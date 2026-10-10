@@ -154,9 +154,13 @@ def _redraw(page, action) -> None:
     observed) before rendering.  Until then the previous page's rows are still
     in the DOM, so wait on the info text + row count, not on any row.
     """
-    prev = page.inner_text(".dataTables_info")
+    # textContent, not inner_text: _PAINTED_JS compares against textContent.
+    prev = page.eval_on_selector(".dataTables_info", "e => e.textContent")
+    # Match only our own limit=_PAGE_LEN draws, never a late initial (25-row)
+    # page-load XHR.
     with page.expect_response(
-        lambda r: "/wp-json/gravityview/" in r.url, timeout=30_000
+        lambda r: "/wp-json/gravityview/" in r.url and f"limit={_PAGE_LEN}&" in r.url,
+        timeout=30_000,
     ):
         action()
     page.wait_for_function(_PAINTED_JS, arg=prev, timeout=45_000)

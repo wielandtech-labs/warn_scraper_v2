@@ -97,9 +97,9 @@ class _FakeDataTablesPage:
     def wait_for_selector(self, *a, **k) -> None: ...
 
     def wait_for_function(self, js, arg, timeout) -> None:
-        assert arg != self.inner_text(".dataTables_info")  # the draw changed it
+        assert arg != self._info()  # the draw changed it
 
-    def inner_text(self, sel: str) -> str:
+    def _info(self) -> str:
         shown = self._current()
         return f"Showing {self.start + 1} to {self.start + len(shown)} of {len(self.rows)} entries"
 
@@ -107,7 +107,10 @@ class _FakeDataTablesPage:
     def expect_response(self, predicate, timeout):
         yield
         assert predicate(
-            SimpleNamespace(url="https://www.tcsg.edu/wp-json/gravityview/v1/views/77460/refresh")
+            SimpleNamespace(
+                url="https://www.tcsg.edu/wp-json/gravityview/v1/views/77460/refresh"
+                f"?limit={min(self.length, self.CAP)}&page={self.start // self.CAP + 1}"
+            )
         )
 
     def evaluate(self, js: str, n: int) -> None:
@@ -125,7 +128,9 @@ class _FakeDataTablesPage:
     def eval_on_selector_all(self, sel: str, js: str) -> list[str]:
         return self._current()
 
-    def eval_on_selector(self, sel: str, js: str, rows: list[str]) -> None:
+    def eval_on_selector(self, sel: str, js: str, rows: list[str] | None = None):
+        if sel == ".dataTables_info":
+            return self._info()
         self.spliced = rows
 
 
