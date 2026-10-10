@@ -48,24 +48,27 @@ class GAScraper(PlaywrightScraper):
         # until the data table appears.  "networkidle" times out on this page
         # because background XHRs never fully settle.
         page.goto(SOURCE_URL, wait_until="load", timeout=60_000)
-        page.wait_for_selector("table", timeout=30_000)
-
-        # The DataTables defaults to 25 rows/page.  Select "All" (-1) so a
-        # single server-side AJAX call returns every entry.  We intercept the
-        # response to know exactly when the reload is done before calling
-        # page.content(), avoiding a race with partial rendering.
-        with page.expect_response(
-            lambda r: "admin-ajax.php" in r.url, timeout=30_000
-        ):
-            page.select_option(
-                "select[name='DataTables_Table_0_length']", "-1"
-            )
-        # The AJAX payload returns quickly, but DataTables is slow to paint the
-        # rows into the DOM: the site's Content-Security-Policy blocks the
-        # responsive extension on cdn.datatables.net, so DataTables stalls on
-        # the failed CDN loads (~20s observed) before rendering.  Wait well past
-        # that for the first row to appear.
         page.wait_for_selector("table tbody tr", timeout=45_000)
+
+        # The DataTables defaults to 25 rows/page.  Since Oct 2026 GravityView
+        # serves it from a REST endpoint that caps every request at 200 rows —
+        # "All" (-1) now shows "1 to 200 of 286" with Next disabled — so set
+        # the page length to that cap and page through, splicing every page's
+        # rows back into the one table so page.content() — and parse() — see
+        # the full listing.
+        _redraw(page, lambda: page.evaluate(
+            "n => jQuery('#DataTables_Table_0').DataTable().page.len(n).draw()",
+            _PAGE_LEN,
+        ))
+        rows_html = _rows_html(page)
+        for _ in range(_MAX_PAGES):
+            if page.query_selector(f"{_NEXT_BUTTON}:not(.disabled)") is None:
+                break
+            _redraw(page, lambda: page.click(_NEXT_BUTTON))
+            rows_html += _rows_html(page)
+        page.eval_on_selector(
+            "table tbody", "(tb, rows) => { tb.innerHTML = rows.join(''); }", rows_html
+        )
 
     def parse(self, raw: bytes) -> list[NoticeRow]:
         soup = BeautifulSoup(raw, "html.parser")
@@ -125,6 +128,46 @@ class GAScraper(PlaywrightScraper):
         if not rows:
             raise ParseFailed("GA WARN page: no data rows parsed from table")
         return rows
+
+
+_NEXT_BUTTON = "#DataTables_Table_0_next"
+_PAGE_LEN = 200  # the GravityView REST endpoint's per-request cap
+_MAX_PAGES = 20  # GA has ~290 notices — a runaway guard only
+
+# True once a draw has painted: the "Showing A to B of N" text differs from
+# its pre-action value and the body holds exactly B-A+1 rows.
+_PAINTED_JS = """prev => {
+  const info = document.querySelector('.dataTables_info');
+  const m = info && info.textContent.match(/([\\d,]+) to ([\\d,]+) of/);
+  if (!m || info.textContent === prev) return false;
+  const [a, b] = [m[1], m[2]].map(s => parseInt(s.replace(/,/g, ''), 10));
+  return document.querySelectorAll('table tbody tr').length === b - a + 1;
+}"""
+
+
+def _redraw(page, action) -> None:
+    """Run a DataTables action and wait until its server-side redraw is painted.
+
+    The XHR returns quickly, but DataTables is slow to paint the rows into the
+    DOM: the site's Content-Security-Policy blocks the responsive extension on
+    cdn.datatables.net, so DataTables stalls on the failed CDN loads (~20s
+    observed) before rendering.  Until then the previous page's rows are still
+    in the DOM, so wait on the info text + row count, not on any row.
+    """
+    # textContent, not inner_text: _PAINTED_JS compares against textContent.
+    prev = page.eval_on_selector(".dataTables_info", "e => e.textContent")
+    # Match only our own limit=_PAGE_LEN draws, never a late initial (25-row)
+    # page-load XHR.
+    with page.expect_response(
+        lambda r: "/wp-json/gravityview/" in r.url and f"limit={_PAGE_LEN}&" in r.url,
+        timeout=30_000,
+    ):
+        action()
+    page.wait_for_function(_PAINTED_JS, arg=prev, timeout=45_000)
+
+
+def _rows_html(page) -> list[str]:
+    return page.eval_on_selector_all("table tbody tr", "els => els.map(e => e.outerHTML)")
 
 
 def _text(cell) -> str:
