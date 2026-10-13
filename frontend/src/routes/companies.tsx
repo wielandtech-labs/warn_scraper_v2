@@ -4,6 +4,7 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { useMemo } from "react";
 
 import { api } from "../api/client";
+import { CompanyLogo } from "../components/CompanyLogo";
 import { DataTable } from "../components/DataTable";
 import { ExportButtons } from "../components/ExportButtons";
 import { Pagination } from "../components/Pagination";
@@ -142,8 +143,14 @@ function CompaniesView() {
             // Carry the list's filters/sort/page into the detail URL so its
             // "← All companies" link can restore this exact view.
             search={(prev) => prev}
-            className="font-medium text-sky-700 hover:underline dark:text-sky-400"
+            className="inline-flex items-center gap-2.5 font-medium text-sky-700 hover:underline dark:text-sky-400"
           >
+            <CompanyLogo
+              name={info.getValue() as string}
+              companyId={info.row.original.id}
+              hasWebsite={!!info.row.original.website}
+              size={24}
+            />
             {info.getValue() as string}
           </Link>
         ),

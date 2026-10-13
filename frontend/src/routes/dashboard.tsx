@@ -17,6 +17,7 @@ import {
 
 import { api, ApiError } from "../api/client";
 import { AlertSignup } from "../components/AlertSignup";
+import { CompanyLogo } from "../components/CompanyLogo";
 import { ForecastNote } from "../components/ForecastNote";
 import { QueryError } from "../components/QueryError";
 import { SkeletonBlock, SkeletonChart, SkeletonRows } from "../components/Skeleton";
@@ -163,17 +164,24 @@ export function Dashboard() {
               key={n.notice_id}
               to="/notices/$noticeId"
               params={{ noticeId: n.notice_id }}
-              className="block px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+              className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50"
             >
-              <div className="flex items-baseline justify-between gap-4">
-                <div className="min-w-0 truncate font-medium">{n.employer}</div>
-                <div className="shrink-0 text-xs text-slate-500 dark:text-slate-400">
-                  {fmtDate(n.notice_date)} · {n.state}
+              <CompanyLogo
+                name={n.company?.name ?? n.employer}
+                companyId={n.company?.id}
+                hasWebsite={!!n.company?.website}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline justify-between gap-4">
+                  <div className="min-w-0 truncate font-medium">{n.employer}</div>
+                  <div className="shrink-0 text-xs text-slate-500 dark:text-slate-400">
+                    {fmtDate(n.notice_date)} · {n.state}
+                  </div>
                 </div>
-              </div>
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                {n.layoff_count != null && <span>{fmtNum(n.layoff_count)} affected · </span>}
-                {n.location?.city || n.location?.county || "Location unspecified"}
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  {n.layoff_count != null && <span>{fmtNum(n.layoff_count)} affected · </span>}
+                  {n.location?.city || n.location?.county || "Location unspecified"}
+                </div>
               </div>
             </Link>
           ))}
@@ -376,8 +384,9 @@ export function Dashboard() {
         <div className="card divide-y divide-slate-100 p-0 dark:divide-slate-800">
           {topEmployers.isLoading && <SkeletonRows rows={5} />}
           {topEmployers.data?.map((e) => (
-            <div key={e.employer} className="flex items-baseline justify-between px-4 py-3">
-              <div className="min-w-0 truncate">
+            <div key={e.employer} className="flex items-center gap-3 px-4 py-3">
+              <CompanyLogo name={e.employer} companyId={e.company_id} />
+              <div className="min-w-0 flex-1 truncate">
                 {e.company_id ? (
                   <Link
                     to="/companies/$companyId"
