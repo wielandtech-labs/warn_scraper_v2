@@ -1780,5 +1780,56 @@ def sentiment_report_cmd(reports_dir: Path, dry_run: bool) -> None:
     click.echo(f"payloads={stats['total']} insufficient={stats['insufficient']}{suffix}")
 
 
+@main.command("ml-backtest")
+@click.option(
+    "--out",
+    "out_dir",
+    default="/var/reports",
+    show_default=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Directory for repeat_risk_backtest.{json,md}",
+)
+@click.option(
+    "--from-jsonl",
+    type=click.Path(dir_okay=False, exists=True, path_type=Path),
+    default=None,
+    help="Read notices from a /api/notices snapshot (one object per line) instead of the DB",
+)
+@click.option("--as-of", type=click.DateTime(["%Y-%m-%d"]), default=None,
+              help="Data cutoff (default: today)")
+@click.option("--first-year", default=2010, show_default=True, help="First test year")
+def ml_backtest_cmd(
+    out_dir: Path, from_jsonl: Path | None, as_of: object, first_year: int
+) -> None:
+    """Rolling-origin backtest of the repeat-layoff model (see docs/ml/)."""
+    import json
+    from datetime import date, datetime, timedelta
+
+    from warn_v2.ml.backtest import run_backtest
+    from warn_v2.ml.events import HORIZON_DAYS, build_events, load_notices, load_notices_jsonl
+    from warn_v2.ml.report import build_report, render_markdown
+
+    cutoff = as_of.date() if isinstance(as_of, datetime) else date.today()
+    if from_jsonl is not None:
+        notices = load_notices_jsonl(from_jsonl)
+    else:
+        from warn_v2.db.session import session_scope
+
+        with session_scope() as session:
+            notices = load_notices(session)
+    events = build_events(notices, as_of=cutoff)
+    click.echo(f"notices={len(notices)} events={len(events)} "
+               f"labelled={int(events['labelled'].sum())}")
+    # Test years end at the last one whose every event has an observed horizon.
+    years = list(range(first_year, (cutoff - timedelta(days=HORIZON_DAYS)).year))
+    result = run_backtest(events, years)
+    report = build_report(notices, events, result, as_of=cutoff)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "repeat_risk_backtest.json").write_text(json.dumps(report, indent=2, default=str))
+    (out_dir / "repeat_risk_backtest.md").write_text(render_markdown(report), encoding="utf-8")
+    click.echo(f"folds={len(result.folds)} chosen={report['chosen']['model']} "
+               f"pr_auc={report['pooled'][report['chosen']['model']]['pr_auc']:.3f}")
+
+
 if __name__ == "__main__":
     main()
