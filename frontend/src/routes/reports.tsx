@@ -63,8 +63,10 @@ function ScorecardGrid({ cards }: { cards: IndustryScorecard[] }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {cards.map((card) => {
-        // A rise in layoffs is bad news: red up-arrow; a fall, a muted down-arrow.
-        const rising = card.delta_pct !== null && card.delta_pct > 0;
+        // A rise in layoffs is bad news: red up-arrow; a fall, a muted
+        // down-arrow. "new" (from zero to some) is the steepest rise of all.
+        const fromZero = card.delta_pct === null && card.cur_layoffs > 0 && card.prior_layoffs === 0;
+        const rising = fromZero || (card.delta_pct !== null && card.delta_pct > 0);
         return (
           <Link
             key={card.sector}
@@ -110,7 +112,7 @@ function ScorecardGrid({ cards }: { cards: IndustryScorecard[] }) {
                 }`}
                 title="vs the prior 90 days"
               >
-                {card.delta_pct !== null && (rising ? "▲ " : card.delta_pct < 0 ? "▼ " : "")}
+                {rising ? "▲ " : card.delta_pct !== null && card.delta_pct < 0 ? "▼ " : ""}
                 {deltaCell(card)}
               </span>
             </div>

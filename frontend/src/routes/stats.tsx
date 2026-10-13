@@ -133,9 +133,11 @@ export function StatsPage() {
       <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-slate-200 bg-slate-200 sm:grid-cols-4 dark:border-slate-800 dark:bg-slate-800">
         <Figure label="Workers affected" value={byMonth.data ? fmtNum(sumWorkers) : null} accent />
         <Figure label="Notices" value={byMonth.data ? fmtNum(sumNotices) : null} />
+        {/* Per month, not per notice: notices from count-less sources (OK)
+            would drag a per-notice average down. */}
         <Figure
-          label="Avg. per notice"
-          value={byMonth.data ? (sumNotices ? fmtNum(Math.round(sumWorkers / sumNotices)) : "—") : null}
+          label="Workers per month"
+          value={byMonth.data ? (months.length ? fmtNum(Math.round(sumWorkers / months.length)) : "—") : null}
         />
         <Figure
           label="Peak month"

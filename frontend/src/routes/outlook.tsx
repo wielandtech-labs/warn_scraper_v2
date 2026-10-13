@@ -46,7 +46,10 @@ function ClaimList({ claims }: { claims: OutlookClaim[] }) {
   return (
     <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
       {claims.map((c) => {
-        // Direction of the effect: a rise in filings is bad news (red rule).
+        // Trend claims get a direction rule (red = filings rising, blue =
+        // easing). The unemployment link is a sensitivity, not a trend, so
+        // its sign is not "rising" -- it gets a neutral ink rule.
+        const trend = c.kind !== "unemployment_link";
         const rising = c.effect_pct > 0;
         return (
           <li
@@ -54,7 +57,9 @@ function ClaimList({ claims }: { claims: OutlookClaim[] }) {
             className={`rounded-xl border border-slate-200 border-l-4 p-4 dark:border-slate-800 ${
               c.confidence === "watch"
                 ? "border-l-slate-300 dark:border-l-slate-600"
-                : rising
+                : !trend
+                  ? "border-l-slate-700 dark:border-l-slate-300"
+                  : rising
                   ? "border-l-brand"
                   : "border-l-sky-500"
             }`}
@@ -94,6 +99,7 @@ function TrendMap({ rows, shrunk }: { rows: TBarRow[]; shrunk: boolean }) {
   }
   return (
     <UsMap
+      framed={false}
       fills={fills}
       srLabel={`Map of per-state trends in WARN filings${shrunk ? " (shrunk estimates)" : ""}. The bar chart below lists the same states and values.`}
       tooltip={(code) => {
