@@ -499,6 +499,12 @@ class RepeatRiskScore(Base):
     event_start: Mapped[date] = mapped_column(Date, primary_key=True)
     company_id: Mapped[int | None] = mapped_column(BigInteger, index=True)
     score: Mapped[float] = mapped_column(Float, nullable=False)
+    # The model's own history feature at t0 — 0 means a first-time filer, for
+    # whom the model is near chance, so readers show no number. Rows written
+    # before this column existed read as 0: no number, the cautious default.
+    prior_events: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     scored_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

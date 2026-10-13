@@ -38,11 +38,11 @@ from sqlalchemy.orm import Session
 
 from warn_v2.companies.normalize import canonical_name
 from warn_v2.db.models import Company, Notice
+from warn_v2.ml import HORIZON_DAYS
 from warn_v2.outlook.coverage import usable_months
 from warn_v2.outlook.panel import month_range
 
 EVENT_GAP_DAYS = 30
-HORIZON_DAYS = 365
 MIN_DATE = date(1988, 1, 1)
 MAX_COUNT = 50_000  # the audit's sanity ceiling; larger counts are typos
 DEFAULT_LEAD_DAYS = 60  # effective_date imputed as notice_date + 60 when missing

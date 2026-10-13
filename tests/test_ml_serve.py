@@ -51,9 +51,10 @@ def _notice(db, nid, company, when, **kw):
                   company_id=company.id, **kw))
 
 
-def _score(db, company, start, p, version="v1"):
+def _score(db, company, start, p, version="v1", prior=1):
     db.add(RepeatRiskScore(model_version=version, company_key=f"c{company.id}",
-                           event_start=start, company_id=company.id, score=p))
+                           event_start=start, company_id=company.id, score=p,
+                           prior_events=prior))
 
 
 @pytest.fixture
@@ -67,8 +68,13 @@ def seeded(db):
 
     fresh = _company(db, "Fresh Co")
     _notice(db, "f1", fresh, RECENT)
-    _notice(db, "f0", fresh, RECENT - timedelta(days=90), closure_category="Non-WARN")
-    _score(db, fresh, RECENT, 0.6)
+    _score(db, fresh, RECENT, 0.6, prior=0)
+
+    # Merged into Acme-like canonical *after* the weekly run scored it under
+    # its own id: still found through the group.
+    late = _company(db, "Late Merge Co")
+    late_dupe = _company(db, "Late Merge Co - Site 2", canonical=late.id)
+    _score(db, late_dupe, RECENT, 0.2)
 
     stale = _company(db, "Stale Co")
     _notice(db, "s0", stale, TODAY - timedelta(days=900))
@@ -76,7 +82,7 @@ def seeded(db):
     _score(db, stale, TODAY - timedelta(days=500), 0.7)
     _run(db)
     db.commit()
-    return {"acme": acme, "plant": plant, "fresh": fresh, "stale": stale}
+    return {"acme": acme, "plant": plant, "fresh": fresh, "stale": stale, "late": late}
 
 
 def test_scored_prior_filer_rolls_up_merged_rows(client, seeded):
@@ -89,10 +95,26 @@ def test_scored_prior_filer_rolls_up_merged_rows(client, seeded):
 
 
 def test_first_time_filer_gets_no_number(client, seeded):
-    # The Non-WARN row before the event doesn't count as history.
+    # The model saw no prior events (prior_events=0), so no number.
     body = client.get(f"/api/companies/{seeded['fresh'].id}/repeat-risk").json()
     assert body["status"] == "insufficient_history"
     assert body["probability"] is None and body["tier"] is None
+
+
+def test_score_under_a_since_merged_id_is_found(client, seeded):
+    body = client.get(f"/api/companies/{seeded['late'].id}/repeat-risk").json()
+    assert body["status"] == "scored" and body["tier"] == "moderate"
+
+
+def test_api_does_not_import_pandas():
+    # The read side must stay light: no pandas/sklearn in the API process.
+    import subprocess
+    import sys
+
+    code = "import sys, warn_v2.api; print('pandas' in sys.modules, 'sklearn' in sys.modules)"
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                         check=True)
+    assert out.stdout.split() == ["False", "False"]
 
 
 def test_closed_horizon_is_not_shown(client, seeded):

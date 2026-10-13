@@ -9,16 +9,15 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Literal
 
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from warn_v2.db.models import Company, MlModelRun, Notice, RepeatRiskScore
-from warn_v2.ml import MODEL
-from warn_v2.ml.events import HORIZON_DAYS
+from warn_v2.db.models import Company, MlModelRun, RepeatRiskScore
+from warn_v2.ml import HORIZON_DAYS, MODEL
 
 # Tiers by calibrated probability; the base rate is ~0.20.
 TIERS: list[tuple[float, str]] = [(0.35, "high"), (0.15, "moderate"), (0.0, "low")]
@@ -57,13 +56,19 @@ def company_risk(db: Session, company: Company) -> RepeatRiskOut:
         return RepeatRiskOut(status="unavailable")
     base_rate = (metrics.get("pooled") or {}).get("prevalence")
 
+    # Scores carry the canonical id from scoring time; matching the whole
+    # group keeps a company merged since the last weekly run findable.
     canonical = company.canonical_company_id or company.id
-    horizon_open = date.today() - timedelta(days=HORIZON_DAYS)
+    group = select(Company.id).where(
+        (Company.id == canonical) | (Company.canonical_company_id == canonical)
+    )
+    # Same open-horizon rule (UTC, inclusive) as train.open_events.
+    horizon_open = datetime.now(UTC).date() - timedelta(days=HORIZON_DAYS)
     score = db.scalars(
         select(RepeatRiskScore)
         .where(RepeatRiskScore.model_version == version,
-               RepeatRiskScore.company_id == canonical,
-               RepeatRiskScore.event_start > horizon_open)
+               RepeatRiskScore.company_id.in_(group),
+               RepeatRiskScore.event_start >= horizon_open)
         .order_by(RepeatRiskScore.event_start.desc()).limit(1)
     ).first()
     if score is None:
@@ -74,20 +79,8 @@ def company_risk(db: Session, company: Company) -> RepeatRiskOut:
         horizon_end=score.event_start + timedelta(days=HORIZON_DAYS),
         model_version=version, scored_at=score.scored_at,
     )
-    # Same group and filters as the dataset: canonical + merged rows, live,
-    # statutory notices, dated strictly before the event opened.
-    group = select(Company.id).where(
-        (Company.id == canonical) | (Company.canonical_company_id == canonical)
-    )
-    prior = db.scalar(
-        select(Notice.notice_id).where(
-            Notice.company_id.in_(group),
-            Notice.is_superseded.is_(False),
-            Notice.closure_category.is_distinct_from("Non-WARN"),
-            Notice.notice_date < score.event_start,
-        ).limit(1)
-    )
-    if prior is None:
+    # The model's own view of the history, so the card and the model agree.
+    if score.prior_events == 0:
         return RepeatRiskOut(status="insufficient_history", **common)
     return RepeatRiskOut(
         status="scored", tier=tier_for(score.score),

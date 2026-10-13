@@ -85,6 +85,10 @@ def test_champion_lifecycle(seeded, tmp_path, monkeypatch):
     assert m1["open_events"] > 0 and m1["scores_written"] == m1["open_events"]
     assert _scores(db, first.version) == m1["open_events"]
     assert m1["score_psi"] < 0.25  # same data the reference came from
+    # The model's own history feature rides along, so the API can tell
+    # first-time filers apart without re-deriving it.
+    priors = db.scalars(select(RepeatRiskScore.prior_events)).all()
+    assert 0 in priors and max(priors) > 0
 
     # A challenger that fails a gate: the old champion keeps scoring, and
     # the events it already scored aren't written twice.

@@ -285,9 +285,12 @@ def train_and_score(
         new = [
             RepeatRiskScore(
                 model_version=scorer_version, company_key=k, event_start=t.date(),
-                company_id=_company_id(k), score=float(p), scored_at=now,
+                company_id=_company_id(k), score=float(p), prior_events=int(n),
+                scored_at=now,
             )
-            for k, t, p in zip(todo["company_key"], todo["t0"], current, strict=True)
+            for k, t, n, p in zip(
+                todo["company_key"], todo["t0"], todo["prior_events"], current, strict=True
+            )
             if (k, t.date()) not in done
         ]
         session.add_all(new)
