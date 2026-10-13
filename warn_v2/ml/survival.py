@@ -202,9 +202,9 @@ def km_censoring(time: np.ndarray, observed: np.ndarray) -> tuple[np.ndarray, np
     for this fit, the usual convention for IPCW weights."""
     t = np.asarray(time, float)
     cens = ~np.asarray(observed, bool)
-    uniq = np.unique(t)
-    at_risk = np.array([(t >= u).sum() for u in uniq], float)
-    d = np.array([(cens & (t == u)).sum() for u in uniq], float)
+    uniq, inv, counts = np.unique(t, return_inverse=True, return_counts=True)
+    at_risk = len(t) - np.concatenate([[0], np.cumsum(counts)[:-1]])  # t >= u
+    d = np.bincount(inv, weights=cens.astype(float), minlength=len(uniq))
     surv = np.cumprod(1.0 - d / np.maximum(at_risk, 1.0))
     return uniq, surv
 
@@ -219,12 +219,18 @@ def _g_at(uniq: np.ndarray, surv: np.ndarray, t: np.ndarray, *, left: bool) -> n
 
 
 def brier_ipcw(time: np.ndarray, observed: np.ndarray, F_tau: np.ndarray, tau: float) -> float:
-    """Graf's IPCW Brier score at tau for predicted P(event by tau)."""
+    """Graf's IPCW Brier score at tau for predicted P(event by tau).
+
+    Event-free at tau means still followed at tau without an event. That
+    includes follow-up ending exactly at tau, which is every non-repeater
+    watched for the full horizon (durations() caps follow-up there), so
+    those use G(tau-): their own censoring at tau is not a loss to follow-up
+    before it."""
     uniq, surv = km_censoring(time, observed)
     died = observed & (time <= tau)
-    alive = time > tau
+    alive = ~died & (time >= tau)
     w_died = 1.0 / _g_at(uniq, surv, time, left=True)
-    w_alive = 1.0 / _g_at(uniq, surv, np.full(len(time), tau), left=False)
+    w_alive = 1.0 / _g_at(uniq, surv, np.full(len(time), tau), left=True)
     loss = np.where(died, (1.0 - F_tau) ** 2 * w_died, 0.0) + np.where(
         alive, F_tau**2 * w_alive, 0.0
     )
@@ -242,7 +248,8 @@ def integrated_brier(time: np.ndarray, observed: np.ndarray, F: np.ndarray) -> f
 def uno_c(time: np.ndarray, observed: np.ndarray, risk: np.ndarray, tau: float) -> float:
     """Uno's IPCW concordance, truncated at tau. A pair (i, j) is comparable
     when i's event is observed before tau and before j's time; it is
-    concordant when i's risk is higher (ties count half). Each comparable i is
+    concordant when i's risk is higher (ties count half). "Before tau" is
+    inclusive, matching the label (a repeat on day 365 counts). Each comparable i is
     weighted by 1 / G(T_i-)^2. O(n log n) via a Fenwick tree over risk ranks."""
     time = np.asarray(time, float)
     observed = np.asarray(observed, bool)
@@ -276,7 +283,7 @@ def uno_c(time: np.ndarray, observed: np.ndarray, risk: np.ndarray, tau: float) 
         group = order[i:j]
         # Everything already in the tree has a strictly later time.
         for g in group:
-            if observed[g] and time[g] < tau and inserted:
+            if observed[g] and time[g] <= tau and inserted:
                 lower = prefix(int(ranks[g]) - 1)
                 equal = prefix(int(ranks[g])) - lower
                 num += w[g] * (lower + 0.5 * equal)
@@ -332,15 +339,17 @@ def run_survival_backtest(events: pd.DataFrame, years: list[int]) -> SurvivalRes
         cutoff = pd.Timestamp(year=year, month=1, day=1)
         train, test = fold_events(events, year)
         labelled = test[test["labelled"]]
-        if len(train) < MIN_TRAIN_EVENTS or labelled["label"].nunique() < 2:
+        clf_train = fold_split(events, year)[0]
+        # The classifier's own guard (run_backtest), so both grade the same
+        # folds the shipped backtest does.
+        if (len(clf_train) < MIN_TRAIN_EVENTS or clf_train["label"].nunique() < 2
+                or labelled["label"].nunique() < 2):
             continue
         time, observed = durations(test)
         y = labelled["label"].to_numpy(int)
         fold: dict[str, Any] = {
             "year": year, "n_train_events": len(train),
-            "n_train_labelled": int(
-                (train["labelled"] & (train["t0"] + pd.Timedelta(days=HORIZON_DAYS) < cutoff)).sum()
-            ),
+            "n_train_labelled": len(clf_train),
             "n_test": len(test), "n_test_labelled": len(labelled),
             "models": {},
         }
@@ -358,7 +367,7 @@ def run_survival_backtest(events: pd.DataFrame, years: list[int]) -> SurvivalRes
                 **metrics(y, F_lab[:, -1]),
                 **time_metrics(time, observed, F),
             }
-        clf = fit(CLASSIFIER, fold_split(events, year)[0])
+        clf = fit(CLASSIFIER, clf_train)
         p_all = clf.predict(test)
         oof[CLASSIFIER] = p_all[test["labelled"].to_numpy()]
         cur[CLASSIFIER] = p_all

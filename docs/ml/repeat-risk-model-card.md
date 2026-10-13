@@ -150,6 +150,8 @@ It writes `repeat_risk_survival.{json,md}`. It is **not** part of the weekly job
 
 **Results.** Pending the first run on production data (it needs the database or a public snapshot).
 
+**Limitation shared with the classifier.** Coverage holes are found with hindsight. The mask that cuts `followup_days` (and gates the classifier's labels) is computed from every notice up to `as_of`, so whether a month before a fold's cutoff counts as a hole can depend on filings after that cutoff. A retrain on Jan 1 of Y would see a slightly different censoring pattern than the backtest assumes. Per-fold masks would remove this, at the cost of recomputing coverage for every fold.
+
 ## Known limitations
 
 - **Notice date is not arrival date.** Historical backfills were scraped years after the fact, so "dated on or before t0" is the best available point-in-time proxy. It is not a replay of what was known on t0.

@@ -182,6 +182,24 @@ def test_brier_without_censoring_is_the_plain_brier_score():
     assert brier_ipcw(t, o, p, 365) == pytest.approx(np.mean((y - p) ** 2))
 
 
+def test_brier_counts_full_follow_up_without_a_repeat_as_event_free():
+    # Non-repeaters followed the whole year sit at time == tau, censored.
+    # They must be charged F(tau)^2, or a model that predicts higher always wins.
+    t = np.array([100.0, 365.0, 365.0, 365.0])
+    o = np.array([True, False, False, False])
+    p = np.array([0.9, 0.1, 0.1, 0.1])
+    expect = ((1 - 0.9) ** 2 + 3 * 0.1**2) / 4
+    assert brier_ipcw(t, o, p, 365) == pytest.approx(expect)
+    # Predicting high for everyone must score worse, not better.
+    assert brier_ipcw(t, o, np.full(4, 0.9), 365) > brier_ipcw(t, o, p, 365)
+
+
+def test_uno_c_counts_a_repeat_on_the_horizon_day():
+    t = np.array([365.0, 365.5])
+    o = np.array([True, False])
+    assert uno_c(t, o, np.array([1.0, 0.0]), 365) == 1.0
+
+
 def test_uno_c_by_hand():
     # No censoring, so every weight is 1. Times 1..4, all observed.
     t = np.array([1.0, 2.0, 3.0, 4.0])
@@ -205,7 +223,7 @@ def test_uno_c_matches_brute_force_with_censoring():
     w = 1 / survival._g_at(uniq, surv, t, left=True) ** 2
     num = den = 0.0
     for i in range(n):
-        if not o[i] or t[i] >= 365:
+        if not o[i] or t[i] > 365:
             continue
         later = t > t[i]
         num += w[i] * ((r[later] < r[i]).sum() + 0.5 * (r[later] == r[i]).sum())
