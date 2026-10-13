@@ -32,6 +32,8 @@ import argparse
 import logging
 import sys
 from collections import defaultdict
+from collections.abc import Sequence
+from typing import Any
 
 from sqlalchemy import func, select
 
@@ -45,7 +47,7 @@ log = logging.getLogger(__name__)
 _GUARDRAIL = 0.50  # abort if >50% of companies would be merged away
 
 
-def _same_website(members: list[Company]) -> bool:
+def _same_website(members: list[Any]) -> bool:
     """True when every member that has a website resolves to one shared domain
     (and at least one member has a website).
 
@@ -61,7 +63,7 @@ def _same_website(members: list[Company]) -> bool:
     return len(domains) == 1
 
 
-def _survivor_key(c: Company, notice_counts: dict[int, int]) -> tuple:
+def _survivor_key(c: Any, notice_counts: dict[int, int]) -> tuple:
     """Higher tuple wins (via max): enriched, then confidence, then a digit-free
     name, then more notices, then lower id.
 
@@ -89,6 +91,61 @@ def _parent_group_key(c: Company) -> str:
     if nm:
         return "name:" + nm
     return "self:" + (c.name_normalized or canonical_name(c.name))
+
+
+def heuristic_merge_map(
+    companies: Sequence[Any], notice_counts: dict[int, int], stats: dict | None = None
+) -> dict[int, int]:
+    """Pass 1 (unique id) and Pass 2 (name) as a pure function: {dup id: survivor id}.
+
+    `companies` need id, name, name_normalized, unique_id, website, enriched_at
+    and enrichment_confidence. Shared with the entity-resolution baseline
+    (warn_v2/ml/er/labels.py), which replays it without admin overrides.
+    """
+    stats = stats if stats is not None else defaultdict(int)
+    merged_into: dict[int, int] = {}
+
+    def pick(members: list[Any]) -> Any:
+        return max(members, key=lambda c: _survivor_key(c, notice_counts))
+
+    # Pass 1 — unique id.
+    by_unique_id: dict[str, list[Any]] = defaultdict(list)
+    for c in companies:
+        if c.unique_id:
+            by_unique_id[c.unique_id].append(c)
+    for members in by_unique_id.values():
+        if len(members) < 2:
+            continue
+        stats["unique_id_groups"] += 1
+        surv = pick(members)
+        for m in members:
+            if m.id != surv.id:
+                merged_into[m.id] = surv.id
+
+    # Pass 2 — name fallback (skip rows already merged; skip name groups that
+    # span multiple distinct unique ids = same name, different entities).
+    by_name: dict[str, list[Any]] = defaultdict(list)
+    for c in companies:
+        if c.id in merged_into or not c.name_normalized:
+            continue
+        by_name[c.name_normalized].append(c)
+    for members in by_name.values():
+        if len(members) < 2:
+            continue
+        multi_unique_id = len({m.unique_id for m in members if m.unique_id}) >= 2
+        # A same-name group with >=2 distinct unique ids is normally different
+        # entities — unless the members share one website domain, which marks
+        # them as one company enrichment split across several unique-id records.
+        if multi_unique_id:
+            if not _same_website(members):
+                continue
+            stats["website_groups"] += 1
+        stats["name_groups"] += 1
+        surv = pick(members)
+        for m in members:
+            if m.id != surv.id:
+                merged_into[m.id] = surv.id
+    return merged_into
 
 
 def consolidate_companies(*, dry_run: bool = True, force: bool = False) -> dict:
@@ -119,48 +176,7 @@ def consolidate_companies(*, dry_run: bool = True, force: bool = False) -> dict:
             if c.name_normalized != nn:
                 c.name_normalized = nn
 
-        merged_into: dict[int, int] = {}
-
-        def pick(members: list[Company]) -> Company:
-            return max(members, key=lambda c: _survivor_key(c, notice_counts))
-
-        # Pass 1 — unique id.
-        by_unique_id: dict[str, list[Company]] = defaultdict(list)
-        for c in companies:
-            if c.unique_id:
-                by_unique_id[c.unique_id].append(c)
-        for members in by_unique_id.values():
-            if len(members) < 2:
-                continue
-            stats["unique_id_groups"] += 1
-            surv = pick(members)
-            for m in members:
-                if m.id != surv.id:
-                    merged_into[m.id] = surv.id
-
-        # Pass 2 — name fallback (skip rows already merged; skip name groups that
-        # span multiple distinct unique ids = same name, different entities).
-        by_name: dict[str, list[Company]] = defaultdict(list)
-        for c in companies:
-            if c.id in merged_into or not c.name_normalized:
-                continue
-            by_name[c.name_normalized].append(c)
-        for members in by_name.values():
-            if len(members) < 2:
-                continue
-            multi_unique_id = len({m.unique_id for m in members if m.unique_id}) >= 2
-            # A same-name group with >=2 distinct unique ids is normally different
-            # entities — unless the members share one website domain, which marks
-            # them as one company enrichment split across several unique-id records.
-            if multi_unique_id:
-                if not _same_website(members):
-                    continue
-                stats["website_groups"] += 1
-            stats["name_groups"] += 1
-            surv = pick(members)
-            for m in members:
-                if m.id != surv.id:
-                    merged_into[m.id] = surv.id
+        merged_into = heuristic_merge_map(companies, notice_counts, stats)
 
         # The guardrail judges only the heuristic merges: a large deliberate
         # admin merge must not trip it.
