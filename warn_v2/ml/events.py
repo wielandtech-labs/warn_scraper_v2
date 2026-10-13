@@ -178,6 +178,19 @@ def _horizon_covered(mask: dict[str, bool], t0: pd.Timestamp) -> bool:
     return all(mask.get(m, False) for m in months)
 
 
+def _followup_days(mask: dict[str, bool], t0: pd.Timestamp, as_of: pd.Timestamp) -> float:
+    """Days after t0 that the event is observed, capped at the horizon: up to
+    `as_of`, or up to the first day of the first uncovered month in its
+    state's window, whichever comes first. The survival model censors here
+    instead of dropping the event (see warn_v2/ml/survival.py)."""
+    end = min(as_of, t0 + pd.Timedelta(days=HORIZON_DAYS))
+    days = float((end - t0).days)
+    for m in month_range(t0.strftime("%Y-%m"), end.strftime("%Y-%m")):
+        if not mask.get(m, False):
+            return float(max(0, min(days, (pd.Timestamp(m + "-01") - t0).days)))
+    return days
+
+
 def _log1p(x: float) -> float:
     return math.log1p(max(x, 0.0))
 
@@ -187,8 +200,9 @@ def build_events(notices: pd.DataFrame, *, as_of: date) -> pd.DataFrame:
     horizon is observable, the label.
 
     Columns: company_key, t0, state, FEATURES..., next_gap_days (days to
-    the next event, NaN if none yet), label (1/0, NaN when censored),
-    labelled (bool).
+    the next event, NaN if none yet), followup_days (days observed, capped at
+    the horizon and cut at the first coverage hole), label (1/0, NaN when
+    censored), labelled (bool).
     """
     as_of_ts = pd.Timestamp(as_of)
     notices = notices[notices["notice_date"] <= as_of_ts]
@@ -239,7 +253,8 @@ def build_events(notices: pd.DataFrame, *, as_of: date) -> pd.DataFrame:
             )
             t0_ts = pd.Timestamp(t0)
             horizon_end = t0_ts + pd.Timedelta(days=HORIZON_DAYS)
-            labelled = horizon_end < as_of_ts and _horizon_covered(masks.get(state, {}), t0_ts)
+            mask = masks.get(state, {})
+            labelled = horizon_end < as_of_ts and _horizon_covered(mask, t0_ts)
             label = (
                 float(not math.isnan(next_gap) and next_gap <= HORIZON_DAYS)
                 if labelled else math.nan
@@ -266,12 +281,13 @@ def build_events(notices: pd.DataFrame, *, as_of: date) -> pd.DataFrame:
                 "us_notices_90d_log": _log1p(trailing(us_dates, t0, 90)),
                 "month": t0_ts.month,
                 "next_gap_days": next_gap,
+                "followup_days": _followup_days(mask, t0_ts, as_of_ts),
                 "label": label,
                 "labelled": labelled,
             })
 
     columns = ["company_key", "t0", "state", *NUMERIC_FEATURES,
-               "next_gap_days", "label", "labelled"]
+               "next_gap_days", "followup_days", "label", "labelled"]
     events = pd.DataFrame.from_records(records, columns=columns)
     # Typed even when empty: an object-dtype mask indexes columns, not rows.
     events = events.astype({"labelled": bool, "t0": "datetime64[ns]"})
