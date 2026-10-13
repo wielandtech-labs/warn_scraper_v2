@@ -5,9 +5,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -15,16 +12,18 @@ import {
 } from "recharts";
 
 import { api } from "../api/client";
+import { BlsLevels } from "../components/BlsLevels";
 import { CountyImpact } from "../components/CountyImpact";
 import { IndicatorChart } from "../components/IndicatorChart";
 import { FilterBar, type FilterValues, resolveAfter } from "../components/FilterBar";
 import { ProjectionNote } from "../components/ProjectionNote";
-import { ProjectionTooltip } from "../components/ProjectionTooltip";
 import { QueryError } from "../components/QueryError";
 import { SkeletonChart } from "../components/Skeleton";
+import { WarnTimeChart } from "../components/WarnTimeChart";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useTheme } from "../hooks/useTheme";
-import { fmtCompact, fmtMonth, fmtNum } from "../lib/format";
+import { BLS_JOLTS_LAYOFFS, BLS_UNEMPLOYMENT } from "../lib/blsSeries";
+import { fmtCompact, fmtMonth, fmtNum, stateName } from "../lib/format";
 import { withProjectionSeries } from "../lib/projection";
 import { CHART_COLORS } from "../lib/themeColors";
 
@@ -80,7 +79,8 @@ export function StatsPage() {
   const { data: monthData, hasProjection } = withProjectionSeries(
     (byMonth.data ?? []).map((r) => ({
       ...r,
-      monthLabel: fmtMonth(r.month),
+      period: r.month,
+      label: fmtMonth(r.month),
     })),
   );
 
@@ -107,113 +107,47 @@ export function StatsPage() {
           <QueryError message="Error loading the chart." onRetry={() => byMonth.refetch()} />
         ) : (
           <>
-            <div
-              role="img"
-              aria-label="Line chart of notice counts and workers affected by month"
-            >
-              <ResponsiveContainer width="100%" height={320}>
-                <LineChart data={monthData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
-                  <XAxis
-                    dataKey="monthLabel"
-                    tick={{ fontSize: 12, fill: chart.axis }}
-                  />
-                  {/* Axis ticks are colored to match their series, so the dual
-                      axes are readable without cross-referencing the legend. */}
-                  <YAxis
-                    yAxisId="left"
-                    tick={{ fontSize: 12, fill: chart.notices }}
-                    tickFormatter={fmtCompact}
-                  />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    tick={{ fontSize: 12, fill: chart.layoffs }}
-                    tickFormatter={fmtCompact}
-                  />
-                  <Tooltip
-                    content={<ProjectionTooltip />}
-                    contentStyle={chart.tooltip}
-                    labelStyle={chart.tooltipLabel}
-                  />
-                  <Legend />
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="notice_count"
-                    name="Notices"
-                    stroke={chart.notices}
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="layoff_total"
-                    name="Workers affected"
-                    stroke={chart.layoffs}
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  {/* Dashed pace projection for the current, incomplete month;
-                      all-null (invisible) when no projection is active.
-                      animationBegin waits out the solid lines' default 1500ms
-                      draw so the projection appears after them, not before. */}
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="projected_notice_count"
-                    name="Notices (projected)"
-                    stroke={chart.notices}
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    animationBegin={1500}
-                    dot={false}
-                    legendType="none"
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="projected_layoff_total"
-                    name="Workers affected (projected)"
-                    stroke={chart.layoffs}
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    animationBegin={1500}
-                    dot={false}
-                    legendType="none"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+            <WarnTimeChart
+              rows={monthData}
+              bucket="month"
+              subject={search.state ? `in ${stateName(search.state)}` : "across the US"}
+              bls={{
+                options: [BLS_UNEMPLOYMENT, BLS_JOLTS_LAYOFFS],
+                state: search.state,
+                after: search.after,
+                before: search.before,
+              }}
+            />
             {hasProjection && (
               <ProjectionNote
-                periodLabel={monthData[monthData.length - 1].monthLabel}
+                periodLabel={monthData[monthData.length - 1].label}
               />
             )}
           </>
         )}
       </ChartCard>
 
-      {/* Official BLS context on the same period span as the chart above, so
-          a spike in notices can be read against the labour market it landed
-          in. Both follow the state filter. */}
-      <IndicatorChart
-        dataset="unemployment"
-        state={search.state}
-        bucket="month"
-        after={search.after}
-        before={search.before}
-        periods={indicatorPeriods}
-      />
-      <IndicatorChart
-        dataset="jolts"
-        state={search.state}
-        bucket="month"
-        after={search.after}
-        before={search.before}
-        periods={indicatorPeriods}
-      />
+      {/* Absolute BLS levels on the same period span as the chart above; the
+          overlay itself is the chart's Compare mode. Both follow the state
+          filter. */}
+      <BlsLevels>
+        <IndicatorChart
+          dataset="unemployment"
+          state={search.state}
+          bucket="month"
+          after={search.after}
+          before={search.before}
+          periods={indicatorPeriods}
+        />
+        <IndicatorChart
+          dataset="jolts"
+          state={search.state}
+          bucket="month"
+          after={search.after}
+          before={search.before}
+          periods={indicatorPeriods}
+        />
+      </BlsLevels>
 
       {!search.state && (
         <ChartCard title="By state">
@@ -232,7 +166,7 @@ export function StatsPage() {
                   data={(byState.data ?? []).slice().sort((a, b) => b.layoff_total - a.layoff_total)}
                   margin={{ left: 10 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                  <CartesianGrid stroke={chart.grid} />
                   <XAxis
                     type="number"
                     tick={{ fontSize: 12, fill: chart.axis }}
@@ -250,7 +184,7 @@ export function StatsPage() {
                     labelStyle={chart.tooltipLabel}
                     cursor={{ fill: chart.cursor }}
                   />
-                  <Bar dataKey="layoff_total" name="Workers affected" fill={chart.notices} />
+                  <Bar dataKey="layoff_total" name="Workers affected" fill={chart.layoffs} radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -283,7 +217,7 @@ export function StatsPage() {
                 data={top.data ?? []}
                 margin={{ left: 20 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                <CartesianGrid stroke={chart.grid} />
                 <XAxis
                   type="number"
                   tick={{ fontSize: 12, fill: chart.axis }}
@@ -301,7 +235,7 @@ export function StatsPage() {
                   labelStyle={chart.tooltipLabel}
                   cursor={{ fill: chart.cursor }}
                 />
-                <Bar dataKey="layoff_total" name="Workers affected" fill={chart.layoffs} />
+                <Bar dataKey="layoff_total" name="Workers affected" fill={chart.layoffs} radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

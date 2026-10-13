@@ -92,7 +92,7 @@ export function TBarChart({
       <div role="img" aria-label={label}>
         <ResponsiveContainer width="100%" height={Math.max(160, data.length * 22 + 40)}>
           <BarChart layout="vertical" data={data} margin={{ left: 10, right: 16 }} barCategoryGap={2}>
-            <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} horizontal={false} />
+            <CartesianGrid stroke={chart.grid} horizontal={false} />
             <XAxis
               type="number"
               domain={[-extent, extent]}

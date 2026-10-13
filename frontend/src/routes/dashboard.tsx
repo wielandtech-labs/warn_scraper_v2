@@ -2,13 +2,9 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
-  Area,
   Bar,
   BarChart,
   CartesianGrid,
-  ComposedChart,
-  Legend,
-  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -27,9 +23,10 @@ import {
   type TimeRange,
 } from "../components/TimeRangeToggle";
 import { ProjectionNote } from "../components/ProjectionNote";
-import { ProjectionTooltip } from "../components/ProjectionTooltip";
+import { WarnTimeChart } from "../components/WarnTimeChart";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useTheme } from "../hooks/useTheme";
+import { BLS_JOLTS_LAYOFFS, BLS_UNEMPLOYMENT } from "../lib/blsSeries";
 import { fmtCompact, fmtDate, fmtNum, fmtPeriod } from "../lib/format";
 import { withForecastSeries } from "../lib/forecast";
 import { withProjectionSeries } from "../lib/projection";
@@ -205,127 +202,12 @@ export function Dashboard() {
           </div>
         ) : (
           <>
-            <div
-              role="img"
-              aria-label="Line chart of notice counts and workers affected over time"
-            >
-              <ResponsiveContainer width="100%" height={300}>
-                <ComposedChart data={timeData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
-                  <XAxis
-                    dataKey="label"
-                    tick={{ fontSize: 12, fill: chart.axis }}
-                    minTickGap={24}
-                  />
-                  {/* Axis ticks are colored to match their series, so the dual
-                      axes are readable without cross-referencing the legend. */}
-                  <YAxis
-                    yAxisId="left"
-                    tick={{ fontSize: 12, fill: chart.notices }}
-                    tickFormatter={fmtCompact}
-                  />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    tick={{ fontSize: 12, fill: chart.layoffs }}
-                    tickFormatter={fmtCompact}
-                  />
-                  <Tooltip
-                    content={<ProjectionTooltip />}
-                    contentStyle={chart.tooltip}
-                    labelStyle={chart.tooltipLabel}
-                  />
-                  <Legend />
-                  {/* 80% prediction-interval band for the forecast — layoffs
-                      only, so it doesn't compete visually with a second band
-                      for notices. All-null (invisible) when no forecast. */}
-                  <Area
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="forecast_layoff_band"
-                    name="Workers affected (forecast range)"
-                    fill={chart.layoffs}
-                    fillOpacity={0.12}
-                    stroke="none"
-                    legendType="none"
-                    animationBegin={1500}
-                    isAnimationActive={false}
-                  />
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="notice_count"
-                    name="Notices"
-                    stroke={chart.notices}
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="layoff_total"
-                    name="Workers affected"
-                    stroke={chart.layoffs}
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  {/* Dashed pace projection for the current, incomplete period;
-                      all-null (invisible) when no projection is active.
-                      animationBegin waits out the solid lines' default 1500ms
-                      draw so the projection appears after them, not before. */}
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="projected_notice_count"
-                    name="Notices (projected)"
-                    stroke={chart.notices}
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    animationBegin={1500}
-                    dot={false}
-                    legendType="none"
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="projected_layoff_total"
-                    name="Workers affected (projected)"
-                    stroke={chart.layoffs}
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    animationBegin={1500}
-                    dot={false}
-                    legendType="none"
-                  />
-                  {/* Dashed 6-month forecast; supersedes the projection above
-                      when active (both are all-null otherwise). */}
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="forecast_notice_count"
-                    name="Notices (forecast)"
-                    stroke={chart.notices}
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    animationBegin={1500}
-                    dot={false}
-                    legendType="none"
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="forecast_layoff_total"
-                    name="Workers affected (forecast)"
-                    stroke={chart.layoffs}
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    animationBegin={1500}
-                    dot={false}
-                    legendType="none"
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
+            <WarnTimeChart
+              rows={timeData}
+              bucket={bucket}
+              subject="across the US"
+              bls={{ options: [BLS_UNEMPLOYMENT, BLS_JOLTS_LAYOFFS], after }}
+            />
             {hasForecast && forecast.data ? (
               <ForecastNote lastHistoryLabel={fmtPeriod(forecast.data.last_history_month, "month")} />
             ) : (
@@ -354,7 +236,7 @@ export function Dashboard() {
           <div role="img" aria-label="Bar chart of workers affected by industry">
             <ResponsiveContainer width="100%" height={Math.max(240, industryData.length * 28)}>
               <BarChart layout="vertical" data={industryData} margin={{ left: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                <CartesianGrid stroke={chart.grid} />
                 <XAxis
                   type="number"
                   tick={{ fontSize: 12, fill: chart.axis }}
@@ -372,7 +254,7 @@ export function Dashboard() {
                   labelStyle={chart.tooltipLabel}
                   cursor={{ fill: chart.cursor }}
                 />
-                <Bar dataKey="layoff_total" name="Workers affected" fill={chart.notices} />
+                <Bar dataKey="layoff_total" name="Workers affected" fill={chart.layoffs} radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
