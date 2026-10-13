@@ -111,6 +111,47 @@ The weekly run (`warn_v2/ml/train.py`, chart value `mlTrain`, Sundays 05:41, aft
 - **No open filing** (the last one is over a year old): nothing is shown.
 - `GET /api/reports/repeat-risk` serves the headline backtest numbers from the latest weekly run.
 
+## Challenger: discrete-time survival model
+
+Code: `warn_v2/ml/survival.py`. Run it with:
+
+```
+warn-v2 ml-survival-backtest --from-jsonl notices.jsonl --out out/ --as-of <date>
+```
+
+It writes `repeat_risk_survival.{json,md}`. It is **not** part of the weekly job yet.
+
+**Why.** The classifier only learns from events whose whole 365-day window is observed and covered. In fold Y it never sees an event that opened in the year before Y. It also drops every event whose state had a coverage hole anywhere in its window. A survival model keeps both kinds and uses each one for as long as it was actually observed. It also answers questions the classifier can't, such as P(repeat within 90 or 180 days).
+
+**Design.**
+- **Time axis.** Days since t0, in 30-day intervals from day 30 to day 365. A repeat can't start before day 30, because notices inside that window join the same event.
+- **Censoring.** `followup_days` (from `build_events`) is the earlier of the data cutoff and the first day of the first uncovered month in the event's state. In fold Y every event is also censored at Jan 1 of Y.
+- **Risk set.** One person-period row per interval the event is still at risk in **and observed to the end of**.
+  - An interval cut short by censoring is dropped, even if the repeat landed inside it.
+  - The naive rule (keep it when the repeat is inside) makes the risk set depend on the outcome. On synthetic data it more than doubled the gradient-boosted hazards for the newest cohorts, which sit right next to every test year (F(180) 0.81 against 0.44 observed). A regression test pins this down.
+- **Models.**
+  - A life table per prior-events bucket, the survival version of the "count of prior events" rule.
+  - Hazard logistic regression, with one dummy per interval.
+  - Hazard gradient boosting, with the classifier's fixed settings plus the interval as a feature.
+  - F(t) = 1 − ∏(1 − h).
+- **Same folds as the classifier.** The classifier is refitted in every fold and scored on the same events.
+- **Metrics.**
+  - Ranking and calibration: F(365) on the classifier's own labelled test events (PR-AUC, Brier, ECE).
+  - Time-dependent, on every test-year event, with censoring handled by inverse-probability-of-censoring weights from a Kaplan–Meier fit of the censoring distribution:
+    - Uno's C-index at 365 days;
+    - Brier score at 90, 180 and 365 days;
+    - the integrated Brier score (IBS).
+  - These estimators are unit-tested against hand counts, a brute-force O(n²) C-index, and statsmodels' Kaplan–Meier.
+- **Decision rule.** Adopt the hazard GBM only if both hold:
+  - its PR-AUC gap to the classifier is not significantly negative (the company-clustered 95% CI reaches zero);
+  - it has a lower 365-day IPCW Brier score.
+
+  Otherwise it stays a research result, and the 90/180-day curves are its only product use.
+
+**Results.** Pending the first run on production data (it needs the database or a public snapshot).
+
+**Limitation shared with the classifier.** Coverage holes are found with hindsight. The mask that cuts `followup_days` (and gates the classifier's labels) is computed from every notice up to `as_of`, so whether a month before a fold's cutoff counts as a hole can depend on filings after that cutoff. A retrain on Jan 1 of Y would see a slightly different censoring pattern than the backtest assumes. Per-fold masks would remove this, at the cost of recomputing coverage for every fold.
+
 ## Known limitations
 
 - **Notice date is not arrival date.** Historical backfills were scraped years after the fact, so "dated on or before t0" is the best available point-in-time proxy. It is not a replay of what was known on t0.

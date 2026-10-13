@@ -1780,6 +1780,27 @@ def sentiment_report_cmd(reports_dir: Path, dry_run: bool) -> None:
     click.echo(f"payloads={stats['total']} insufficient={stats['insufficient']}{suffix}")
 
 
+def _load_ml_events(from_jsonl: Path | None, as_of: object) -> tuple:
+    """(cutoff, notices, events) for the repeat-risk backtests: one loader, so
+    the classifier and survival backtests always see the same events."""
+    from datetime import date, datetime
+
+    from warn_v2.ml.events import build_events, load_notices, load_notices_jsonl
+
+    cutoff = as_of.date() if isinstance(as_of, datetime) else date.today()
+    if from_jsonl is not None:
+        notices = load_notices_jsonl(from_jsonl)
+    else:
+        from warn_v2.db.session import session_scope
+
+        with session_scope() as session:
+            notices = load_notices(session)
+    events = build_events(notices, as_of=cutoff)
+    click.echo(f"notices={len(notices)} events={len(events)} "
+               f"labelled={int(events['labelled'].sum())}")
+    return cutoff, notices, events
+
+
 @main.command("ml-backtest")
 @click.option(
     "--out",
@@ -1803,23 +1824,11 @@ def ml_backtest_cmd(
 ) -> None:
     """Rolling-origin backtest of the repeat-layoff model (see docs/ml/)."""
     import json
-    from datetime import date, datetime
 
     from warn_v2.ml.backtest import default_years, run_backtest
-    from warn_v2.ml.events import build_events, load_notices, load_notices_jsonl
     from warn_v2.ml.report import build_report, render_markdown
 
-    cutoff = as_of.date() if isinstance(as_of, datetime) else date.today()
-    if from_jsonl is not None:
-        notices = load_notices_jsonl(from_jsonl)
-    else:
-        from warn_v2.db.session import session_scope
-
-        with session_scope() as session:
-            notices = load_notices(session)
-    events = build_events(notices, as_of=cutoff)
-    click.echo(f"notices={len(notices)} events={len(events)} "
-               f"labelled={int(events['labelled'].sum())}")
+    cutoff, notices, events = _load_ml_events(from_jsonl, as_of)
     result = run_backtest(events, default_years(cutoff, first_year))
     report = build_report(notices, events, result, as_of=cutoff)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1827,6 +1836,50 @@ def ml_backtest_cmd(
     (out_dir / "repeat_risk_backtest.md").write_text(render_markdown(report), encoding="utf-8")
     click.echo(f"folds={len(result.folds)} chosen={report['chosen']['model']} "
                f"pr_auc={report['pooled'][report['chosen']['model']]['pr_auc']:.3f}")
+
+
+
+@main.command("ml-survival-backtest")
+@click.option(
+    "--out",
+    "out_dir",
+    default="/var/reports",
+    show_default=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Directory for repeat_risk_survival.{json,md}",
+)
+@click.option(
+    "--from-jsonl",
+    type=click.Path(dir_okay=False, exists=True, path_type=Path),
+    default=None,
+    help="Read notices from a /api/notices snapshot (one object per line) instead of the DB",
+)
+@click.option("--as-of", type=click.DateTime(["%Y-%m-%d"]), default=None,
+              help="Data cutoff (default: today)")
+@click.option("--first-year", default=2010, show_default=True, help="First test year")
+def ml_survival_backtest_cmd(
+    out_dir: Path, from_jsonl: Path | None, as_of: object, first_year: int
+) -> None:
+    """Rolling-origin backtest of the discrete-time survival model against the
+    shipped repeat-layoff classifier (see docs/ml/)."""
+    from warn_v2.ml.backtest import default_years
+    from warn_v2.ml.survival import run_survival_backtest
+    from warn_v2.ml.survival_report import build_survival_report, render_survival_markdown
+    from warn_v2.ml.train import _json
+
+    cutoff, _, events = _load_ml_events(from_jsonl, as_of)
+    result = run_survival_backtest(events, default_years(cutoff, first_year))
+    if not result.folds:
+        raise click.ClickException("no fold had enough data")
+    report = build_survival_report(events, result, as_of=cutoff)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    # Strict JSON (NaN -> null): a single-class fold leaves metrics undefined.
+    (out_dir / "repeat_risk_survival.json").write_text(_json(report), encoding="utf-8")
+    (out_dir / "repeat_risk_survival.md").write_text(
+        render_survival_markdown(report), encoding="utf-8")
+    p = report["pooled"]
+    click.echo(f"folds={len(result.folds)} hazard_gbm_pr_auc={p['hazard_gbm']['pr_auc']:.3f} "
+               f"gbm_pr_auc={p['gbm']['pr_auc']:.3f} adopt={report['decision']['adopt']}")
 
 
 
