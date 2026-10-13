@@ -1,3 +1,4 @@
+{{- if .Values.scraper.enabled }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -49,3 +50,4 @@ spec:
             - name: snapshots
               persistentVolumeClaim:
                 claimName: {{ include "warn-v2.fullname" . }}-snapshots
+{{- end }}

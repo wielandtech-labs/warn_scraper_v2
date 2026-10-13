@@ -24,6 +24,9 @@ snapshotStorage:
   size: 10Gi
 
 scraper:
+  # Off only for read-only releases (e.g. a staging API on a SELECT-only DB
+  # role): drops the daily scraper CronJob and its snapshots PVC.
+  enabled: true
   schedule: "17 7 * * *"  # daily 07:17 local — off the :00 + :30 herd
   # States whose failure should NOT fail the nightly Job (known-blocked or
   # chronically-flaky sources). They are still scraped and their scraper_runs
