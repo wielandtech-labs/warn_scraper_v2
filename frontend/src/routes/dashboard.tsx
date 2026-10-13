@@ -16,6 +16,8 @@ import { AlertSignup } from "../components/AlertSignup";
 import { CompanyLogo } from "../components/CompanyLogo";
 import { ForecastNote } from "../components/ForecastNote";
 import { HeroMap } from "../components/HeroMap";
+import { Peek } from "../components/Peek";
+import { CompanyPeek } from "../components/PeekContent";
 import { QueryError } from "../components/QueryError";
 import { SkeletonChart, SkeletonRows } from "../components/Skeleton";
 import {
@@ -184,13 +186,15 @@ export function Dashboard() {
                 <CompanyLogo name={e.employer} companyId={e.company_id} />
                 <div className="min-w-0 flex-1 truncate">
                   {e.company_id ? (
-                    <Link
-                      to="/companies/$companyId"
-                      params={{ companyId: String(e.company_id) }}
-                      className="font-medium text-slate-900 hover:underline dark:text-slate-100"
-                    >
-                      {e.employer}
-                    </Link>
+                    <Peek content={() => <CompanyPeek id={e.company_id!} name={e.employer} />}>
+                      <Link
+                        to="/companies/$companyId"
+                        params={{ companyId: String(e.company_id) }}
+                        className="font-medium text-slate-900 hover:underline dark:text-slate-100"
+                      >
+                        {e.employer}
+                      </Link>
+                    </Peek>
                   ) : (
                     <span className="font-medium">{e.employer}</span>
                   )}
