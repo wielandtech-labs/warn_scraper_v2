@@ -859,3 +859,42 @@ def test_gzip_enabled_for_large_responses(api_client):
     # Any body ≥1 KiB qualifies; openapi.json is always large enough.
     resp = api_client.get("/openapi.json", headers={"Accept-Encoding": "gzip"})
     assert resp.headers["content-encoding"] == "gzip"
+
+
+def test_company_summary_rolls_up_merged_and_excludes_superseded(api_client, db):
+    canon, dupe = _merged_pair(db)
+    _notice(db, company=canon, employer="Acme Inc", state="CA", layoff_count=100,
+            notice_date=date(2025, 3, 1))
+    _notice(db, company=dupe, employer="Acme LLC", state="TX", layoff_count=50,
+            notice_date=date(2026, 2, 1))
+    _notice(db, company=canon, employer="Acme Inc", state="CA", layoff_count=None,
+            notice_date=date(2026, 4, 1))
+    gone = _notice(db, company=canon, employer="Acme Old", state="CA", layoff_count=999,
+                   notice_date=date(2026, 5, 1))
+    gone.is_superseded = True
+    db.commit()
+
+    body = api_client.get(f"/api/companies/{canon.id}/summary").json()
+    assert body["notice_count"] == 3
+    assert body["layoff_total"] == 150
+    assert body["first_notice"] == "2025-03-01"
+    assert body["last_notice"] == "2026-04-01"
+    assert body["by_year"] == [
+        {"year": 2025, "notice_count": 1, "layoff_total": 100},
+        {"year": 2026, "notice_count": 2, "layoff_total": 50},
+    ]
+    assert body["by_state"] == [
+        {"state": "CA", "notice_count": 2, "layoff_total": 100},
+        {"state": "TX", "notice_count": 1, "layoff_total": 50},
+    ]
+
+
+def test_company_summary_empty_and_not_found(api_client, db):
+    c = _company(db)
+    db.commit()
+    body = api_client.get(f"/api/companies/{c.id}/summary").json()
+    assert body == {
+        "notice_count": 0, "layoff_total": 0, "first_notice": None,
+        "last_notice": None, "by_year": [], "by_state": [],
+    }
+    assert api_client.get("/api/companies/999999/summary").status_code == 404

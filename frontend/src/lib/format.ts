@@ -74,3 +74,16 @@ export function stateName(code: string | null | undefined): string {
   if (!code) return "";
   return STATE_NAMES[code.toUpperCase()] ?? code;
 }
+
+/** "today", "3 days ago", "in 12 days" for a YYYY-MM-DD date (UTC days). */
+export function fmtRelativeDays(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const then = Date.parse(`${iso.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(then)) return null;
+  const today = Date.parse(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+  const days = Math.round((then - today) / 86_400_000);
+  if (days === 0) return "today";
+  const n = Math.abs(days);
+  const unit = n === 1 ? "day" : "days";
+  return days < 0 ? `${fmtNum(n)} ${unit} ago` : `in ${fmtNum(n)} ${unit}`;
+}

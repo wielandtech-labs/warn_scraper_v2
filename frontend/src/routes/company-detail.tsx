@@ -1,15 +1,25 @@
-import type { ReactNode } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, type ReactNode } from "react";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 
 import { api } from "../api/client";
 import { CompanyLogo } from "../components/CompanyLogo";
+import { Figure, Figures } from "../components/Figures";
+import { NoticeList } from "../components/NoticeList";
+import { PageHeader } from "../components/PageHeader";
+import { QueryError } from "../components/QueryError";
 import { RepeatRisk } from "../components/RepeatRisk";
-import { SkeletonBlock } from "../components/Skeleton";
+import { SkeletonBlock, SkeletonRows } from "../components/Skeleton";
+import { StateSilhouette } from "../components/StateSilhouette";
+import { YearBars } from "../components/YearBars";
 import { useAuth } from "../hooks/useAuth";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import { fmtDate, fmtNum } from "../lib/format";
+import { fmtDate, fmtNum, fmtRelativeDays, stateName } from "../lib/format";
 import { SOURCE_LABEL } from "./companies";
+
+const NOTICE_PAGE = 25;
+// Merged-record names shown before "Show all".
+const MEMBERS_PREVIEW = 5;
 
 export function CompanyDetail() {
   const { companyId } = useParams({ from: "/companies/$companyId" });
@@ -21,11 +31,22 @@ export function CompanyDetail() {
     enabled: !Number.isNaN(id),
   });
 
-  const notices = useQuery({
-    queryKey: ["company", id, "notices"],
-    queryFn: () => api.listCompanyNotices(id, { limit: 50 }),
+  const summary = useQuery({
+    queryKey: ["company", id, "summary"],
+    queryFn: () => api.getCompanySummary(id),
     enabled: !Number.isNaN(id),
   });
+
+  // "Show more" grows the window; the previous page stays on screen while
+  // the longer one loads.
+  const [noticeLimit, setNoticeLimit] = useState(NOTICE_PAGE);
+  const notices = useQuery({
+    queryKey: ["company", id, "notices", noticeLimit],
+    queryFn: () => api.listCompanyNotices(id, { limit: noticeLimit }),
+    enabled: !Number.isNaN(id),
+    placeholderData: keepPreviousData,
+  });
+  const [showAllMembers, setShowAllMembers] = useState(false);
 
   const family = useQuery({
     queryKey: ["company", id, "family"],
@@ -84,204 +105,318 @@ export function CompanyDetail() {
   }
 
   const c = company.data;
+  const s = summary.data;
+  const sinceYear = s?.first_notice?.slice(0, 4);
+  const stateMax = Math.max(1, ...(s?.by_state ?? []).map((r) => r.layoff_total));
+  const familyMax = Math.max(1, ...(family.data ?? []).map((m) => m.layoff_total));
+  const shownMembers = showAllMembers ? members.data : members.data?.slice(0, MEMBERS_PREVIEW);
 
   return (
-    <div className="space-y-4">
-      <div>
-        {/* The detail URL carries the list's search params (see router.tsx);
-            re-applying them restores the exact filters/sort/page. */}
-        <Link to="/companies" search={(prev) => prev} className="text-sm text-sky-700 hover:underline dark:text-sky-400">
-          ← All companies
-        </Link>
-      </div>
-      <div className="card">
-        <div className="flex items-center gap-4">
-          <CompanyLogo name={c.name} companyId={c.id} hasWebsite={!!c.website} size={56} />
-          <h1 className="text-2xl font-semibold">{c.name}</h1>
-        </div>
-        {c.canonical_company_id != null && (
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-            This record is counted under{" "}
-            <Link
-              to="/companies/$companyId"
-              params={{ companyId: String(c.canonical_company_id) }}
-              search={(prev) => prev}
-              className="text-sky-700 hover:underline dark:text-sky-400"
+    <div className="space-y-6">
+      {/* The detail URL carries the list's search params (see router.tsx);
+          re-applying them restores the exact filters/sort/page. */}
+      <Link to="/companies" search={(prev) => prev} className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400">
+        ← All companies
+      </Link>
+
+      <PageHeader
+        kicker={c.sic_desc ?? "Company"}
+        title={
+          <span className="flex items-center gap-4">
+            <CompanyLogo name={c.name} companyId={c.id} hasWebsite={!!c.website} size={56} />
+            <span className="min-w-0">{c.name}</span>
+          </span>
+        }
+        lede={
+          s && s.notice_count > 0 ? (
+            <>
+              <span className="font-semibold text-slate-900 dark:text-slate-100">
+                {fmtNum(s.layoff_total)}
+              </span>{" "}
+              workers affected across {fmtNum(s.notice_count)} WARN{" "}
+              {s.notice_count === 1 ? "notice" : "notices"} in {s.by_state.length}{" "}
+              {s.by_state.length === 1 ? "state" : "states"}
+              {sinceYear ? ` since ${sinceYear}` : ""}.
+            </>
+          ) : undefined
+        }
+        aside={
+          c.website ? (
+            <a
+              href={c.website}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400"
             >
-              its main company record
-            </Link>
-            .
-          </p>
-        )}
-        <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-          {c.website && (
-            <Item
-              label="Website"
-              value={
-                <a className="text-sky-700 hover:underline dark:text-sky-400" href={c.website} target="_blank" rel="noreferrer">
-                  {c.website}
-                </a>
-              }
-            />
-          )}
-          <Item label="SIC" value={c.sic_code ? `${c.sic_code} · ${c.sic_desc ?? ""}` : "—"} />
-          {/* provider fields are present in the payload only for paid/admin
-              sessions — render whatever the API returned, no role logic here. */}
-          {c.unique_id != null && <Item label="ID" value={c.unique_id} />}
-          {c.employee_count != null && (
-            <Item label="Employees" value={fmtNum(c.employee_count)} />
-          )}
-          {c.parent_company_name != null && (
-            <Item
-              label="Parent"
-              value={
-                c.parent_unique_id != null
-                  ? `${c.parent_company_name} · ID ${c.parent_unique_id}`
-                  : c.parent_company_name
-              }
-            />
-          )}
-          {c.parent_company_name == null && c.parent_unique_id != null && (
-            <Item label="Parent ID" value={c.parent_unique_id} />
-          )}
-          {c.global_ultimate_name != null && (
-            <Item label="Global ultimate" value={c.global_ultimate_name} />
-          )}
-          {c.hq_address != null && <Item label="HQ address" value={c.hq_address} />}
-          <Item
-            label="Enriched"
-            value={
-              c.enriched_at
-                ? `${fmtDate(c.enriched_at)} · ${
-                    SOURCE_LABEL[c.enrichment_source ?? ""] ?? "unknown source"
-                  } · confidence ${
-                    c.enrichment_confidence != null
-                      ? Number(c.enrichment_confidence).toFixed(2)
-                      : "?"
-                  }`
-                : "Not yet enriched"
-            }
-          />
-        </dl>
-      </div>
+              {c.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")} ↗
+            </a>
+          ) : undefined
+        }
+      />
+
+      {c.canonical_company_id != null && (
+        <p className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+          This record is counted under{" "}
+          <Link
+            to="/companies/$companyId"
+            params={{ companyId: String(c.canonical_company_id) }}
+            search={(prev) => prev}
+            className="font-medium text-sky-700 hover:underline dark:text-sky-400"
+          >
+            its main company record
+          </Link>
+          .
+        </p>
+      )}
+
+      <Figures>
+        <Figure label="Workers affected" value={s ? fmtNum(s.layoff_total) : null} accent />
+        <Figure label="Notices" value={s ? fmtNum(s.notice_count) : null} />
+        <Figure label="States" value={s ? fmtNum(s.by_state.length) : null} />
+        <Figure
+          label="Latest notice"
+          value={s ? fmtDate(s.last_notice) : null}
+          note={fmtRelativeDays(s?.last_notice) ?? undefined}
+        />
+      </Figures>
 
       {repeatRisk.data && <RepeatRisk risk={repeatRisk.data} />}
 
-      {family.data && family.data.length >= 2 && (
-        <section>
-          <h2 className="mb-2 text-lg font-semibold">
-            Corporate family ({family.data.length})
-          </h2>
-          <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-            Companies in the same corporate family, with layoffs rolled up across
-            each one.
-          </p>
-          <div className="card divide-y divide-slate-100 p-0 dark:divide-slate-800">
-            {family.data.map((m) => (
-              <Link
-                key={m.company_id}
-                to="/companies/$companyId"
-                params={{ companyId: String(m.company_id) }}
-                search={(prev) => prev}
-                className={`flex items-baseline justify-between gap-4 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 ${
-                  m.is_self ? "bg-sky-50 dark:bg-sky-950" : ""
-                }`}
-              >
-                <div className="text-sm font-medium">
-                  {m.name}
-                  {m.is_self && (
-                    <span className="ml-2 text-xs font-normal text-sky-700 dark:text-sky-400">
-                      this company
-                    </span>
-                  )}
-                </div>
-                <div className="text-sm text-slate-600 dark:text-slate-400">
-                  {fmtNum(m.layoff_total)} affected · {fmtNum(m.notice_count)} notices
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {(isAdmin || (members.data && members.data.length > 0)) && (
-        <section>
-          <div className="mb-2 flex items-baseline justify-between gap-4">
-            <h2 className="text-lg font-semibold">
-              Merged records ({members.data?.length ?? 0})
-            </h2>
-            {isAdmin && (
-              <Link
-                to="/admin/companies"
-                search={{ name: c.name }}
-                className="text-sm text-sky-700 hover:underline dark:text-sky-400"
-              >
-                Merge more…
-              </Link>
-            )}
-          </div>
-          <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-            Filings under other names (duplicates, store numbers) counted as this company.
-          </p>
-          {members.data && members.data.length > 0 && (
-            <div className="card divide-y divide-slate-100 p-0 dark:divide-slate-800">
-              {members.data.map((m) => (
-                <div
-                  key={m.company_id}
-                  className="flex items-baseline justify-between gap-4 px-4 py-3"
-                >
-                  <div className="text-sm">{m.name}</div>
-                  <div className="flex items-baseline gap-3 text-sm text-slate-600 dark:text-slate-400">
-                    <span>
-                      {fmtNum(m.layoff_total)} affected · {fmtNum(m.notice_count)} notices
-                    </span>
-                    {isAdmin && (
-                      <button
-                        type="button"
-                        disabled={unmerge.isPending}
-                        onClick={() => {
-                          if (window.confirm(`Unmerge "${m.name}" from ${c.name}?`)) {
-                            unmerge.mutate(m.company_id);
-                          }
-                        }}
-                        className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
-                      >
-                        Unmerge
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          {s && s.by_year.length > 1 && (
+            <section className="card">
+              <h2 className="text-lg font-semibold">Workers affected by year</h2>
+              <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
+                By notice date, across every filing rolled up to this company.
+              </p>
+              <YearBars rows={s.by_year} />
+            </section>
           )}
-        </section>
-      )}
 
-      <section>
-        <h2 className="mb-2 text-lg font-semibold">Notices ({notices.data?.total ?? 0})</h2>
-        <div className="card divide-y divide-slate-100 p-0 dark:divide-slate-800">
-          {notices.data?.items.map((n) => (
-            <Link
-              key={n.notice_id}
-              to="/notices/$noticeId"
-              params={{ noticeId: n.notice_id }}
-              className="block px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50"
-            >
-              <div className="flex items-baseline justify-between gap-4">
-                <div className="text-sm font-medium">
-                  {fmtDate(n.notice_date)} · {n.state}
-                </div>
-                <div className="text-sm text-slate-600 dark:text-slate-400">
-                  {fmtNum(n.layoff_count)} affected
-                </div>
+          <section className="card p-0">
+            <h2 className="px-5 pb-1 pt-5 text-lg font-semibold">
+              Filings{" "}
+              <span className="font-sans text-sm font-normal text-slate-500 dark:text-slate-400">
+                {notices.data ? fmtNum(notices.data.total) : ""}
+              </span>
+            </h2>
+            {notices.isLoading && <SkeletonRows rows={6} />}
+            {notices.isError && (
+              <QueryError message="Error loading notices." onRetry={() => notices.refetch()} />
+            )}
+            {notices.data && <NoticeList notices={notices.data.items} lead="place" />}
+            {notices.data && notices.data.items.length < notices.data.total && (
+              <div className="border-t border-slate-100 px-5 py-3 dark:border-slate-800">
+                <button
+                  type="button"
+                  disabled={notices.isFetching}
+                  onClick={() => setNoticeLimit((n) => n + NOTICE_PAGE)}
+                  className="text-sm font-medium text-sky-700 hover:underline disabled:opacity-50 dark:text-sky-400"
+                >
+                  {notices.isFetching
+                    ? "Loading…"
+                    : `Show more (${fmtNum(notices.data.total - notices.data.items.length)} left)`}
+                </button>
               </div>
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                {n.location?.city || n.location?.county || "Location unspecified"}
-              </div>
-            </Link>
-          ))}
+            )}
+          </section>
         </div>
-      </section>
+
+        <aside className="space-y-6">
+          {s && s.by_state.length > 0 && (
+            <section className="card">
+              <h2 className="mb-2 text-lg font-semibold">Where</h2>
+              <ul className="space-y-2">
+                {s.by_state.slice(0, 10).map((r) => (
+                  <li key={r.state}>
+                    <Link
+                      to="/states/$state"
+                      params={{ state: r.state }}
+                      className="group flex items-center gap-2.5"
+                    >
+                      <StateSilhouette
+                        code={r.state}
+                        size={24}
+                        className="shrink-0 text-slate-300 transition-colors group-hover:text-brand dark:text-slate-600"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-2 text-sm">
+                          <span className="truncate font-medium group-hover:underline">{stateName(r.state)}</span>
+                          <span className="tabular-nums text-slate-600 dark:text-slate-400">
+                            {fmtNum(r.layoff_total)}
+                          </span>
+                        </div>
+                        <div aria-hidden className="mt-1 h-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                          <div
+                            className="h-full rounded-full bg-brand/70"
+                            style={{ width: `${(r.layoff_total / stateMax) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              {s.by_state.length > 10 && (
+                <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                  + {s.by_state.length - 10} more states
+                </p>
+              )}
+            </section>
+          )}
+
+          <section className="card">
+            <h2 className="mb-3 text-lg font-semibold">Profile</h2>
+            <dl className="space-y-3 text-sm">
+              <Item label="Industry (SIC)" value={c.sic_code ? `${c.sic_code} · ${c.sic_desc ?? ""}` : "—"} />
+              {/* provider fields are present in the payload only for paid/admin
+                  sessions — render whatever the API returned, no role logic here. */}
+              {c.unique_id != null && <Item label="ID" value={c.unique_id} />}
+              {c.employee_count != null && (
+                <Item label="Employees" value={fmtNum(c.employee_count)} />
+              )}
+              {c.parent_company_name != null && (
+                <Item
+                  label="Parent"
+                  value={
+                    c.parent_unique_id != null
+                      ? `${c.parent_company_name} · ID ${c.parent_unique_id}`
+                      : c.parent_company_name
+                  }
+                />
+              )}
+              {c.parent_company_name == null && c.parent_unique_id != null && (
+                <Item label="Parent ID" value={c.parent_unique_id} />
+              )}
+              {c.global_ultimate_name != null && (
+                <Item label="Global ultimate" value={c.global_ultimate_name} />
+              )}
+              {c.hq_address != null && <Item label="HQ address" value={c.hq_address} />}
+              <Item
+                label="Enriched"
+                value={
+                  c.enriched_at
+                    ? `${fmtDate(c.enriched_at)} · ${
+                        SOURCE_LABEL[c.enrichment_source ?? ""] ?? "unknown source"
+                      } · confidence ${
+                        c.enrichment_confidence != null
+                          ? Number(c.enrichment_confidence).toFixed(2)
+                          : "?"
+                      }`
+                    : "Not yet enriched"
+                }
+              />
+            </dl>
+          </section>
+
+          {family.data && family.data.length >= 2 && (
+            <section className="card">
+              <h2 className="text-lg font-semibold">Corporate family</h2>
+              <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+                {family.data.length} companies in the same corporate family, with
+                layoffs rolled up across each one.
+              </p>
+              <ul className="space-y-2.5">
+                {family.data.map((m) => (
+                  <li key={m.company_id}>
+                    <Link
+                      to="/companies/$companyId"
+                      params={{ companyId: String(m.company_id) }}
+                      search={(prev) => prev}
+                      className="group flex items-center gap-2.5"
+                    >
+                      <CompanyLogo name={m.name} companyId={m.company_id} size={24} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-2 text-sm">
+                          <span className="truncate font-medium group-hover:underline">
+                            {m.name}
+                            {m.is_self && (
+                              <span className="ml-1.5 text-xs font-normal text-slate-500 dark:text-slate-400">
+                                (this)
+                              </span>
+                            )}
+                          </span>
+                          <span className="tabular-nums text-slate-600 dark:text-slate-400">
+                            {fmtNum(m.layoff_total)}
+                          </span>
+                        </div>
+                        <div aria-hidden className="mt-1 h-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                          <div
+                            className={`h-full rounded-full ${m.is_self ? "bg-brand" : "bg-slate-400 dark:bg-slate-500"}`}
+                            style={{ width: `${(m.layoff_total / familyMax) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {(isAdmin || (members.data && members.data.length > 0)) && (
+            <section className="card">
+              <div className="flex items-baseline justify-between gap-4">
+                <h2 className="text-lg font-semibold">
+                  Also filed as{" "}
+                  <span className="font-sans text-sm font-normal text-slate-500 dark:text-slate-400">
+                    {members.data?.length ?? 0}
+                  </span>
+                </h2>
+                {isAdmin && (
+                  <Link
+                    to="/admin/companies"
+                    search={{ name: c.name }}
+                    className="text-sm text-sky-700 hover:underline dark:text-sky-400"
+                  >
+                    Merge more…
+                  </Link>
+                )}
+              </div>
+              <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                Filings under other names (duplicates, store numbers) counted as this company.
+              </p>
+              {shownMembers && shownMembers.length > 0 && (
+                <ul className="divide-y divide-slate-100 text-sm dark:divide-slate-800">
+                  {shownMembers.map((m) => (
+                    <li key={m.company_id} className="flex items-baseline justify-between gap-3 py-2">
+                      <span className="min-w-0 truncate">{m.name}</span>
+                      <span className="flex shrink-0 items-baseline gap-3 text-slate-600 dark:text-slate-400">
+                        <span className="tabular-nums">{fmtNum(m.layoff_total)}</span>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            disabled={unmerge.isPending}
+                            onClick={() => {
+                              if (window.confirm(`Unmerge "${m.name}" from ${c.name}?`)) {
+                                unmerge.mutate(m.company_id);
+                              }
+                            }}
+                            className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
+                          >
+                            Unmerge
+                          </button>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {members.data && members.data.length > MEMBERS_PREVIEW && (
+                <button
+                  type="button"
+                  aria-expanded={showAllMembers}
+                  onClick={() => setShowAllMembers((v) => !v)}
+                  className="mt-2 text-sm font-medium text-sky-700 hover:underline dark:text-sky-400"
+                >
+                  {showAllMembers ? "Show fewer" : `Show all ${members.data.length}`}
+                </button>
+              )}
+            </section>
+          )}
+        </aside>
+      </div>
     </div>
   );
 }
@@ -289,7 +424,7 @@ export function CompanyDetail() {
 function Item({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+      <dt className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
         {label}
       </dt>
       <dd className="mt-0.5 text-slate-900 dark:text-slate-100">{value}</dd>

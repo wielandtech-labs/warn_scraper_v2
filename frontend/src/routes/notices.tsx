@@ -6,10 +6,12 @@ import { useMemo, useState } from "react";
 import { api } from "../api/client";
 import { ActiveFilters } from "../components/ActiveFilters";
 import { AlertSignup } from "../components/AlertSignup";
+import { ClosureBadge } from "../components/ClosureBadge";
 import { CompanyLogo } from "../components/CompanyLogo";
 import { DataTable } from "../components/DataTable";
 import { ExportButtons } from "../components/ExportButtons";
 import { EMPTY_FILTERS, FilterBar, type FilterValues } from "../components/FilterBar";
+import { NEW_NOTICE_DAYS } from "../components/NoticeList";
 import { PageHeader } from "../components/PageHeader";
 import { Pagination } from "../components/Pagination";
 import { Peek } from "../components/Peek";
@@ -25,25 +27,6 @@ import { CHART_COLORS } from "../lib/themeColors";
 import type { NoticeOut } from "../api/types";
 
 const PAGE_SIZE = 50;
-// Notices filed this recently get a "new" marker.
-const NEW_DAYS = 7;
-
-/* Only the exceptions are badged: a plain layoff is the default and a badge
-   on every row would be noise. Closures (the whole site goes) stand out;
-   Non-WARN rows (state rapid-response events, not statutory notices) are
-   visibly set apart. */
-function ClosureBadge({ category }: { category: string | null }) {
-  if (category !== "Closure" && category !== "Non-WARN") return null;
-  const style =
-    category === "Closure"
-      ? "bg-brand/10 text-brand dark:bg-brand/20 dark:text-brand-dark"
-      : "border border-dashed border-slate-300 text-slate-500 dark:border-slate-600 dark:text-slate-400";
-  return (
-    <span className={`rounded-full px-2 py-px text-[0.65rem] font-semibold uppercase tracking-wide ${style}`}>
-      {category}
-    </span>
-  );
-}
 
 export function NoticesPage() {
   useDocumentTitle("Layoff notices — WARN Index");
@@ -138,7 +121,7 @@ export function NoticesPage() {
 
   // Inline magnitude bars scale to the largest notice on the page.
   const pageMax = Math.max(1, ...(query.data?.items ?? []).map((n) => n.layoff_count ?? 0));
-  const newCutoff = daysAgoIso(NEW_DAYS);
+  const newCutoff = daysAgoIso(NEW_NOTICE_DAYS);
 
   const columns = useMemo<ColumnDef<NoticeOut, unknown>[]>(
     () => [
