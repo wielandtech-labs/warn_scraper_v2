@@ -77,7 +77,10 @@ export function CompanyPeek({ id, name }: { id: number; name: string }) {
       series.push(byYear.get(String(y)) ?? 0);
     }
   }
-  const workers = items.reduce((a, n) => a + (n.layoff_count ?? 0), 0);
+  // Sum of published counts; null when no notice published one (no-counts
+  // states), so the card says "—" rather than "0 workers".
+  const counted = items.filter((n) => n.layoff_count != null);
+  const workers = counted.length ? counted.reduce((a, n) => a + (n.layoff_count ?? 0), 0) : null;
   const truncated = (notices.data?.total ?? 0) > items.length;
   return (
     <>
@@ -88,7 +91,7 @@ export function CompanyPeek({ id, name }: { id: number; name: string }) {
           <div className="truncate font-display text-base font-semibold">{name}</div>
         </div>
       </div>
-      <Figures workers={notices.data ? workers : null} notices={notices.data?.total ?? null} />
+      <Figures workers={workers} notices={notices.data?.total ?? null} />
       <Sparkline values={series} color={CHART_COLORS[resolved].layoffs} className="mt-2" />
       {items[0]?.notice_date && (
         <div className="mt-1 text-[0.7rem] text-slate-500 dark:text-slate-400">

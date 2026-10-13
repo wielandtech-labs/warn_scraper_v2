@@ -17,7 +17,7 @@ import { CompanyLogo } from "../components/CompanyLogo";
 import { ForecastNote } from "../components/ForecastNote";
 import { HeroMap } from "../components/HeroMap";
 import { Peek } from "../components/Peek";
-import { CompanyPeek } from "../components/PeekContent";
+import { CompanyPeek } from "../components/peeks";
 import { QueryError } from "../components/QueryError";
 import { SkeletonChart, SkeletonRows } from "../components/Skeleton";
 import {

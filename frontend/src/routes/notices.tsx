@@ -10,7 +10,7 @@ import { ExportButtons } from "../components/ExportButtons";
 import { EMPTY_FILTERS, FilterBar, type FilterValues } from "../components/FilterBar";
 import { Pagination } from "../components/Pagination";
 import { Peek } from "../components/Peek";
-import { CompanyPeek, StatePeek } from "../components/PeekContent";
+import { CompanyPeek, StatePeek } from "../components/peeks";
 import { QueryError } from "../components/QueryError";
 import { SkeletonTable } from "../components/Skeleton";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
