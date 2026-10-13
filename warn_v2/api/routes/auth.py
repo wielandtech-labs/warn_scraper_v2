@@ -130,13 +130,17 @@ _PENDING_MSG = "If that address is new, a verification email is on its way."
 _RESET_MSG = "If that address has an account, a reset email is on its way."
 
 
-def send_link_email(to: str, subject: str, intro: str, url: str, cta: str) -> None:
+def send_link_email(
+    to: str, subject: str, intro: str, url: str, cta: str, *, title: str | None = None
+) -> None:
+    """Single-action account email. ``title`` is the in-body heading (defaults
+    to the subject); keep it short so it doesn't just repeat the subject line."""
     base = site_base_url()
     html_body = render_shell(
         preheader=intro,
         content=message_rows(
             kicker_text="Your account",
-            title=escape(subject),
+            title=escape(title or subject),
             lead=escape(intro),
             url=url,
             cta=cta,
@@ -174,6 +178,7 @@ def signup(body: SignupIn, request: Request, db: Session = Depends(get_db)) -> d
             "Confirm your email to activate your WARN Index API account:",
             f"{site_base_url()}/api/auth/verify?token={token}",
             "Verify email",
+            title="Verify your email",
         )
     except EmailNotConfigured as exc:
         db.rollback()
@@ -215,6 +220,7 @@ def forgot_password(
             "Use the link below to choose a new WARN Index password (valid for 1 hour):",
             f"{site_base_url()}/api/auth/reset-page?token={token}",
             "Reset password",
+            title="Choose a new password",
         )
     except EmailNotConfigured as exc:
         db.rollback()

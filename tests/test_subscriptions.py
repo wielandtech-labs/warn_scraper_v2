@@ -438,3 +438,20 @@ def test_email_not_configured_surfaces_503(api_client, db, monkeypatch):
     assert resp.status_code == 503
     db.rollback()
     assert db.scalar(select(Subscription)) is None  # rolled back, no orphan row
+
+
+def test_digest_badges_only_closures_and_non_warn(db):
+    """Like the site, plain layoffs are unbadged; Closure and Non-WARN are."""
+    sub = _sub(db, email="badges@example.com")
+    notices = [
+        _notice(db, employer="Closing Co", notice_id="b1", closure_category="Closure"),
+        _notice(db, employer="Event Co", notice_id="b2", closure_category="Non-WARN"),
+        _notice(db, employer="Layoff Co", notice_id="b3", closure_category="Layoff"),
+        _notice(db, employer="Zero Co", notice_id="b4", layoff_count=0),
+    ]
+    _subject, _text, html = render_digest(sub, notices)
+    assert "CLOSURE" in html
+    assert "NON-WARN" in html
+    assert "LAYOFF" not in html
+    # A reported zero is a figure, not a blank.
+    assert ">0</span><br>" in html

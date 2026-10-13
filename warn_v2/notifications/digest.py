@@ -76,7 +76,8 @@ def _notice_row(x: Notice, base: str) -> str:
         f'<span style="{SERIF};font-size:18px;font-weight:bold;color:{INK};">'
         f"{x.layoff_count:,}</span><br>"
         f'<span style="{FONT};font-size:11px;color:{MUTED};">workers</span>'
-        if x.layoff_count
+        # 0 is a real reported count; only an unpublished one stays blank.
+        if x.layoff_count is not None
         else ""
     )
     return (
