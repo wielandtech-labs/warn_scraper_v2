@@ -29,14 +29,14 @@ const HEALTH_FILLS: Record<ResolvedTheme, Record<Health, string>> = {
   light: {
     operational: "#86efac", // green-300
     failing: "#f87171", // red-400
-    unsupported: "#e2e8f0", // slate-200
-    never: "#e2e8f0",
+    unsupported: "#e1e0d9", // slate-200
+    never: "#e1e0d9",
   },
   dark: {
     operational: "#15803d", // green-700
     failing: "#dc2626", // red-600
-    unsupported: "#1e293b", // slate-800
-    never: "#1e293b",
+    unsupported: "#2c2c2a", // slate-800
+    never: "#2c2c2a",
   },
 };
 
