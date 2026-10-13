@@ -1,40 +1,29 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 import { ApiError, api } from "../api/client";
+import { BlsLevels } from "../components/BlsLevels";
 import { IndicatorChart } from "../components/IndicatorChart";
 import { NoticeMap } from "../components/NoticeMap";
 import { ProjectionNote } from "../components/ProjectionNote";
-import { ProjectionTooltip } from "../components/ProjectionTooltip";
 import { QueryError } from "../components/QueryError";
 import { ReportMarkdown } from "../components/ReportMarkdown";
 import { SkeletonBlock, SkeletonChart } from "../components/Skeleton";
+import { WarnTimeChart } from "../components/WarnTimeChart";
 import {
   TimeRangeToggle,
   toRangeQuery,
   type TimeRange,
 } from "../components/TimeRangeToggle";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import { useTheme } from "../hooks/useTheme";
-import { fmtCompact, fmtPeriod } from "../lib/format";
+import { BLS_PAYROLLS } from "../lib/blsSeries";
+import { fmtPeriod } from "../lib/format";
 import { withProjectionSeries } from "../lib/projection";
-import { CHART_COLORS } from "../lib/themeColors";
 import { GradeBadge } from "./reports";
 
 export function IndustryReportPage() {
   const { sector } = useParams({ from: "/reports/industry/$sector" });
-  const { resolved } = useTheme();
-  const chart = CHART_COLORS[resolved];
 
   const [range, setRange] = useState<TimeRange>("1y");
   const { after, bucket } = toRangeQuery(range);
@@ -143,85 +132,12 @@ export function IndustryReportPage() {
             </div>
           ) : (
             <>
-              <div
-                role="img"
-                aria-label={`Line chart of notice counts and workers affected in ${name} over time`}
-              >
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={timeData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
-                    <XAxis
-                      dataKey="label"
-                      tick={{ fontSize: 12, fill: chart.axis }}
-                      minTickGap={24}
-                    />
-                    {/* Axis ticks are colored to match their series, so the dual
-                        axes are readable without cross-referencing the legend. */}
-                    <YAxis
-                      yAxisId="left"
-                      tick={{ fontSize: 12, fill: chart.notices }}
-                      tickFormatter={fmtCompact}
-                    />
-                    <YAxis
-                      yAxisId="right"
-                      orientation="right"
-                      tick={{ fontSize: 12, fill: chart.layoffs }}
-                      tickFormatter={fmtCompact}
-                    />
-                    <Tooltip
-                      content={<ProjectionTooltip />}
-                      contentStyle={chart.tooltip}
-                      labelStyle={chart.tooltipLabel}
-                    />
-                    <Line
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="notice_count"
-                      name="Notices"
-                      stroke={chart.notices}
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="layoff_total"
-                      name="Workers affected"
-                      stroke={chart.layoffs}
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                    {/* Dashed pace projection for the current, incomplete period;
-                        all-null (invisible) when no projection is active.
-                        animationBegin waits out the solid lines' default 1500ms
-                        draw so the projection appears after them, not before. */}
-                    <Line
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="projected_notice_count"
-                      name="Notices (projected)"
-                      stroke={chart.notices}
-                      strokeWidth={2}
-                      strokeDasharray="5 5"
-                      animationBegin={1500}
-                      dot={false}
-                      legendType="none"
-                    />
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="projected_layoff_total"
-                      name="Workers affected (projected)"
-                      stroke={chart.layoffs}
-                      strokeWidth={2}
-                      strokeDasharray="5 5"
-                      animationBegin={1500}
-                      dot={false}
-                      legendType="none"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+              <WarnTimeChart
+                rows={timeData}
+                bucket={bucket}
+                subject={`in ${name}`}
+                bls={{ options: [BLS_PAYROLLS], industry: sector, after }}
+              />
               {hasProjection && (
                 <ProjectionNote periodLabel={timeData[timeData.length - 1].label} />
               )}
@@ -234,13 +150,15 @@ export function IndustryReportPage() {
           notice reads very differently against a sector of 300 thousand than
           against one of twelve million. */}
       {vouched && bucket !== "day" && (
-        <IndicatorChart
-          dataset="payrolls"
-          industry={sector}
-          bucket={bucket}
-          after={after}
-          periods={indicatorPeriods}
-        />
+        <BlsLevels>
+          <IndicatorChart
+            dataset="payrolls"
+            industry={sector}
+            bucket={bucket}
+            after={after}
+            periods={indicatorPeriods}
+          />
+        </BlsLevels>
       )}
 
       <div className="card">

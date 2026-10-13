@@ -18,12 +18,13 @@ import { CHART_COLORS } from "../lib/themeColors";
 import { QueryError } from "./QueryError";
 import { SkeletonChart } from "./Skeleton";
 
-/* Official BLS context, rendered as a companion card beneath a WARN time
-   series. Deliberately its own chart rather than extra lines on the chart
-   above: a rate or a national job count shares no scale with a notice count,
-   and a second y-axis is the single most misread thing a chart can do. The
-   two charts are tied together by sharing an x-axis domain instead — see
-   `periods` below.
+/* Official BLS context as absolute levels, in the collapsed BlsLevels
+   section beneath a WARN time series. Never extra lines on the WARN chart's
+   own scale: a rate or a national job count shares no unit with a notice
+   count, and a second y-axis is the single most misread thing a chart can do.
+   The overlay readers actually want lives in WarnTimeChart's Compare mode,
+   which puts both on a shared index instead. This card and that chart share
+   an x-axis domain -- see `periods` below.
 
    One component serves all three datasets; DATASETS holds everything that
    varies. Adding a BLS dataset means adding a row there and a catalog entry
@@ -165,23 +166,21 @@ export function IndicatorChart({
       <h2 className="mb-3 text-lg font-semibold">{spec.title}</h2>
       <div role="img" aria-label={`Line chart of ${spec.title.toLowerCase()} over time`}>
         <ResponsiveContainer width="100%" height={220}>
-          {/* The chart above has a 60px right-hand axis for workers affected;
-              reserve the same space (plus the default 5px margin) so both
+          {/* Same margins and y-axis width as WarnTimeChart above, so both
               plot areas, and so the periods, line up. */}
-          <LineChart data={data} margin={{ top: 5, right: 65, bottom: 5, left: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+          <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+            <CartesianGrid vertical={false} stroke={chart.grid} />
             <XAxis
               dataKey="label"
               tick={{ fontSize: 12, fill: chart.axis }}
               minTickGap={24}
             />
             {/* One axis: every measure in a dataset shares a unit, which is
-                why these are three cards and not three extra lines above.
-                60px = recharts' default width, matching the chart above. */}
+                why these are separate cards and not extra lines above. */}
             <YAxis
               tick={{ fontSize: 12, fill: chart.axis }}
               tickFormatter={spec.format}
-              width={60}
+              width={44}
             />
             <Tooltip
               formatter={(value) => spec.format(Number(value))}

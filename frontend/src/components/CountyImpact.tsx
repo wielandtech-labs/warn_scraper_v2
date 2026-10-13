@@ -103,7 +103,7 @@ export function CountyImpact({
           >
             <ResponsiveContainer width="100%" height={Math.max(160, chartRows.length * 28)}>
               <BarChart layout="vertical" data={chartRows} margin={{ left: 30 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                <CartesianGrid stroke={chart.grid} />
                 <XAxis
                   type="number"
                   tick={{ fontSize: 12, fill: chart.axis }}
@@ -121,7 +121,7 @@ export function CountyImpact({
                   labelStyle={chart.tooltipLabel}
                   cursor={{ fill: chart.cursor }}
                 />
-                <Bar dataKey="impact_pct" name="Share of county employment" fill={chart.layoffs} />
+                <Bar dataKey="impact_pct" name="Share of county employment" fill={chart.layoffs} radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

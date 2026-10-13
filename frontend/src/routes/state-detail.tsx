@@ -1,25 +1,15 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
-import {
-  Area,
-  CartesianGrid,
-  ComposedChart,
-  Line,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 import { api, ApiError } from "../api/client";
 import { AlertSignup } from "../components/AlertSignup";
+import { BlsLevels } from "../components/BlsLevels";
 import { CountyImpact } from "../components/CountyImpact";
 import { ForecastNote } from "../components/ForecastNote";
 import { IndicatorChart } from "../components/IndicatorChart";
 import { NoticeMap } from "../components/NoticeMap";
 import { ProjectionNote } from "../components/ProjectionNote";
-import { ProjectionTooltip } from "../components/ProjectionTooltip";
 import { QueryError } from "../components/QueryError";
 import { ReportMarkdown } from "../components/ReportMarkdown";
 import { SkeletonBlock, SkeletonChart, SkeletonRows } from "../components/Skeleton";
@@ -29,17 +19,15 @@ import {
   type TimeRange,
 } from "../components/TimeRangeToggle";
 import { UnavailableNotice } from "../components/UnavailableNotice";
+import { WarnTimeChart } from "../components/WarnTimeChart";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import { useTheme } from "../hooks/useTheme";
-import { STATE_NAMES, fmtCompact, fmtDate, fmtNum, fmtPeriod, stateName } from "../lib/format";
+import { BLS_LABOUR_MARKET } from "../lib/blsSeries";
+import { STATE_NAMES, fmtDate, fmtNum, fmtPeriod, stateName } from "../lib/format";
 import { withForecastSeries } from "../lib/forecast";
 import { withProjectionSeries } from "../lib/projection";
-import { CHART_COLORS } from "../lib/themeColors";
 import { LAW_BLOCKED, NO_COUNTS } from "../lib/unavailable";
 
 export function StateDetailPage() {
-  const { resolved } = useTheme();
-  const chart = CHART_COLORS[resolved];
   const { state } = useParams({ from: "/states/$state" });
   const code = state.toUpperCase();
   const valid = code in STATE_NAMES;
@@ -215,126 +203,13 @@ export function StateDetailPage() {
           </div>
         ) : (
           <>
-            <div
-              role="img"
-              aria-label={`Line chart of notice counts and workers affected in ${name} over time`}
-            >
-              <ResponsiveContainer width="100%" height={300}>
-                <ComposedChart data={timeData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
-                  <XAxis
-                    dataKey="label"
-                    tick={{ fontSize: 12, fill: chart.axis }}
-                    minTickGap={24}
-                  />
-                  {/* Axis ticks are colored to match their series, so the dual
-                      axes are readable without cross-referencing the legend. */}
-                  <YAxis
-                    yAxisId="left"
-                    tick={{ fontSize: 12, fill: chart.notices }}
-                    tickFormatter={fmtCompact}
-                  />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    tick={{ fontSize: 12, fill: chart.layoffs }}
-                    tickFormatter={fmtCompact}
-                  />
-                  <Tooltip
-                    content={<ProjectionTooltip />}
-                    contentStyle={chart.tooltip}
-                    labelStyle={chart.tooltipLabel}
-                  />
-                  {/* 80% prediction-interval band for the forecast — layoffs
-                      only, so it doesn't compete visually with a second band
-                      for notices. All-null (invisible) when no forecast. */}
-                  <Area
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="forecast_layoff_band"
-                    name="Workers affected (forecast range)"
-                    fill={chart.layoffs}
-                    fillOpacity={0.12}
-                    stroke="none"
-                    legendType="none"
-                    animationBegin={1500}
-                    isAnimationActive={false}
-                  />
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="notice_count"
-                    name="Notices"
-                    stroke={chart.notices}
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="layoff_total"
-                    name="Workers affected"
-                    stroke={chart.layoffs}
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  {/* Dashed pace projection for the current, incomplete period;
-                      all-null (invisible) when no projection is active.
-                      animationBegin waits out the solid lines' default 1500ms
-                      draw so the projection appears after them, not before. */}
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="projected_notice_count"
-                    name="Notices (projected)"
-                    stroke={chart.notices}
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    animationBegin={1500}
-                    dot={false}
-                    legendType="none"
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="projected_layoff_total"
-                    name="Workers affected (projected)"
-                    stroke={chart.layoffs}
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    animationBegin={1500}
-                    dot={false}
-                    legendType="none"
-                  />
-                  {/* Dashed 6-month forecast; supersedes the projection above
-                      when active (both are all-null otherwise). */}
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="forecast_notice_count"
-                    name="Notices (forecast)"
-                    stroke={chart.notices}
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    animationBegin={1500}
-                    dot={false}
-                    legendType="none"
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="forecast_layoff_total"
-                    name="Workers affected (forecast)"
-                    stroke={chart.layoffs}
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    animationBegin={1500}
-                    dot={false}
-                    legendType="none"
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
+            <WarnTimeChart
+              rows={timeData}
+              bucket={bucket}
+              subject={`in ${name}`}
+              hasCounts={!noCounts}
+              bls={{ options: BLS_LABOUR_MARKET, state: code, after }}
+            />
             {hasForecast && forecast.data ? (
               <ForecastNote lastHistoryLabel={fmtPeriod(forecast.data.last_history_month, "month")} />
             ) : (
@@ -346,11 +221,12 @@ export function StateDetailPage() {
         )}
       </div>
 
-      {/* How this state's labour market was doing over the same span. Skipped
+      {/* How this state's labour market was doing over the same span, as
+          absolute levels (the overlay is the chart's Compare mode). Skipped
           on the 30-day range: every BLS series here is monthly, so there is
           nothing to plot against a daily axis. */}
       {bucket !== "day" && (
-        <>
+        <BlsLevels>
           <IndicatorChart
             dataset="unemployment"
             state={code}
@@ -365,7 +241,7 @@ export function StateDetailPage() {
             after={after}
             periods={indicatorPeriods}
           />
-        </>
+        </BlsLevels>
       )}
 
       <div className="card">
