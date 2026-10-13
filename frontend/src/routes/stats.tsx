@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import {
   Bar,
   BarChart,
@@ -12,18 +12,23 @@ import {
 } from "recharts";
 
 import { api } from "../api/client";
+import { ActiveFilters } from "../components/ActiveFilters";
 import { BlsLevels } from "../components/BlsLevels";
+import { CompanyLogo } from "../components/CompanyLogo";
 import { CountyImpact } from "../components/CountyImpact";
 import { IndicatorChart } from "../components/IndicatorChart";
 import { FilterBar, type FilterValues, resolveAfter } from "../components/FilterBar";
+import { PageHeader } from "../components/PageHeader";
+import { Peek } from "../components/Peek";
+import { CompanyPeek } from "../components/peeks";
 import { ProjectionNote } from "../components/ProjectionNote";
 import { QueryError } from "../components/QueryError";
-import { SkeletonChart } from "../components/Skeleton";
+import { SkeletonChart, SkeletonRows } from "../components/Skeleton";
 import { WarnTimeChart } from "../components/WarnTimeChart";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useTheme } from "../hooks/useTheme";
 import { BLS_LABOUR_MARKET } from "../lib/blsSeries";
-import { fmtCompact, fmtMonth, fmtNum, stateName } from "../lib/format";
+import { fmtCompact, fmtDate, fmtMonth, fmtNum, stateName } from "../lib/format";
 import { withProjectionSeries } from "../lib/projection";
 import { CHART_COLORS } from "../lib/themeColors";
 
@@ -89,9 +94,29 @@ export function StatsPage() {
   // monthData, whose projection padding adds no real month.
   const indicatorPeriods = (byMonth.data ?? []).map((r) => r.month);
 
+  // Headline figures for the window and filters in force.
+  const months = byMonth.data ?? [];
+  const sumNotices = months.reduce((a, r) => a + r.notice_count, 0);
+  const sumWorkers = months.reduce((a, r) => a + r.layoff_total, 0);
+  const peak = months.reduce<(typeof months)[number] | null>(
+    (best, r) => (!best || r.layoff_total > best.layoff_total ? r : best),
+    null,
+  );
+  const topMax = Math.max(1, ...(top.data ?? []).map((e) => e.layoff_total));
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Trends</h1>
+      <PageHeader
+        kicker="Trends"
+        title={search.state ? `Layoff trends in ${stateName(search.state)}` : "Layoff trends"}
+        lede={
+          <>
+            WARN notices and workers affected over time{" "}
+            {search.after ? <>since {fmtDate(search.after)}</> : "across all years"}, set against
+            official BLS labour-market data. Narrow by state, industry or closure type below.
+          </>
+        }
+      />
       <FilterBar
         values={urlSearch}
         onChange={handleFilterChange}
@@ -99,6 +124,25 @@ export function StatsPage() {
         industries={industriesQuery.data}
         defaultDays={DEFAULT_DAYS}
       />
+      <ActiveFilters
+        values={urlSearch}
+        industries={industriesQuery.data}
+        onChange={handleFilterChange}
+      />
+
+      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-slate-200 bg-slate-200 sm:grid-cols-4 dark:border-slate-800 dark:bg-slate-800">
+        <Figure label="Workers affected" value={byMonth.data ? fmtNum(sumWorkers) : null} accent />
+        <Figure label="Notices" value={byMonth.data ? fmtNum(sumNotices) : null} />
+        <Figure
+          label="Avg. per notice"
+          value={byMonth.data ? (sumNotices ? fmtNum(Math.round(sumWorkers / sumNotices)) : "—") : null}
+        />
+        <Figure
+          label="Peak month"
+          value={byMonth.data ? (peak ? fmtMonth(peak.month) : "—") : null}
+          note={peak ? `${fmtNum(peak.layoff_total)} workers` : undefined}
+        />
+      </dl>
 
       <ChartCard title="Notices and layoffs by month">
         {byMonth.isLoading ? (
@@ -206,41 +250,77 @@ export function StatsPage() {
 
       <ChartCard title="Top 20 employers">
         {top.isLoading ? (
-          <SkeletonChart height={500} />
+          <SkeletonRows rows={8} />
         ) : top.isError ? (
-          <QueryError message="Error loading the chart." onRetry={() => top.refetch()} />
+          <QueryError message="Error loading top employers." onRetry={() => top.refetch()} />
         ) : (
-          <div role="img" aria-label="Bar chart of the top 20 employers by workers affected">
-            <ResponsiveContainer width="100%" height={500}>
-              <BarChart
-                layout="vertical"
-                data={top.data ?? []}
-                margin={{ left: 20 }}
-              >
-                <CartesianGrid stroke={chart.grid} />
-                <XAxis
-                  type="number"
-                  tick={{ fontSize: 12, fill: chart.axis }}
-                  tickFormatter={fmtCompact}
-                />
-                <YAxis
-                  dataKey="employer"
-                  type="category"
-                  tick={{ fontSize: 11, fill: chart.axis }}
-                  width={200}
-                />
-                <Tooltip
-                  formatter={(v: number) => fmtNum(v)}
-                  contentStyle={chart.tooltip}
-                  labelStyle={chart.tooltipLabel}
-                  cursor={{ fill: chart.cursor }}
-                />
-                <Bar dataKey="layoff_total" name="Workers affected" fill={chart.layoffs} radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <ol className="divide-y divide-slate-100 dark:divide-slate-800">
+            {(top.data ?? []).map((e, i) => (
+              <li key={e.employer} className="flex items-center gap-3 py-2.5">
+                <span className="w-6 shrink-0 text-right font-display text-sm text-slate-400 tabular-nums">
+                  {i + 1}
+                </span>
+                <CompanyLogo name={e.employer} companyId={e.company_id} size={28} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">
+                    {e.company_id ? (
+                      <Peek content={() => <CompanyPeek id={e.company_id!} name={e.employer} />}>
+                        <Link
+                          to="/companies/$companyId"
+                          params={{ companyId: String(e.company_id) }}
+                          className="text-slate-900 hover:text-sky-700 hover:underline dark:text-slate-100 dark:hover:text-sky-400"
+                        >
+                          {e.employer}
+                        </Link>
+                      </Peek>
+                    ) : (
+                      e.employer
+                    )}
+                  </div>
+                  <div aria-hidden className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${(e.layoff_total / topMax) * 100}%`, backgroundColor: chart.layoffs }}
+                    />
+                  </div>
+                </div>
+                <div className="w-28 shrink-0 text-right">
+                  <div className="text-sm font-semibold tabular-nums">{fmtNum(e.layoff_total)}</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    {e.notice_count} {e.notice_count === 1 ? "notice" : "notices"}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ol>
         )}
       </ChartCard>
+    </div>
+  );
+}
+
+function Figure({
+  label,
+  value,
+  note,
+  accent = false,
+}: {
+  label: string;
+  value: string | null;
+  note?: string;
+  accent?: boolean;
+}) {
+  return (
+    <div className="bg-white p-4 dark:bg-slate-900">
+      <dt className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+        {label}
+      </dt>
+      <dd
+        className={`mt-1 font-display text-2xl font-semibold tabular-nums ${accent ? "text-brand dark:text-brand-dark" : "text-slate-900 dark:text-slate-50"}`}
+      >
+        {value ?? <span className="inline-block h-7 w-20 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />}
+      </dd>
+      {note && <div className="text-xs text-slate-500 dark:text-slate-400">{note}</div>}
     </div>
   );
 }

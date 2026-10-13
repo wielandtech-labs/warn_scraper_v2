@@ -4,9 +4,18 @@ import {
   getSortedRowModel,
   useReactTable,
   type ColumnDef,
+  type RowData,
   type SortingState,
 } from "@tanstack/react-table";
 import { useState, type ReactNode } from "react";
+
+declare module "@tanstack/react-table" {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface ColumnMeta<TData extends RowData, TValue> {
+    /** Right-align header and cells -- for numeric columns. */
+    align?: "right";
+  }
+}
 
 interface DataTableProps<T> {
   data: T[];
@@ -111,9 +120,9 @@ export function DataTable<T>({
           </button>
         </div>
       )}
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <table className="data-table w-full text-sm">
-        <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-950 dark:text-slate-400">
+        <thead className="border-b border-slate-200 bg-slate-50/70 text-left text-[0.7rem] uppercase tracking-[0.1em] text-slate-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
           {table.getHeaderGroups().map((hg) => (
             <tr key={hg.id}>
               {hg.headers.map((h) => {
@@ -130,6 +139,7 @@ export function DataTable<T>({
                     : false
                   : h.column.getIsSorted();
                 const sortLabel = flexRender(h.column.columnDef.header, h.getContext());
+                const right = h.column.columnDef.meta?.align === "right";
                 return (
                   <th
                     key={h.id}
@@ -140,13 +150,13 @@ export function DataTable<T>({
                           ? "descending"
                           : undefined
                     }
-                    className={`font-medium ${canSort ? "" : "px-3 py-2"}`}
+                    className={`font-semibold ${canSort ? "" : "px-3 py-2.5"} ${right ? "text-right" : ""}`}
                   >
                     {canSort ? (
                       // A real <button> so keyboard users can reach and toggle the sort.
                       <button
                         type="button"
-                        className="w-full select-none px-3 py-2 text-left font-medium uppercase tracking-wide hover:bg-slate-100 dark:hover:bg-slate-800"
+                        className={`w-full select-none px-3 py-2.5 font-semibold uppercase tracking-[0.1em] hover:text-slate-900 dark:hover:text-slate-100 ${right ? "text-right" : "text-left"}`}
                         onClick={
                           isServer
                             ? () => {
@@ -174,11 +184,11 @@ export function DataTable<T>({
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
           {table.getRowModel().rows.map((row) => (
-            <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+            <tr key={row.id} className="transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50">
               {row.getVisibleCells().map((cell) => (
                 <td
                   key={cell.id}
-                  className="px-3 py-2 align-top"
+                  className={`px-3 py-2.5 align-middle ${cell.column.columnDef.meta?.align === "right" ? "text-right" : ""}`}
                   data-label={
                     typeof cell.column.columnDef.header === "string"
                       ? cell.column.columnDef.header

@@ -159,7 +159,7 @@ export function ReportMarkdown({
             if (b.level === 1) {
               if (skipH1) return null;
               return (
-                <h3 key={i} className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                <h3 key={i} className="pt-2 font-display text-lg font-semibold text-slate-900 dark:text-slate-100">
                   {inline(b.text)}
                 </h3>
               );

@@ -3,11 +3,15 @@ import { useQuery } from "@tanstack/react-query";
 
 import { ApiError, api } from "../api/client";
 import type { OutlookClaim, OutlookPooled, OutlookTrendRow } from "../api/types";
+import { PageHeader } from "../components/PageHeader";
 import { QueryError } from "../components/QueryError";
 import { SkeletonRows } from "../components/Skeleton";
 import { TBarChart, type TBarRow } from "../components/TBarChart";
+import { UsMap } from "../components/UsMap";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useTheme } from "../hooks/useTheme";
 import { fmtDate, fmtMonth } from "../lib/format";
+import { CHART_COLORS } from "../lib/themeColors";
 
 const Q_GATE = 0.05;
 const Z_GATE = 1.96;
@@ -40,29 +44,99 @@ function Section({ title, intro, children }: { title: string; intro?: ReactNode;
 
 function ClaimList({ claims }: { claims: OutlookClaim[] }) {
   return (
-    <ul className="space-y-2">
-      {claims.map((c) => (
-        <li key={c.id} className="flex flex-col gap-1 sm:flex-row sm:items-start sm:gap-3">
-          <div className="flex shrink-0 gap-1.5">
-            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${CONFIDENCE_STYLE[c.confidence]}`}>
-              {c.confidence === "watch" ? "watch" : `${c.confidence} confidence`}
-            </span>
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-              {HORIZON_LABEL[c.horizon]}
-            </span>
-          </div>
-          <p className="text-sm text-slate-800 dark:text-slate-200">{c.statement}</p>
-        </li>
-      ))}
+    <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
+      {claims.map((c) => {
+        // Direction of the effect: a rise in filings is bad news (red rule).
+        const rising = c.effect_pct > 0;
+        return (
+          <li
+            key={c.id}
+            className={`rounded-xl border border-slate-200 border-l-4 p-4 dark:border-slate-800 ${
+              c.confidence === "watch"
+                ? "border-l-slate-300 dark:border-l-slate-600"
+                : rising
+                  ? "border-l-brand"
+                  : "border-l-sky-500"
+            }`}
+          >
+            <div className="flex flex-wrap gap-1.5">
+              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${CONFIDENCE_STYLE[c.confidence]}`}>
+                {c.confidence === "watch" ? "watch" : `${c.confidence} confidence`}
+              </span>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                {HORIZON_LABEL[c.horizon]}
+              </span>
+            </div>
+            <p className="mt-2 text-sm leading-relaxed text-slate-800 dark:text-slate-200">{c.statement}</p>
+            <p className="mt-1 text-xs tabular-nums text-slate-500 dark:text-slate-400">
+              {signed(c.effect_pct)} · 95% CI {ciText(c.ci_lo_pct, c.ci_hi_pct)}
+            </p>
+          </li>
+        );
+      })}
     </ul>
+  );
+}
+
+/* The state-trend test results on the map: the same colour meaning as the
+   bars below (red = significant rise, blue = significant easing), with a
+   lighter tint where a state passes its own test but not the correction for
+   testing every state. Untested and flat states keep the neutral fill. */
+function TrendMap({ rows, shrunk }: { rows: TBarRow[]; shrunk: boolean }) {
+  const { resolved } = useTheme();
+  const chart = CHART_COLORS[resolved];
+  const byCode = new Map(rows.map((r) => [r.code, r]));
+  const fills: Record<string, string> = {};
+  for (const r of rows) {
+    const color = r.stat > 0 ? chart.layoffs : chart.notices;
+    if (r.significant) fills[r.code] = color;
+    else if (Math.abs(r.stat) > Z_GATE) fills[r.code] = `${color}59`; // ~35% alpha
+  }
+  return (
+    <UsMap
+      fills={fills}
+      srLabel={`Map of per-state trends in WARN filings${shrunk ? " (shrunk estimates)" : ""}. The bar chart below lists the same states and values.`}
+      tooltip={(code) => {
+        const r = byCode.get(code);
+        if (!r) return <div className="text-slate-500">Not tested</div>;
+        return (
+          <>
+            <div className="font-medium text-slate-900 dark:text-slate-100">{r.name}</div>
+            <div className="tabular-nums text-slate-600 dark:text-slate-400">{r.effect}</div>
+            <div className="text-slate-600 dark:text-slate-400">
+              {r.significant ? (r.stat > 0 ? "significant rise" : "significant easing") : "not significant"}
+            </div>
+          </>
+        );
+      }}
+      legend={
+        <>
+          <LegendSwatch color={chart.layoffs} label="Significant rise" />
+          <LegendSwatch color={`${chart.layoffs}59`} label="Rising (this state only)" />
+          <LegendSwatch color={`${chart.notices}59`} label="Easing (this state only)" />
+          <LegendSwatch color={chart.notices} label="Significant easing" />
+        </>
+      }
+    />
+  );
+}
+
+function LegendSwatch({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span aria-hidden className="h-3 w-3 rounded-sm" style={{ backgroundColor: color }} />
+      {label}
+    </span>
   );
 }
 
 function PooledTile({ label, pooled, unit }: { label: string; pooled: OutlookPooled; unit: string }) {
   return (
-    <div className="rounded-md border border-slate-200 p-3 dark:border-slate-800">
-      <div className="text-xs text-slate-500 dark:text-slate-400">{label}</div>
-      <div className="text-2xl font-semibold tabular-nums">
+    <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+      <div className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+        {label}
+      </div>
+      <div className="mt-1 font-display text-3xl font-semibold tabular-nums">
         {signed(pooled.pct)}
         <span className="ml-1 text-sm font-normal text-slate-500 dark:text-slate-400">{unit}</span>
       </div>
@@ -148,15 +222,32 @@ export function OutlookPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Layoff outlook</h1>
-        <p className="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
-          Forward-looking findings from WARN notices, tested before they are published. A
-          finding appears below only when it survives a significance test corrected for the
-          number of states and industries tested at once; weaker signals are kept on a
-          separate watch list and labelled as such. Updated {fmtDate(o.as_of)}.
-        </p>
-      </div>
+      <PageHeader
+        kicker={`Weekly · updated ${fmtDate(o.as_of)}`}
+        title="Layoff outlook"
+        lede={
+          <>
+            Forward-looking findings from WARN notices, tested before they are published. A
+            finding appears only when it survives a significance test corrected for the number of
+            states and industries tested at once; weaker signals sit on a separate, labelled watch
+            list.
+          </>
+        }
+        aside={
+          <div className="flex gap-6 text-right">
+            <div>
+              <div className="font-display text-3xl font-semibold tabular-nums">{established.length}</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">findings</div>
+            </div>
+            <div>
+              <div className="font-display text-3xl font-semibold tabular-nums text-slate-400">
+                {watch.length}
+              </div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">on watch</div>
+            </div>
+          </div>
+        }
+      />
 
       <Section title="Findings">
         {established.length > 0 ? (
@@ -228,6 +319,9 @@ export function OutlookPage() {
           </div>
         )}
         <ShrinkToggle shrunk={shrunk} onChange={setShrunk} />
+        <div className="mx-auto max-w-3xl">
+          <TrendMap rows={trendRows(o.trends.states, shrunk)} shrunk={shrunk} />
+        </div>
         <TBarChart
           label="Per-state trend t-statistics for WARN filings"
           statLabel={shrunk ? "posterior z" : "t-statistic"}
