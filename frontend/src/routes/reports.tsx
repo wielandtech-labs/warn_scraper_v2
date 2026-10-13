@@ -178,7 +178,7 @@ export function ReportsPage() {
         <h2 className="mb-2 text-lg font-semibold">National outlook</h2>
         {/* Set as an article: a readable measure, not a full-width card. */}
         <div className="card px-6 py-6 sm:px-10">
-          <div className="mx-auto max-w-prose">
+          <div className="mx-auto max-w-3xl">
           {national.isLoading ? (
             <div className="space-y-2">
               <SkeletonBlock className="h-4 w-1/3" />

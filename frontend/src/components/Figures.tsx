@@ -3,10 +3,13 @@ import type { ReactNode } from "react";
 /* The hairline-ruled strip of headline numbers that opens a data page
    (stats, a state, a company, a notice). `value === null` renders a
    placeholder bar, so callers can lay the strip out before data arrives. */
-export function Figures({ children, cols = 4 }: { children: ReactNode; cols?: 3 | 4 }) {
+// Literal class names so Tailwind generates them.
+const SM_COLS = { 2: "sm:grid-cols-2", 3: "sm:grid-cols-3", 4: "sm:grid-cols-4" } as const;
+
+export function Figures({ children, cols = 4 }: { children: ReactNode; cols?: 2 | 3 | 4 }) {
   return (
     <dl
-      className={`grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-slate-200 bg-slate-200 dark:border-slate-800 dark:bg-slate-800 ${cols === 3 ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}
+      className={`grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-slate-200 bg-slate-200 dark:border-slate-800 dark:bg-slate-800 ${SM_COLS[cols]}`}
     >
       {children}
     </dl>
