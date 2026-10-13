@@ -30,6 +30,8 @@ import httpx
 MAX_BYTES = 100_000
 HTML_MAX_BYTES = 200_000
 TIMEOUT_S = 3.0
+DEADLINE_S = 8.0  # whole lookup, all candidates; per-request timeouts reset per read
+MAX_DECLARED = 3  # declared <link rel=icon> candidates tried, apple-touch first
 MAX_REDIRECTS = 2
 HIT_TTL_S = 7 * 24 * 3600
 MISS_TTL_S = 24 * 3600
@@ -74,16 +76,22 @@ def domain_of(website: str | None) -> str | None:
 def _host_is_public(host: str) -> bool:
     try:
         infos = socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP)
-    except (socket.gaierror, UnicodeError):
+    except (OSError, UnicodeError):
         return False
-    addrs = {info[4][0] for info in infos}
-    return bool(addrs) and all(ipaddress.ip_address(a).is_global for a in addrs)
+    try:
+        addrs = {ipaddress.ip_address(str(info[4][0]).split("%")[0]) for info in infos}
+    except ValueError:
+        return False
+    return bool(addrs) and all(a.is_global for a in addrs)
 
 
-def _get(client: httpx.Client, url: str, cap: int) -> tuple[bytes, str] | None:
+def _get(
+    client: httpx.Client, url: str, cap: int, truncate: bool = False
+) -> tuple[bytes, str] | None:
     """GET with manual, re-checked redirects and a body size cap.
 
-    Returns (body, final url) or None."""
+    Over the cap, the body is refused -- or, with `truncate`, cut at the cap
+    (HTML: the <head> we need is at the front). Returns (body, final url)."""
     for _ in range(MAX_REDIRECTS + 1):
         parts = urlsplit(url)
         if parts.scheme != "https" or not parts.hostname or not _host_is_public(parts.hostname):
@@ -97,12 +105,15 @@ def _get(client: httpx.Client, url: str, cap: int) -> tuple[bytes, str] | None:
                 continue
             if resp.status_code != 200:
                 return None
-            body = b""
+            body = bytearray()
             for chunk in resp.iter_bytes():
                 body += chunk
                 if len(body) > cap:
-                    return None
-            return body, url
+                    if not truncate:
+                        return None
+                    del body[cap:]
+                    break
+            return bytes(body), url
     return None
 
 
@@ -115,19 +126,30 @@ def _declared_icons(html: str, base: str) -> list[str]:
         href = attrs.get("href")
         if not href or "icon" not in rel or href.lower().endswith(".svg"):
             continue
-        found.append((0 if "apple-touch-icon" in rel else 1, urljoin(base, href)))
-    return [href for _, href in sorted(found, key=lambda pair: pair[0])]
+        try:
+            url = urljoin(base, href)
+        except ValueError:  # e.g. an unbalanced IPv6 bracket
+            continue
+        found.append((0 if "apple-touch-icon" in rel else 1, url))
+    ordered = [href for _, href in sorted(found, key=lambda pair: pair[0])]
+    return ordered[:MAX_DECLARED]
 
 
 def fetch_logo(domain: str) -> tuple[bytes, str] | None:
     """Best-effort icon for `domain`: (bytes, media type), or None."""
     base = f"https://{domain}/"
+    deadline = time.monotonic() + DEADLINE_S
+    # Malformed hrefs/Locations surface as ValueError or httpx.InvalidURL
+    # (not an HTTPError); any of them just means "no logo from this URL".
+    fetch_errors = (httpx.HTTPError, httpx.InvalidURL, ValueError)
     with httpx.Client(timeout=TIMEOUT_S, headers=_UA, follow_redirects=False) as client:
 
         def try_image(url: str) -> tuple[bytes, str] | None:
+            if time.monotonic() > deadline:
+                return None
             try:
                 got = _get(client, url, MAX_BYTES)
-            except httpx.HTTPError:
+            except fetch_errors:
                 return None
             if got is None:
                 return None
@@ -138,8 +160,8 @@ def fetch_logo(domain: str) -> tuple[bytes, str] | None:
         if hit:
             return hit
         try:
-            page = _get(client, base, HTML_MAX_BYTES)
-        except httpx.HTTPError:
+            page = _get(client, base, HTML_MAX_BYTES, truncate=True)
+        except fetch_errors:
             page = None
         if page is not None:
             html = page[0].decode("utf-8", errors="replace")
@@ -182,6 +204,11 @@ class _TTLCache:
 
 cache = _TTLCache(CACHE_SIZE)
 
+# Single-flight: a page showing the same company twice (or two visitors on a
+# cold cache) fetches each domain once; later callers wait, then read the cache.
+_inflight: dict[str, threading.Lock] = {}
+_inflight_guard = threading.Lock()
+
 
 def logo_for(website: str | None) -> tuple[bytes, str] | None:
     """Cached logo lookup keyed by domain (many companies share one site)."""
@@ -191,6 +218,13 @@ def logo_for(website: str | None) -> tuple[bytes, str] | None:
     found, value = cache.get(domain)
     if found:
         return value
-    value = fetch_logo(domain)
-    cache.put(domain, value)
+    with _inflight_guard:
+        lock = _inflight.setdefault(domain, threading.Lock())
+    with lock:
+        found, value = cache.get(domain)
+        if not found:
+            value = fetch_logo(domain)
+            cache.put(domain, value)
+    with _inflight_guard:
+        _inflight.pop(domain, None)
     return value

@@ -86,6 +86,35 @@ def test_declared_icon_then_favicon_fallback(public_dns, routes):
     assert logos.fetch_logo("acme.com") == (ICO, "image/x-icon")
 
 
+def test_large_homepage_truncated_not_discarded(public_dns, routes):
+    table, _ = routes
+    head = '<html><head><link rel="apple-touch-icon" href="/touch.png"></head>'
+    table["https://acme.com/"] = httpx.Response(
+        200, text=head + "x" * (logos.HTML_MAX_BYTES * 2)
+    )
+    table["https://acme.com/touch.png"] = httpx.Response(200, content=PNG)
+    assert logos.fetch_logo("acme.com") == (PNG, "image/png")
+
+
+def test_malformed_urls_are_a_miss_not_an_error(public_dns, routes):
+    table, _ = routes
+    table["https://acme.com/"] = httpx.Response(
+        200, text='<link rel="icon" href="https://[broken/x.png">'
+    )
+    table["https://acme.com/favicon.ico"] = httpx.Response(
+        302, headers={"location": "https://[::1/x"}
+    )
+    assert logos.fetch_logo("acme.com") is None
+
+
+def test_declared_icons_capped(public_dns, routes):
+    table, seen = routes
+    links = "".join(f'<link rel="icon" href="/i{n}.png">' for n in range(10))
+    table["https://acme.com/"] = httpx.Response(200, text=links)
+    logos.fetch_logo("acme.com")
+    assert sum("/i" in url for url in seen) == logos.MAX_DECLARED
+
+
 def test_svg_and_html_bodies_rejected(public_dns, routes):
     table, _ = routes
     # Content-Type is ignored; only magic bytes count.

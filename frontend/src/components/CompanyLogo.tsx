@@ -45,9 +45,6 @@ interface Props {
 }
 
 export function CompanyLogo({ name, companyId, hasWebsite, size = 32, className = "" }: Props) {
-  const [loaded, setLoaded] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const tryImage = companyId != null && hasWebsite !== false && !failed;
   return (
     <span
       aria-hidden
@@ -55,19 +52,30 @@ export function CompanyLogo({ name, companyId, hasWebsite, size = 32, className 
       style={{ width: size, height: size, fontSize: Math.round(size * 0.4) }}
     >
       {initials(name)}
-      {tryImage && (
-        <img
-          src={`/api/logos/${companyId}`}
-          alt=""
-          width={size}
-          height={size}
-          loading="lazy"
-          decoding="async"
-          onLoad={() => setLoaded(true)}
-          onError={() => setFailed(true)}
-          className={`absolute inset-0 h-full w-full bg-white object-contain p-[12%] transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
-        />
+      {/* Keyed by id: a recycled table row must not inherit the previous
+          company's loaded/failed state. */}
+      {companyId != null && hasWebsite !== false && (
+        <LogoImage key={companyId} companyId={companyId} size={size} />
       )}
     </span>
+  );
+}
+
+function LogoImage({ companyId, size }: { companyId: number; size: number }) {
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
+  return (
+    <img
+      src={`/api/logos/${companyId}`}
+      alt=""
+      width={size}
+      height={size}
+      loading="lazy"
+      decoding="async"
+      onLoad={() => setLoaded(true)}
+      onError={() => setFailed(true)}
+      className={`absolute inset-0 h-full w-full bg-white object-contain p-[12%] transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
+    />
   );
 }
