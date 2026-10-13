@@ -182,7 +182,7 @@ def test_digest_html_escapes_untrusted_fields(db):
     )
 
     _subject, text, html = render_digest(sub, [notice])
-    assert "<img" not in html
+    assert "<img src=x" not in html  # the payload stays text (the brand mark is our own img)
     assert "&lt;img src=x onerror=alert(1)&gt; &amp; Sons" in html
     assert "&lt;b&gt;Evil &amp; Co&lt;/b&gt;" in html
     # The plain-text alternative is not HTML and stays raw.

@@ -23,7 +23,7 @@ from warn_v2.api.ratelimit import SlidingWindowLimiter
 from warn_v2.api.seo import site_base_url
 from warn_v2.db.models import User, UserSession
 from warn_v2.notifications.email import EmailNotConfigured, send_email
-from warn_v2.notifications.templates import FONT, button, render_shell
+from warn_v2.notifications.templates import message_rows, render_shell
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -134,10 +134,12 @@ def send_link_email(to: str, subject: str, intro: str, url: str, cta: str) -> No
     base = site_base_url()
     html_body = render_shell(
         preheader=intro,
-        content=(
-            f'<tr><td style="padding:24px 24px 8px;{FONT};font-size:15px;line-height:22px;'
-            f'color:#0f172a;">{escape(intro)}</td></tr>'
-            f'<tr><td align="center" style="padding:16px 24px 24px;">{button(url, cta)}</td></tr>'
+        content=message_rows(
+            kicker_text="Your account",
+            title=escape(subject),
+            lead=escape(intro),
+            url=url,
+            cta=cta,
         ),
         footer="If you didn't request this, ignore this message.",
         base=base,
