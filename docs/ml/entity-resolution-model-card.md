@@ -2,7 +2,7 @@
 
 **Question.** Two `Company` rows: are they the same employer?
 
-**Status.** Research. `warn-v2 ml-er-eval` measures the model against today's consolidator; nothing writes `canonical_company_id`. A later stage proposes merges to the admin merge UI, and an admin accepts or rejects each one.
+**Status.** Research. `warn-v2 ml-er-eval` measures the model against today's consolidator. `warn-v2 ml-er-suggest` can propose merges to the admin merge page, and it is run by hand only once the gold evaluation backs the model. Nothing in the pipeline writes `canonical_company_id`; only an admin's Accept does, through the normal merge override.
 
 Code is in `warn_v2/ml/er/`.
 
@@ -63,6 +63,33 @@ Weak labels exist only where *both* rows are enriched. Those are mostly large, c
 2. **Model-assisted labelling.** Claude pre-labels every pair `same` = 1, 0 or ? (skip), with a one-line reason. A human audits a random ~100 of them and corrects them. The agreement rate is reported here.
    - Disclosure: the labels are not fully independent of a model's judgement.
 3. The labelled file goes back to `<reports>/er/gold.csv`. It never enters the repository, because it pairs real employer names with judgements. Only aggregate metrics leave the cluster.
+
+## Operation: suggestions and the feedback loop
+
+1. **Propose.** `warn-v2 ml-er-suggest [--min-score 0.8] [--limit 200] [--dry-run]` fits the matcher, builds the system clustering, and finds every cluster that spans two or more *current* groups (a current group is a root company plus whatever `canonical_company_id` points at it).
+   - Each smaller group is proposed for merging into the group with the most notices, but only if the model put the **whole** smaller group in that cluster. Accepting moves the whole group, so a group the model split is never proposed on the strength of part of it.
+   - A proposal is kept only if the average pair score between the two groups (unscored pairs count as 0, the same rule the clustering uses) reaches `--min-score`.
+   - Pairs an admin already decided are skipped. Keep-separate overrides and **rejected** suggestions become cannot-links between the two whole groups, so the clustering can't rejoin them through a third group either. That includes the `--er-keys` remap below.
+   - The open queue in `company_merge_suggestions` is replaced each run. Every update and delete is conditioned on the row still being open, so a decision an admin makes mid-run is never lost.
+   - It needs read-write database access (`warn-v2-db`), but writes only that one table.
+2. **Decide.** The admin merge page (`/admin/companies`) lists open suggestions, strongest first, with each group's notice count and states.
+   - **Accept** writes the same `CompanyMergeOverride` a manual merge would, then reconciles.
+     - It only proceeds while the company is still the root of its group. Otherwise the suggestion is stale (409) until the next run.
+     - It withdraws the company's other open suggestions.
+     - The row is locked, so two admins can't decide the same suggestion at once.
+   - **Reject** records the decision and writes no override. A keep-separate override would also undo that company's other merges.
+3. **Learn.** `ml-er-eval` turns every decided suggestion into extra gold pairs and reports them in their own section.
+   - A decision covers two whole groups. A rejection labels the pairs across the two groups as different. An accept labels the accepted row against the rest of the joined group as the same company.
+   - Each decision contributes at most 25 pairs.
+   - Only the model's own high-scoring proposals ever reach an admin, so this set is biased toward hard positives and flatters precision. It complements the audited gold set; it doesn't replace it.
+   - System mode takes accepted merges as constraints, so it is left out of that section.
+   - The read-only `warn_ml_ro` role needs SELECT on `company_merge_suggestions`. Until that grant exists, the section is skipped.
+
+### Downstream: the repeat-risk models on the new grouping
+
+`warn-v2 ml-backtest --er-keys` and `warn-v2 ml-survival-backtest --er-keys` group notices by the system clustering instead of today's canonical companies. They write `repeat_risk_backtest_er.*` and `repeat_risk_survival_er.*` next to the standard reports.
+
+Merging employers changes the events themselves: one history replaces two, so `prior_events` grows and some "first-time filers" disappear. The two runs are therefore compared side by side (PR-AUC with confidence intervals, prevalence, share of first-time filers), not event by event.
 
 ## Results
 

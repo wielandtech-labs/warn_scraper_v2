@@ -1787,21 +1787,31 @@ def sentiment_report_cmd(reports_dir: Path, dry_run: bool) -> None:
     click.echo(f"payloads={stats['total']} insufficient={stats['insufficient']}{suffix}")
 
 
-def _load_ml_events(from_jsonl: Path | None, as_of: object) -> tuple:
+def _load_ml_events(from_jsonl: Path | None, as_of: object, er_keys: bool = False) -> tuple:
     """(cutoff, notices, events) for the repeat-risk backtests: one loader, so
-    the classifier and survival backtests always see the same events."""
+    the classifier and survival backtests always see the same events.
+    er_keys: group notices by the entity-resolution clustering instead of
+    today's canonical companies (needs the database)."""
     from datetime import date, datetime
 
     from warn_v2.ml.events import build_events, load_notices, load_notices_jsonl
 
     cutoff = as_of.date() if isinstance(as_of, datetime) else date.today()
+    if er_keys and from_jsonl is not None:
+        raise click.UsageError("--er-keys needs the database, not --from-jsonl")
     if from_jsonl is not None:
         notices = load_notices_jsonl(from_jsonl)
     else:
         from warn_v2.db.session import session_scope
 
         with session_scope() as session:
-            notices = load_notices(session)
+            key_map = None
+            if er_keys:
+                from warn_v2.ml.er.remap import er_company_keys
+
+                fitted, overrides = _er_fit(session)
+                key_map = er_company_keys(fitted, overrides, _rejected_pairs(session))
+            notices = load_notices(session, key_map=key_map)
     events = build_events(notices, as_of=cutoff)
     click.echo(f"notices={len(notices)} events={len(events)} "
                f"labelled={int(events['labelled'].sum())}")
@@ -1826,8 +1836,11 @@ def _load_ml_events(from_jsonl: Path | None, as_of: object) -> tuple:
 @click.option("--as-of", type=click.DateTime(["%Y-%m-%d"]), default=None,
               help="Data cutoff (default: today)")
 @click.option("--first-year", default=2010, show_default=True, help="First test year")
+@click.option("--er-keys", is_flag=True, default=False,
+              help="Group notices by the entity-resolution clustering (needs the DB); "
+                   "reports get an _er suffix")
 def ml_backtest_cmd(
-    out_dir: Path, from_jsonl: Path | None, as_of: object, first_year: int
+    out_dir: Path, from_jsonl: Path | None, as_of: object, first_year: int, er_keys: bool
 ) -> None:
     """Rolling-origin backtest of the repeat-layoff model (see docs/ml/)."""
     import json
@@ -1835,12 +1848,13 @@ def ml_backtest_cmd(
     from warn_v2.ml.backtest import default_years, run_backtest
     from warn_v2.ml.report import build_report, render_markdown
 
-    cutoff, notices, events = _load_ml_events(from_jsonl, as_of)
+    cutoff, notices, events = _load_ml_events(from_jsonl, as_of, er_keys)
     result = run_backtest(events, default_years(cutoff, first_year))
     report = build_report(notices, events, result, as_of=cutoff)
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "repeat_risk_backtest.json").write_text(json.dumps(report, indent=2, default=str))
-    (out_dir / "repeat_risk_backtest.md").write_text(render_markdown(report), encoding="utf-8")
+    stem = "repeat_risk_backtest" + ("_er" if er_keys else "")
+    (out_dir / f"{stem}.json").write_text(json.dumps(report, indent=2, default=str))
+    (out_dir / f"{stem}.md").write_text(render_markdown(report), encoding="utf-8")
     click.echo(f"folds={len(result.folds)} chosen={report['chosen']['model']} "
                f"pr_auc={report['pooled'][report['chosen']['model']]['pr_auc']:.3f}")
 
@@ -1863,8 +1877,11 @@ def ml_backtest_cmd(
 @click.option("--as-of", type=click.DateTime(["%Y-%m-%d"]), default=None,
               help="Data cutoff (default: today)")
 @click.option("--first-year", default=2010, show_default=True, help="First test year")
+@click.option("--er-keys", is_flag=True, default=False,
+              help="Group notices by the entity-resolution clustering (needs the DB); "
+                   "reports get an _er suffix")
 def ml_survival_backtest_cmd(
-    out_dir: Path, from_jsonl: Path | None, as_of: object, first_year: int
+    out_dir: Path, from_jsonl: Path | None, as_of: object, first_year: int, er_keys: bool
 ) -> None:
     """Rolling-origin backtest of the discrete-time survival model against the
     shipped repeat-layoff classifier (see docs/ml/)."""
@@ -1873,20 +1890,35 @@ def ml_survival_backtest_cmd(
     from warn_v2.ml.survival_report import build_survival_report, render_survival_markdown
     from warn_v2.ml.train import _json
 
-    cutoff, _, events = _load_ml_events(from_jsonl, as_of)
+    cutoff, _, events = _load_ml_events(from_jsonl, as_of, er_keys)
     result = run_survival_backtest(events, default_years(cutoff, first_year))
     if not result.folds:
         raise click.ClickException("no fold had enough data")
     report = build_survival_report(events, result, as_of=cutoff)
     out_dir.mkdir(parents=True, exist_ok=True)
     # Strict JSON (NaN -> null): a single-class fold leaves metrics undefined.
-    (out_dir / "repeat_risk_survival.json").write_text(_json(report), encoding="utf-8")
-    (out_dir / "repeat_risk_survival.md").write_text(
-        render_survival_markdown(report), encoding="utf-8")
+    stem = "repeat_risk_survival" + ("_er" if er_keys else "")
+    (out_dir / f"{stem}.json").write_text(_json(report), encoding="utf-8")
+    (out_dir / f"{stem}.md").write_text(render_survival_markdown(report), encoding="utf-8")
     p = report["pooled"]
     click.echo(f"folds={len(result.folds)} hazard_gbm_pr_auc={p['hazard_gbm']['pr_auc']:.3f} "
                f"gbm_pr_auc={p['gbm']['pr_auc']:.3f} adopt={report['decision']['adopt']}")
 
+
+
+def _rejected_pairs(session: Session) -> set[frozenset[int]]:
+    """Admin-rejected merge suggestions, or none when this role can't read
+    them (warn_ml_ro before the suggestions table's SELECT grant)."""
+    from sqlalchemy.exc import DBAPIError
+
+    from warn_v2.ml.er.suggest import decided_pairs
+
+    try:
+        return decided_pairs(session)[1]
+    except DBAPIError:
+        session.rollback()
+        click.echo("no SELECT on company_merge_suggestions: no rejected pairs applied")
+        return set()
 
 
 def _er_fit(session: Session) -> tuple[Fitted, pd.DataFrame]:
@@ -1927,11 +1959,22 @@ def ml_er_eval_cmd(reports_dir: Path) -> None:
 
     out = reports_dir / "er"
     out.mkdir(parents=True, exist_ok=True)
+    from sqlalchemy.exc import DBAPIError
+
+    from warn_v2.ml.er.suggest import load_feedback
+
     with session_scope() as session:
         fitted, overrides = _er_fit(session)
+        try:
+            feedback = load_feedback(session, fitted.profiles)
+        except DBAPIError:
+            # warn_ml_ro predates the suggestions table's SELECT grant.
+            session.rollback()
+            feedback = None
+            click.echo("no SELECT on company_merge_suggestions: skipping admin feedback")
     gold_path = out / "gold.csv"
     gold = load_gold(gold_path, fitted.profiles) if gold_path.exists() else None
-    report = evaluate(fitted, overrides, gold)
+    report = evaluate(fitted, overrides, gold, feedback)
     (out / "er_eval.json").write_text(json.dumps(report, indent=2, default=str))
     (out / "er_eval.md").write_text(render_markdown(report, date.today()), encoding="utf-8")
     click.echo(f"pairs={report['data']['candidate_pairs']} "
@@ -1962,6 +2005,36 @@ def ml_er_sample_cmd(reports_dir: Path, n_pairs: int, seed: int) -> None:
     sample = sample_gold_candidates(fitted, n=n_pairs, seed=seed)
     sample.to_csv(out / "gold_candidates.csv", index=False)
     click.echo(f"wrote {len(sample)} pairs to {out / 'gold_candidates.csv'}")
+
+
+@main.command("ml-er-suggest")
+@click.option("--min-score", default=0.8, show_default=True,
+              help="Smallest average pair score between two groups worth proposing")
+@click.option("--limit", default=200, show_default=True, help="Most proposals to keep")
+@click.option("--dry-run", is_flag=True, default=False, help="Print, write nothing")
+def ml_er_suggest_cmd(min_score: float, limit: int, dry_run: bool) -> None:
+    """Propose company merges for the admin queue (company_merge_suggestions).
+    Writes only that table; companies change when an admin accepts."""
+    from datetime import UTC, datetime
+
+    from warn_v2.db.session import session_scope
+    from warn_v2.ml.er.suggest import decided_pairs, suggestions, write_suggestions
+
+    with session_scope() as session:
+        fitted, overrides = _er_fit(session)
+        decided, rejected = decided_pairs(session)
+        proposals = suggestions(fitted, overrides, decided, rejected,
+                                min_score=min_score, limit=limit)
+        version = "er-" + datetime.now(UTC).strftime("%Y%m%d") + (
+            f"-{tag}" if (tag := os.getenv("WARN_IMAGE_TAG")) else "")
+        click.echo(f"proposals={len(proposals)} min_score={min_score} version={version}")
+        if dry_run:
+            click.echo(proposals.to_string(index=False))
+            session.rollback()
+            return
+        stats = write_suggestions(session, proposals, version)
+        session.commit()
+    click.echo(" ".join(f"{k}={v}" for k, v in stats.items()))
 
 
 @main.command("ml-train")

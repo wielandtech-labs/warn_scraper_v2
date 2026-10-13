@@ -72,13 +72,24 @@ def fit_all(profiles: pd.DataFrame) -> Fitted:
     return Fitted(profiles, pairs, X, weak, scores, matcher, lab)
 
 
-def _constraints(f: Fitted, overrides: pd.DataFrame
+def current_roots(profiles: pd.DataFrame) -> np.ndarray:
+    """Each row's current group root: canonical_company_id, or itself."""
+    cur = profiles["current_canonical_id"].tolist()
+    ids = profiles["company_id"].tolist()
+    return np.array([int(c) if c is not None and not pd.isna(c) else int(i)
+                     for c, i in zip(cur, ids, strict=True)])
+
+
+def _constraints(f: Fitted, overrides: pd.DataFrame,
+                 rejected: set[frozenset[int]] | None = None,
                  ) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
     """System mode: unique-id agreement must-links, disagreement cannot-links
     (the weak labels, used as constraints rather than evidence), plus the
     admins' decisions. A merge override must-links the pair. A keep-separate
     override cannot-links the company to every candidate partner, except
-    rows an admin merged into it."""
+    rows an admin merged into it. A rejected merge suggestion (a pair of
+    current roots) cannot-links every row of one group to every row of the
+    other, so the clustering can't put them back together through a third."""
     a, b = f.pairs["a"].to_numpy(int), f.pairs["b"].to_numpy(int)
     must = [(int(i), int(j)) for i, j, w in zip(a, b, f.weak, strict=True) if w == 1]
     cannot = [(int(i), int(j)) for i, j, w in zip(a, b, f.weak, strict=True) if w == 0]
@@ -87,17 +98,27 @@ def _constraints(f: Fitted, overrides: pd.DataFrame
     must += [(int(i), int(j)) for i, j in merged_in]
     cannot += [(int(i), int(j)) for i, j in zip(a, b, strict=True)
                if (i in separate or j in separate) and (i, j) not in merged_in]
+    if rejected:
+        roots = current_roots(f.profiles)
+        members: dict[int, list[int]] = {}
+        for i, r in enumerate(roots):
+            members.setdefault(int(r), []).append(i)
+        for pair in rejected:
+            x, y = tuple(pair)
+            cannot += [(min(i, j), max(i, j))
+                       for i in members.get(x, []) for j in members.get(y, [])]
     return must, cannot
 
 
-def clusterings(f: Fitted, overrides: pd.DataFrame | None = None) -> dict[str, np.ndarray]:
+def clusterings(f: Fitted, overrides: pd.DataFrame | None = None,
+                rejected: set[frozenset[int]] | None = None) -> dict[str, np.ndarray]:
     """Note: the system clustering applies admin overrides as constraints, so
     on override pairs it is graded on its own inputs; override recall is
     reported for the model-only clusterings and the heuristic for that reason."""
     n = len(f.profiles)
     if overrides is None:
         overrides = pd.DataFrame(columns=["company_id", "target_company_id"])
-    must, cannot = _constraints(f, overrides)
+    must, cannot = _constraints(f, overrides, rejected)
     return {
         "heuristic": heuristic_clusters(f.profiles),
         "model_cc": connected_components(n, f.pairs, f.scores, TAU),
@@ -139,7 +160,31 @@ def _score_pairs(f: Fitted, pairs: pd.DataFrame, feats: pd.DataFrame
     return scores, blocked
 
 
-def evaluate(f: Fitted, overrides: pd.DataFrame, gold: pd.DataFrame | None) -> dict[str, Any]:
+def _gold_pairwise(f: Fitted, gold: pd.DataFrame, clusters: dict[str, np.ndarray]
+                   ) -> tuple[dict[str, Any], np.ndarray]:
+    """Pairwise metrics on labelled pairs for the model (end to end: a pair
+    blocking never proposed scores 0), the Jaro-Winkler rule and every
+    clustering; plus which pairs blocking kept."""
+    g_feats = pair_features(f.profiles, gold[["a", "b"]])
+    g_scores, g_blocked = _score_pairs(f, gold[["a", "b"]], g_feats)
+    gy = gold["same"].to_numpy(int)
+    out = {
+        "model": split_pairwise(f.profiles, gold, gy, np.where(g_blocked, g_scores, 0.0), TAU),
+        "jaro_winkler": split_pairwise(
+            f.profiles, gold, gy,
+            (g_feats["name_jw"].to_numpy() >= JW_BASELINE).astype(float), 0.5),
+        **{
+            name: split_pairwise(f.profiles, gold, gy, pairwise_from_clusters(lab_, gold), 0.5)
+            for name, lab_ in clusters.items()
+        },
+    }
+    return out, g_blocked
+
+
+def evaluate(f: Fitted, overrides: pd.DataFrame, gold: pd.DataFrame | None,
+             feedback: pd.DataFrame | None = None) -> dict[str, Any]:
+    """Weak-label, override, gold and (when given) admin-feedback metrics.
+    feedback: decided merge suggestions as gold pairs (suggest.load_feedback)."""
     n = len(f.profiles)
     lab = f.oof_mask
     y = f.weak[lab].astype(int)
@@ -181,9 +226,7 @@ def evaluate(f: Fitted, overrides: pd.DataFrame, gold: pd.DataFrame | None) -> d
         }
     if gold is not None and len(gold):
         gold = gold.reset_index(drop=True)
-        g_feats = pair_features(f.profiles, gold[["a", "b"]])
-        g_scores, g_blocked = _score_pairs(f, gold[["a", "b"]], g_feats)
-        end_to_end = np.where(g_blocked, g_scores, 0.0)
+        g_pairwise, g_blocked = _gold_pairwise(f, gold, clusters)
         gy = gold["same"].to_numpy(int)
         gc = gold_clusters(gold)
         enr = by_enrichment(f.profiles, gold)
@@ -191,21 +234,22 @@ def evaluate(f: Fitted, overrides: pd.DataFrame, gold: pd.DataFrame | None) -> d
             "pairs": len(gold), "positives": int(gy.sum()),
             "enriched_pairs": int(enr.sum()),
             "blocking_recall": float(g_blocked[gy == 1].mean()) if gy.sum() else math.nan,
-            "pairwise": {
-                "model": split_pairwise(f.profiles, gold, gy, end_to_end, TAU),
-                "jaro_winkler": split_pairwise(
-                    f.profiles, gold, gy,
-                    (g_feats["name_jw"].to_numpy() >= JW_BASELINE).astype(float), 0.5),
-                **{
-                    name: split_pairwise(f.profiles, gold, gy,
-                                         pairwise_from_clusters(lab_, gold), 0.5)
-                    for name, lab_ in clusters.items()
-                },
-            },
+            "pairwise": g_pairwise,
             "b_cubed": {
                 name: b_cubed({m: int(lab_[m]) for m in gc}, gc)
                 for name, lab_ in clusters.items()
             },
+        }
+    if feedback is not None and len(feedback):
+        feedback = feedback.reset_index(drop=True)
+        fy = feedback["same"].to_numpy(int)
+        report["gold_feedback"] = {
+            "pairs": len(feedback), "accepted": int(fy.sum()),
+            # Accepted suggestions are overrides now, which system mode takes
+            # as constraints: it is graded on its own input there, so it is
+            # left out, as for override recall.
+            "pairwise": {k: v for k, v in _gold_pairwise(f, feedback, clusters)[0].items()
+                         if k != "system"},
         }
     return report
 
@@ -345,6 +389,23 @@ def render_markdown(r: dict[str, Any], as_of: date) -> str:
                   "| clustering | precision | recall | F1 |", "|---|---|---|---|"]
         for name, m in g["b_cubed"].items():
             lines.append(f"| {name} | {_f(m['precision'])} | {_f(m['recall'])} | {_f(m['f1'])} |")
+    fb = r.get("gold_feedback")
+    if fb:
+        lines += [
+            "", "## Admin decisions on merge suggestions",
+            "",
+            f"{fb['pairs']:,} decided suggestions ({fb['accepted']:,} accepted). Only the "
+            "model's own high-scoring proposals reach an admin, so this set is biased toward "
+            "hard positives and flatters precision; read it next to the gold set, not instead.",
+            "",
+            "| system | slice | n | precision | recall | F1 |",
+            "|---|---|---|---|---|---|",
+        ]
+        for name, sl in fb["pairwise"].items():
+            for part in ("all", "enriched", "unenriched"):
+                m = sl[part]
+                lines.append(f"| {name} | {part} | {m['n']:,} | {_f(m['precision'])} "
+                             f"| {_f(m['recall'])} | {_f(m['f1'])} |")
     return "\n".join(lines) + "\n"
 
 
