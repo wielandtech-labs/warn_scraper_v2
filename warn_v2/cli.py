@@ -5,11 +5,18 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 
 from warn_v2.pipeline.runner import run_state
 from warn_v2.scrapers.registry import all_states, get_scraper
+
+if TYPE_CHECKING:
+    import pandas as pd
+    from sqlalchemy.orm import Session
+
+    from warn_v2.ml.er.run import Fitted
 
 
 @click.group()
@@ -1838,7 +1845,6 @@ def ml_backtest_cmd(
                f"pr_auc={report['pooled'][report['chosen']['model']]['pr_auc']:.3f}")
 
 
-
 @main.command("ml-survival-backtest")
 @click.option(
     "--out",
@@ -1881,6 +1887,81 @@ def ml_survival_backtest_cmd(
     click.echo(f"folds={len(result.folds)} hazard_gbm_pr_auc={p['hazard_gbm']['pr_auc']:.3f} "
                f"gbm_pr_auc={p['gbm']['pr_auc']:.3f} adopt={report['decision']['adopt']}")
 
+
+
+def _er_fit(session: Session) -> tuple[Fitted, pd.DataFrame]:
+    import pandas as pd
+    from sqlalchemy import select
+
+    from warn_v2.db.models import CompanyMergeOverride
+    from warn_v2.ml.er.records import load_profiles
+    from warn_v2.ml.er.run import fit_all
+
+    profiles = load_profiles(session)
+    overrides = pd.DataFrame(
+        session.execute(
+            select(CompanyMergeOverride.company_id, CompanyMergeOverride.target_company_id)
+        ).all(),
+        columns=["company_id", "target_company_id"],
+    )
+    click.echo(f"companies={len(profiles)} overrides={len(overrides)}")
+    return fit_all(profiles), overrides
+
+
+@main.command("ml-er-eval")
+@click.option(
+    "--reports-dir",
+    default="/var/reports",
+    show_default=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Reads er/gold.csv if present; writes er/er_eval.{json,md} (aggregates only)",
+)
+def ml_er_eval_cmd(reports_dir: Path) -> None:
+    """Evaluate learned entity resolution against the heuristic consolidator.
+    Read-only on the database (see docs/ml/entity-resolution-model-card.md)."""
+    import json
+    from datetime import date
+
+    from warn_v2.db.session import session_scope
+    from warn_v2.ml.er.run import evaluate, load_gold, render_markdown
+
+    out = reports_dir / "er"
+    out.mkdir(parents=True, exist_ok=True)
+    with session_scope() as session:
+        fitted, overrides = _er_fit(session)
+    gold_path = out / "gold.csv"
+    gold = load_gold(gold_path, fitted.profiles) if gold_path.exists() else None
+    report = evaluate(fitted, overrides, gold)
+    (out / "er_eval.json").write_text(json.dumps(report, indent=2, default=str))
+    (out / "er_eval.md").write_text(render_markdown(report, date.today()), encoding="utf-8")
+    click.echo(f"pairs={report['data']['candidate_pairs']} "
+               f"weak_pr_auc={report['weak_oof']['model']['pr_auc']:.3f} "
+               f"gold={'yes' if gold is not None else 'no'}")
+
+
+@main.command("ml-er-sample")
+@click.option(
+    "--reports-dir",
+    default="/var/reports",
+    show_default=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Writes er/gold_candidates.csv (employer names: keep it on the PVC)",
+)
+@click.option("--n", "n_pairs", default=400, show_default=True, help="Pairs to sample")
+@click.option("--seed", default=0, show_default=True)
+def ml_er_sample_cmd(reports_dir: Path, n_pairs: int, seed: int) -> None:
+    """Sample candidate pairs, stratified by score band and enrichment, for
+    hand-labelling the ER gold set (fill `same` with 1, 0 or ?)."""
+    from warn_v2.db.session import session_scope
+    from warn_v2.ml.er.run import sample_gold_candidates
+
+    out = reports_dir / "er"
+    out.mkdir(parents=True, exist_ok=True)
+    with session_scope() as session:
+        fitted, _ = _er_fit(session)
+    sample = sample_gold_candidates(fitted, n=n_pairs, seed=seed)
+    sample.to_csv(out / "gold_candidates.csv", index=False)
+    click.echo(f"wrote {len(sample)} pairs to {out / 'gold_candidates.csv'}")
 
 
 @main.command("ml-train")
