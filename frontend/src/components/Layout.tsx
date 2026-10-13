@@ -22,10 +22,10 @@ function BrandMark({ className }: { className?: string }) {
 }
 
 const NAV_LINK =
-  "relative px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100";
+  "relative flex h-14 items-center px-3 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100";
 // Active route: ink text + a brand-red rule under the label.
 const NAV_ACTIVE =
-  "!text-slate-900 dark:!text-slate-100 after:absolute after:inset-x-3 after:-bottom-[13px] after:h-0.5 after:rounded-full after:bg-brand";
+  "!text-slate-900 dark:!text-slate-100 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-brand";
 
 const NAV = [
   { to: "/", label: "Dashboard" },
@@ -102,8 +102,8 @@ export function Layout({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="sticky top-0 z-[1100] border-b border-slate-200 bg-slate-50/85 backdrop-blur-md dark:border-slate-800 dark:bg-slate-950/85">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
+      <header className="sticky top-0 z-[1100] border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-3 px-4">
           <Link
             to="/"
             className="flex items-center gap-2.5 whitespace-nowrap text-slate-900 dark:text-slate-100"
@@ -176,8 +176,8 @@ export function Layout({ children }: { children: ReactNode }) {
                 <Link
                   key={item.to}
                   to={item.to}
-                  className="block rounded-md px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-                  activeProps={{ className: "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300" }}
+                  className="block border-l-2 border-transparent px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                  activeProps={{ className: "!border-brand !text-slate-900 dark:!text-slate-100" }}
                   activeOptions={{ exact: item.to === "/" }}
                   onClick={() => setMobileOpen(false)}
                 >

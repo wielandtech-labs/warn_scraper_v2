@@ -58,20 +58,6 @@ export default {
            for headings and hero figures; body copy stays on the system stack. */
         display: ['"Fraunces Variable"', "Georgia", "Cambria", "serif"],
       },
-      keyframes: {
-        "fade-up": {
-          from: { opacity: "0", transform: "translateY(6px)" },
-          to: { opacity: "1", transform: "none" },
-        },
-        pulse_ring: {
-          "0%": { transform: "scale(0.6)", opacity: "0.7" },
-          "100%": { transform: "scale(2.4)", opacity: "0" },
-        },
-      },
-      animation: {
-        "fade-up": "fade-up 400ms cubic-bezier(0.2, 0.7, 0.2, 1) both",
-        "pulse-ring": "pulse_ring 2.4s cubic-bezier(0.2, 0.7, 0.2, 1) infinite",
-      },
     },
   },
   plugins: [],

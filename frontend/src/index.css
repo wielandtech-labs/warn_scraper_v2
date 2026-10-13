@@ -61,14 +61,6 @@
   .card {
     @apply rounded-xl border border-slate-200 bg-white p-5 shadow-[0_1px_2px_rgba(26,26,25,0.04)] dark:border-slate-800 dark:bg-slate-900;
   }
-  /* Small uppercase kicker above a heading or figure. */
-  .eyebrow {
-    @apply text-[0.7rem] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400;
-  }
-  /* Big serif figure for KPI tiles and the hero. */
-  .figure {
-    @apply font-display font-semibold tabular-nums tracking-tight;
-  }
   .badge {
     @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
   }

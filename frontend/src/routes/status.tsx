@@ -227,7 +227,7 @@ export function StatusPage() {
                         {coverage(r.run)}
                       </span>
                     ) : (
-                      <span className="text-slate-400 dark:text-slate-500">—</span>
+                      <span className="text-slate-400 dark:text-slate-400">—</span>
                     )}
                   </td>
                   <td className="px-3 py-2 align-top" data-label="Last successful scrape">
@@ -239,14 +239,14 @@ export function StatusPage() {
                         </span>
                       </span>
                     ) : (
-                      <span className="text-slate-400 dark:text-slate-500">—</span>
+                      <span className="text-slate-400 dark:text-slate-400">—</span>
                     )}
                   </td>
                   <td className="px-3 py-2 align-top" data-label="Last run">
                     {r.run ? (
                       fmtDate(r.run.last_run_at)
                     ) : (
-                      <span className="text-slate-400 dark:text-slate-500">—</span>
+                      <span className="text-slate-400 dark:text-slate-400">—</span>
                     )}
                   </td>
                   <td className="px-3 py-2 align-top" data-label="New / scraped">
@@ -255,7 +255,7 @@ export function StatusPage() {
                         {fmtNum(r.run.rows_new)} / {fmtNum(r.run.rows_scraped)}
                       </span>
                     ) : (
-                      <span className="text-slate-400 dark:text-slate-500">—</span>
+                      <span className="text-slate-400 dark:text-slate-400">—</span>
                     )}
                   </td>
                 </tr>

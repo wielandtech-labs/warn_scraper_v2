@@ -81,7 +81,7 @@ export function SearchBox() {
           )}
           {data && data.companies.length > 0 && (
             <div>
-              <div className="border-b border-slate-100 bg-slate-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-400 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-500">
+              <div className="border-b border-slate-100 bg-slate-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-400 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
                 Companies
               </div>
               {data.companies.map((c) => (
@@ -106,7 +106,7 @@ export function SearchBox() {
           )}
           {data && data.notices.length > 0 && (
             <div>
-              <div className="border-b border-slate-100 bg-slate-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-400 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-500">
+              <div className="border-b border-slate-100 bg-slate-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-400 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
                 Notices
               </div>
               {data.notices.map((n) => (

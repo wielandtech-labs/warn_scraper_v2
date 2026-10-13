@@ -22,15 +22,9 @@ interface ChartColors {
      would imply they are the same quantity.
 
      Validated with the dataviz palette checker (--pairs all) at both chart
-     surfaces: the trio passes together, and `context` passes against
-     `layoffs` -- the only pairing the indexed BLS overlay draws. Amber is
-     deliberately NOT the overlay color: it sits too close to the layoffs red
-     for deuteranopes. */
+     surfaces. Amber sits close to the layoffs red for deuteranopes, so it
+     must never share a chart with layoffs. */
   indicators: [string, string, string];
-  /* The one BLS series drawn on the WARN chart in "Compare" mode. */
-  context: string;
-  /* Recession/annotation shading behind the series. */
-  annotation: string;
 }
 
 export const CHART_COLORS: Record<ResolvedTheme, ChartColors> = {
@@ -47,8 +41,6 @@ export const CHART_COLORS: Record<ResolvedTheme, ChartColors> = {
     },
     tooltipLabel: { color: "#1a1a19" },
     indicators: ["#0f8a60", "#b37800", "#4a3aa7"], // aqua, amber, violet
-    context: "#4a3aa7",
-    annotation: "rgba(110, 108, 102, 0.10)",
   },
   dark: {
     grid: "#2c2c2a",
@@ -63,8 +55,6 @@ export const CHART_COLORS: Record<ResolvedTheme, ChartColors> = {
     },
     tooltipLabel: { color: "#f9f9f7" },
     indicators: ["#199e70", "#c98500", "#9085e9"],
-    context: "#9085e9",
-    annotation: "rgba(163, 161, 153, 0.10)",
   },
 };
 
