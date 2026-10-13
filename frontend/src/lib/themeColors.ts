@@ -72,6 +72,9 @@ interface UsMapColors {
   noData: string;
   stateStroke: string;
   hoverStroke: string;
+  /* Fill for the state under the pointer on maps whose base fill is uniform
+     (HeroMap). Distinct from noData in both themes. */
+  hoverFill: string;
   connector: string;
 }
 
@@ -82,12 +85,14 @@ export const US_MAP: Record<ResolvedTheme, UsMapColors> = {
     noData: "#f0efec",
     stateStroke: "#fff",
     hoverStroke: "#1a1a19",
+    hoverFill: "#e1e0d9",
     connector: "#a3a199",
   },
   dark: {
     noData: "#2c2c2a",
     stateStroke: "#0d0d0d",
     hoverStroke: "#f9f9f7",
+    hoverFill: "#3d3c39",
     connector: "#6e6c66",
   },
 };

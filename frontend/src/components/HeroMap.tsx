@@ -34,10 +34,12 @@ interface Props {
   rangeLabel: string;
   /** National layoff series for the default panel, oldest first. */
   national: (number | null)[];
+  /** byState failed: show dashes instead of loading placeholders. */
+  failed?: boolean;
   controls?: ReactNode;
 }
 
-export function HeroMap({ byState, bucket, after, rangeLabel, national, controls }: Props) {
+export function HeroMap({ byState, bucket, after, rangeLabel, national, failed = false, controls }: Props) {
   const { resolved } = useTheme();
   const chart = CHART_COLORS[resolved];
   const mapColors = US_MAP[resolved];
@@ -106,9 +108,9 @@ export function HeroMap({ byState, bucket, after, rangeLabel, national, controls
             </p>
           </div>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">
-            <Figure label="Workers affected" value={totalLayoffs} lead />
-            <Figure label="Notices" value={totalNotices} />
-            <Figure label="States reporting" value={byState ? byState.length : null} />
+            <Figure label="Workers affected" value={totalLayoffs} failed={failed} lead />
+            <Figure label="Notices" value={totalNotices} failed={failed} />
+            <Figure label="States reporting" value={byState ? byState.length : null} failed={failed} />
           </dl>
           {controls}
         </div>
@@ -139,7 +141,7 @@ export function HeroMap({ byState, bucket, after, rangeLabel, national, controls
                 key={code}
                 d={d}
                 data-code={code}
-                fill={code === target ? chart.grid : mapColors.noData}
+                fill={code === target ? mapColors.hoverFill : mapColors.noData}
                 stroke={mapColors.stateStroke}
                 strokeWidth={1}
                 strokeLinejoin="round"
@@ -150,7 +152,14 @@ export function HeroMap({ byState, bucket, after, rangeLabel, national, controls
             {dots.map((dot) => (
               <g key={dot.code} className="cursor-pointer">
                 {dot.pulse && (
-                  <circle cx={dot.x} cy={dot.y} r={dot.r} fill="none" stroke={chart.layoffs} className="hero-pulse" />
+                  <circle
+                    cx={dot.x}
+                    cy={dot.y}
+                    r={dot.r}
+                    fill="none"
+                    stroke={chart.layoffs}
+                    className="hero-pulse pointer-events-none"
+                  />
                 )}
                 <circle
                   cx={dot.x}
@@ -169,7 +178,6 @@ export function HeroMap({ byState, bucket, after, rangeLabel, national, controls
           {/* The overlay: a glass panel floating over the map's empty
               south-east corner (static below the map on small screens). */}
           <div
-            aria-live="polite"
             className="mt-3 w-full rounded-xl border border-slate-200/80 bg-white/80 p-4 shadow-lg backdrop-blur-sm sm:absolute sm:bottom-0 sm:right-0 sm:mt-0 sm:w-60 dark:border-slate-700/70 dark:bg-slate-900/80"
           >
             <div className="flex items-center gap-3">
@@ -233,7 +241,17 @@ export function HeroMap({ byState, bucket, after, rangeLabel, national, controls
   );
 }
 
-function Figure({ label, value, lead = false }: { label: string; value: number | null; lead?: boolean }) {
+function Figure({
+  label,
+  value,
+  failed = false,
+  lead = false,
+}: {
+  label: string;
+  value: number | null;
+  failed?: boolean;
+  lead?: boolean;
+}) {
   return (
     <div className={lead ? "col-span-2" : ""}>
       <dt className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
@@ -242,7 +260,9 @@ function Figure({ label, value, lead = false }: { label: string; value: number |
       <dd
         className={`mt-1 font-display font-semibold tabular-nums text-slate-900 dark:text-slate-50 ${lead ? "text-4xl sm:text-5xl" : "text-2xl"}`}
       >
-        {value == null ? (
+        {value == null && failed ? (
+          "—"
+        ) : value == null ? (
           <span className="inline-block h-7 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
         ) : (
           fmtNum(value)

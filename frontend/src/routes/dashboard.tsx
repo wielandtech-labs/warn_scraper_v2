@@ -117,6 +117,7 @@ export function Dashboard() {
         after={after}
         rangeLabel={RANGE_LABEL[range]}
         national={nationalSeries}
+        failed={byState.isError}
         controls={<TimeRangeToggle value={range} onChange={setRange} />}
       />
       {byState.isError && (
