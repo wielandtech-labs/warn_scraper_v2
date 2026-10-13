@@ -35,6 +35,7 @@ dependencies = [
     "google-cloud-bigquery>=3.25",
     "statsmodels>=0.14",
     "scikit-learn>=1.5",
+    "pillow>=12",
 ]
 
 [project.optional-dependencies]

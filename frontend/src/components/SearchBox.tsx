@@ -48,7 +48,7 @@ export function SearchBox() {
         aria-expanded={showPanel}
         aria-controls="global-search-results"
         aria-autocomplete="list"
-        className="w-44 rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400 sm:w-56 dark:border-slate-700 dark:bg-slate-900 dark:focus:border-sky-500 dark:focus:ring-sky-500"
+        className="w-44 rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400 sm:w-56 lg:w-36 xl:w-56 dark:border-slate-700 dark:bg-slate-900 dark:focus:border-sky-500 dark:focus:ring-sky-500"
         onChange={(e) => {
           setValue(e.target.value);
           setOpen(true);
@@ -81,7 +81,7 @@ export function SearchBox() {
           )}
           {data && data.companies.length > 0 && (
             <div>
-              <div className="border-b border-slate-100 bg-slate-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-400 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-500">
+              <div className="border-b border-slate-100 bg-slate-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-400 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
                 Companies
               </div>
               {data.companies.map((c) => (
@@ -106,7 +106,7 @@ export function SearchBox() {
           )}
           {data && data.notices.length > 0 && (
             <div>
-              <div className="border-b border-slate-100 bg-slate-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-400 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-500">
+              <div className="border-b border-slate-100 bg-slate-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-400 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
                 Notices
               </div>
               {data.notices.map((n) => (

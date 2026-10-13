@@ -107,7 +107,7 @@ export function AlertSignup({
       {errorMessage && (
         <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errorMessage}</p>
       )}
-      <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+      <p className="mt-2 text-xs text-slate-400 dark:text-slate-400">
         Double opt-in · unsubscribe anytime · we only use your email for these
         alerts.{" "}
         <Link to="/alerts" className="underline">

@@ -15,7 +15,7 @@ const STORAGE_KEY = "theme";
 const DARK_MQ = "(prefers-color-scheme: dark)";
 const THEME_COLOR: Record<ResolvedTheme, string> = {
   light: "#DA2F25",
-  dark: "#0f172a",
+  dark: "#0d0d0d",
 };
 
 interface ThemeContextValue {

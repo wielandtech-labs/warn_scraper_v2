@@ -29,14 +29,14 @@ const HEALTH_FILLS: Record<ResolvedTheme, Record<Health, string>> = {
   light: {
     operational: "#86efac", // green-300
     failing: "#f87171", // red-400
-    unsupported: "#e2e8f0", // slate-200
-    never: "#e2e8f0",
+    unsupported: "#e1e0d9", // slate-200
+    never: "#e1e0d9",
   },
   dark: {
     operational: "#15803d", // green-700
     failing: "#dc2626", // red-600
-    unsupported: "#1e293b", // slate-800
-    never: "#1e293b",
+    unsupported: "#2c2c2a", // slate-800
+    never: "#2c2c2a",
   },
 };
 
@@ -227,7 +227,7 @@ export function StatusPage() {
                         {coverage(r.run)}
                       </span>
                     ) : (
-                      <span className="text-slate-400 dark:text-slate-500">—</span>
+                      <span className="text-slate-400 dark:text-slate-400">—</span>
                     )}
                   </td>
                   <td className="px-3 py-2 align-top" data-label="Last successful scrape">
@@ -239,14 +239,14 @@ export function StatusPage() {
                         </span>
                       </span>
                     ) : (
-                      <span className="text-slate-400 dark:text-slate-500">—</span>
+                      <span className="text-slate-400 dark:text-slate-400">—</span>
                     )}
                   </td>
                   <td className="px-3 py-2 align-top" data-label="Last run">
                     {r.run ? (
                       fmtDate(r.run.last_run_at)
                     ) : (
-                      <span className="text-slate-400 dark:text-slate-500">—</span>
+                      <span className="text-slate-400 dark:text-slate-400">—</span>
                     )}
                   </td>
                   <td className="px-3 py-2 align-top" data-label="New / scraped">
@@ -255,7 +255,7 @@ export function StatusPage() {
                         {fmtNum(r.run.rows_new)} / {fmtNum(r.run.rows_scraped)}
                       </span>
                     ) : (
-                      <span className="text-slate-400 dark:text-slate-500">—</span>
+                      <span className="text-slate-400 dark:text-slate-400">—</span>
                     )}
                   </td>
                 </tr>
