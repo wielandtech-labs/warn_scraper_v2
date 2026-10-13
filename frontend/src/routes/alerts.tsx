@@ -229,7 +229,7 @@ function RequestLinkCard() {
             : "Something went wrong. Please try again later."}
         </p>
       )}
-      <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
+      <p className="mt-3 text-xs text-slate-400 dark:text-slate-400">
         Every alert email also carries this link.{" "}
         <Link to="/login" className="underline">
           Signed in

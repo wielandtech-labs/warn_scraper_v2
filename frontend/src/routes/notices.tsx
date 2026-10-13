@@ -9,6 +9,8 @@ import { DataTable } from "../components/DataTable";
 import { ExportButtons } from "../components/ExportButtons";
 import { EMPTY_FILTERS, FilterBar, type FilterValues } from "../components/FilterBar";
 import { Pagination } from "../components/Pagination";
+import { Peek } from "../components/Peek";
+import { CompanyPeek, StatePeek } from "../components/peeks";
 import { QueryError } from "../components/QueryError";
 import { SkeletonTable } from "../components/Skeleton";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
@@ -92,7 +94,14 @@ export function NoticesPage() {
           </Link>
         ),
       },
-      { header: "State", accessorKey: "state" },
+      {
+        header: "State",
+        accessorKey: "state",
+        cell: (info) => {
+          const code = info.getValue() as string;
+          return <Peek content={() => <StatePeek code={code} />}>{code}</Peek>;
+        },
+      },
       {
         header: "Employer",
         accessorKey: "employer",
@@ -100,13 +109,15 @@ export function NoticesPage() {
           const company = info.row.original.company;
           if (!company) return <span className="font-medium">{info.getValue() as string}</span>;
           return (
-            <Link
-              to="/companies/$companyId"
-              params={{ companyId: String(company.id) }}
-              className="font-medium text-sky-700 hover:underline dark:text-sky-400"
-            >
-              {info.getValue() as string}
-            </Link>
+            <Peek content={() => <CompanyPeek id={company.id} name={company.name} />}>
+              <Link
+                to="/companies/$companyId"
+                params={{ companyId: String(company.id) }}
+                className="font-medium text-sky-700 hover:underline dark:text-sky-400"
+              >
+                {info.getValue() as string}
+              </Link>
+            </Peek>
           );
         },
       },

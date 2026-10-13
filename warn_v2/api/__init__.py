@@ -21,8 +21,10 @@ from warn_v2.api.routes import (
     companies,
     exports,
     keys,
+    logos,
     map_pins,
     notices,
+    og,
     radar,
     reports,
     runs,
@@ -107,6 +109,7 @@ def create_app(static_dir: Path | None = None) -> FastAPI:
     app.include_router(usage.router, prefix="/api")
     app.include_router(billing.router, prefix="/api")  # webhook must never 429
     app.include_router(admin.router, prefix="/api")  # require_admin per route
+    app.include_router(logos.router, prefix="/api")  # dozens per page; see module
     limited = [Depends(ratelimit.enforce_limits)]
     # Export routes register before notices/companies so /api/notices/export and
     # /api/companies/export aren't swallowed by the parametric /{id} routes.
@@ -125,6 +128,7 @@ def create_app(static_dir: Path | None = None) -> FastAPI:
 
     # --- SEO + feeds (site root, not /api): sitemap.xml, robots.txt, RSS ---
     app.include_router(seo.router)
+    app.include_router(og.router)  # /og/*.png share cards
 
     # --- SPA static assets (mounted LAST so API routes take precedence) ---
     # In dev (no built bundle) the directory won't exist; skip silently.

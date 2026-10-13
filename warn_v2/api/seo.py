@@ -31,11 +31,17 @@ def site_base_url() -> str:
     return os.getenv("SITE_BASE_URL", "https://warnindex.com").rstrip("/")
 
 
+# The site-wide share card in frontend/public/ (regenerate with
+# `python -m warn_v2.scripts.render_brand_images`).
+DEFAULT_IMAGE = "/og-image.png"
+
+
 @dataclass(frozen=True)
 class PageMeta:
     title: str
     description: str
     path: str  # canonical path, leading slash, no host
+    image: str = DEFAULT_IMAGE  # 1200x630 og:image path, no host
 
     @property
     def canonical(self) -> str:
@@ -161,6 +167,7 @@ def page_meta_for_path(path: str) -> PageMeta:
                 f"WARN Act layoff and plant-closure notices in {name}: latest "
                 f"filings, affected-worker totals, top employers, and trends.",
                 f"/states/{code}",
+                image=f"/og/states/{code}.png",
             )
 
     content = _CONTENT_PAGES.get(path) or _APP_PAGES_META.get(path)
@@ -178,7 +185,7 @@ def _head_tags(meta: PageMeta) -> str:
     url = escape(meta.canonical, quote=True)
     base = escape(site_base_url(), quote=True)
     feed = base + "/feed.rss"
-    image = base + "/og-image.png"  # 1200x630 card in frontend/public/
+    image = base + escape(meta.image, quote=True)
     return (
         f'\n    <link rel="canonical" href="{url}" />'
         f'\n    <meta property="og:site_name" content="WARN Index" />'

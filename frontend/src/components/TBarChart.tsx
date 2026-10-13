@@ -34,7 +34,7 @@ export interface TBarRow {
   significant: boolean;
 }
 
-const NEUTRAL = { light: "#cbd5e1", dark: "#475569" }; // slate-300 / slate-600
+const NEUTRAL = { light: "#c3c2b7", dark: "#52514e" }; // slate-300 / slate-600
 
 function verdict(row: TBarRow): string {
   if (!row.significant) return "not significant";
@@ -92,7 +92,7 @@ export function TBarChart({
       <div role="img" aria-label={label}>
         <ResponsiveContainer width="100%" height={Math.max(160, data.length * 22 + 40)}>
           <BarChart layout="vertical" data={data} margin={{ left: 10, right: 16 }} barCategoryGap={2}>
-            <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} horizontal={false} />
+            <CartesianGrid stroke={chart.grid} horizontal={false} />
             <XAxis
               type="number"
               domain={[-extent, extent]}

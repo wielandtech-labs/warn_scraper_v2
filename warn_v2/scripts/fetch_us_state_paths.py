@@ -5,7 +5,9 @@ domain, by Heitordp) -- an Albers-style layout with Alaska/Hawaii insets and
 one <path> per jurisdiction (50 states + DC), keyed by lowercase postal code:
     https://commons.wikimedia.org/wiki/File:Blank_US_Map_(states_only).svg
 
-Output: frontend/src/lib/usStatePaths.ts
+Output: frontend/src/lib/usStatePaths.ts, plus the same paths as JSON in
+warn_v2/geo/_data/us_state_paths.json for the backend (OG-card silhouettes;
+the Python image ships no frontend source).
 
 Stdlib only (urllib, not httpx) so it also runs outside the uv environment.
 
@@ -15,6 +17,7 @@ Run with:
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import sys
@@ -28,6 +31,7 @@ _SOURCE_URL = (
 )
 _SOURCE_PAGE = "https://commons.wikimedia.org/wiki/File:Blank_US_Map_(states_only).svg"
 _OUT_PATH = Path(__file__).parent.parent.parent / "frontend" / "src" / "lib" / "usStatePaths.ts"
+_JSON_OUT_PATH = Path(__file__).parent.parent / "geo" / "_data" / "us_state_paths.json"
 
 # The source SVG has width=959 height=593 but no viewBox attribute.
 _VIEWBOX = "0 0 959 593"
@@ -145,6 +149,10 @@ def render_module(paths: dict[str, str]) -> str:
     return "\n".join(lines)
 
 
+def render_json(paths: dict[str, str]) -> str:
+    return json.dumps({"viewbox": _VIEWBOX, "paths": dict(sorted(paths.items()))}) + "\n"
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
     svg_text = fetch_svg(sys.argv[1] if len(sys.argv) > 1 else None)
@@ -152,6 +160,8 @@ def main() -> None:
     module = render_module(paths)
     _OUT_PATH.write_text(module, encoding="utf-8", newline="\n")
     log.info("Wrote %d state paths to %s (%d bytes)", len(paths), _OUT_PATH, len(module))
+    _JSON_OUT_PATH.write_text(render_json(paths), encoding="utf-8", newline="\n")
+    log.info("Wrote %s", _JSON_OUT_PATH)
 
 
 if __name__ == "__main__":
