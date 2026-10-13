@@ -21,7 +21,7 @@ import {
 import { UnavailableNotice } from "../components/UnavailableNotice";
 import { WarnTimeChart } from "../components/WarnTimeChart";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import { BLS_JOLTS_LAYOFFS, BLS_UNEMPLOYMENT } from "../lib/blsSeries";
+import { BLS_LABOUR_MARKET } from "../lib/blsSeries";
 import { STATE_NAMES, fmtDate, fmtNum, fmtPeriod, stateName } from "../lib/format";
 import { withForecastSeries } from "../lib/forecast";
 import { withProjectionSeries } from "../lib/projection";
@@ -208,7 +208,7 @@ export function StateDetailPage() {
               bucket={bucket}
               subject={`in ${name}`}
               hasCounts={!noCounts}
-              bls={{ options: [BLS_UNEMPLOYMENT, BLS_JOLTS_LAYOFFS], state: code, after }}
+              bls={{ options: BLS_LABOUR_MARKET, state: code, after }}
             />
             {hasForecast && forecast.data ? (
               <ForecastNote lastHistoryLabel={fmtPeriod(forecast.data.last_history_month, "month")} />

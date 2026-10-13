@@ -26,7 +26,7 @@ import { ProjectionNote } from "../components/ProjectionNote";
 import { WarnTimeChart } from "../components/WarnTimeChart";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useTheme } from "../hooks/useTheme";
-import { BLS_JOLTS_LAYOFFS, BLS_UNEMPLOYMENT } from "../lib/blsSeries";
+import { BLS_LABOUR_MARKET } from "../lib/blsSeries";
 import { fmtCompact, fmtDate, fmtNum, fmtPeriod } from "../lib/format";
 import { withForecastSeries } from "../lib/forecast";
 import { withProjectionSeries } from "../lib/projection";
@@ -206,7 +206,7 @@ export function Dashboard() {
               rows={timeData}
               bucket={bucket}
               subject="across the US"
-              bls={{ options: [BLS_UNEMPLOYMENT, BLS_JOLTS_LAYOFFS], after }}
+              bls={{ options: BLS_LABOUR_MARKET, after }}
             />
             {hasForecast && forecast.data ? (
               <ForecastNote lastHistoryLabel={fmtPeriod(forecast.data.last_history_month, "month")} />

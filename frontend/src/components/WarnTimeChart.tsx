@@ -68,10 +68,6 @@ interface Props {
   };
 }
 
-const prefersReducedMotion =
-  typeof window !== "undefined" &&
-  window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-
 export function WarnTimeChart({
   rows,
   bucket,
@@ -87,7 +83,11 @@ export function WarnTimeChart({
 
   // BLS is monthly, so there is nothing to compare on a daily axis.
   const canCompare = !!bls && bls.options.length > 0 && bucket !== "day";
-  const active: Mode = mode === "compare" && !canCompare ? (hasCounts ? "layoffs" : "notices") : mode;
+  // Fall back when the chosen mode isn't on offer here (a reused instance
+  // moving to a no-counts state, or a daily range with Compare selected).
+  const fallback: Mode = hasCounts ? "layoffs" : "notices";
+  const active: Mode =
+    (mode === "compare" && !canCompare) || (mode === "layoffs" && !hasCounts) ? fallback : mode;
   const option = canCompare ? bls.options[Math.min(blsIndex, bls.options.length - 1)] : null;
 
   // Same key as IndicatorChart, so the BLS-levels cards reuse this fetch.
@@ -117,8 +117,10 @@ export function WarnTimeChart({
   });
 
   const recessions = spansOnAxis(rows, (r) => r.label);
-  // Long series animate slowly and gain nothing from it.
-  const animate = !prefersReducedMotion && rows.length <= 60;
+  // Long series animate slowly and gain nothing from it. Read per render so
+  // a mid-session OS setting change applies on the next draw.
+  const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+  const animate = !reducedMotion && rows.length <= 60;
 
   const modes: { id: Mode; label: string }[] = [
     ...(hasCounts ? [{ id: "layoffs" as const, label: "Workers affected" }] : []),
@@ -129,7 +131,7 @@ export function WarnTimeChart({
   const controls = (
     <div className="mb-3 flex flex-wrap items-center gap-2">
       <div
-        role="radiogroup"
+        role="group"
         aria-label="Chart measure"
         className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-800 dark:bg-slate-950"
       >
@@ -137,8 +139,7 @@ export function WarnTimeChart({
           <button
             key={m.id}
             type="button"
-            role="radio"
-            aria-checked={active === m.id}
+            aria-pressed={active === m.id}
             onClick={() => setMode(m.id)}
             className={
               "rounded-full px-3 py-1 text-xs font-medium transition-colors " +
@@ -246,6 +247,7 @@ export function WarnTimeChart({
                 contentStyle={chart.tooltip}
                 labelStyle={chart.tooltipLabel}
                 formatter={(value, name, item) => {
+                  if (value == null) return ["no data", name];
                   const row = item.payload as (typeof data)[number];
                   const raw =
                     name === option.label

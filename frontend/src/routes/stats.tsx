@@ -22,7 +22,7 @@ import { SkeletonChart } from "../components/Skeleton";
 import { WarnTimeChart } from "../components/WarnTimeChart";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useTheme } from "../hooks/useTheme";
-import { BLS_JOLTS_LAYOFFS, BLS_UNEMPLOYMENT } from "../lib/blsSeries";
+import { BLS_LABOUR_MARKET } from "../lib/blsSeries";
 import { fmtCompact, fmtMonth, fmtNum, stateName } from "../lib/format";
 import { withProjectionSeries } from "../lib/projection";
 import { CHART_COLORS } from "../lib/themeColors";
@@ -112,7 +112,7 @@ export function StatsPage() {
               bucket="month"
               subject={search.state ? `in ${stateName(search.state)}` : "across the US"}
               bls={{
-                options: [BLS_UNEMPLOYMENT, BLS_JOLTS_LAYOFFS],
+                options: BLS_LABOUR_MARKET,
                 state: search.state,
                 after: search.after,
                 before: search.before,
