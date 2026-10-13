@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 
 import { api, ApiError } from "../api/client";
+import { CompanyLogo } from "../components/CompanyLogo";
 import { OccupationMix } from "../components/OccupationMix";
 import { QueryError } from "../components/QueryError";
 import { SkeletonBlock } from "../components/Skeleton";
@@ -59,7 +60,15 @@ export function NoticeDetail() {
         </Link>
       </div>
       <div className="card">
-        <h1 className="text-2xl font-semibold">{n.employer}</h1>
+        <div className="flex items-center gap-4">
+          <CompanyLogo
+            name={n.company?.name ?? n.employer}
+            companyId={n.company?.id}
+            hasWebsite={!!n.company?.website}
+            size={56}
+          />
+          <h1 className="text-2xl font-semibold">{n.employer}</h1>
+        </div>
         <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           {n.state} · {fmtDate(n.notice_date)}
         </div>

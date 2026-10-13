@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 
 import { api } from "../api/client";
+import { CompanyLogo } from "../components/CompanyLogo";
 import { SkeletonBlock } from "../components/Skeleton";
 import { useAuth } from "../hooks/useAuth";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
@@ -85,7 +86,10 @@ export function CompanyDetail() {
         </Link>
       </div>
       <div className="card">
-        <h1 className="text-2xl font-semibold">{c.name}</h1>
+        <div className="flex items-center gap-4">
+          <CompanyLogo name={c.name} companyId={c.id} hasWebsite={!!c.website} size={56} />
+          <h1 className="text-2xl font-semibold">{c.name}</h1>
+        </div>
         {c.canonical_company_id != null && (
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
             This record is counted under{" "}
