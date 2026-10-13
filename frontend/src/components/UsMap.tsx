@@ -16,6 +16,8 @@ interface UsMapProps {
   legend?: ReactNode;
   /** Screen-reader description of the map. */
   srLabel: string;
+  /** false when the map already sits inside a card (no nested card frame). */
+  framed?: boolean;
 }
 
 /** Clickable US map shaded per state; clicking a state navigates to its page.
@@ -23,7 +25,7 @@ interface UsMapProps {
  *  also renders a complete accessible equivalent (the same 51 jurisdictions
  *  as real links with the same data), so 51 SVG tab stops would add nothing —
  *  callers describe that equivalent in `srLabel`. */
-export function UsMap({ fills, tooltip, legend, srLabel }: UsMapProps) {
+export function UsMap({ fills, tooltip, legend, srLabel, framed = true }: UsMapProps) {
   const navigate = useNavigate();
   const { resolved } = useTheme();
   const colors = US_MAP[resolved];
@@ -57,7 +59,7 @@ export function UsMap({ fills, tooltip, legend, srLabel }: UsMapProps) {
       : false;
 
   return (
-    <div ref={containerRef} className="card relative">
+    <div ref={containerRef} className={framed ? "card relative" : "relative"}>
       <p className="sr-only">{srLabel}</p>
       <svg
         viewBox={US_MAP_VIEWBOX}

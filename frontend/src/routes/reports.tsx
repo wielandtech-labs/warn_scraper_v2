@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 
 import { ApiError, api } from "../api/client";
 import type { IndustryScorecard } from "../api/types";
+import { PageHeader } from "../components/PageHeader";
 import { QueryError } from "../components/QueryError";
 import { ReportMarkdown } from "../components/ReportMarkdown";
 import { SkeletonBlock, SkeletonRows } from "../components/Skeleton";
@@ -37,6 +38,20 @@ export function GradeBadge({ grade }: { grade: string }) {
   );
 }
 
+function GradeTile({ grade }: { grade: string }) {
+  const style = GRADE_STYLE[grade];
+  return (
+    <span
+      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl font-display text-2xl font-semibold ${
+        style?.badge ?? "bg-slate-100 text-slate-400 dark:bg-slate-800"
+      }`}
+      title={style ? `Layoff pressure ${style.label}` : "Not enough data"}
+    >
+      {style ? grade : "–"}
+    </span>
+  );
+}
+
 function deltaCell(card: IndustryScorecard): string {
   if (card.delta_pct === null) {
     return card.cur_layoffs > 0 && card.prior_layoffs === 0 ? "new" : "—";
@@ -47,38 +62,81 @@ function deltaCell(card: IndustryScorecard): string {
 function ScorecardGrid({ cards }: { cards: IndustryScorecard[] }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {cards.map((card) => (
-        <Link
-          key={card.sector}
-          to="/reports/industry/$sector"
-          params={{ sector: card.sector }}
-          className="card space-y-2 hover:border-sky-300 hover:bg-sky-50 dark:hover:border-sky-800 dark:hover:bg-sky-950"
-        >
-          <div className="flex items-start justify-between gap-2">
-            <div className="font-medium leading-snug text-slate-900 dark:text-slate-100">
-              {card.sector_name}
+      {cards.map((card) => {
+        // A rise in layoffs is bad news: red up-arrow; a fall, a muted
+        // down-arrow. "new" (from zero to some) is the steepest rise of all.
+        const fromZero = card.delta_pct === null && card.cur_layoffs > 0 && card.prior_layoffs === 0;
+        const rising = fromZero || (card.delta_pct !== null && card.delta_pct > 0);
+        return (
+          <Link
+            key={card.sector}
+            to="/reports/industry/$sector"
+            params={{ sector: card.sector }}
+            className="card group flex flex-col gap-3 transition-colors hover:border-slate-300 dark:hover:border-slate-700"
+          >
+            <div className="flex items-start gap-3">
+              <GradeTile grade={card.grade} />
+              <div className="min-w-0 flex-1">
+                <div className="font-medium leading-snug text-slate-900 group-hover:underline dark:text-slate-100">
+                  {card.sector_name}
+                </div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  {GRADE_STYLE[card.grade]?.label ?? "not enough data"} · NAICS {card.sector}
+                </div>
+              </div>
             </div>
-            <GradeBadge grade={card.grade} />
-          </div>
-          <div className="flex items-baseline justify-between text-sm">
-            <span className="text-slate-500 dark:text-slate-400">
-              {card.score !== null ? (
-                <>
-                  Score <span className="font-semibold text-slate-900 dark:text-slate-100">{card.score}</span>
-                  /100
-                </>
-              ) : (
-                "Not enough data"
-              )}
-            </span>
-            <span className="text-right">
-              <span className="font-semibold tabular-nums">{fmtNum(card.cur_layoffs)}</span>{" "}
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                workers · {deltaCell(card)} vs prior 90d
+            {/* Score meter: 0-100, higher is healthier. */}
+            <div>
+              <div className="flex items-baseline justify-between text-xs text-slate-500 dark:text-slate-400">
+                <span>Score</span>
+                <span className="font-semibold tabular-nums text-slate-900 dark:text-slate-100">
+                  {card.score ?? "—"}
+                  <span className="font-normal text-slate-500 dark:text-slate-400">/100</span>
+                </span>
+              </div>
+              <div aria-hidden className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                <div
+                  className="h-full rounded-full bg-slate-700 dark:bg-slate-300"
+                  style={{ width: `${card.score ?? 0}%` }}
+                />
+              </div>
+            </div>
+            <div className="flex items-baseline justify-between text-sm">
+              <span>
+                <span className="font-semibold tabular-nums">{fmtNum(card.cur_layoffs)}</span>{" "}
+                <span className="text-xs text-slate-500 dark:text-slate-400">workers, last 90 days</span>
               </span>
-            </span>
-          </div>
-        </Link>
+              <span
+                className={`text-xs font-semibold tabular-nums ${
+                  rising ? "text-brand dark:text-brand-dark" : "text-slate-500 dark:text-slate-400"
+                }`}
+                title="vs the prior 90 days"
+              >
+                {rising ? "▲ " : card.delta_pct !== null && card.delta_pct < 0 ? "▼ " : ""}
+                {deltaCell(card)}
+              </span>
+            </div>
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+function GradeSummary({ cards }: { cards: IndustryScorecard[] }) {
+  const counts = ["A", "B", "C", "D", "F"].map((g) => ({
+    grade: g,
+    n: cards.filter((c) => c.grade === g).length,
+  }));
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {counts.map(({ grade, n }) => (
+        <span
+          key={grade}
+          className={`rounded-full px-3 py-1 text-xs font-semibold ${GRADE_STYLE[grade].badge} ${n ? "" : "opacity-40"}`}
+        >
+          {n} × {grade} · {GRADE_STYLE[grade].label}
+        </span>
       ))}
     </div>
   );
@@ -106,19 +164,24 @@ export function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Economic sentiment</h1>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          Weekly layoff-trend scorecards by industry and a national outlook, computed
-          from WARN notices (trailing 90 days vs the prior 90). Scores are 0–100,
-          higher is healthier; industry figures cover only notices matched to a NAICS
-          code, so treat them as directional.
-          {generatedAt && <> Updated {fmtDate(generatedAt)}.</>}
-        </p>
-      </div>
+      <PageHeader
+        kicker={generatedAt ? `Weekly · updated ${fmtDate(generatedAt)}` : "Weekly"}
+        title="Economic sentiment"
+        lede={
+          <>
+            Layoff-trend scorecards for every industry and a national outlook, computed from WARN
+            notices (trailing 90 days vs the prior 90). Scores are 0–100, higher is healthier;
+            industry figures cover only notices matched to a NAICS code, so treat them as
+            directional.
+          </>
+        }
+      />
 
-      <section>
-        <h2 className="mb-2 text-lg font-semibold">Industry scorecards</h2>
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h2 className="text-lg font-semibold">Industry scorecards</h2>
+          {scorecards.data && scorecards.data.length > 0 && <GradeSummary cards={scorecards.data} />}
+        </div>
         {scorecards.isLoading ? (
           <SkeletonRows rows={4} />
         ) : scorecards.isError ? (
@@ -138,7 +201,9 @@ export function ReportsPage() {
 
       <section>
         <h2 className="mb-2 text-lg font-semibold">National outlook</h2>
-        <div className="card">
+        {/* Set as an article: a readable measure, not a full-width card. */}
+        <div className="card px-6 py-6 sm:px-10">
+          <div className="mx-auto max-w-prose">
           {national.isLoading ? (
             <div className="space-y-2">
               <SkeletonBlock className="h-4 w-1/3" />
@@ -158,6 +223,7 @@ export function ReportsPage() {
           ) : national.data ? (
             <ReportMarkdown markdown={national.data} skipH1 />
           ) : null}
+          </div>
         </div>
       </section>
 

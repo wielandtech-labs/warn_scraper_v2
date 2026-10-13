@@ -4,20 +4,46 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 
 import { api } from "../api/client";
+import { ActiveFilters } from "../components/ActiveFilters";
 import { AlertSignup } from "../components/AlertSignup";
+import { CompanyLogo } from "../components/CompanyLogo";
 import { DataTable } from "../components/DataTable";
 import { ExportButtons } from "../components/ExportButtons";
 import { EMPTY_FILTERS, FilterBar, type FilterValues } from "../components/FilterBar";
+import { PageHeader } from "../components/PageHeader";
 import { Pagination } from "../components/Pagination";
 import { Peek } from "../components/Peek";
 import { CompanyPeek, StatePeek } from "../components/peeks";
 import { QueryError } from "../components/QueryError";
 import { SkeletonTable } from "../components/Skeleton";
+import { Sparkline } from "../components/Sparkline";
+import { StateSilhouette } from "../components/StateSilhouette";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import { fmtDate, fmtNum } from "../lib/format";
+import { useTheme } from "../hooks/useTheme";
+import { daysAgoIso, fmtDate, fmtNum } from "../lib/format";
+import { CHART_COLORS } from "../lib/themeColors";
 import type { NoticeOut } from "../api/types";
 
 const PAGE_SIZE = 50;
+// Notices filed this recently get a "new" marker.
+const NEW_DAYS = 7;
+
+/* Only the exceptions are badged: a plain layoff is the default and a badge
+   on every row would be noise. Closures (the whole site goes) stand out;
+   Non-WARN rows (state rapid-response events, not statutory notices) are
+   visibly set apart. */
+function ClosureBadge({ category }: { category: string | null }) {
+  if (category !== "Closure" && category !== "Non-WARN") return null;
+  const style =
+    category === "Closure"
+      ? "bg-brand/10 text-brand dark:bg-brand/20 dark:text-brand-dark"
+      : "border border-dashed border-slate-300 text-slate-500 dark:border-slate-600 dark:text-slate-400";
+  return (
+    <span className={`rounded-full px-2 py-px text-[0.65rem] font-semibold uppercase tracking-wide ${style}`}>
+      {category}
+    </span>
+  );
+}
 
 export function NoticesPage() {
   useDocumentTitle("Layoff notices — WARN Index");
@@ -28,6 +54,17 @@ export function NoticesPage() {
   const sortBy = search.sort_by ?? "notice_date";
   const sortDir = search.sort_dir ?? "desc";
   const [alerting, setAlerting] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const filterCount = [
+    search.state,
+    search.employer,
+    search.closure_category,
+    search.industry,
+    search.subsector,
+    search.min_layoffs,
+    search.after,
+    search.before,
+  ].filter(Boolean).length;
 
   // Exactly what the API call uses — keying the cache on anything more
   // (e.g. the whole search object) causes spurious misses on unrelated keys.
@@ -50,6 +87,29 @@ export function NoticesPage() {
     queryKey: ["notices", apiParams],
     queryFn: () => api.listNotices(apiParams),
   });
+
+  // Monthly trend for the filters in force. The over-time endpoint takes
+  // every filter here except employer and minimum size, so the strip hides
+  // when either is set rather than show a trend for a different population.
+  const { resolved } = useTheme();
+  const trendable = !search.employer && !search.min_layoffs;
+  const trendParams = {
+    bucket: "month" as const,
+    state: search.state,
+    closure_category: search.closure_category,
+    industry: search.industry,
+    subsector: search.subsector,
+    after: search.after ?? daysAgoIso(365 * 2),
+    before: search.before,
+  };
+  const trend = useQuery({
+    queryKey: ["stats", "over-time", trendParams],
+    queryFn: () => api.statsOverTime(trendParams),
+    enabled: trendable,
+  });
+  const trendValues = (trend.data ?? []).map((r) =>
+    r.projected_notice_count != null ? null : r.notice_count,
+  );
 
   const industriesQuery = useQuery({
     queryKey: ["stats", "industries"],
@@ -76,6 +136,10 @@ export function NoticesPage() {
     });
   };
 
+  // Inline magnitude bars scale to the largest notice on the page.
+  const pageMax = Math.max(1, ...(query.data?.items ?? []).map((n) => n.layoff_count ?? 0));
+  const newCutoff = daysAgoIso(NEW_DAYS);
+
   const columns = useMemo<ColumnDef<NoticeOut, unknown>[]>(
     () => [
       {
@@ -88,8 +152,11 @@ export function NoticesPage() {
             // Carry the list's filters/sort/page into the detail URL so its
             // "← All notices" link can restore this exact view.
             search={(prev) => prev}
-            className="font-medium text-sky-700 hover:underline dark:text-sky-400"
+            className="inline-flex items-center gap-1.5 whitespace-nowrap font-medium text-sky-700 hover:underline dark:text-sky-400"
           >
+            {((info.getValue() as string | null) ?? "") >= newCutoff && (
+              <span className="h-1.5 w-1.5 rounded-full bg-brand" title="Filed in the last week" />
+            )}
             {fmtDate(info.getValue() as string | null)}
           </Link>
         ),
@@ -99,25 +166,48 @@ export function NoticesPage() {
         accessorKey: "state",
         cell: (info) => {
           const code = info.getValue() as string;
-          return <Peek content={() => <StatePeek code={code} />}>{code}</Peek>;
+          return (
+            <Peek content={() => <StatePeek code={code} />}>
+              <span className="inline-flex items-center gap-1.5">
+                <StateSilhouette code={code} size={16} className="text-slate-300 dark:text-slate-600" />
+                {code}
+              </span>
+            </Peek>
+          );
         },
       },
       {
         header: "Employer",
         accessorKey: "employer",
         cell: (info) => {
-          const company = info.row.original.company;
-          if (!company) return <span className="font-medium">{info.getValue() as string}</span>;
+          const n = info.row.original;
+          const company = n.company;
+          const name = info.getValue() as string;
           return (
-            <Peek content={() => <CompanyPeek id={company.id} name={company.name} />}>
-              <Link
-                to="/companies/$companyId"
-                params={{ companyId: String(company.id) }}
-                className="font-medium text-sky-700 hover:underline dark:text-sky-400"
-              >
-                {info.getValue() as string}
-              </Link>
-            </Peek>
+            <span className="flex items-center gap-2.5">
+              <CompanyLogo
+                name={company?.name ?? name}
+                companyId={company?.id}
+                hasWebsite={!!company?.website}
+                size={24}
+              />
+              <span className="min-w-0">
+                {company ? (
+                  <Peek content={() => <CompanyPeek id={company.id} name={company.name} />}>
+                    <Link
+                      to="/companies/$companyId"
+                      params={{ companyId: String(company.id) }}
+                      className="font-medium text-slate-900 hover:text-sky-700 hover:underline dark:text-slate-100 dark:hover:text-sky-400"
+                    >
+                      {name}
+                    </Link>
+                  </Peek>
+                ) : (
+                  <span className="font-medium">{name}</span>
+                )}{" "}
+                <ClosureBadge category={n.closure_category} />
+              </span>
+            </span>
           );
         },
       },
@@ -134,21 +224,81 @@ export function NoticesPage() {
       {
         header: "Layoffs",
         accessorKey: "layoff_count",
-        cell: (info) => fmtNum(info.getValue() as number | null),
+        meta: { align: "right" },
+        cell: (info) => {
+          const v = info.getValue() as number | null;
+          return (
+            <span className="inline-flex items-center justify-end gap-2 tabular-nums">
+              {v != null && (
+                <span
+                  aria-hidden
+                  className="hidden h-1.5 w-16 overflow-hidden rounded-full bg-slate-100 sm:block dark:bg-slate-800"
+                >
+                  <span
+                    className="block h-full rounded-full bg-brand/70"
+                    style={{ width: `${Math.max(4, (v / pageMax) * 100)}%` }}
+                  />
+                </span>
+              )}
+              <span className="font-medium">{fmtNum(v)}</span>
+            </span>
+          );
+        },
       },
       {
         header: "Effective",
         accessorKey: "effective_date",
-        cell: (info) => fmtDate(info.getValue() as string | null),
+        cell: (info) => (
+          <span className="whitespace-nowrap text-slate-600 dark:text-slate-400">
+            {fmtDate(info.getValue() as string | null)}
+          </span>
+        ),
       },
     ],
-    [],
+    [pageMax, newCutoff],
   );
 
   return (
-    <div>
-      <div className="mb-3 flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold">Notices</h1>
+    <div className="space-y-5">
+      <PageHeader
+        kicker="Every filing · updated daily"
+        title="Layoff notices"
+        lede={
+          query.data ? (
+            <>
+              <span className="font-semibold text-slate-900 dark:text-slate-100">
+                {fmtNum(query.data.total)}
+              </span>{" "}
+              WARN Act notices {filterCount ? "match these filters" : "across every state we track"}.
+              <span className="hidden sm:inline"> Hover a company or state for its history.</span>
+            </>
+          ) : (
+            "Every advance-notice filing from state WARN Act listings."
+          )
+        }
+        aside={
+          trendable && trendValues.length > 1 ? (
+            <div className="w-56">
+              <div className="flex items-baseline justify-between text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                <span>Notices per month</span>
+                {!search.after && <span>2 yrs</span>}
+              </div>
+              <Sparkline
+                values={trendValues}
+                color={CHART_COLORS[resolved].notices}
+                height={40}
+                className="mt-1"
+              />
+            </div>
+          ) : undefined
+        }
+      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ActiveFilters
+          values={search}
+          industries={industriesQuery.data}
+          onChange={(v) => handleFilterChange(v)}
+        />
         <ExportButtons
           basePath="/api/notices/export"
           params={{
@@ -163,13 +313,26 @@ export function NoticesPage() {
           }}
         />
       </div>
-      <FilterBar
-        values={search}
-        onChange={handleFilterChange}
-        industries={industriesQuery.data}
-      />
+      {/* On phones the full filter form would fill the first screen before
+          a single result; it sits behind a toggle there (chips above still
+          show what is applied). Always shown from sm up. */}
+      <button
+        type="button"
+        className="btn-secondary w-full sm:hidden"
+        aria-expanded={showFilters}
+        onClick={() => setShowFilters((v) => !v)}
+      >
+        {showFilters ? "Hide filters" : `Filters${filterCount ? ` (${filterCount})` : ""}`}
+      </button>
+      <div className={showFilters ? "" : "hidden sm:block"}>
+        <FilterBar
+          values={search}
+          onChange={handleFilterChange}
+          industries={industriesQuery.data}
+        />
+      </div>
 
-      <div className="mb-4">
+      <div>
         {alerting ? (
           // Seeded from the filters on screen, so the alert matches the list
           // the reader is looking at (dates excluded — an alert is forward-looking).
