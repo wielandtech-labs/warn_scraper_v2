@@ -262,6 +262,20 @@ sentimentReport:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 500m, memory: 512Mi }
 
+# Weekly repeat-layoff model run (warn-v2 ml-train; see docs/ml/): backtest,
+# train a challenger, promote it only through the gates, score open events
+# with the champion into repeat_risk_scores. Shadow mode: nothing user-facing
+# reads the scores yet. Artifacts go to the reports PVC under
+# models/repeat_risk/<version>/, so it requires reportStorage.enabled.
+mlTrain:
+  enabled: false            # flip on in HelmRelease
+  schedule: "41 5 * * 0"    # weekly Sunday 05:41 — after the 04:30 consolidator
+                            # (entity merges feed the company keys), before 07:17
+  activeDeadlineSeconds: 3600  # a full run is a few minutes; hung = kill it
+  resources:
+    requests: { cpu: 500m, memory: 1Gi }
+    limits:   { cpu: "2", memory: 2Gi }
+
 # Daily BigQuery export of enriched notices for the Analytics Hub listing
 # (warn-v2 export-bigquery). Needs the warn-v2-gcp SealedSecret (SA key with
 # bigquery.jobUser on the project + dataEditor on the dataset). See

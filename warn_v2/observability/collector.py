@@ -273,3 +273,63 @@ class WarnCollector(Collector):
                     float(count),
                 )
             yield g
+
+            # ------------------------------------------------------------------
+            # 10. ML model health (warn_v2/ml/train.py), from each model's
+            #     latest weekly run. Kept in the 100-year warn_* store, so the
+            #     backtest and realized-performance history survives. NaN
+            #     values (e.g. realized PR-AUC before any score has matured)
+            #     are omitted rather than exported.
+            # ------------------------------------------------------------------
+            yield from _ml_metrics(s)
+
+
+def _ml_metrics(s):
+    import json
+    import math
+
+    from sqlalchemy import select
+
+    from warn_v2.db.models import MlModelRun
+
+    latest = {}
+    for run in s.scalars(select(MlModelRun).order_by(MlModelRun.created_at, MlModelRun.id)):
+        latest[run.model] = run  # ascending, so the last one wins
+    families = {
+        "warn_ml_last_run_timestamp_seconds": ("Start time of the model's latest weekly run.", []),
+        "warn_ml_last_run_promoted": (
+            "1 if the latest run's challenger passed the gates and became champion.", []),
+        "warn_ml_backtest_pr_auc": (
+            "Backtest PR-AUC of the latest challenger (scope: latest_fold, pooled, "
+            "pooled_ex_2020).", ["scope"]),
+        "warn_ml_backtest_ece": ("Expected calibration error, latest backtest fold.", []),
+        "warn_ml_score_psi": (
+            "PSI of current scores vs the champion's backtest scores (>0.25: inputs moved).", []),
+        "warn_ml_realized_pr_auc": (
+            "PR-AUC of first scores whose horizon has closed, graded on what happened.", []),
+        "warn_ml_realized_events": ("Matured, graded scores behind the realized PR-AUC.", []),
+        "warn_ml_open_events": ("Events with an open horizon (what the champion scores).", []),
+    }
+    gauges = {
+        name: GaugeMetricFamily(name, doc, labels=["model", *extra])
+        for name, (doc, extra) in families.items()
+    }
+
+    def put(name, value, *labels):
+        if value is not None and not (isinstance(value, float) and math.isnan(value)):
+            gauges[name].add_metric(list(labels), float(value))
+
+    for model, run in latest.items():
+        m = json.loads(run.metrics)
+        ts = run.created_at if run.created_at.tzinfo else run.created_at.replace(tzinfo=UTC)
+        put("warn_ml_last_run_timestamp_seconds", ts.timestamp(), model)
+        put("warn_ml_last_run_promoted", 1.0 if run.promoted else 0.0, model)
+        put("warn_ml_backtest_pr_auc", m["latest_fold"]["pr_auc"], model, "latest_fold")
+        put("warn_ml_backtest_pr_auc", m["pooled"]["pr_auc"], model, "pooled")
+        put("warn_ml_backtest_pr_auc", m["pooled_ex_2020"]["pr_auc"], model, "pooled_ex_2020")
+        put("warn_ml_backtest_ece", m["latest_fold"]["ece"], model)
+        put("warn_ml_score_psi", m["score_psi"], model)
+        put("warn_ml_realized_pr_auc", m["realized"]["pr_auc"], model)
+        put("warn_ml_realized_events", m["realized"]["n"], model)
+        put("warn_ml_open_events", m["open_events"], model)
+    yield from gauges.values()

@@ -1,0 +1,48 @@
+{{- if and .Values.mlTrain.enabled .Values.reportStorage.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "warn-v2.fullname" . }}-ml-train
+  labels:
+    {{- include "warn-v2.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.mlTrain.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      # No retry: a failed run leaves the champion scoring, and next week's
+      # run retrains from scratch.
+      backoffLimit: 0
+      activeDeadlineSeconds: {{ .Values.mlTrain.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            {{- include "warn-v2.labels" . | nindent 12 }}
+            app.kubernetes.io/component: ml-train
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: ml-train
+              image: {{ include "warn-v2.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              args:
+                - ml-train
+                - --reports-dir
+                - /var/reports
+              env:
+                {{- include "warn-v2.envSecrets" . | nindent 16 }}
+                # Recorded on each ml_model_runs row: which code trained it.
+                - name: WARN_IMAGE_TAG
+                  value: {{ default .Chart.AppVersion .Values.image.tag | quote }}
+              volumeMounts:
+                - name: reports
+                  mountPath: /var/reports
+              resources:
+                {{- toYaml .Values.mlTrain.resources | nindent 16 }}
+          volumes:
+            - name: reports
+              persistentVolumeClaim:
+                claimName: {{ include "warn-v2.fullname" . }}-reports
+{{- end }}
