@@ -23,6 +23,7 @@ import type {
   IndustryStat,
   MergedMemberOut,
   MergeResult,
+  MergeSuggestionOut,
   MonthStat,
   NoticeOut,
   OccupationMixOut,
@@ -254,6 +255,12 @@ export const api = {
     post<MergeResult>("/api/admin/companies/merge", body),
   adminUnmergeCompany: (id: number) =>
     post<MergeResult>(`/api/admin/companies/${id}/unmerge`),
+  adminMergeSuggestions: (status: "open" | "accepted" | "rejected" = "open") =>
+    get<MergeSuggestionOut[]>("/api/admin/companies/merge-suggestions" + qs({ status })),
+  adminAcceptSuggestion: (id: number) =>
+    post<MergeResult>(`/api/admin/companies/merge-suggestions/${id}/accept`),
+  adminRejectSuggestion: (id: number) =>
+    post<{ id: number; status: string }>(`/api/admin/companies/merge-suggestions/${id}/reject`),
 
   // ---------- Scraper runs ----------
   listRuns: (q: { state?: string; status?: string; limit?: number; offset?: number } = {}) =>

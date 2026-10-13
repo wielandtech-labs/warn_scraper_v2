@@ -276,6 +276,26 @@ export interface MergeResult {
   updated: number;
 }
 
+/** One side of an entity-resolution merge suggestion: a company's current group. */
+export interface SuggestionSide {
+  id: number;
+  name: string;
+  root_id: number; // current group; differs from id once merged elsewhere
+  notices: number;
+  states: string[];
+}
+
+/** A merge the entity-resolution model proposes (admin queue). */
+export interface MergeSuggestionOut {
+  id: number;
+  company: SuggestionSide; // merged into…
+  target: SuggestionSide; // …this one's group
+  score: number;
+  model_version: string;
+  status: "open" | "accepted" | "rejected";
+  created_at: string;
+}
+
 export interface ParentGroupStat {
   representative_company_id: number;
   representative_company_name: string;

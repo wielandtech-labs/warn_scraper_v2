@@ -124,8 +124,12 @@ def _resolve_keys(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def load_notices(session: Session) -> pd.DataFrame:
-    """Every live, dated, statutory notice with its company key."""
+def load_notices(session: Session, key_map: dict[int, str] | None = None) -> pd.DataFrame:
+    """Every live, dated, statutory notice with its company key.
+
+    key_map: raw company_id -> company key, overriding the canonical grouping
+    (the entity-resolution rerun, warn_v2/ml/er/remap.py). Unmapped
+    companies keep their usual key."""
     stmt = (
         select(
             Notice.notice_id, Notice.state, Notice.employer, Notice.notice_date,
@@ -135,7 +139,11 @@ def load_notices(session: Session) -> pd.DataFrame:
         .outerjoin(Company, Notice.company_id == Company.id)
         .where(Notice.is_superseded.is_(False), Notice.notice_date.is_not(None))
     )
-    rows = [(*r[:7], _linked_key(r[7], r[8])) for r in session.execute(stmt).all()]
+    rows = [
+        (*r[:7], (key_map.get(r[7]) if key_map and r[7] is not None else None)
+         or _linked_key(r[7], r[8]))
+        for r in session.execute(stmt).all()
+    ]
     return _clean(_resolve_keys(pd.DataFrame(rows, columns=NOTICE_COLUMNS)))
 
 

@@ -126,6 +126,45 @@ class CompanyMergeOverride(Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
+class CompanyMergeSuggestion(Base):
+    """A merge the entity-resolution model proposes, for an admin to decide.
+
+    Written by ``warn-v2 ml-er-suggest`` (warn_v2/ml/er/suggest.py); nothing
+    here touches ``canonical_company_id``. Accepting goes through the admin
+    merge path (a ``CompanyMergeOverride``); rejecting only records the
+    decision, so a rejected pair is never proposed again. Decided rows double
+    as gold labels for the next evaluation.
+    """
+
+    __tablename__ = "company_merge_suggestions"
+
+    id: Mapped[int] = mapped_column(BigIntPK, primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    target_company_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+    )
+    score: Mapped[float] = mapped_column(Float, nullable=False)
+    model_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    # 'open' | 'accepted' | 'rejected'
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="open", server_default="open", index=True
+    )
+    decided_by: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL")
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint("company_id", "target_company_id",
+                         name="uq_company_merge_suggestions_pair"),
+    )
+
+
 class Notice(Base):
     __tablename__ = "notices"
 
