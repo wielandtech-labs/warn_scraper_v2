@@ -44,6 +44,7 @@ def test_learned_models_beat_the_floor(events, monkeypatch):
         assert m["logreg"]["pr_auc"] > m["base_rate"]["pr_auc"] + 0.1
         assert m["gbm"]["pr_auc"] > m["base_rate"]["pr_auc"] + 0.1
         assert m["logreg"]["ece"] < 0.1
+        assert "ece" not in m["prior_events"]  # rank-only rule
     ci = bootstrap_ci(result.oof, "logreg", "base_rate", n_boot=50)
     assert ci["lo"] <= ci["point"] <= ci["hi"] and ci["lo"] > 0
 

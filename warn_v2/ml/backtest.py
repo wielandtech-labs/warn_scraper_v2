@@ -8,7 +8,10 @@ from its own future, and the test sets of different years never overlap.
 Candidates, weakest first:
 - base_rate: the training prevalence (PR-AUC = prevalence; the floor)
 - history:   "filed in the last 3 years" — the rule a domain expert would
-             write down; anything we ship has to beat it
+             write down first
+- prior_events: rank by number of earlier events (ties: more recent
+             filings first) — the strongest hand rule we found; anything
+             we ship has to beat it
 - logreg:    L2 logistic regression, one-hot state
 - gbm:       HistGradientBoosting, native categorical state
 
@@ -35,7 +38,9 @@ from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder, StandardScaler
 
 from warn_v2.ml.events import CATEGORICAL_FEATURES, FEATURES, HORIZON_DAYS, NUMERIC_FEATURES
 
-MODELS = ["base_rate", "history", "logreg", "gbm"]
+MODELS = ["base_rate", "history", "prior_events", "logreg", "gbm"]
+# Rank-only baselines: scores, not probabilities, so no Brier/ECE.
+RULES = {"history", "prior_events"}
 RANDOM_STATE = 0
 MIN_TRAIN_EVENTS = 2_000
 MIN_CAL_EVENTS = 300
@@ -85,6 +90,12 @@ class FittedModel:
             return (X["prior_notices_3y"] > 0).to_numpy(float) + 1e-3 * X[
                 "prior_notices_3y"
             ].to_numpy(float)
+        if self.name == "prior_events":
+            return (
+                X["prior_events"].to_numpy(float)
+                + 1e-3 * X["prior_notices_3y"].to_numpy(float)
+                - 1e-6 * X["days_since_prev_log"].to_numpy(float)
+            )
         assert self.pipeline is not None
         proba: np.ndarray = self.pipeline.predict_proba(X[FEATURES])[:, 1]
         return proba
@@ -105,7 +116,7 @@ def _logit(p: np.ndarray) -> np.ndarray:
 def fit(name: str, train: pd.DataFrame) -> FittedModel:
     y = train["label"].to_numpy(int)
     model = FittedModel(name=name, prevalence=float(y.mean()))
-    if name in ("base_rate", "history"):
+    if name == "base_rate" or name in RULES:
         return model
     # Calibration set = the last 365 days of training events, scored by a
     # model that never saw them. A window, not "the latest calendar year": in
@@ -201,7 +212,7 @@ def run_backtest(events: pd.DataFrame, years: list[int]) -> BacktestResult:
             model = fit(name, train)
             p = model.predict(test)
             out[name] = p
-            fold["models"][name] = metrics(y, p, probabilistic=name != "history")
+            fold["models"][name] = metrics(y, p, probabilistic=name not in RULES)
             if model.calibrator is not None:
                 raw = model.predict_raw(test)
                 out[f"{name}_raw"] = raw

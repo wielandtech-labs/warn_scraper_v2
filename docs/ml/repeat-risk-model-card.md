@@ -54,7 +54,8 @@ can show honestly as tiers.
   - Test years never overlap, and no fold sees an outcome from its own future.
 - **Candidates:**
   - base rate (the floor);
-  - **"filed in the last 3 years"**, the rule an analyst would write by hand and the real bar to clear;
+  - **"filed in the last 3 years"**, the first rule an analyst would write by hand;
+  - **"count of prior events"**, the strongest hand rule found, and the real bar to clear;
   - L2 logistic regression;
   - HistGradientBoosting.
   - Hyperparameters are fixed and untuned, so no model was tuned on test years.
@@ -69,18 +70,18 @@ can show honestly as tiers.
 
 ## Results
 
-Snapshot of the public API taken 2026-10-12: 85,562 notices → 41,862 companies → 62,040 events, of which 54,932 are labelled. Prevalence is 0.200, and the Kaplan-Meier 365-day repeat rate is also 0.200. There are 15 test years, 2010 to 2024.
+Snapshot of the public API taken 2026-10-12: 85,562 notices → 41,862 companies → 62,040 events, of which 54,932 are labelled. Prevalence is 0.200, and the Kaplan-Meier 365-day repeat rate is also 0.200. There are 15 test years, 2010 to 2024. The full report, with per-fold and per-slice tables, is [repeat-risk-backtest-2026-10-12.md](repeat-risk-backtest-2026-10-12.md).
 
 | model | PR-AUC (95% CI) | PR-AUC ex-2020 | ROC-AUC | P@10% | ECE |
 |---|---|---|---|---|---|
 | base rate | 0.173 | 0.216 | — | 0.197 | 0.046 |
 | filed in last 3 years | 0.524 (0.476 to 0.565) | 0.580 | 0.759 | 0.709 | — |
-| count of prior events | 0.568 | 0.620 | — | — | — |
+| count of prior events | 0.568 (0.523 to 0.607) | 0.620 | 0.787 | 0.709 | — |
 | logistic regression | 0.582 (0.536 to 0.620) | 0.639 | 0.782 | 0.699 | 0.022 |
 | **gradient boosting** | **0.601 (0.557 to 0.638)** | **0.647** | 0.805 | 0.715 | **0.011** |
 
 - **Model choice:** gradient boosting minus logistic regression is +0.019 PR-AUC [+0.014, +0.025], so the rule picks gradient boosting. It ties or wins in 14 of 15 years, and most of the margin comes from 2020.
-- **Where the signal is:** almost all of it is in company history. `prior_events` alone is worth ΔPR-AUC 0.24, which is why the "count of prior events" rule is the real competitor. The model's lift over it is modest (+0.03).
+- **Where the signal is:** almost all of it is in company history. `prior_events` alone is worth ΔPR-AUC 0.24, which is why the "count of prior events" rule is the real competitor. The model's lift over it is modest but clear: +0.033 PR-AUC [+0.027, +0.040].
 - **First-time filers:** the model is near chance for them (PR-AUC 0.107 against prevalence 0.079), and they are about two thirds of events. **The product should show "not enough history" for them rather than a score.**
 - **Calibration:** after Platt scaling it holds across deciles, from 0.04 to 0.71 predicted against 0.05 to 0.70 observed.
 - **A bug the backtest caught:** in a leap-year fold, the calibration set had shrunk to the filings from one day. The fix is in `fit()`, and a regression test covers it.

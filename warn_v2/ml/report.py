@@ -11,6 +11,7 @@ from sklearn.inspection import permutation_importance
 
 from warn_v2.ml.backtest import (
     MODELS,
+    RULES,
     BacktestResult,
     bootstrap_ci,
     fit,
@@ -82,7 +83,7 @@ def build_report(
     lab = events[events["labelled"]]
     def pool(df: pd.DataFrame) -> dict[str, dict[str, float]]:
         return {
-            m: metrics(df["label"].to_numpy(int), df[m].to_numpy(), probabilistic=m != "history")
+            m: metrics(df["label"].to_numpy(int), df[m].to_numpy(), probabilistic=m not in RULES)
             for m in MODELS
         }
 
@@ -109,9 +110,10 @@ def build_report(
         "pooled": pooled,
         "pooled_ex_2020": pooled_ex_2020,
         "ci": {
-            "pr_auc": {m: bootstrap_ci(oof, m) for m in ("history", "logreg", "gbm")},
-            "logreg_minus_history": bootstrap_ci(oof, "logreg", "history"),
-            "gbm_minus_history": bootstrap_ci(oof, "gbm", "history"),
+            "pr_auc": {m: bootstrap_ci(oof, m) for m in MODELS if m != "base_rate"},
+            # Against the strongest hand rule, not the weakest.
+            "logreg_minus_prior_events": bootstrap_ci(oof, "logreg", "prior_events"),
+            "gbm_minus_prior_events": bootstrap_ci(oof, "gbm", "prior_events"),
         },
         "chosen": chosen,
         "reliability": {
@@ -160,10 +162,11 @@ def render_markdown(r: dict[str, Any]) -> str:
         "PR-AUC 95% CIs (company-clustered bootstrap): "
         + ", ".join(f"{m} {_f(c['lo'])} to {_f(c['hi'])}" for m, c in ci["pr_auc"].items()),
         "",
-        f"- logreg - history: {_f(ci['logreg_minus_history']['point'])} "
-        f"[{_f(ci['logreg_minus_history']['lo'])}, {_f(ci['logreg_minus_history']['hi'])}]",
-        f"- gbm - history: {_f(ci['gbm_minus_history']['point'])} "
-        f"[{_f(ci['gbm_minus_history']['lo'])}, {_f(ci['gbm_minus_history']['hi'])}]",
+        *(
+            f"- {m} - prior_events: {_f(c['point'])} [{_f(c['lo'])}, {_f(c['hi'])}]"
+            for m, c in (("logreg", ci["logreg_minus_prior_events"]),
+                         ("gbm", ci["gbm_minus_prior_events"]))
+        ),
         f"- gbm - logreg: {_f(r['chosen']['gbm_minus_logreg_pr_auc']['point'])} "
         f"[{_f(r['chosen']['gbm_minus_logreg_pr_auc']['lo'])}, "
         f"{_f(r['chosen']['gbm_minus_logreg_pr_auc']['hi'])}] → **chosen: {best}**",
