@@ -58,7 +58,9 @@ def _state_card(db: Session, code: str) -> bytes:
     return og_cards.render_state_card(
         code,
         state_name(code) or code,
-        int(workers) if counted else None,
+        # None (a dash + "not published") only when notices exist but none
+        # carries a count; a state with no notices at all honestly shows 0.
+        None if notices and not counted else int(workers),
         int(notices),
         yearly,
     )

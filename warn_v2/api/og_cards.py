@@ -183,8 +183,18 @@ def render_state_card(
     no employee counts (rendered as a dash, never as zero). `yearly` is
     (year, workers affected), oldest first, complete years only."""
     img, draw = _canvas()
-    _silhouette(draw, code, (700 * SS, 90 * SS, 1140 * SS, 470 * SS))
-    draw.text((64 * SS, 160 * SS), name, font=_font(76), fill=INK)
+    if code == "DC":
+        # DC's real outline is a few pixels; scaled up it reads as a glitch.
+        # The frontend maps draw it as a square callout -- match that.
+        square = (830 * SS, 190 * SS, 1010 * SS, 370 * SS)
+        draw.rounded_rectangle(square, radius=24 * SS, fill=SHAPE)
+    else:
+        _silhouette(draw, code, (700 * SS, 90 * SS, 1140 * SS, 470 * SS))
+    # Shrink long names ("District of Columbia") to stay clear of the shape.
+    size = 76
+    while size > 40 and draw.textlength(name, font=_font(size)) > 600 * SS:
+        size -= 4
+    draw.text((64 * SS, 160 * SS + (76 - size) * SS), name, font=_font(size), fill=INK)
     kicker = "WORKERS AFFECTED BY WARN NOTICES, ALL TIME"
     draw.text((64 * SS, 268 * SS), kicker, font=_font(20, 500), fill=MUTED)
     figure = "—" if workers is None else _fmt(workers)  # em dash, never a fake zero

@@ -135,6 +135,18 @@ def test_state_without_published_counts_gets_no_zero(api_client, db, monkeypatch
     assert calls[0][2] is None
 
 
+def test_state_with_no_notices_shows_zero_not_unpublished(api_client, monkeypatch):
+    calls = []
+    monkeypatch.setattr(og_cards, "render_state_card", lambda *a: calls.append(a) or b"png")
+    api_client.get("/og/states/AR.png")
+    assert calls[0][2] == 0 and calls[0][3] == 0
+
+
+def test_long_name_and_dc_render():
+    img = _png(og_cards.render_state_card("DC", "District of Columbia", 1_234, 9, []))
+    assert img.size == (1200, 630)
+
+
 def test_unknown_state_404(api_client):
     assert api_client.get("/og/states/ZZ.png").status_code == 404
 
