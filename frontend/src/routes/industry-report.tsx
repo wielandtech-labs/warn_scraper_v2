@@ -4,12 +4,16 @@ import { Link, useParams } from "@tanstack/react-router";
 
 import { ApiError, api } from "../api/client";
 import { BlsLevels } from "../components/BlsLevels";
+import { Collapsed } from "../components/Collapsed";
+import { EmployerRanking } from "../components/EmployerRanking";
+import { Figure, Figures } from "../components/Figures";
 import { IndicatorChart } from "../components/IndicatorChart";
 import { NoticeMap } from "../components/NoticeMap";
+import { PageHeader } from "../components/PageHeader";
 import { ProjectionNote } from "../components/ProjectionNote";
 import { QueryError } from "../components/QueryError";
 import { ReportMarkdown } from "../components/ReportMarkdown";
-import { SkeletonBlock, SkeletonChart } from "../components/Skeleton";
+import { SkeletonBlock, SkeletonChart, SkeletonRows } from "../components/Skeleton";
 import { WarnTimeChart } from "../components/WarnTimeChart";
 import {
   TimeRangeToggle,
@@ -18,9 +22,10 @@ import {
 } from "../components/TimeRangeToggle";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { BLS_PAYROLLS } from "../lib/blsSeries";
-import { fmtPeriod } from "../lib/format";
+import { fmtNum, fmtPeriod } from "../lib/format";
 import { withProjectionSeries } from "../lib/projection";
-import { GradeBadge } from "./reports";
+import { deltaCell } from "../lib/scorecard";
+import { GradeTile } from "./reports";
 
 export function IndustryReportPage() {
   const { sector } = useParams({ from: "/reports/industry/$sector" });
@@ -62,6 +67,11 @@ export function IndustryReportPage() {
       label: fmtPeriod(r.period, bucket),
     })),
   );
+  const topEmployers = useQuery({
+    queryKey: ["stats", "top-employers", { industry: sector, after }, 8],
+    queryFn: () => api.statsTopEmployers({ industry: sector, after, limit: 8 }),
+    enabled: vouched,
+  });
   // Periods the payroll card plots onto, so its x-axis matches the chart
   // above it.
   const indicatorPeriods = (overTime.data ?? []).map((r) => r.period);
@@ -89,31 +99,36 @@ export function IndustryReportPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link to="/reports" className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400">
-          ← All industry scorecards
-        </Link>
-        <div className="mt-1 flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold">{name}</h1>
-          {card && <GradeBadge grade={card.grade} />}
-        </div>
-        <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            NAICS {sector} · weekly national layoff scorecard
-          </p>
-          <TimeRangeToggle value={range} onChange={setRange} />
-        </div>
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Chart and map cover only notices matched to a NAICS code — a partial,
-          unevenly-distributed subset; treat both as directional.
-        </p>
-      </div>
+      <Link to="/reports" className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400">
+        ← All industry scorecards
+      </Link>
+      <PageHeader
+        kicker={`NAICS ${sector} · weekly scorecard`}
+        title={
+          <span className="flex items-center gap-4">
+            {card && <GradeTile grade={card.grade} />}
+            <span className="min-w-0">{name}</span>
+          </span>
+        }
+        lede="Chart, map and employers cover only notices matched to a NAICS code — a partial, unevenly-distributed subset; treat them as directional."
+        aside={<TimeRangeToggle value={range} onChange={setRange} />}
+      />
 
-      {vouched && (
-        <div className="card">
-          <h2 className="mb-3 text-lg font-semibold">Where this sector is shedding jobs</h2>
-          <NoticeMap industry={sector} after={after} />
-        </div>
+      {card && (
+        <Figures>
+          <Figure
+            label="Score"
+            value={card.score === null ? "—" : `${Math.round(card.score)}/100`}
+            note="higher = healthier"
+          />
+          <Figure label="Workers, last 90 days" value={fmtNum(card.cur_layoffs)} accent />
+          <Figure label="Notices, last 90 days" value={fmtNum(card.cur_notices)} />
+          <Figure
+            label="vs prior 90 days"
+            value={deltaCell(card)}
+            note={`${fmtNum(card.prior_layoffs)} workers before`}
+          />
+        </Figures>
       )}
 
       {vouched && (
@@ -161,7 +176,33 @@ export function IndustryReportPage() {
         </BlsLevels>
       )}
 
+      {vouched && (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+          <div className="card lg:col-span-3">
+            <h2 className="mb-3 text-lg font-semibold">Where this sector is shedding jobs</h2>
+            <NoticeMap industry={sector} after={after} />
+          </div>
+          <section className="card lg:col-span-2">
+            <h2 className="mb-1 text-lg font-semibold">Top employers</h2>
+            {topEmployers.isLoading && <SkeletonRows rows={5} />}
+            {topEmployers.isError && (
+              <QueryError message="Error loading top employers." onRetry={() => topEmployers.refetch()} />
+            )}
+            {topEmployers.data?.length === 0 && (
+              <div className="py-4 text-sm text-slate-500 dark:text-slate-400">No data for this period.</div>
+            )}
+            {topEmployers.data && topEmployers.data.length > 0 && (
+              <EmployerRanking rows={topEmployers.data} />
+            )}
+          </section>
+        </div>
+      )}
+
       <div className="card">
+        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-brand">
+          Weekly analysis
+        </p>
+        <h2 className="mb-3 mt-1 text-lg font-semibold">{name} scorecard</h2>
         {report.isLoading ? (
           <div className="space-y-2">
             <SkeletonBlock className="h-4 w-1/3" />
@@ -174,7 +215,9 @@ export function IndustryReportPage() {
             onRetry={() => report.refetch()}
           />
         ) : report.data ? (
-          <ReportMarkdown markdown={report.data} skipH1 />
+          <Collapsed label="Read the full scorecard">
+            <ReportMarkdown markdown={report.data} skipH1 />
+          </Collapsed>
         ) : null}
       </div>
 

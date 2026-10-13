@@ -131,10 +131,36 @@
 .dark .leaflet-control-attribution a {
   color: #6da7ec;
 }
-/* Cluster bubbles keep their light-mode fills; their count text has no color
-   of its own and would inherit the near-white dark body text — pin it dark. */
-.dark .marker-cluster div {
-  color: #1a1a19;
+/* Map markers in the brand palette instead of markercluster's traffic-light
+   defaults: one red ramp, darker and more opaque as clusters grow, so size
+   reads as magnitude rather than as a green/yellow/orange verdict. */
+.warn-pin {
+  border-radius: 9999px;
+  background: #da2f25;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(26, 26, 25, 0.35);
+}
+.leaflet-container .marker-cluster-small {
+  background-color: rgba(218, 47, 37, 0.22);
+}
+.leaflet-container .marker-cluster-small div {
+  background-color: rgba(218, 47, 37, 0.55);
+}
+.leaflet-container .marker-cluster-medium {
+  background-color: rgba(218, 47, 37, 0.3);
+}
+.leaflet-container .marker-cluster-medium div {
+  background-color: rgba(218, 47, 37, 0.78);
+}
+.leaflet-container .marker-cluster-large {
+  background-color: rgba(170, 30, 24, 0.35);
+}
+.leaflet-container .marker-cluster-large div {
+  background-color: rgba(170, 30, 24, 0.92);
+}
+.leaflet-container .marker-cluster div {
+  color: #fff;
+  font-weight: 600;
 }
 
 /* Mobile DataTable: below Tailwind's `sm` breakpoint, collapse each row into a

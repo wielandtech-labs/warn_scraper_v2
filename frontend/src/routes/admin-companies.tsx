@@ -95,7 +95,7 @@ export function AdminCompaniesPage() {
             placeholder="Company name contains…"
             className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
           />
-          <button type="submit" className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700">
+          <button type="submit" className="btn-primary">
             Search
           </button>
         </form>
@@ -240,7 +240,7 @@ export function AdminCompaniesPage() {
               type="button"
               onClick={submit}
               disabled={target == null || selected.length === 0 || merge.isPending}
-              className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+              className="btn-primary disabled:opacity-50"
             >
               Merge {selected.length} into {target ? `“${target.name}”` : "…"}
             </button>

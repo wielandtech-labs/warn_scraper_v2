@@ -3,10 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 
 import { ApiError, api } from "../api/client";
 import type { OutlookClaim, OutlookPooled, OutlookTrendRow } from "../api/types";
+import { ForestPlot, type ForestRow } from "../components/ForestPlot";
 import { PageHeader } from "../components/PageHeader";
 import { QueryError } from "../components/QueryError";
 import { SkeletonRows } from "../components/Skeleton";
-import { TBarChart, type TBarRow } from "../components/TBarChart";
 import { UsMap } from "../components/UsMap";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useTheme } from "../hooks/useTheme";
@@ -72,10 +72,13 @@ function ClaimList({ claims }: { claims: OutlookClaim[] }) {
                 {HORIZON_LABEL[c.horizon]}
               </span>
             </div>
-            <p className="mt-2 text-sm leading-relaxed text-slate-800 dark:text-slate-200">{c.statement}</p>
-            <p className="mt-1 text-xs tabular-nums text-slate-500 dark:text-slate-400">
-              {signed(c.effect_pct)} · 95% CI {ciText(c.ci_lo_pct, c.ci_hi_pct)}
-            </p>
+            <div className="mt-3 flex items-center gap-4">
+              <div className="font-display text-3xl font-semibold tabular-nums text-slate-900 dark:text-slate-50">
+                {signed(c.effect_pct)}
+              </div>
+              <ClaimInterval claim={c} />
+            </div>
+            <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-300">{c.statement}</p>
           </li>
         );
       })}
@@ -83,34 +86,69 @@ function ClaimList({ claims }: { claims: OutlookClaim[] }) {
   );
 }
 
+/* A claim's estimate and 95% interval on a small axis centred on zero, so
+   "does the interval clear zero?" -- the whole question -- is visible at a
+   glance. */
+function ClaimInterval({ claim: c }: { claim: OutlookClaim }) {
+  const span = Math.max(5, Math.abs(c.ci_lo_pct), Math.abs(c.ci_hi_pct)) * 1.1;
+  const x = (v: number) => ((v + span) / (2 * span)) * 100;
+  return (
+    <div className="min-w-0 flex-1">
+      <div aria-hidden className="relative h-4">
+        <span className="absolute inset-x-0 top-1/2 h-px bg-slate-200 dark:bg-slate-700" />
+        <span className="absolute inset-y-0 left-1/2 border-l border-dashed border-slate-400 dark:border-slate-500" />
+        <span
+          className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-slate-400 dark:bg-slate-500"
+          style={{ left: `${x(c.ci_lo_pct)}%`, width: `${x(c.ci_hi_pct) - x(c.ci_lo_pct)}%` }}
+        />
+        <span
+          className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-slate-900 ring-2 ring-white dark:bg-slate-100 dark:ring-slate-900"
+          style={{ left: `${x(c.effect_pct)}%` }}
+        />
+      </div>
+      <div className="mt-0.5 text-[0.65rem] tabular-nums text-slate-500 dark:text-slate-400">
+        95% CI {ciText(c.ci_lo_pct, c.ci_hi_pct)}
+      </div>
+    </div>
+  );
+}
+
 /* The state-trend test results on the map: the same colour meaning as the
    bars below (red = significant rise, blue = significant easing), with a
    lighter tint where a state passes its own test but not the correction for
    testing every state. Untested and flat states keep the neutral fill. */
-function TrendMap({ rows, shrunk }: { rows: TBarRow[]; shrunk: boolean }) {
+function TrendMap({ rows, shrunk }: { rows: ForestRow[]; shrunk: boolean }) {
   const { resolved } = useTheme();
   const chart = CHART_COLORS[resolved];
   const byCode = new Map(rows.map((r) => [r.code, r]));
   const fills: Record<string, string> = {};
   for (const r of rows) {
-    const color = r.stat > 0 ? chart.layoffs : chart.notices;
+    const color = r.est > 0 ? chart.layoffs : chart.notices;
     if (r.significant) fills[r.code] = color;
-    else if (Math.abs(r.stat) > Z_GATE) fills[r.code] = `${color}59`; // ~35% alpha
+    else if (r.individually) fills[r.code] = `${color}80`; // ~50% alpha, as in the forest plot
   }
   return (
     <UsMap
       framed={false}
       fills={fills}
-      srLabel={`Map of per-state trends in WARN filings${shrunk ? " (shrunk estimates)" : ""}. The bar chart below lists the same states and values.`}
+      srLabel={`Map of per-state trends in WARN filings${shrunk ? " (shrunk estimates)" : ""}. The chart beside it lists the same states and values.`}
       tooltip={(code) => {
         const r = byCode.get(code);
         if (!r) return <div className="text-slate-500">Not tested</div>;
         return (
           <>
             <div className="font-medium text-slate-900 dark:text-slate-100">{r.name}</div>
-            <div className="tabular-nums text-slate-600 dark:text-slate-400">{r.effect}</div>
+            <div className="tabular-nums text-slate-600 dark:text-slate-400">
+              {signed(r.est)}/yr · 95% CI {ciText(r.lo, r.hi)}
+            </div>
             <div className="text-slate-600 dark:text-slate-400">
-              {r.significant ? (r.stat > 0 ? "significant rise" : "significant easing") : "not significant"}
+              {r.significant
+                ? r.est > 0
+                  ? "significant rise"
+                  : "significant easing"
+                : r.individually
+                  ? "significant for this state only"
+                  : "not significant"}
             </div>
           </>
         );
@@ -118,8 +156,8 @@ function TrendMap({ rows, shrunk }: { rows: TBarRow[]; shrunk: boolean }) {
       legend={
         <>
           <LegendSwatch color={chart.layoffs} label="Significant rise" />
-          <LegendSwatch color={`${chart.layoffs}59`} label="Rising (this state only)" />
-          <LegendSwatch color={`${chart.notices}59`} label="Easing (this state only)" />
+          <LegendSwatch color={`${chart.layoffs}80`} label="Rising (this state only)" />
+          <LegendSwatch color={`${chart.notices}80`} label="Easing (this state only)" />
           <LegendSwatch color={chart.notices} label="Significant easing" />
         </>
       }
@@ -153,43 +191,46 @@ function PooledTile({ label, pooled, unit }: { label: string; pooled: OutlookPoo
   );
 }
 
-function trendRows(rows: OutlookTrendRow[], shrunk: boolean): TBarRow[] {
-  return rows.map((r) =>
-    shrunk && r.shrunk_z !== undefined && r.shrunk_pct !== undefined
+function trendRows(rows: OutlookTrendRow[], shrunk: boolean): ForestRow[] {
+  return rows.map((r) => {
+    const base = { code: r.code, name: r.name, lo: r.ci_lo_pct, hi: r.ci_hi_pct };
+    return shrunk && r.shrunk_z !== undefined && r.shrunk_pct !== undefined
       ? {
-          code: r.code,
-          name: r.name,
+          ...base,
+          est: r.shrunk_pct,
+          raw: r.pct_per_year,
           stat: r.shrunk_z,
-          effect: `${signed(r.shrunk_pct)}/yr (shrunk)`,
-          ci: ciText(r.ci_lo_pct, r.ci_hi_pct) + " raw",
           q: null,
           significant: Math.abs(r.shrunk_z) > Z_GATE,
+          individually: Math.abs(r.shrunk_z) > Z_GATE,
         }
       : {
-          code: r.code,
-          name: r.name,
+          ...base,
+          est: r.pct_per_year,
           stat: r.t,
-          effect: `${signed(r.pct_per_year)}/yr`,
-          ci: ciText(r.ci_lo_pct, r.ci_hi_pct),
           q: r.q,
           significant: r.q < Q_GATE,
-        },
-  );
+          individually: Math.abs(r.t) > Z_GATE,
+        };
+  });
 }
 
 function ShrinkToggle({ shrunk, onChange }: { shrunk: boolean; onChange: (v: boolean) => void }) {
   const btn = (active: boolean) =>
-    `px-3 py-1 text-xs font-medium ${
-      active
-        ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-        : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-    }`;
+    "rounded-full px-3 py-1 text-xs font-medium transition-colors " +
+    (active
+      ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+      : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100");
   return (
-    <div className="inline-flex overflow-hidden rounded-md border border-slate-300 dark:border-slate-700">
-      <button type="button" className={btn(!shrunk)} onClick={() => onChange(false)}>
-        Raw t-statistics
+    <div
+      role="group"
+      aria-label="Estimates"
+      className="inline-flex rounded-full border border-slate-200 bg-white p-0.5 dark:border-slate-800 dark:bg-slate-900"
+    >
+      <button type="button" aria-pressed={!shrunk} className={btn(!shrunk)} onClick={() => onChange(false)}>
+        Raw estimates
       </button>
-      <button type="button" className={btn(shrunk)} onClick={() => onChange(true)}>
+      <button type="button" aria-pressed={shrunk} className={btn(shrunk)} onClick={() => onChange(true)}>
         Shrunk (empirical Bayes)
       </button>
     </div>
@@ -221,6 +262,7 @@ export function OutlookPage() {
   const watch = o.claims.filter((c) => c.confidence === "watch");
   const link = o.unemployment_link;
   const excluded = Object.entries(o.trends.excluded);
+  const stateRows = trendRows(o.trends.states, shrunk);
   const windowText =
     o.window.first_month && o.window.last_month
       ? `${fmtMonth(o.window.first_month)} – ${fmtMonth(o.window.last_month)}`
@@ -293,16 +335,19 @@ export function OutlookPage() {
               <PooledTile label="Excluding 2020–21" pooled={link.pooled_ex_2020} unit="filings per point" />
             )}
           </div>
-          <TBarChart
-            label="Per-state t-statistics for the unemployment effect on WARN filings"
+          <ForestPlot
+            label="Per-state effect of a 1-point unemployment rise on next month's WARN filings, with 95% confidence intervals"
+            unit=" per point"
             rows={link.states.map((r) => ({
               code: r.code,
               name: r.name,
+              est: r.pct,
+              lo: r.ci_lo_pct,
+              hi: r.ci_hi_pct,
               stat: r.t,
-              effect: `${signed(r.pct)} per point`,
-              ci: ciText(r.ci_lo_pct, r.ci_hi_pct),
               q: r.q,
               significant: r.q < Q_GATE,
+              individually: Math.abs(r.t) > Z_GATE,
             }))}
           />
         </Section>
@@ -312,10 +357,11 @@ export function OutlookPage() {
         title="Which states are trending"
         intro={
           <>
-            Trend in monthly WARN filings over {windowText}, after removing seasonality. Bars
-            past the dashed lines are individually significant; red and blue mark the ones that
-            stay significant after correcting for testing every state at once. The shrunk view
-            pulls noisy small-state estimates toward the national pattern.
+            Yearly trend in monthly WARN filings over {windowText}, after removing seasonality,
+            with its 95% confidence interval. Solid red and blue mark the states that stay
+            significant after correcting for testing every state at once; tints are significant
+            on their own test only. The shrunk view pulls noisy small-state estimates toward the
+            national pattern (hollow rings show where each started).
           </>
         }
       >
@@ -325,14 +371,18 @@ export function OutlookPage() {
           </div>
         )}
         <ShrinkToggle shrunk={shrunk} onChange={setShrunk} />
-        <div className="mx-auto max-w-3xl">
-          <TrendMap rows={trendRows(o.trends.states, shrunk)} shrunk={shrunk} />
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* The map stays in view while the per-state list scrolls past. */}
+          <div className="lg:sticky lg:top-20 lg:self-start">
+            <TrendMap rows={stateRows} shrunk={shrunk} />
+          </div>
+          <ForestPlot
+            label="Per-state yearly trend in WARN filings, with 95% confidence intervals"
+            unit="/yr"
+            statLabel={shrunk ? "posterior z" : "t"}
+            rows={stateRows}
+          />
         </div>
-        <TBarChart
-          label="Per-state trend t-statistics for WARN filings"
-          statLabel={shrunk ? "posterior z" : "t-statistic"}
-          rows={trendRows(o.trends.states, shrunk)}
-        />
         {excluded.length > 0 && (
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Not tested (too little consistent data):{" "}
@@ -346,9 +396,11 @@ export function OutlookPage() {
           title="Industry mix"
           intro="Trend in each industry's share of WARN filings with a known NAICS code. Shares, not counts, because the fraction of notices matched to an industry changes over time."
         >
-          <TBarChart
-            label="Per-industry trend t-statistics for share of WARN filings"
-            statLabel={shrunk ? "posterior z" : "t-statistic"}
+          <ForestPlot
+            label="Per-industry yearly trend in share of WARN filings, with 95% confidence intervals"
+            unit="/yr"
+            statLabel={shrunk ? "posterior z" : "t"}
+            nameWidth="13rem"
             rows={trendRows(o.sectors, shrunk)}
           />
         </Section>
