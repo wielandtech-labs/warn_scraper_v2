@@ -13,6 +13,7 @@ import { ProjectionNote } from "../components/ProjectionNote";
 import { QueryError } from "../components/QueryError";
 import { ReportMarkdown } from "../components/ReportMarkdown";
 import { SkeletonBlock, SkeletonChart, SkeletonRows } from "../components/Skeleton";
+import { StateSilhouette } from "../components/StateSilhouette";
 import {
   TimeRangeToggle,
   toRangeQuery,
@@ -142,7 +143,10 @@ export function StateDetailPage() {
           <Link to="/states" className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400">
             ← All states
           </Link>
-          <h1 className="mt-1 text-2xl font-semibold">{name} layoffs &amp; WARN notices</h1>
+          <div className="mt-1 flex items-center gap-3">
+            <StateSilhouette code={code} size={44} className="text-brand" />
+            <h1 className="text-2xl font-semibold">{name} layoffs &amp; WARN notices</h1>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <TimeRangeToggle value={range} onChange={setRange} />

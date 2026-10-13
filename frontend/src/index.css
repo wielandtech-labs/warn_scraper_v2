@@ -78,6 +78,25 @@
   }
 }
 
+/* HeroMap: the largest layoff dots emit a slow ring. transform-box makes the
+   scale pivot on the circle itself, not the SVG origin; transform/opacity
+   only, so it stays on the compositor. Reduced motion stops it (base layer). */
+@keyframes hero-pulse {
+  from {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  to {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+.hero-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hero-pulse 2.8s cubic-bezier(0.2, 0.7, 0.2, 1) infinite;
+}
+
 /* Tailwind Preflight is in @layer base (a named layer), so it has lower cascade
    priority than Leaflet's unlayered CSS above. No extra overrides needed for
    most Leaflet rules. Guard tile images specifically as a belt-and-suspenders
