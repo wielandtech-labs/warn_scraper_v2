@@ -24,6 +24,10 @@ spec:
           image: {{ include "warn-v2.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args: ["serve"]
+          # Probes and the Service target the number, not the name: a ports
+          # list edit (#357 removed a duplicate entry on the same
+          # containerPort) can patch the whole list away, and a named target
+          # then fails closed -- probes error, Service has no endpoints.
           ports:
             - name: http
               containerPort: 8000
@@ -53,13 +57,13 @@ spec:
           readinessProbe:
             httpGet:
               path: /healthz
-              port: http
+              port: 8000
             initialDelaySeconds: 3
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /healthz
-              port: http
+              port: 8000
             initialDelaySeconds: 10
             periodSeconds: 30
           resources:
@@ -90,7 +94,7 @@ spec:
   ports:
     - name: http
       port: {{ .Values.api.service.port }}
-      targetPort: http
+      targetPort: 8000
   selector:
     app.kubernetes.io/name: {{ include "warn-v2.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
