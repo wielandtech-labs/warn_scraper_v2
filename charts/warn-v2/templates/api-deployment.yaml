@@ -8,6 +8,15 @@ metadata:
     app.kubernetes.io/component: api
 spec:
   replicas: {{ .Values.api.replicas }}
+  # Declared, not left to the cluster: prod had drifted to Recreate via an
+  # out-of-band patch, so #357's bad pod spec killed the only replica before
+  # its replacement was ready (503s). Surge-first means a spec that never
+  # becomes ready leaves the old pod serving and the rollout just stalls.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ include "warn-v2.name" . }}
