@@ -37,7 +37,7 @@ can show honestly as tiers.
 
 ### Features (all known at t0)
 
-- **The filing itself:** notices and states filed on t0; log of affected workers (with a flag when no count was given); closure share; notice-to-effective lead time (with a flag when it equals the imputed 60-day default).
+- **The filing itself:** notices and states filed on t0; log of affected workers (0 when no count was given, since valid counts are positive); closure share; notice-to-effective lead time (with a flag when it equals the imputed 60-day default).
 - **Company history:** notices in the prior 1 and 3 years; number of prior events; days since the previous notice; prior affected workers; distinct prior states.
 - **Context:** the state (categorical); how many years the state has been covered (left truncation: a "first-time filer" in a newly covered state may simply be unobserved); the state's and the nation's filing pace over the trailing 90 days; month of the year.
 
@@ -66,7 +66,8 @@ can show honestly as tiers.
   - Also reported: ROC-AUC, precision at the top 10%, Brier score, and ECE over equal-frequency deciles.
   - Results are pooled across folds, both with and without 2020, a regime of its own.
   - 95% confidence intervals come from a **company-clustered bootstrap**. Events from one employer are correlated, so an event-level bootstrap would overstate certainty.
-- **Model choice.** Logistic regression unless gradient boosting's PR-AUC advantage has a confidence interval that excludes zero: the simpler model wins ties.
+- **Model choice.** Logistic regression unless gradient boosting's PR-AUC advantage has a confidence interval that excludes zero both pooled *and* without 2020: the simpler model wins ties, and one atypical year can't decide.
+- **GBM settings.** A fixed 150 iterations with no built-in early stopping. sklearn's early stopping holds out a *random* 10%, which shares companies with the training rows and would stop optimistically.
 
 ## Results
 
@@ -77,13 +78,13 @@ Snapshot of the public API taken 2026-10-12: 85,562 notices → 41,862 companies
 | base rate | 0.173 | 0.216 | — | 0.197 | 0.046 |
 | filed in last 3 years | 0.524 (0.476 to 0.565) | 0.580 | 0.759 | 0.709 | — |
 | count of prior events | 0.568 (0.523 to 0.607) | 0.620 | 0.787 | 0.709 | — |
-| logistic regression | 0.582 (0.536 to 0.620) | 0.639 | 0.782 | 0.699 | 0.022 |
-| **gradient boosting** | **0.601 (0.557 to 0.638)** | **0.647** | 0.805 | 0.715 | **0.011** |
+| logistic regression | 0.576 (0.530 to 0.617) | 0.631 | 0.782 | 0.694 | 0.022 |
+| **gradient boosting** | **0.594 (0.550 to 0.632)** | **0.644** | 0.799 | 0.711 | **0.014** |
 
-- **Model choice:** gradient boosting minus logistic regression is +0.019 PR-AUC [+0.014, +0.025], so the rule picks gradient boosting. It ties or wins in 14 of 15 years, and most of the margin comes from 2020.
-- **Where the signal is:** almost all of it is in company history. `prior_events` alone is worth ΔPR-AUC 0.24, which is why the "count of prior events" rule is the real competitor. The model's lift over it is modest but clear: +0.033 PR-AUC [+0.027, +0.040].
-- **First-time filers:** the model is near chance for them (PR-AUC 0.107 against prevalence 0.079), and they are about two thirds of events. **The product should show "not enough history" for them rather than a score.**
-- **Calibration:** after Platt scaling it holds across deciles, from 0.04 to 0.71 predicted against 0.05 to 0.70 observed.
+- **Model choice:** gradient boosting minus logistic regression is +0.018 PR-AUC [+0.013, +0.025] pooled and +0.013 [+0.007, +0.019] without 2020. Both intervals exclude zero, so the rule picks gradient boosting.
+- **Where the signal is:** almost all of it is in company history. `prior_events` alone is worth ΔPR-AUC 0.24, which is why the "count of prior events" rule is the real competitor. The model's lift over it is modest but clear: +0.027 PR-AUC [+0.021, +0.034].
+- **First-time filers:** the model is near chance for them (PR-AUC 0.111 against prevalence 0.079), and they are about two thirds of events. **The product should show "not enough history" for them rather than a score.**
+- **Calibration:** after Platt scaling it holds across deciles, from 0.04 to 0.73 predicted against 0.06 to 0.71 observed. The top deciles run slightly hot, by about 0.02.
 - **A bug the backtest caught:** in a leap-year fold, the calibration set had shrunk to the filings from one day. The fix is in `fit()`, and a regression test covers it.
 
 ## Known limitations
@@ -92,5 +93,6 @@ Snapshot of the public API taken 2026-10-12: 85,562 notices → 41,862 companies
 - **Entity resolution uses hindsight.** `canonical_company_id` is today's merge graph. A company's early notices may only be linked because of names seen later, which slightly inflates the history features.
 - **One state's coverage gates each label.** An employer that files again in a state with a coverage hole may be recorded as a negative.
 - **State mix.** CA alone is about a quarter of all events, and the per-state slices show where the model is weaker.
+- **Calibrator/model mismatch.** Platt is fitted on a probe model that hasn't seen the last 365 days, then applied to the model refitted on everything. Out-of-fold ECE is small (0.014), but the gap sits exactly on the most recent year. The production job (PR 2) should measure this directly.
 - **Regime shift.** 2020 is a different world: high volume and low repeat rate. Calibration fitted on the year before or after it drifts.
 - **Scope of use.** These are statements about historical filing patterns, not forecasts of any company's decisions. Show them as risk tiers with this card linked, never as a verdict on a named employer.

@@ -25,20 +25,25 @@ SIZE_BUCKETS = [(0, 100, "<100"), (100, 500, "100-499"), (500, float("inf"), "50
 
 
 def choose(result: BacktestResult) -> dict[str, Any]:
-    """logreg unless gbm's pooled PR-AUC is better with a CI that excludes
-    zero — the simpler model wins ties."""
-    diff = bootstrap_ci(result.oof, "gbm", "logreg")
-    name = "gbm" if diff["lo"] > 0 else "logreg"
-    return {"model": name, "gbm_minus_logreg_pr_auc": diff}
+    """logreg unless gbm's PR-AUC is better with a CI that excludes zero both
+    pooled AND without 2020 — the simpler model wins ties. The 2020 wave is
+    ~30% of test events, so a pooled-only gate would pick the model that
+    handles one atypical year best."""
+    oof = result.oof
+    diff = bootstrap_ci(oof, "gbm", "logreg")
+    diff_ex = bootstrap_ci(oof[oof["fold"] != 2020], "gbm", "logreg")
+    name = "gbm" if diff["lo"] > 0 and diff_ex["lo"] > 0 else "logreg"
+    return {"model": name, "gbm_minus_logreg_pr_auc": diff,
+            "gbm_minus_logreg_pr_auc_ex_2020": diff_ex}
 
 
 def _slices(oof: pd.DataFrame, model: str) -> dict[str, list[dict[str, Any]]]:
     workers = np.expm1(oof["day_layoffs_log"])
     size = pd.Series("unknown", index=oof.index)
     for lo, hi, lab in SIZE_BUCKETS:
-        size[(oof["day_count_missing"] == 0) & (workers >= lo) & (workers < hi)] = lab
+        size[(oof["day_layoffs_log"] > 0) & (workers >= lo) & (workers < hi)] = lab
     groups = {
-        "history": np.where(oof["has_prior"] > 0, "prior filer", "first-time filer"),
+        "history": np.where(oof["prior_events"] > 0, "prior filer", "first-time filer"),
         "event_size": size.to_numpy(),
         "type": np.where(oof["day_closure_frac"] >= 0.5, "closure", "layoff"),
         "regime": np.where(oof["t0"].dt.year >= 2020, "2020+", "pre-2020"),
@@ -169,7 +174,10 @@ def render_markdown(r: dict[str, Any]) -> str:
         ),
         f"- gbm - logreg: {_f(r['chosen']['gbm_minus_logreg_pr_auc']['point'])} "
         f"[{_f(r['chosen']['gbm_minus_logreg_pr_auc']['lo'])}, "
-        f"{_f(r['chosen']['gbm_minus_logreg_pr_auc']['hi'])}] → **chosen: {best}**",
+        f"{_f(r['chosen']['gbm_minus_logreg_pr_auc']['hi'])}]; ex-2020 "
+        f"{_f(r['chosen']['gbm_minus_logreg_pr_auc_ex_2020']['point'])} "
+        f"[{_f(r['chosen']['gbm_minus_logreg_pr_auc_ex_2020']['lo'])}, "
+        f"{_f(r['chosen']['gbm_minus_logreg_pr_auc_ex_2020']['hi'])}] → **chosen: {best}**",
         "",
         "## Per-fold PR-AUC",
         "",

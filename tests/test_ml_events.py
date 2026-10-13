@@ -73,7 +73,7 @@ def test_exclusions_and_count_sanity():
     ev = _events(rows)
     assert {"ms", "sc"}.isdisjoint(ev["company_key"])
     big = _company(ev, "big")
-    assert big.loc[0, "day_count_missing"] == 1 and big.loc[0, "day_layoffs_log"] == 0
+    assert big.loc[0, "day_layoffs_log"] == 0  # treated as "no count given"
 
 
 def test_features_never_read_the_future():
@@ -117,3 +117,35 @@ def test_load_notices_rolls_up_to_canonical_company(db):
     assert df.loc["a", "company_key"] == df.loc["b", "company_key"] == f"c{canon.id}"
     assert df.loc["c", "company_key"] == "nwidget"
     assert "d" not in df.index
+
+
+def test_unlinked_notice_joins_its_linked_company(db):
+    # Enrichment lags scraping: the 2019 filing isn't linked yet. Keyed by
+    # name alone it would split Acme into two histories.
+    acme = Company(name="Acme Inc")
+    db.add(acme)
+    db.flush()
+    db.add_all([
+        Notice(notice_id="a", state="AA", employer="Acme Inc", notice_date=D0,
+               company_id=acme.id),
+        Notice(notice_id="b", state="AA", employer="ACME, Inc.",
+               notice_date=D0 + timedelta(days=200)),
+    ])
+    db.commit()
+    df = load_notices(db).set_index("notice_id")
+    assert df.loc["b", "company_key"] == f"c{acme.id}"
+
+
+def test_unlinked_notice_with_ambiguous_name_stays_separate(db):
+    one, two = Company(name="Acme Inc"), Company(name="Acme Inc")
+    db.add_all([one, two])
+    db.flush()
+    db.add_all([
+        Notice(notice_id="a", state="AA", employer="Acme Inc", notice_date=D0,
+               company_id=one.id),
+        Notice(notice_id="b", state="BB", employer="Acme Inc", notice_date=D0,
+               company_id=two.id),
+        Notice(notice_id="c", state="AA", employer="Acme", notice_date=D0),
+    ])
+    db.commit()
+    assert load_notices(db).set_index("notice_id").loc["c", "company_key"] == "nacme"

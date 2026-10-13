@@ -64,7 +64,10 @@ def make_model(name: str) -> Pipeline:
             verbose_feature_names_out=False,
         )
         clf = HistGradientBoostingClassifier(
-            learning_rate=0.05, max_iter=300, max_leaf_nodes=31, min_samples_leaf=50,
+            # Fixed iteration count: the built-in early stopping holds out a
+            # *random* 10%, which shares companies with the training rows.
+            learning_rate=0.05, max_iter=150, early_stopping=False,
+            max_leaf_nodes=31, min_samples_leaf=50,
             l2_regularization=1.0, categorical_features=["state"],
             random_state=RANDOM_STATE,
         )
@@ -213,7 +216,9 @@ def run_backtest(events: pd.DataFrame, years: list[int]) -> BacktestResult:
             p = model.predict(test)
             out[name] = p
             fold["models"][name] = metrics(y, p, probabilistic=name not in RULES)
-            if model.calibrator is not None:
+            if model.pipeline is not None:
+                # Uncalibrated scores for every learned model (equal to `p`
+                # when the fold had too little data to fit a calibrator).
                 raw = model.predict_raw(test)
                 out[f"{name}_raw"] = raw
                 fold["models"][name]["ece_uncalibrated"] = ece(y, raw)
@@ -250,5 +255,7 @@ def bootstrap_ci(
         if w[y == 1].sum() == 0 or w[y == 0].sum() == 0:
             continue
         draws.append(stat(w))
+    if not draws:
+        return {"point": stat(None), "lo": float("nan"), "hi": float("nan")}
     lo, hi = np.percentile(draws, [2.5, 97.5])
     return {"point": stat(None), "lo": float(lo), "hi": float(hi)}

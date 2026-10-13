@@ -62,8 +62,7 @@ NOTICE_COLUMNS = [
 NUMERIC_FEATURES = [
     "day_notices",          # notices filed on t0 (multi-site breadth)
     "day_states",           # distinct states on t0
-    "day_layoffs_log",      # log1p(known affected workers on t0)
-    "day_count_missing",    # no notice on t0 reported a count
+    "day_layoffs_log",      # log1p(known affected workers on t0); 0 = no count given
     "day_closure_frac",     # share of t0 notices that are closures
     "lead_days",            # median effective - notice gap on t0
     "lead_is_default",      # that gap is exactly the imputed 60-day default
@@ -71,7 +70,6 @@ NUMERIC_FEATURES = [
     "prior_notices_3y",
     "prior_events",         # events before this one, all history
     "days_since_prev_log",  # log1p days since the previous notice (0 if none)
-    "has_prior",
     "prior_layoffs_log",
     "prior_states",
     "state_cov_years",      # how long the state has been covered at t0
@@ -98,10 +96,32 @@ def _clean(df: pd.DataFrame) -> pd.DataFrame:
     return df.sort_values(["company_key", "notice_date", "notice_id"]).reset_index(drop=True)
 
 
-def _company_key(company_id: int | None, canonical_id: int | None, employer: str) -> str:
-    if company_id is not None:
-        return f"c{canonical_id or company_id}"
-    return "n" + (canonical_name(employer) or employer.lower())
+def _linked_key(company_id: int | None, canonical_id: int | None) -> str | None:
+    return f"c{canonical_id or company_id}" if company_id is not None else None
+
+
+def _resolve_keys(df: pd.DataFrame) -> pd.DataFrame:
+    """Fill company_key for notices with no linked company.
+
+    Enrichment links notices to companies days to weeks after they're scraped,
+    so one employer's history is often part linked, part not. Keying the
+    unlinked part by name alone would split it in two (a fake first-time filer,
+    and a fake "never filed again"), so an unlinked notice joins the linked
+    company whose employer names normalize to the same key — when exactly one
+    does. Otherwise it is keyed by the normalized name.
+    """
+    names = df["employer"].map(lambda e: canonical_name(e) or str(e).lower())
+    linked = df["company_key"].notna()
+    owners = (
+        pd.DataFrame({"name": names[linked], "key": df.loc[linked, "company_key"]})
+        .drop_duplicates()
+        .groupby("name")["key"]
+    )
+    unique_owner = owners.first()[owners.nunique() == 1]
+    fallback = names.map(unique_owner).fillna("n" + names)
+    df = df.copy()
+    df["company_key"] = df["company_key"].where(linked, fallback)
+    return df
 
 
 def load_notices(session: Session) -> pd.DataFrame:
@@ -115,11 +135,8 @@ def load_notices(session: Session) -> pd.DataFrame:
         .outerjoin(Company, Notice.company_id == Company.id)
         .where(Notice.is_superseded.is_(False), Notice.notice_date.is_not(None))
     )
-    rows = [
-        (*r[:7], _company_key(r[7], r[8], r[2]))
-        for r in session.execute(stmt).all()
-    ]
-    return _clean(pd.DataFrame(rows, columns=NOTICE_COLUMNS))
+    rows = [(*r[:7], _linked_key(r[7], r[8])) for r in session.execute(stmt).all()]
+    return _clean(_resolve_keys(pd.DataFrame(rows, columns=NOTICE_COLUMNS)))
 
 
 def load_notices_jsonl(path: Path) -> pd.DataFrame:
@@ -133,9 +150,9 @@ def load_notices_jsonl(path: Path) -> pd.DataFrame:
             rows.append((
                 n["notice_id"], n["state"], n["employer"], n["notice_date"],
                 n["effective_date"], n["layoff_count"], n["closure_category"],
-                _company_key(co.get("id"), co.get("canonical_company_id"), n["employer"]),
+                _linked_key(co.get("id"), co.get("canonical_company_id")),
             ))
-    return _clean(pd.DataFrame(rows, columns=NOTICE_COLUMNS))
+    return _clean(_resolve_keys(pd.DataFrame(rows, columns=NOTICE_COLUMNS)))
 
 
 def coverage_masks(notices: pd.DataFrame, as_of: date) -> dict[str, dict[str, bool]]:
@@ -235,7 +252,6 @@ def build_events(notices: pd.DataFrame, *, as_of: date) -> pd.DataFrame:
                 "day_notices": day.stop - day.start,
                 "day_states": len(vals),
                 "day_layoffs_log": _log1p(float(np.nansum(day_counts))),
-                "day_count_missing": float(np.isnan(day_counts).all()),
                 "day_closure_frac": float(closure[day].mean()),
                 "lead_days": float(np.clip(lead_med, -30, 365)),
                 "lead_is_default": float(lead_med == DEFAULT_LEAD_DAYS),
@@ -243,7 +259,6 @@ def build_events(notices: pd.DataFrame, *, as_of: date) -> pd.DataFrame:
                 "prior_notices_3y": trailing(dates[prior], t0, 3 * 365) if i else 0,
                 "prior_events": e,
                 "days_since_prev_log": _log1p(float((t0 - prev).astype(int))) if i else 0.0,
-                "has_prior": float(i > 0),
                 "prior_layoffs_log": _log1p(float(np.nansum(prior_counts))) if i else 0.0,
                 "prior_states": len(set(states[prior])),
                 "state_cov_years": float((t0 - state_first[state]).astype(int)) / 365.25,
@@ -263,26 +278,14 @@ def km_repeat_curve(events: pd.DataFrame, days: Iterable[int], *, as_of: date) -
     """Kaplan-Meier P(next event within d days), using every event — the
     ones whose horizon is still open contribute until they're censored.
     A sanity check on the labelled-only base rate, which drops recent events."""
-    as_of_ts = pd.Timestamp(as_of)
+    from statsmodels.duration.survfunc import SurvfuncRight
+
     observed = events["next_gap_days"].notna()
-    follow = (as_of_ts - events["t0"]).dt.days.astype(float)
-    duration = events["next_gap_days"].where(observed, follow).to_numpy()
-    event = observed.to_numpy()
-    order = np.argsort(duration, kind="stable")
-    duration, event = duration[order], event[order]
-    n = len(duration)
-    surv, out, j = 1.0, {}, 0
-    at_risk = n
-    for d in sorted(days):
-        while j < n and duration[j] <= d:
-            k = j
-            deaths = 0
-            while k < n and duration[k] == duration[j]:
-                deaths += int(event[k])
-                k += 1
-            if at_risk:
-                surv *= 1 - deaths / at_risk
-            at_risk -= k - j
-            j = k
-        out[d] = 1 - surv
+    follow = (pd.Timestamp(as_of) - events["t0"]).dt.days.astype(float)
+    duration = events["next_gap_days"].where(observed, follow)
+    sf = SurvfuncRight(duration.to_numpy(), observed.to_numpy(int))
+    out = {}
+    for d in days:
+        k = int(np.searchsorted(sf.surv_times, d, side="right"))
+        out[d] = float(1 - sf.surv_prob[k - 1]) if k else 0.0
     return out
