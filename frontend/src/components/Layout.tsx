@@ -22,10 +22,10 @@ function BrandMark({ className }: { className?: string }) {
 }
 
 const NAV_LINK =
-  "relative flex h-14 items-center px-3 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100";
+  "relative flex h-14 items-center px-2 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900 xl:px-3 dark:text-slate-400 dark:hover:text-slate-100";
 // Active route: ink text + a brand-red rule under the label.
 const NAV_ACTIVE =
-  "!text-slate-900 dark:!text-slate-100 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-brand";
+  "!text-slate-900 dark:!text-slate-100 after:absolute after:inset-x-2 xl:after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-brand";
 
 const NAV = [
   { to: "/", label: "Dashboard" },
@@ -110,12 +110,12 @@ export function Layout({ children }: { children: ReactNode }) {
           >
             <BrandMark className="h-7 w-7" />
             <span className="font-display text-xl font-semibold tracking-tight">WARN Index</span>
-            <span className="hidden border-l border-slate-300 pl-2.5 text-xs font-medium uppercase tracking-[0.12em] text-slate-500 xl:inline dark:border-slate-700 dark:text-slate-400">
+            <span className="hidden border-l border-slate-300 pl-2.5 text-xs font-medium uppercase tracking-[0.12em] text-slate-500 2xl:inline dark:border-slate-700 dark:text-slate-400">
               Layoff notices
             </span>
           </Link>
-          {/* Desktop nav + account (md and up). */}
-          <div className="hidden items-center gap-3 md:flex">
+          {/* Desktop nav + account (lg and up; below that it does not fit). */}
+          <div className="hidden items-center gap-3 lg:flex">
             <nav className="flex">
               {NAV.map((item) => (
                 <Link
@@ -136,7 +136,7 @@ export function Layout({ children }: { children: ReactNode }) {
           {/* Mobile hamburger (below md). */}
           <button
             type="button"
-            className="rounded-md p-2 text-slate-700 hover:bg-slate-100 md:hidden dark:text-slate-300 dark:hover:bg-slate-800"
+            className="rounded-md p-2 text-slate-700 hover:bg-slate-100 lg:hidden dark:text-slate-300 dark:hover:bg-slate-800"
             aria-label="Menu"
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((v) => !v)}
@@ -167,7 +167,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
         {/* Mobile dropdown panel. */}
         {mobileOpen && (
-          <div className="border-t border-slate-200 px-4 py-3 md:hidden dark:border-slate-800">
+          <div className="border-t border-slate-200 px-4 py-3 lg:hidden dark:border-slate-800">
             <div className="mb-3">
               <SearchBox />
             </div>
