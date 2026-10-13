@@ -47,9 +47,8 @@ both, the probes and the Service targeted the port by name, and warnindex.com
 returned 503 until #358. Since then the probes and Service target `8000` by
 number, and the API declares `RollingUpdate` with `maxUnavailable: 0`, so a
 spec that never becomes ready stalls the rollout instead of killing the only
-pod. Prod's live API Deployment still has `ports: []` (the later upgrades did
-not restore it). That is known and harmless; don't trust a patch to fix it.
-After any change to `api-deployment.yaml`, check the **live** object, not just
+pod. Patch outcomes are hard to predict: #358's upgrade did not put the deleted
+port back (live `ports` stayed `[]`), and #360's did. After any change to `api-deployment.yaml`, check the **live** object, not just
 `helm template`: `kubectl get deploy -n warn-v2 warn-v2-warn-v2-api -o yaml`.
 
 ## Cluster access
