@@ -1524,6 +1524,7 @@ def invite_user_cmd(email: str, role: str) -> None:
                 "set your password (valid for 7 days):",
                 f"{site_base_url()}/api/auth/reset-page?token={token}&invite=1",
                 "Set your password",
+                title="Welcome to WARN Index",
             )
     except EmailNotConfigured:
         click.echo("SMTP is not configured (SMTP_HOST/USERNAME/PASSWORD); nothing sent", err=True)

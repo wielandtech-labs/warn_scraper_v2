@@ -29,7 +29,7 @@ from warn_v2.companies.naics import SECTOR_NAME, sector_for_code, subsector_name
 from warn_v2.db.models import Subscription, User
 from warn_v2.notifications.digest import describe_scope, manage_url
 from warn_v2.notifications.email import EmailNotConfigured, send_email
-from warn_v2.notifications.templates import FONT, button, render_shell
+from warn_v2.notifications.templates import message_rows, render_shell
 from warn_v2.states import is_valid_state
 
 router = APIRouter(prefix="/subscriptions", tags=["subscriptions"])
@@ -223,12 +223,13 @@ def _send_confirmation(sub: Subscription) -> None:
     scope = describe_scope(sub)
     html_body = render_shell(
         preheader="Confirm your email to start receiving WARN layoff alerts.",
-        content=(
-            f'<tr><td style="padding:24px 24px 8px;{FONT};font-size:15px;line-height:22px;'
-            'color:#0f172a;">Confirm your email to start receiving WARN layoff '
-            f"alerts for <strong>{escape(scope)}</strong>:</td></tr>"
-            f'<tr><td align="center" style="padding:16px 24px 24px;">'
-            f"{button(confirm_url, 'Confirm subscription')}</td></tr>"
+        content=message_rows(
+            kicker_text="Email alerts",
+            title="Confirm your alert",
+            lead="Confirm your email to start receiving WARN layoff alerts for "
+            f"<strong>{escape(scope)}</strong>.",
+            url=confirm_url,
+            cta="Confirm subscription",
         ),
         footer="If you didn't request this, ignore this message.",
         base=base,
@@ -258,11 +259,12 @@ def _send_manage_link(sub: Subscription, *, already_subscribed: bool = False) ->
     )
     html_body = render_shell(
         preheader="Manage your WARN Index alerts.",
-        content=(
-            f'<tr><td style="padding:24px 24px 8px;{FONT};font-size:15px;line-height:22px;'
-            f'color:#0f172a;">{escape(lead)}</td></tr>'
-            f'<tr><td align="center" style="padding:16px 24px 24px;">'
-            f"{button(url, 'Manage my alerts')}</td></tr>"
+        content=message_rows(
+            kicker_text="Email alerts",
+            title="Your WARN Index alerts",
+            lead=escape(lead),
+            url=url,
+            cta="Manage my alerts",
         ),
         footer="If you didn't request this, ignore this message.",
         base=base,
