@@ -272,7 +272,7 @@ export function FilterBar({
       <div className="col-span-full flex items-center gap-1.5">
         {showDates && (
           <>
-        <span className="text-xs text-slate-400 dark:text-slate-500">Quick:</span>
+        <span className="text-xs text-slate-400 dark:text-slate-400">Quick:</span>
         {PRESETS.map(({ label, days }) => {
           const noDates = !values.after && !values.before;
           const active =

@@ -21,42 +21,40 @@ interface ChartColors {
      measures something different from a WARN count, and sharing a color
      would imply they are the same quantity.
 
-     Validated with the dataviz palette checker at both surfaces: CVD
-     separation, normal-vision floor and contrast all pass across every pair.
-     They sit above the checker's dark lightness band, which is calibrated for
-     a near-black surface -- the same deliberate deviation the notices/layoffs
-     dark steps already make so series stay legible on slate-900. */
+     Validated with the dataviz palette checker (--pairs all) at both chart
+     surfaces. Amber sits close to the layoffs red for deuteranopes, so it
+     must never share a chart with layoffs. */
   indicators: [string, string, string];
 }
 
 export const CHART_COLORS: Record<ResolvedTheme, ChartColors> = {
   light: {
-    grid: "#e2e8f0", // slate-200
-    axis: "#64748b", // slate-500
-    notices: "#0369a1", // sky-700
-    layoffs: "#dc2626", // red-600
-    cursor: "rgba(203, 213, 225, 0.4)", // BarChart hover band; default #ccc
+    grid: "#e1e0d9",
+    axis: "#6e6c66",
+    notices: "#2a78d6",
+    layoffs: "#DA2F25", // brand red
+    cursor: "rgba(195, 194, 183, 0.35)", // BarChart hover band; default #ccc
     tooltip: {
-      backgroundColor: "#ffffff",
-      border: "1px solid #e2e8f0",
-      color: "#0f172a",
+      backgroundColor: "#fcfcfb",
+      border: "1px solid #e1e0d9",
+      color: "#1a1a19",
     },
-    tooltipLabel: { color: "#0f172a" },
-    indicators: ["#7c3aed", "#d97706", "#0d9488"], // violet-600, amber-600, teal-600
+    tooltipLabel: { color: "#1a1a19" },
+    indicators: ["#0f8a60", "#b37800", "#4a3aa7"], // aqua, amber, violet
   },
   dark: {
-    grid: "#334155", // slate-700
-    axis: "#94a3b8", // slate-400
-    notices: "#38bdf8", // sky-400 — same hue, brighter for dark backgrounds
-    layoffs: "#f87171", // red-400
-    cursor: "rgba(148, 163, 184, 0.15)",
+    grid: "#2c2c2a",
+    axis: "#a3a199",
+    notices: "#3987e5", // same hue, brighter for dark backgrounds
+    layoffs: "#e66767",
+    cursor: "rgba(163, 161, 153, 0.15)",
     tooltip: {
-      backgroundColor: "#1e293b",
-      border: "1px solid #334155",
-      color: "#f1f5f9",
+      backgroundColor: "#2c2c2a",
+      border: "1px solid #3d3c39",
+      color: "#f9f9f7",
     },
-    tooltipLabel: { color: "#f1f5f9" },
-    indicators: ["#a78bfa", "#f59e0b", "#14b8a6"], // violet-400, amber-500, teal-500
+    tooltipLabel: { color: "#f9f9f7" },
+    indicators: ["#199e70", "#c98500", "#9085e9"],
   },
 };
 
@@ -72,16 +70,16 @@ interface UsMapColors {
    connector); the per-state fills are each map's own concern. */
 export const US_MAP: Record<ResolvedTheme, UsMapColors> = {
   light: {
-    noData: "#f1f5f9",
+    noData: "#f0efec",
     stateStroke: "#fff",
-    hoverStroke: "#0f172a",
-    connector: "#94a3b8",
+    hoverStroke: "#1a1a19",
+    connector: "#a3a199",
   },
   dark: {
-    noData: "#1e293b",
-    stateStroke: "#020617",
-    hoverStroke: "#f8fafc",
-    connector: "#64748b",
+    noData: "#2c2c2a",
+    stateStroke: "#0d0d0d",
+    hoverStroke: "#f9f9f7",
+    connector: "#6e6c66",
   },
 };
 
@@ -93,10 +91,10 @@ interface ChoroplethColors {
 
 export const CHOROPLETH: Record<ResolvedTheme, ChoroplethColors> = {
   light: {
-    buckets: ["#f1f5f9", "#bae6fd", "#7dd3fc", "#0ea5e9", "#0369a1"],
+    buckets: ["#f0efec", "#b7d3f6", "#6da7ec", "#2a78d6", "#104281"],
   },
   dark: {
-    buckets: ["#1e293b", "#0c4a6e", "#0369a1", "#0ea5e9", "#7dd3fc"],
+    buckets: ["#2c2c2a", "#184f95", "#256abf", "#5598e7", "#9ec5f4"],
   },
 };
 

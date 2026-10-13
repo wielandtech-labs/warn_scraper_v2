@@ -34,7 +34,7 @@ export interface TBarRow {
   significant: boolean;
 }
 
-const NEUTRAL = { light: "#cbd5e1", dark: "#475569" }; // slate-300 / slate-600
+const NEUTRAL = { light: "#c3c2b7", dark: "#52514e" }; // slate-300 / slate-600
 
 function verdict(row: TBarRow): string {
   if (!row.significant) return "not significant";

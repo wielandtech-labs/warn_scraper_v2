@@ -151,7 +151,7 @@ export function AlertFilterFields({
         </select>
       </label>
 
-      <p className="text-xs text-slate-400 sm:col-span-2 dark:text-slate-500">
+      <p className="text-xs text-slate-400 sm:col-span-2 dark:text-slate-400">
         A minimum size only matches notices that report a headcount — many
         don&apos;t. An industry filter only matches notices we&apos;ve linked to a
         company with a NAICS code.

@@ -5,6 +5,9 @@
 @import "leaflet/dist/leaflet.css";
 @import "leaflet.markercluster/dist/MarkerCluster.css";
 @import "leaflet.markercluster/dist/MarkerCluster.Default.css";
+/* Normal-style weight axis only; unicode-range means browsers fetch just the
+   latin file (~37 KB) unless a page needs extended glyphs. */
+@import "@fontsource-variable/fraunces/wght.css";
 
 @tailwind base;
 @tailwind components;
@@ -18,20 +21,45 @@
   .dark {
     color-scheme: dark;
   }
+  /* Editorial headings: page titles and section heads use the display serif. */
+  h1,
+  h2 {
+    @apply font-display tracking-tight;
+  }
+  h1 {
+    @apply font-semibold;
+  }
+  /* Figures line up in tables, KPI tiles and tooltips. */
+  td,
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  ::selection {
+    @apply bg-brand/20;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 1ms !important;
+    }
+  }
 }
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-sm font-medium shadow-sm transition-colors;
+    @apply inline-flex items-center justify-center rounded-full border px-4 py-1.5 text-sm font-medium transition-colors;
   }
   .btn-primary {
-    @apply btn border-sky-700 bg-sky-700 text-white hover:bg-sky-600;
+    @apply btn border-slate-900 bg-slate-900 text-white hover:bg-slate-700 dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white;
   }
   .btn-secondary {
     @apply btn border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800;
   }
   .card {
-    @apply rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900;
+    @apply rounded-xl border border-slate-200 bg-white p-5 shadow-[0_1px_2px_rgba(26,26,25,0.04)] dark:border-slate-800 dark:bg-slate-900;
   }
   .badge {
     @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
@@ -63,31 +91,31 @@
    (like Leaflet's own CSS) and later in the file, so these win the cascade. */
 .dark .leaflet-popup-content-wrapper,
 .dark .leaflet-popup-tip {
-  background: #1e293b;
-  color: #e2e8f0;
+  background: #2c2c2a;
+  color: #e1e0d9;
 }
 .dark .leaflet-container a.leaflet-popup-close-button {
-  color: #94a3b8;
+  color: #a3a199;
 }
 .dark .leaflet-bar a {
-  background: #1e293b;
-  color: #e2e8f0;
-  border-bottom-color: #334155;
+  background: #2c2c2a;
+  color: #e1e0d9;
+  border-bottom-color: #3d3c39;
 }
 .dark .leaflet-bar a:hover {
-  background: #334155;
+  background: #3d3c39;
 }
 .dark .leaflet-control-attribution {
-  background: rgba(15, 23, 42, 0.8);
-  color: #94a3b8;
+  background: rgba(26, 26, 25, 0.8);
+  color: #a3a199;
 }
 .dark .leaflet-control-attribution a {
-  color: #7dd3fc;
+  color: #6da7ec;
 }
 /* Cluster bubbles keep their light-mode fills; their count text has no color
    of its own and would inherit the near-white dark body text — pin it dark. */
 .dark .marker-cluster div {
-  color: #0f172a;
+  color: #1a1a19;
 }
 
 /* Mobile DataTable: below Tailwind's `sm` breakpoint, collapse each row into a

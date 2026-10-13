@@ -1,3 +1,5 @@
+import process from "node:process";
+
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
@@ -13,12 +15,17 @@ const API_PATHS = [
   "/openapi.json",
 ];
 
+// Point the dev proxy at another backend, e.g. the public site, to preview UI
+// changes against real data without a local DB:
+//   API_PROXY_TARGET=https://warnindex.com npm run dev
+const API_TARGET = process.env.API_PROXY_TARGET ?? "http://localhost:8000";
+
 export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
     proxy: Object.fromEntries(
-      API_PATHS.map((p) => [p, { target: "http://localhost:8000", changeOrigin: true }]),
+      API_PATHS.map((p) => [p, { target: API_TARGET, changeOrigin: true }]),
     ),
   },
   build: {
