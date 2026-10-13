@@ -248,6 +248,21 @@ export interface FamilyMemberOut {
   is_self: boolean;
 }
 
+// Historical-pattern risk that the employer files another WARN notice within
+// 12 months of its latest filing (warn_v2/ml/serve.py). The endpoint 404s
+// while the feature is dark; "insufficient_history" carries no number on
+// purpose — the model is near chance for first-time filers.
+export interface RepeatRiskOut {
+  status: "scored" | "insufficient_history" | "no_open_event" | "unavailable";
+  tier: "low" | "moderate" | "high" | null;
+  probability: number | null;
+  base_rate: number | null;
+  event_start: string | null;
+  horizon_end: string | null;
+  model_version: string | null;
+  scored_at: string | null;
+}
+
 // A company row consolidated into another (duplicate or store variant).
 export interface MergedMemberOut {
   company_id: number;

@@ -213,6 +213,36 @@ def get_outlook() -> Response:
 
 
 # Declared before /{state}: same route-order requirement as /industries.
+@router.get("/repeat-risk")
+def get_repeat_risk_summary() -> dict[str, object]:
+    """Headline numbers of the latest repeat-layoff backtest (written by the
+    weekly ml-train CronJob) — what the company-page badge links to."""
+    from warn_v2.ml.serve import public_enabled
+
+    path = _REPORTS_DIR / "repeat_risk_backtest.json"
+    if not public_enabled() or not path.is_file():
+        raise HTTPException(status_code=404, detail="Not available")
+    try:
+        r = json.loads(path.read_text(encoding="utf-8"))
+        chosen = r["chosen"]["model"]
+        return {
+            "as_of": r["as_of"],
+            "model": chosen,
+            "events": r["data"]["labelled_events"],
+            "base_rate": r["data"]["labelled_prevalence"],
+            "pooled": r["pooled"][chosen],
+            "pooled_ex_2020": r["pooled_ex_2020"][chosen],
+            "strongest_rule": r["pooled"]["prior_events"],
+            "first_time_filers": next(
+                (s for s in r["slices"]["history"] if s["slice"] == "first-time filer"), None
+            ),
+        }
+    except (OSError, json.JSONDecodeError, KeyError, TypeError) as exc:
+        log.warning("unreadable repeat_risk_backtest.json: %s", exc)
+        raise HTTPException(status_code=404, detail="Not available") from None
+
+
+# Declared before /{state}: same route-order requirement as /industries.
 @router.get("/payloads")
 def get_payloads() -> Response:
     """Every report's pre-computed figures (payloads.json, written by the

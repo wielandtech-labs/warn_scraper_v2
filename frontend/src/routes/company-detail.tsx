@@ -4,6 +4,7 @@ import { Link, useParams } from "@tanstack/react-router";
 
 import { api } from "../api/client";
 import { CompanyLogo } from "../components/CompanyLogo";
+import { RepeatRisk } from "../components/RepeatRisk";
 import { SkeletonBlock } from "../components/Skeleton";
 import { useAuth } from "../hooks/useAuth";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
@@ -30,6 +31,14 @@ export function CompanyDetail() {
     queryKey: ["company", id, "family"],
     queryFn: () => api.getCompanyFamily(id),
     enabled: !Number.isNaN(id),
+  });
+
+  // 404s while the feature is dark — no retries, and the card just stays hidden.
+  const repeatRisk = useQuery({
+    queryKey: ["company", id, "repeat-risk"],
+    queryFn: () => api.getCompanyRepeatRisk(id),
+    enabled: !Number.isNaN(id),
+    retry: false,
   });
 
   const members = useQuery({
@@ -155,6 +164,8 @@ export function CompanyDetail() {
           />
         </dl>
       </div>
+
+      {repeatRisk.data && <RepeatRisk risk={repeatRisk.data} />}
 
       {family.data && family.data.length >= 2 && (
         <section>

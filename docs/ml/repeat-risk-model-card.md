@@ -3,7 +3,7 @@
 **Question.** An employer has just filed a WARN notice. What is the
 probability that it files another one 1 to 12 months from now?
 
-**Status.** Shadow mode. A weekly CronJob (`warn-v2 ml-train`) trains and scores, but nothing user-facing reads the scores yet. Once a few shadow runs have been reviewed, scores will be exposed on company pages.
+**Status.** Shadow mode. A weekly CronJob (`warn-v2 ml-train`) trains and scores. The company-page card ships dark behind `repeatRisk.public`: it is verified on staging first, and turned on in prod once the shadow runs have been reviewed.
 
 Code is in `warn_v2/ml/`. Reproduce the results with:
 
@@ -101,6 +101,15 @@ The weekly run (`warn_v2/ml/train.py`, chart value `mlTrain`, Sundays 05:41, aft
    - the challenger's backtest PR-AUC and ECE;
    - **PSI** of today's scores against the champion's own backtest scores (above 0.25 means the inputs moved);
    - **realized PR-AUC**: each event's *first* score, graded once its horizon has closed and its label is in. It stays empty until scores are a year old.
+
+## How it is shown
+
+`GET /api/companies/{id}/repeat-risk` (and a "Repeat-filing risk" card on the company page) returns the champion's score for the employer's latest filing whose 12-month window is still open. It 404s while `repeatRisk.public` is off.
+
+- **Prior filers** get a tier from the calibrated probability: low below 0.15, moderate below 0.35, high at 0.35 and above. The base rate is about 0.20. The card shows the percentage next to that base rate.
+- **First-time filers** get `insufficient_history` and **no number**. The backtest puts the model near chance for them, so a score would be false precision.
+- **No open filing** (the last one is over a year old): nothing is shown.
+- `GET /api/reports/repeat-risk` serves the headline backtest numbers from the latest weekly run.
 
 ## Known limitations
 

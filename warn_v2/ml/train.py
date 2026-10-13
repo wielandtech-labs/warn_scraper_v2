@@ -32,6 +32,7 @@ from sqlalchemy import delete, select, tuple_
 from sqlalchemy.orm import Session
 
 from warn_v2.db.models import MlModelRun, RepeatRiskScore
+from warn_v2.ml import MODEL
 from warn_v2.ml.backtest import FittedModel, default_years, fit, run_backtest
 from warn_v2.ml.events import FEATURES, HORIZON_DAYS, build_events, load_notices
 from warn_v2.ml.report import build_report, render_markdown
@@ -39,7 +40,6 @@ from warn_v2.reports.generate import _atomic_write
 
 log = logging.getLogger(__name__)
 
-MODEL = "repeat_risk"
 MAX_ECE = 0.05
 # A challenger may trail the champion by this much on the same test year
 # (bootstrap noise on one fold is about this size) and still replace it.

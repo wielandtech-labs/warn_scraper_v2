@@ -298,6 +298,12 @@ bqExport:
 signup:
   enabled: false          # flip on in HelmRelease after smtp.enabled
 
+# Repeat-layoff risk on company pages (/api/companies/{id}/repeat-risk and
+# /api/reports/repeat-risk; 404 while off). Needs mlTrain scores. Verify on
+# the staging release before turning it on in prod.
+repeatRisk:
+  public: false
+
 # Stripe self-serve billing for the paid API tier. Checkout/portal/webhook
 # 503 until enabled. Seal the secret with these three keys; register the
 # webhook in the Stripe dashboard as https://<host>/api/billing/webhook.
