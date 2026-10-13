@@ -180,6 +180,7 @@ def get_company_summary(
     return CompanySummaryOut(
         notice_count=len(rows),
         layoff_total=sum(r[2] or 0 for r in rows),
+        counted_notices=sum(1 for r in rows if r[2] is not None),
         first_notice=min(dates, default=None),
         last_notice=max(dates, default=None),
         by_year=[

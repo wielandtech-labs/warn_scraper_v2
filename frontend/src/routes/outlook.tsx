@@ -336,6 +336,7 @@ export function OutlookPage() {
             )}
           </div>
           <ForestPlot
+            directional={false}
             label="Per-state effect of a 1-point unemployment rise on next month's WARN filings, with 95% confidence intervals"
             unit=" per point"
             rows={link.states.map((r) => ({

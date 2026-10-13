@@ -28,10 +28,14 @@ export interface ForestRow {
 }
 
 const NEUTRAL = { light: "#c3c2b7", dark: "#52514e" }; // slate-300 / slate-600
+const INK = { light: "#2c2c2a", dark: "#e1e0d9" }; // slate-800 / slate-200
 
 const signed = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(0)}%`;
 
-function verdict(r: ForestRow): string {
+function verdict(r: ForestRow, directional: boolean): string {
+  if (!directional) {
+    return r.significant ? "significant" : r.individually ? "significant (this row only)" : "not significant";
+  }
   if (r.significant) return r.est > 0 ? "significant rise" : "significant easing";
   if (r.individually) return r.est > 0 ? "rising (this row only)" : "easing (this row only)";
   return "not significant";
@@ -51,12 +55,16 @@ export function ForestPlot({
   unit,
   statLabel = "t",
   nameWidth = "7.5rem",
+  directional = true,
 }: {
   rows: ForestRow[];
   label: string;
   unit: string; // appended to effects, e.g. "/yr"
   statLabel?: string;
   nameWidth?: string;
+  /** false for a sensitivity (e.g. the unemployment link), whose sign is not
+   *  a rise or an easing: significant rows take ink instead of red/blue. */
+  directional?: boolean;
 }) {
   const { resolved } = useTheme();
   const chart = CHART_COLORS[resolved];
@@ -75,7 +83,7 @@ export function ForestPlot({
   const x = (v: number) => ((Math.min(max, Math.max(min, v)) - min) / (max - min)) * 100;
 
   const color = (r: ForestRow) => {
-    const hue = r.est > 0 ? chart.layoffs : chart.notices;
+    const hue = !directional ? INK[resolved] : r.est > 0 ? chart.layoffs : chart.notices;
     return r.significant ? hue : r.individually ? `${hue}80` : NEUTRAL[resolved];
   };
 
@@ -101,7 +109,7 @@ export function ForestPlot({
         <ul className="relative space-y-px">
           {data.map((r) => {
             const c = color(r);
-            const title = `${r.name}: ${signed(r.est)}${unit} (95% CI ${signed(r.lo)} to ${signed(r.hi)}) — ${verdict(r)}`;
+            const title = `${r.name}: ${signed(r.est)}${unit} (95% CI ${signed(r.lo)} to ${signed(r.hi)}) — ${verdict(r, directional)}`;
             return (
               <li
                 key={r.code}
@@ -202,7 +210,7 @@ export function ForestPlot({
                   </td>
                   <td className="py-1 pr-3">{r.stat.toFixed(2)}</td>
                   <td className="py-1 pr-3">{r.q === null ? "—" : r.q.toFixed(3)}</td>
-                  <td className="py-1">{verdict(r)}</td>
+                  <td className="py-1">{verdict(r, directional)}</td>
                 </tr>
               ))}
             </tbody>

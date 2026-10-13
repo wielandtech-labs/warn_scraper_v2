@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 
 import { api } from "../api/client";
@@ -37,15 +37,18 @@ export function CompanyDetail() {
     enabled: !Number.isNaN(id),
   });
 
-  // "Show more" grows the window; the previous page stays on screen while
-  // the longer one loads.
-  const [noticeLimit, setNoticeLimit] = useState(NOTICE_PAGE);
-  const notices = useQuery({
-    queryKey: ["company", id, "notices", noticeLimit],
-    queryFn: () => api.listCompanyNotices(id, { limit: noticeLimit }),
+  // "Show more" fetches only the next page, not the whole list again.
+  const notices = useInfiniteQuery({
+    queryKey: ["company", id, "notices", "pages"],
+    queryFn: ({ pageParam }) =>
+      api.listCompanyNotices(id, { limit: NOTICE_PAGE, offset: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (last) =>
+      last.offset + last.items.length < last.total ? last.offset + last.items.length : undefined,
     enabled: !Number.isNaN(id),
-    placeholderData: keepPreviousData,
   });
+  const noticeItems = notices.data?.pages.flatMap((p) => p.items) ?? [];
+  const noticeTotal = notices.data?.pages[0]?.total ?? 0;
   const [showAllMembers, setShowAllMembers] = useState(false);
 
   const family = useQuery({
@@ -198,25 +201,25 @@ export function CompanyDetail() {
             <h2 className="px-5 pb-1 pt-5 text-lg font-semibold">
               Filings{" "}
               <span className="font-sans text-sm font-normal text-slate-500 dark:text-slate-400">
-                {notices.data ? fmtNum(notices.data.total) : ""}
+                {notices.data ? fmtNum(noticeTotal) : ""}
               </span>
             </h2>
             {notices.isLoading && <SkeletonRows rows={6} />}
             {notices.isError && (
               <QueryError message="Error loading notices." onRetry={() => notices.refetch()} />
             )}
-            {notices.data && <NoticeList notices={notices.data.items} lead="place" />}
-            {notices.data && notices.data.items.length < notices.data.total && (
+            {notices.data && <NoticeList notices={noticeItems} lead="place" />}
+            {notices.hasNextPage && (
               <div className="border-t border-slate-100 px-5 py-3 dark:border-slate-800">
                 <button
                   type="button"
-                  disabled={notices.isFetching}
-                  onClick={() => setNoticeLimit((n) => n + NOTICE_PAGE)}
+                  disabled={notices.isFetchingNextPage}
+                  onClick={() => notices.fetchNextPage()}
                   className="text-sm font-medium text-sky-700 hover:underline disabled:opacity-50 dark:text-sky-400"
                 >
-                  {notices.isFetching
+                  {notices.isFetchingNextPage
                     ? "Loading…"
-                    : `Show more (${fmtNum(notices.data.total - notices.data.items.length)} left)`}
+                    : `Show more (${fmtNum(noticeTotal - noticeItems.length)} left)`}
                 </button>
               </div>
             )}

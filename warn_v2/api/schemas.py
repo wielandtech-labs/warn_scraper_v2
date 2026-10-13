@@ -115,6 +115,9 @@ class CompanySummaryOut(BaseModel):
 
     notice_count: int
     layoff_total: int
+    # Notices that published a worker count; 0 means layoff_total is "not
+    # published" (count-less sources), not "no workers affected".
+    counted_notices: int
     first_notice: date | None
     last_notice: date | None
     by_year: list[CompanyYearOut]

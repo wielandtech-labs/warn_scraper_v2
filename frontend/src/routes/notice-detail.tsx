@@ -26,8 +26,10 @@ export function NoticeDetail() {
   });
 
   // The company's other filings, for the "Other filings" list. One extra row
-  // so the list still fills when this notice is among the latest.
-  const companyId = query.data?.company?.id;
+  // so the list still fills when this notice is among the latest. A merged
+  // duplicate's own list holds only its rows, so ask its canonical record.
+  const company = query.data?.company;
+  const companyId = company ? (company.canonical_company_id ?? company.id) : undefined;
   const companyNotices = useQuery({
     queryKey: ["company", companyId, "notices", OTHER_FILINGS + 1],
     queryFn: () => api.listCompanyNotices(companyId!, { limit: OTHER_FILINGS + 1 }),
@@ -69,10 +71,15 @@ export function NoticeDetail() {
   const n = query.data;
   const loc = n.location;
   const place = [loc?.city, loc?.county].filter(Boolean).join(", ");
-  const others = (companyNotices.data?.items ?? [])
-    .filter((o) => o.notice_id !== n.notice_id)
-    .slice(0, OTHER_FILINGS);
-  const otherTotal = Math.max(0, (companyNotices.data?.total ?? 0) - 1);
+  const fetched = companyNotices.data?.items ?? [];
+  const others = fetched.filter((o) => o.notice_id !== n.notice_id).slice(0, OTHER_FILINGS);
+  // This notice is in the company's list unless it is superseded (fetchable
+  // by id, excluded from lists). When the whole list came back and it isn't
+  // there, every row is "other".
+  const total = companyNotices.data?.total ?? 0;
+  const listed =
+    fetched.some((o) => o.notice_id === n.notice_id) || fetched.length < total;
+  const otherTotal = Math.max(0, total - (listed ? 1 : 0));
   const pdfUrl = `/api/notices/${encodeURIComponent(n.notice_id)}/pdf`;
 
   return (
@@ -187,13 +194,13 @@ export function NoticeDetail() {
                 <h2 className="text-lg font-semibold">
                   Other filings by {n.company.name}
                 </h2>
-                {otherTotal > 0 && (
+                {otherTotal > 0 && companyId != null && (
                   <Link
                     to="/companies/$companyId"
-                    params={{ companyId: String(n.company.id) }}
+                    params={{ companyId: String(companyId) }}
                     className="shrink-0 text-sm font-medium text-sky-700 hover:underline dark:text-sky-400"
                   >
-                    All {fmtNum(otherTotal + 1)} →
+                    All {fmtNum(total)} →
                   </Link>
                 )}
               </div>

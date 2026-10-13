@@ -877,6 +877,7 @@ def test_company_summary_rolls_up_merged_and_excludes_superseded(api_client, db)
     body = api_client.get(f"/api/companies/{canon.id}/summary").json()
     assert body["notice_count"] == 3
     assert body["layoff_total"] == 150
+    assert body["counted_notices"] == 2  # the None-count notice isn't counted
     assert body["first_notice"] == "2025-03-01"
     assert body["last_notice"] == "2026-04-01"
     assert body["by_year"] == [
@@ -894,7 +895,7 @@ def test_company_summary_empty_and_not_found(api_client, db):
     db.commit()
     body = api_client.get(f"/api/companies/{c.id}/summary").json()
     assert body == {
-        "notice_count": 0, "layoff_total": 0, "first_notice": None,
+        "notice_count": 0, "layoff_total": 0, "counted_notices": 0, "first_notice": None,
         "last_notice": None, "by_year": [], "by_state": [],
     }
     assert api_client.get("/api/companies/999999/summary").status_code == 404

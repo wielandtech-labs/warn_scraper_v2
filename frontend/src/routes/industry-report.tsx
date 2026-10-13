@@ -22,7 +22,7 @@ import {
 } from "../components/TimeRangeToggle";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { BLS_PAYROLLS } from "../lib/blsSeries";
-import { fmtNum, fmtPeriod } from "../lib/format";
+import { fmtDate, fmtNum, fmtPeriod } from "../lib/format";
 import { withProjectionSeries } from "../lib/projection";
 import { deltaCell } from "../lib/scorecard";
 import { GradeTile } from "./reports";
@@ -129,6 +129,12 @@ export function IndustryReportPage() {
             note={`${fmtNum(card.prior_layoffs)} workers before`}
           />
         </Figures>
+      )}
+      {card && (
+        <p className="-mt-3 text-xs text-slate-500 dark:text-slate-400">
+          Scorecard computed {fmtDate(card.generated_at)}. The written analysis below carries its
+          own generation date and can lag these figures by a few days.
+        </p>
       )}
 
       {vouched && (

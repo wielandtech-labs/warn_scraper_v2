@@ -57,45 +57,39 @@ export function StatePeek({ code }: { code: string }) {
 
 export function CompanyPeek({ id, name }: { id: number; name: string }) {
   const { resolved } = useTheme();
-  // One page of the company's notices is enough for a glance; the yearly
-  // sums below say "most recent 200" when it is truncated.
-  const notices = useQuery({
-    queryKey: ["company", id, "notices", { limit: 200 }],
-    queryFn: () => api.listCompanyNotices(id, { limit: 200 }),
+  // The server-side rollup: every notice (merged dupes included), a few
+  // hundred bytes, shared with the company page's cache.
+  const summary = useQuery({
+    queryKey: ["company", id, "summary"],
+    queryFn: () => api.getCompanySummary(id),
   });
-  const items = notices.data?.items ?? [];
-  const byYear = new Map<string, number>();
-  for (const n of items) {
-    if (!n.notice_date) continue;
-    const y = n.notice_date.slice(0, 4);
-    byYear.set(y, (byYear.get(y) ?? 0) + (n.layoff_count ?? 0));
-  }
-  const yrs = [...byYear.keys()].sort();
+  const s = summary.data;
+  const byYear = new Map((s?.by_year ?? []).map((r) => [r.year, r.layoff_total]));
   const series: number[] = [];
-  if (yrs.length) {
-    for (let y = Number(yrs[0]); y <= Number(yrs[yrs.length - 1]); y++) {
-      series.push(byYear.get(String(y)) ?? 0);
+  if (s && s.by_year.length) {
+    for (let y = s.by_year[0].year; y <= s.by_year[s.by_year.length - 1].year; y++) {
+      series.push(byYear.get(y) ?? 0);
     }
   }
-  // Sum of published counts; null when no notice published one (no-counts
-  // states), so the card says "—" rather than "0 workers".
-  const counted = items.filter((n) => n.layoff_count != null);
-  const workers = counted.length ? counted.reduce((a, n) => a + (n.layoff_count ?? 0), 0) : null;
-  const truncated = (notices.data?.total ?? 0) > items.length;
+  // null when no notice published a count (no-counts states), so the card
+  // says "—" rather than "0 workers".
+  const workers = s ? (s.counted_notices ? s.layoff_total : null) : null;
   return (
     <>
       <div className="flex items-center gap-3">
         <CompanyLogo name={name} companyId={id} size={32} />
         <div className="min-w-0">
-          <div className={KICKER}>{truncated ? "Latest 200 notices" : "All notices"}</div>
+          <div className={KICKER}>All notices</div>
           <div className="truncate font-display text-base font-semibold">{name}</div>
         </div>
       </div>
-      <Figures workers={workers} notices={notices.data?.total ?? null} />
+      <Figures workers={workers} notices={s?.notice_count ?? null} />
       <Sparkline values={series} color={CHART_COLORS[resolved].layoffs} className="mt-2" />
-      {items[0]?.notice_date && (
+      {s?.last_notice && (
         <div className="mt-1 text-[0.7rem] text-slate-500 dark:text-slate-400">
-          Latest notice {fmtDate(items[0].notice_date)} · {items[0].state}
+          Latest notice {fmtDate(s.last_notice)}
+          {s.by_state.length > 0 &&
+            ` · ${s.by_state.length} ${s.by_state.length === 1 ? "state" : "states"}`}
         </div>
       )}
     </>

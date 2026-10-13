@@ -1,14 +1,20 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /* Shows the first screenful of long content behind a fade, with a button to
    expand it. The report runs to dozens of table rows; most visitors want the
    summary, and the rest is one click away. */
 export function Collapsed({ label, children }: { label: string; children: ReactNode }) {
   const [open, setOpen] = useState(false);
+  // `inert` keeps the clipped part out of the tab order until expanded.
+  // Set through the DOM: React 18 doesn't know the attribute.
+  const body = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (body.current) body.current.inert = !open;
+  }, [open]);
   return (
     <div>
       <div className={open ? "" : "relative max-h-[26rem] overflow-hidden"}>
-        {children}
+        <div ref={body}>{children}</div>
         {!open && (
           <div
             aria-hidden

@@ -8,7 +8,7 @@ import { PageHeader } from "../components/PageHeader";
 import { UsMap } from "../components/UsMap";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { type ResolvedTheme, useTheme } from "../hooks/useTheme";
-import { STATE_NAMES, US_STATES, fmtDate, fmtNum } from "../lib/format";
+import { STATE_NAMES, US_STATES, fmtDate, fmtNum, fmtRelativeDays } from "../lib/format";
 import { UNSUPPORTED } from "../lib/unavailable";
 
 type Health = "operational" | "failing" | "unsupported" | "never";
@@ -56,16 +56,6 @@ function coverage(run: StateStatusOut | undefined): string | null {
   const from = run.first_notice_date.slice(0, 4);
   const to = run.last_notice_date.slice(0, 4);
   return from === to ? from : `${from}–${to}`;
-}
-
-/** Short "x days ago" suffix for a last-success timestamp. */
-function relDays(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
-  if (days <= 0) return "today";
-  if (days === 1) return "yesterday";
-  if (days < 60) return `${days} days ago`;
-  return `${Math.floor(days / 30)} months ago`;
 }
 
 export function StatusPage() {
@@ -145,7 +135,7 @@ export function StatusPage() {
                     <div className="text-slate-600 dark:text-slate-400">{BADGE[r.health].label}</div>
                     {r.run?.last_success_at && (
                       <div className="text-slate-600 dark:text-slate-400">
-                        Last success {relDays(r.run.last_success_at)}
+                        Last success {fmtRelativeDays(r.run.last_success_at)}
                       </div>
                     )}
                     {coverage(r.run) && (
@@ -231,7 +221,7 @@ export function StatusPage() {
                       <span>
                         {fmtDate(r.run.last_success_at)}{" "}
                         <span className="text-xs text-slate-500 dark:text-slate-400">
-                          ({relDays(r.run.last_success_at)})
+                          ({fmtRelativeDays(r.run.last_success_at)})
                         </span>
                       </span>
                     ) : (

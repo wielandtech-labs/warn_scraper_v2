@@ -100,6 +100,13 @@ export function RadarPage() {
   const page = Math.max(1, search.page ?? 1);
   const offset = (page - 1) * PAGE_SIZE;
   const days = Math.min(730, Math.max(1, search.days ?? DEFAULT_DAYS));
+  // A shared link can carry a value outside the pill presets; show it as an
+  // extra, selected pill rather than leaving the active filter invisible.
+  const withCurrent = (
+    opts: readonly { label: string; value: number }[],
+    value: number,
+    label: string,
+  ) => (opts.some((o) => o.value === value) ? opts : [...opts, { label, value }]);
   const minLayoffs = Math.max(0, search.min_layoffs ?? 0);
 
   const apiParams = {
@@ -294,13 +301,13 @@ export function RadarPage() {
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
         <Pills
           label="Horizon"
-          options={HORIZONS}
+          options={withCurrent(HORIZONS, days, `${days} days`)}
           value={days}
           onChange={(v) => navigate({ search: (prev) => ({ ...prev, days: v, page: 1 }) })}
         />
         <Pills
           label="Cohort size"
-          options={MIN_COHORTS}
+          options={withCurrent(MIN_COHORTS, minLayoffs, `${minLayoffs}+`)}
           value={minLayoffs}
           onChange={(v) =>
             navigate({ search: (prev) => ({ ...prev, min_layoffs: v || undefined, page: 1 }) })
