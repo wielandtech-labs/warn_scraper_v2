@@ -10,6 +10,7 @@ import type {
   ApiKeyOut,
   AuthUser,
   CompanyOut,
+  CompanySummaryOut,
   CountyImpactStat,
   EmployerStat,
   FamilyMemberOut,
@@ -238,6 +239,9 @@ export const api = {
   /** Repeat-filing risk for the company's latest open filing (404 while dark). */
   getCompanyRepeatRisk: (id: number) =>
     get<RepeatRiskOut>(`/api/companies/${id}/repeat-risk`),
+  /** Totals + per-year / per-state rollups for the company page. */
+  getCompanySummary: (id: number) =>
+    get<CompanySummaryOut>(`/api/companies/${id}/summary`),
   /** Sibling companies sharing this company's corporate family (empty if none). */
   getCompanyFamily: (id: number) =>
     get<FamilyMemberOut[]>(`/api/companies/${id}/family`),

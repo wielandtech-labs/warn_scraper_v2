@@ -37,7 +37,7 @@ export function OccupationMix({ noticeId }: { noticeId: string }) {
             </span>
             <span className="h-3 flex-1 rounded-sm bg-slate-100 dark:bg-slate-800">
               <span
-                className="block h-3 rounded-sm bg-sky-600 dark:bg-sky-500"
+                className="block h-3 rounded-sm bg-brand/75"
                 style={{ width: `${Math.max(2, (o.pct / maxPct) * 100)}%` }}
               />
             </span>

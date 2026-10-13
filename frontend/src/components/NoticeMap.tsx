@@ -9,7 +9,7 @@ import { api, type MapPin } from "../api/client";
 import { useTheme } from "../hooks/useTheme";
 import { fmtDate, fmtNum } from "../lib/format";
 import { TILE_LAYERS } from "../lib/themeColors";
-import "../lib/leafletIcon"; // sets the default marker icon (Vite asset fix)
+import "../lib/leafletIcon"; // sets the default marker icon (brand pin)
 
 const CENTER_US: [number, number] = [39.5, -98.35];
 // A single state's or sector's geocoded set is small, so we fetch it all and

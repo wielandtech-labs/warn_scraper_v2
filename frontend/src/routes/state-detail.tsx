@@ -5,9 +5,13 @@ import { Link, useParams } from "@tanstack/react-router";
 import { api, ApiError } from "../api/client";
 import { AlertSignup } from "../components/AlertSignup";
 import { BlsLevels } from "../components/BlsLevels";
+import { Collapsed } from "../components/Collapsed";
 import { CountyImpact } from "../components/CountyImpact";
+import { EmployerRanking } from "../components/EmployerRanking";
+import { Figure, Figures } from "../components/Figures";
 import { ForecastNote } from "../components/ForecastNote";
 import { IndicatorChart } from "../components/IndicatorChart";
+import { NoticeList } from "../components/NoticeList";
 import { NoticeMap } from "../components/NoticeMap";
 import { ProjectionNote } from "../components/ProjectionNote";
 import { QueryError } from "../components/QueryError";
@@ -23,10 +27,24 @@ import { UnavailableNotice } from "../components/UnavailableNotice";
 import { WarnTimeChart } from "../components/WarnTimeChart";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { BLS_LABOUR_MARKET } from "../lib/blsSeries";
-import { STATE_NAMES, fmtDate, fmtNum, fmtPeriod, stateName } from "../lib/format";
+import {
+  STATE_NAMES,
+  fmtDate,
+  fmtNum,
+  fmtPeriod,
+  fmtRelativeDays,
+  stateName,
+} from "../lib/format";
 import { withForecastSeries } from "../lib/forecast";
 import { withProjectionSeries } from "../lib/projection";
 import { LAW_BLOCKED, NO_COUNTS } from "../lib/unavailable";
+
+const RANGE_PHRASE: Record<TimeRange, string> = {
+  "30d": "in the last 30 days",
+  "1y": "in the past year",
+  "5y": "in the last five years",
+  all: "on record",
+};
 
 export function StateDetailPage() {
   const { state } = useParams({ from: "/states/$state" });
@@ -135,27 +153,54 @@ export function StateDetailPage() {
   // Periods the indicator cards plot onto, so their x-axes match the chart
   // above — including its forecast months, which the cards leave blank.
   const indicatorPeriods = timeData.map((r) => r.period);
+  // Rank among reporting states over the same window -- by notices where the
+  // source publishes no worker counts.
+  const ranked = (byState.data ?? [])
+    .filter((s) => s.notice_count > 0)
+    .sort((a, b) =>
+      noCounts ? b.notice_count - a.notice_count : b.layoff_total - a.layoff_total,
+    );
+  const rank = noticeCount > 0 ? ranked.findIndex((s) => s.state === code) + 1 : 0;
+  const latest = recent.data?.items[0]?.notice_date;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <Link to="/states" className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400">
-            ← All states
-          </Link>
-          <div className="mt-1 flex items-center gap-3">
-            <StateSilhouette code={code} size={44} className="text-brand" />
-            <h1 className="text-2xl font-semibold">{name} layoffs &amp; WARN notices</h1>
+      <Link to="/states" className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400">
+        ← All states
+      </Link>
+      <header className="relative flex flex-col gap-4 overflow-hidden border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between dark:border-slate-800">
+        {/* The state's own outline as the page's editorial art. */}
+        <StateSilhouette
+          code={code}
+          size={168}
+          className="pointer-events-none absolute -right-4 -top-6 hidden text-brand/[0.07] md:block dark:text-brand/[0.12]"
+        />
+        <div className="relative flex min-w-0 items-center gap-4">
+          <StateSilhouette code={code} size={56} className="shrink-0 text-brand" />
+          <div className="min-w-0">
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-brand">
+              WARN notices · {code}
+            </p>
+            <h1 className="mt-1 text-3xl font-semibold leading-tight text-slate-900 dark:text-slate-50">
+              {name}
+            </h1>
+            <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+              {byState.data
+                ? noCounts
+                  ? `${fmtNum(noticeCount)} layoff and closure notices filed ${RANGE_PHRASE[range]}.`
+                  : `${fmtNum(layoffTotal)} workers affected across ${fmtNum(noticeCount)} notices filed ${RANGE_PHRASE[range]}.`
+                : "Layoff and closure notices filed under the WARN Act."}
+            </p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3 text-sm">
+        <div className="relative flex flex-wrap items-center gap-3 text-sm">
           <TimeRangeToggle value={range} onChange={setRange} />
           <Link
             to="/map"
             search={{ state: code }}
             className="font-medium text-sky-700 hover:underline dark:text-sky-400"
           >
-            View on map →
+            Map →
           </Link>
           <a
             href={`/states/${code}/feed.rss`}
@@ -164,33 +209,31 @@ export function StateDetailPage() {
             RSS
           </a>
         </div>
-      </div>
+      </header>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="card">
-          <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Total notices</div>
-          <div className="mt-1 text-3xl font-semibold">{fmtNum(noticeCount)}</div>
-        </div>
-        <div className="card">
-          <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Workers affected</div>
-          <div className="mt-1 text-3xl font-semibold">{noCounts ? "—" : fmtNum(layoffTotal)}</div>
-          {noCounts && (
-            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Not published by the source</div>
-          )}
-        </div>
-        <div className="card">
-          <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Most recent notice</div>
-          <div className="mt-1 text-3xl font-semibold">
-            {fmtDate(recent.data?.items[0]?.notice_date)}
-          </div>
-        </div>
-      </div>
+      <Figures>
+        <Figure
+          label="Workers affected"
+          value={byState.data ? (noCounts ? "—" : fmtNum(layoffTotal)) : null}
+          note={noCounts ? "Not published by the source" : undefined}
+          accent
+        />
+        <Figure label="Notices" value={byState.data ? fmtNum(noticeCount) : null} />
+        <Figure
+          label="Rank among states"
+          value={byState.data ? (rank ? `#${rank}` : "—") : null}
+          note={rank ? `of ${ranked.length}, by ${noCounts ? "notices" : "workers"}` : undefined}
+        />
+        <Figure
+          label="Latest notice"
+          value={recent.data ? fmtDate(latest) : null}
+          note={fmtRelativeDays(latest) ?? undefined}
+        />
+      </Figures>
 
       {noCounts && (
         <p className="text-sm text-slate-500 dark:text-slate-400">{NO_COUNTS[code]}</p>
       )}
-
-      <AlertSignup state={code} />
 
       <div className="card">
         <h2 className="mb-3 text-lg font-semibold">Notices and layoffs over time</h2>
@@ -248,6 +291,43 @@ export function StateDetailPage() {
         </BlsLevels>
       )}
 
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <section className="card">
+          <h2 className="mb-1 text-lg font-semibold">Top employers</h2>
+          {topEmployers.isLoading && <SkeletonRows rows={5} />}
+          {topEmployers.isError && (
+            <QueryError message="Error loading top employers." onRetry={() => topEmployers.refetch()} />
+          )}
+          {topEmployers.data?.length === 0 && (
+            <div className="py-4 text-sm text-slate-500 dark:text-slate-400">No data yet.</div>
+          )}
+          {topEmployers.data && topEmployers.data.length > 0 && (
+            <EmployerRanking rows={topEmployers.data} />
+          )}
+        </section>
+
+        <section className="card p-0">
+          <div className="flex items-center justify-between px-5 pb-1 pt-5">
+            <h2 className="text-lg font-semibold">Latest filings</h2>
+            <Link
+              to="/notices"
+              search={{ state: code }}
+              className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400"
+            >
+              View all →
+            </Link>
+          </div>
+          {recent.isLoading && <SkeletonRows rows={5} />}
+          {recent.isError && (
+            <QueryError message="Error loading notices." onRetry={() => recent.refetch()} />
+          )}
+          {recent.data?.items.length === 0 && (
+            <div className="px-5 py-4 text-sm text-slate-500 dark:text-slate-400">No notices yet.</div>
+          )}
+          {recent.data && <NoticeList notices={recent.data.items} lead="employer" />}
+        </section>
+      </div>
+
       <div className="card">
         <h2 className="mb-3 text-lg font-semibold">Layoffs across {name}</h2>
         <NoticeMap state={code} after={after} />
@@ -260,7 +340,10 @@ export function StateDetailPage() {
 
       {!reportMissing && (
         <div className="card">
-          <h2 className="mb-3 text-lg font-semibold">Economic outlook</h2>
+          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-brand">
+            Weekly analysis
+          </p>
+          <h2 className="mb-3 mt-1 text-lg font-semibold">{name} economic outlook</h2>
           {report.isLoading ? (
             <div className="space-y-2">
               <SkeletonBlock className="h-4 w-1/3" />
@@ -273,76 +356,14 @@ export function StateDetailPage() {
               onRetry={() => report.refetch()}
             />
           ) : report.data ? (
-            <ReportMarkdown markdown={report.data} skipH1 />
+            <Collapsed label="Read the full outlook">
+              <ReportMarkdown markdown={report.data} skipH1 />
+            </Collapsed>
           ) : null}
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <section>
-          <h2 className="mb-2 text-lg font-semibold">Top employers</h2>
-          <div className="card divide-y divide-slate-100 p-0 dark:divide-slate-800">
-            {topEmployers.isLoading && <SkeletonRows rows={5} />}
-            {topEmployers.data?.length === 0 && (
-              <div className="p-4 text-sm text-slate-500 dark:text-slate-400">No data yet.</div>
-            )}
-            {topEmployers.data?.map((e) => (
-              <div key={e.employer} className="flex items-baseline justify-between px-4 py-3">
-                <div className="min-w-0 truncate">
-                  {e.company_id ? (
-                    <Link
-                      to="/companies/$companyId"
-                      params={{ companyId: String(e.company_id) }}
-                      className="font-medium text-slate-900 hover:underline dark:text-slate-100"
-                    >
-                      {e.employer}
-                    </Link>
-                  ) : (
-                    <span className="font-medium">{e.employer}</span>
-                  )}
-                </div>
-                <div className="shrink-0 text-sm font-medium">{fmtNum(e.layoff_total)}</div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Recent notices</h2>
-            <Link
-              to="/notices"
-              search={{ state: code }}
-              className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400"
-            >
-              View all →
-            </Link>
-          </div>
-          <div className="card divide-y divide-slate-100 p-0 dark:divide-slate-800">
-            {recent.isLoading && <SkeletonRows rows={5} />}
-            {recent.data?.items.length === 0 && (
-              <div className="p-4 text-sm text-slate-500 dark:text-slate-400">No notices yet.</div>
-            )}
-            {recent.data?.items.map((n) => (
-              <Link
-                key={n.notice_id}
-                to="/notices/$noticeId"
-                params={{ noticeId: n.notice_id }}
-                className="block px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50"
-              >
-                <div className="flex items-baseline justify-between gap-4">
-                  <div className="min-w-0 truncate font-medium">{n.employer}</div>
-                  <div className="shrink-0 text-xs text-slate-500 dark:text-slate-400">{fmtDate(n.notice_date)}</div>
-                </div>
-                <div className="text-xs text-slate-500 dark:text-slate-400">
-                  {n.layoff_count != null && <span>{fmtNum(n.layoff_count)} affected · </span>}
-                  {n.location?.city || n.location?.county || "Location unspecified"}
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      </div>
+      <AlertSignup state={code} />
     </div>
   );
 }

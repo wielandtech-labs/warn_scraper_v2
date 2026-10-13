@@ -6,7 +6,14 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, aliased
 
 from warn_v2.api.deps import PaginationParams, ViewerSchemas, get_db
-from warn_v2.api.schemas import FamilyMemberOut, MergedMemberOut, Page
+from warn_v2.api.schemas import (
+    CompanyStateOut,
+    CompanySummaryOut,
+    CompanyYearOut,
+    FamilyMemberOut,
+    MergedMemberOut,
+    Page,
+)
 from warn_v2.companies.naics import naics_filter
 from warn_v2.db.models import Company, Notice
 from warn_v2.ml.serve import RepeatRiskOut, company_risk, public_enabled
@@ -136,6 +143,58 @@ def get_company(
     return view.company.model_validate(company)
 
 
+def _company_notice_filter(company_id: int):
+    # Roll up notices from companies consolidated into this one, and exclude
+    # superseded notices (so totals match the rest of the API).
+    merged_ids = select(Company.id).where(Company.canonical_company_id == company_id)
+    return (
+        Notice.company_id.in_(merged_ids) | (Notice.company_id == company_id)
+    ) & Notice.is_superseded.is_(False)
+
+
+@router.get("/{company_id}/summary", response_model=CompanySummaryOut)
+def get_company_summary(
+    company_id: int,
+    db: Session = Depends(get_db),
+) -> CompanySummaryOut:
+    """Totals plus per-year and per-state rollups over the company's notices."""
+    if db.get(Company, company_id) is None:
+        raise HTTPException(status_code=404, detail="Company not found")
+    rows = db.execute(
+        select(Notice.notice_date, Notice.state, Notice.layoff_count).where(
+            _company_notice_filter(company_id)
+        )
+    ).all()
+    # Grouped in Python: even the largest employers file a few thousand
+    # notices at most, and it keeps the year bucketing dialect-free.
+    years: dict[int, list[int]] = {}
+    states: dict[str, list[int]] = {}
+    dates = [r[0] for r in rows if r[0] is not None]
+    for notice_date, state, count in rows:
+        buckets = [states.setdefault(state, [0, 0])]
+        if notice_date is not None:
+            buckets.append(years.setdefault(notice_date.year, [0, 0]))
+        for bucket in buckets:
+            bucket[0] += 1
+            bucket[1] += count or 0
+    return CompanySummaryOut(
+        notice_count=len(rows),
+        layoff_total=sum(r[2] or 0 for r in rows),
+        counted_notices=sum(1 for r in rows if r[2] is not None),
+        first_notice=min(dates, default=None),
+        last_notice=max(dates, default=None),
+        by_year=[
+            CompanyYearOut(year=y, notice_count=n, layoff_total=w)
+            for y, (n, w) in sorted(years.items())
+        ],
+        by_state=sorted(
+            (CompanyStateOut(state=st, notice_count=n, layoff_total=w)
+             for st, (n, w) in states.items()),
+            key=lambda x: (-x.layoff_total, -x.notice_count, x.state),
+        ),
+    )
+
+
 @router.get("/{company_id}/notices", response_model=None)
 def list_company_notices(
     company_id: int,
@@ -146,13 +205,7 @@ def list_company_notices(
     if db.get(Company, company_id) is None:
         raise HTTPException(status_code=404, detail="Company not found")
 
-    # Roll up notices from companies consolidated into this one, and exclude
-    # superseded notices (so totals match the rest of the API).
-    merged_ids = select(Company.id).where(Company.canonical_company_id == company_id)
-    notice_filter = (
-        Notice.company_id.in_(merged_ids) | (Notice.company_id == company_id)
-    ) & Notice.is_superseded.is_(False)
-
+    notice_filter = _company_notice_filter(company_id)
     stmt = (
         select(Notice)
         .where(notice_filter)

@@ -6,6 +6,7 @@ import { ApiError, api } from "../api/client";
 import type { AlertFilters, SubscriptionOut } from "../api/types";
 import { AlertFilterFields } from "../components/AlertFilterFields";
 import { AlertSignup } from "../components/AlertSignup";
+import { PageHeader } from "../components/PageHeader";
 import { useAuth } from "../hooks/useAuth";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
@@ -249,12 +250,12 @@ export function AlertsPage() {
   const sessionCanList = !!auth.data;
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <h1 className="text-xl font-semibold">Email alerts</h1>
-      <p className="mt-1 mb-4 text-sm text-slate-500 dark:text-slate-400">
-        Each alert is one saved search. We email you when new WARN notices match
-        it.
-      </p>
+    <div className="mx-auto max-w-2xl space-y-5">
+      <PageHeader
+        kicker="Alerts"
+        title="Email alerts"
+        lede="Each alert is one saved search. We email you when new WARN notices match it."
+      />
       {token || sessionCanList ? <AlertList token={token} /> : <RequestLinkCard />}
     </div>
   );

@@ -1,15 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 import { api, ApiError } from "../api/client";
 import { AlertSignup } from "../components/AlertSignup";
@@ -30,7 +21,7 @@ import { WarnTimeChart } from "../components/WarnTimeChart";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useTheme } from "../hooks/useTheme";
 import { BLS_LABOUR_MARKET } from "../lib/blsSeries";
-import { fmtCompact, fmtDate, fmtNum, fmtPeriod } from "../lib/format";
+import { fmtDate, fmtNum, fmtPeriod } from "../lib/format";
 import { withForecastSeries } from "../lib/forecast";
 import { withProjectionSeries } from "../lib/projection";
 import { CHART_COLORS } from "../lib/themeColors";
@@ -110,6 +101,7 @@ export function Dashboard() {
   const industryData = (industries.data ?? [])
     .slice()
     .sort((a, b) => b.layoff_total - a.layoff_total);
+  const industryMax = Math.max(1, ...industryData.map((i) => i.layoff_total));
 
   return (
     <div className="space-y-8">
@@ -244,9 +236,12 @@ export function Dashboard() {
       </div>
 
       <div className="card">
-        <h2 className="mb-3 text-lg font-semibold">Workers affected by industry</h2>
+        <h2 className="mb-1 text-lg font-semibold">Workers affected by industry</h2>
+        <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+          Notices matched to a NAICS sector. Open one for its weekly scorecard.
+        </p>
         {industries.isLoading ? (
-          <SkeletonChart height={288} />
+          <SkeletonRows rows={6} />
         ) : industries.isError ? (
           <QueryError
             message="Error loading the industry chart."
@@ -257,31 +252,32 @@ export function Dashboard() {
             No industry data for this period.
           </div>
         ) : (
-          <div role="img" aria-label="Bar chart of workers affected by industry">
-            <ResponsiveContainer width="100%" height={Math.max(240, industryData.length * 28)}>
-              <BarChart layout="vertical" data={industryData} margin={{ left: 20 }}>
-                <CartesianGrid stroke={chart.grid} />
-                <XAxis
-                  type="number"
-                  tick={{ fontSize: 12, fill: chart.axis }}
-                  tickFormatter={fmtCompact}
-                />
-                <YAxis
-                  dataKey="name"
-                  type="category"
-                  tick={{ fontSize: 11, fill: chart.axis }}
-                  width={180}
-                />
-                <Tooltip
-                  formatter={(v: number) => fmtNum(v)}
-                  contentStyle={chart.tooltip}
-                  labelStyle={chart.tooltipLabel}
-                  cursor={{ fill: chart.cursor }}
-                />
-                <Bar dataKey="layoff_total" name="Workers affected" fill={chart.layoffs} radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          // A ranked list rather than a chart: names stay readable at any
+          // width, and each row opens that industry's scorecard.
+          <ol className="gap-8 md:columns-2">
+            {industryData.map((i) => (
+              <li key={i.sector} className="break-inside-avoid">
+                <Link
+                  to="/reports/industry/$sector"
+                  params={{ sector: i.sector }}
+                  className="group block rounded-md px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                >
+                  <div className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="truncate text-slate-800 group-hover:underline dark:text-slate-200">
+                      {i.name}
+                    </span>
+                    <span className="shrink-0 font-semibold tabular-nums">{fmtNum(i.layoff_total)}</span>
+                  </div>
+                  <div aria-hidden className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${(i.layoff_total / industryMax) * 100}%`, backgroundColor: chart.layoffs }}
+                    />
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ol>
         )}
       </div>
 

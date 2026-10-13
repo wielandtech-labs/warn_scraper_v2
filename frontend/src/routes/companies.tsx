@@ -7,6 +7,7 @@ import { api } from "../api/client";
 import { CompanyLogo } from "../components/CompanyLogo";
 import { DataTable } from "../components/DataTable";
 import { ExportButtons } from "../components/ExportButtons";
+import { PageHeader } from "../components/PageHeader";
 import { Pagination } from "../components/Pagination";
 import { Peek } from "../components/Peek";
 import { CompanyPeek } from "../components/peeks";
@@ -43,20 +44,30 @@ export function CompaniesPage() {
   };
 
   return (
-    <div>
-      <div className="mb-3 flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold">
-          {view === "families" ? "Corporate families" : "Companies"}
-        </h1>
-        <div className="flex gap-1 rounded-md border border-slate-300 p-0.5 dark:border-slate-700">
-          <ViewTab active={view === "companies"} onClick={() => setView("companies")} label="Companies" />
-          <ViewTab
-            active={view === "families"}
-            onClick={() => setView("families")}
-            label="Corporate families"
-          />
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        kicker="Employers"
+        title={view === "families" ? "Corporate families" : "Companies"}
+        lede={
+          view === "families"
+            ? "Companies grouped into corporate families, ranked by total layoffs across all their subsidiaries."
+            : "Every employer that has filed a WARN notice, with filings under variant names rolled up into one record."
+        }
+        aside={
+          <div
+            role="group"
+            aria-label="View"
+            className="inline-flex rounded-full border border-slate-200 bg-white p-0.5 dark:border-slate-800 dark:bg-slate-900"
+          >
+            <ViewTab active={view === "companies"} onClick={() => setView("companies")} label="Companies" />
+            <ViewTab
+              active={view === "families"}
+              onClick={() => setView("families")}
+              label="Corporate families"
+            />
+          </div>
+        }
+      />
 
       {view === "families" ? <FamiliesView /> : <CompaniesView />}
     </div>
@@ -133,6 +144,9 @@ function CompaniesView() {
     });
   };
 
+  // Inline magnitude bars scale to the largest company on the page.
+  const pageMax = Math.max(1, ...(query.data?.items ?? []).map((c) => c.layoff_total ?? 0));
+
   const columns = useMemo<ColumnDef<CompanyOut, unknown>[]>(
     () => [
       {
@@ -166,10 +180,9 @@ function CompaniesView() {
       {
         header: "Workers affected",
         accessorKey: "layoff_total",
+        meta: { align: "right" },
         cell: (info) => (
-          <div className="text-right tabular-nums">
-            {fmtNum(info.getValue() as number | null)}
-          </div>
+          <WorkersCell value={info.getValue() as number | null} max={pageMax} />
         ),
       },
       {
@@ -220,7 +233,7 @@ function CompaniesView() {
         },
       },
     ],
-    [],
+    [pageMax],
   );
 
   return (
@@ -317,6 +330,8 @@ function FamiliesView() {
     queryFn: () => api.statsByParentGroup({ limit: 50 }),
   });
 
+  const familyMax = Math.max(1, ...(query.data ?? []).map((f) => f.layoff_total));
+
   // No onSortChange → DataTable sorts the 50 rows client-side.
   const columns = useMemo<ColumnDef<ParentGroupStat, unknown>[]>(
     () => [
@@ -328,8 +343,13 @@ function FamiliesView() {
             to="/companies/$companyId"
             params={{ companyId: String(info.row.original.representative_company_id) }}
             search={(prev) => prev}
-            className="font-medium text-sky-700 hover:underline dark:text-sky-400"
+            className="inline-flex items-center gap-2.5 font-medium text-sky-700 hover:underline dark:text-sky-400"
           >
+            <CompanyLogo
+              name={info.getValue() as string}
+              companyId={info.row.original.representative_company_id}
+              size={24}
+            />
             {info.getValue() as string}
           </Link>
         ),
@@ -337,36 +357,32 @@ function FamiliesView() {
       {
         header: "Members",
         accessorKey: "member_count",
-        cell: (info) => (
-          <div className="text-right tabular-nums">{fmtNum(info.getValue() as number)}</div>
-        ),
+        meta: { align: "right" },
+        cell: (info) => <span className="tabular-nums">{fmtNum(info.getValue() as number)}</span>,
       },
       {
         header: "Notices",
         accessorKey: "notice_count",
-        cell: (info) => (
-          <div className="text-right tabular-nums">{fmtNum(info.getValue() as number)}</div>
-        ),
+        meta: { align: "right" },
+        cell: (info) => <span className="tabular-nums">{fmtNum(info.getValue() as number)}</span>,
       },
       {
         header: "Workers affected",
         accessorKey: "layoff_total",
+        meta: { align: "right" },
         cell: (info) => (
-          <div className="text-right font-medium tabular-nums">
-            {fmtNum(info.getValue() as number)}
-          </div>
+          <WorkersCell value={info.getValue() as number} max={familyMax} />
         ),
       },
     ],
-    [],
+    [familyMax],
   );
 
   return (
     <div>
-      <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
-        Companies grouped into corporate families, ranked by total layoffs across all
-        their subsidiaries. Each family is labeled by its largest member, and the
-        list grows as enrichment links subsidiaries to a shared parent.
+      <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+        Each family is labeled by its largest member; the list grows as enrichment
+        links subsidiaries to a shared parent.
       </p>
 
       {query.isLoading && <SkeletonTable rows={10} />}
@@ -387,6 +403,26 @@ function FamiliesView() {
   );
 }
 
+/* Workers affected with an inline bar on the table's shared scale. */
+function WorkersCell({ value, max }: { value: number | null; max: number }) {
+  return (
+    <span className="inline-flex items-center justify-end gap-2 tabular-nums">
+      {value != null && (
+        <span
+          aria-hidden
+          className="hidden h-1.5 w-16 overflow-hidden rounded-full bg-slate-100 sm:block dark:bg-slate-800"
+        >
+          <span
+            className="block h-full rounded-full bg-brand/70"
+            style={{ width: `${Math.max(2, (value / max) * 100)}%` }}
+          />
+        </span>
+      )}
+      {fmtNum(value)}
+    </span>
+  );
+}
+
 function ViewTab({
   active,
   onClick,
@@ -398,11 +434,14 @@ function ViewTab({
 }) {
   return (
     <button
+      type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={
-        active
-          ? "rounded px-3 py-1 text-sm font-medium bg-sky-600 text-white"
-          : "rounded px-3 py-1 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+        "rounded-full px-3 py-1 text-xs font-medium transition-colors " +
+        (active
+          ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+          : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100")
       }
     >
       {label}
@@ -421,11 +460,14 @@ function FilterChip({
 }) {
   return (
     <button
+      type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={
-        active
-          ? "rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white"
-          : "rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+        "rounded-full border px-3 py-1 text-xs font-medium transition-colors " +
+        (active
+          ? "border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
+          : "border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800")
       }
     >
       {label}

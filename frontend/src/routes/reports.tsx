@@ -9,6 +9,7 @@ import { ReportMarkdown } from "../components/ReportMarkdown";
 import { SkeletonBlock, SkeletonRows } from "../components/Skeleton";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { fmtDate, fmtNum } from "../lib/format";
+import { deltaCell } from "../lib/scorecard";
 
 // Mirrors GRADE_LABEL in warn_v2/reports/industry.py.
 const GRADE_STYLE: Record<string, { badge: string; label: string }> = {
@@ -19,26 +20,7 @@ const GRADE_STYLE: Record<string, { badge: string; label: string }> = {
   F: { badge: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300", label: "surging" },
 };
 
-export function GradeBadge({ grade }: { grade: string }) {
-  const style = GRADE_STYLE[grade];
-  if (!style) {
-    return (
-      <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-        N/A
-      </span>
-    );
-  }
-  return (
-    <span
-      className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${style.badge}`}
-      title={`Layoff pressure ${style.label}`}
-    >
-      {grade} · {style.label}
-    </span>
-  );
-}
-
-function GradeTile({ grade }: { grade: string }) {
+export function GradeTile({ grade }: { grade: string }) {
   const style = GRADE_STYLE[grade];
   return (
     <span
@@ -50,13 +32,6 @@ function GradeTile({ grade }: { grade: string }) {
       {style ? grade : "–"}
     </span>
   );
-}
-
-function deltaCell(card: IndustryScorecard): string {
-  if (card.delta_pct === null) {
-    return card.cur_layoffs > 0 && card.prior_layoffs === 0 ? "new" : "—";
-  }
-  return `${card.delta_pct > 0 ? "+" : ""}${Math.round(card.delta_pct)}%`;
 }
 
 function ScorecardGrid({ cards }: { cards: IndustryScorecard[] }) {

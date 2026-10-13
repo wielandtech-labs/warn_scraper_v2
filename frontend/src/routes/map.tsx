@@ -7,11 +7,12 @@ import MarkerClusterGroup from "react-leaflet-cluster";
 
 import { api } from "../api/client";
 import { FilterBar, type FilterValues } from "../components/FilterBar";
+import { PageHeader } from "../components/PageHeader";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useTheme } from "../hooks/useTheme";
 import { fmtDate, fmtNum } from "../lib/format";
 import { TILE_LAYERS } from "../lib/themeColors";
-import "../lib/leafletIcon"; // sets the default marker icon (Vite asset fix)
+import "../lib/leafletIcon"; // sets the default marker icon (brand pin)
 
 const CENTER_US: [number, number] = [39.5, -98.35];
 // Per-device pin ceilings. The API tops out at 50 000, but instantiating that
@@ -199,8 +200,12 @@ export function MapPage() {
   );
 
   return (
-    <div>
-      <h1 className="mb-3 text-2xl font-semibold">Map</h1>
+    <div className="space-y-4">
+      <PageHeader
+        kicker="Explore"
+        title="Layoff map"
+        lede="Geocoded WARN notices, clustered by place. Zoom in to break clusters apart; click a pin for the filing."
+      />
       <FilterBar
         values={search}
         onChange={handleFilterChange}
@@ -208,7 +213,7 @@ export function MapPage() {
         industries={industriesQuery.data}
       />
 
-      <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
+      <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
         <MapContainer
           center={search.lat != null && search.lon != null ? [search.lat, search.lon] : CENTER_US}
           zoom={search.zoom ?? 4}
@@ -224,7 +229,7 @@ export function MapPage() {
         </MapContainer>
       </div>
 
-      <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+      <div className="text-xs text-slate-500 dark:text-slate-400">
         Showing {fmtNum(points.length)}
         {total != null && ` of ${fmtNum(total)}`} geocoded notices in view.
         {capped && " Zoom in to load all pins in a region."}

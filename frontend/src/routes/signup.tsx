@@ -93,7 +93,7 @@ export function SignupPage() {
           <button
             type="submit"
             disabled={signup.isPending}
-            className="w-full rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+            className="btn-primary w-full disabled:opacity-50"
           >
             {signup.isPending ? "Creating…" : "Create account"}
           </button>

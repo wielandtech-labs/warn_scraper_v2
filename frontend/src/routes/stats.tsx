@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import {
   Bar,
   BarChart,
@@ -14,13 +14,12 @@ import {
 import { api } from "../api/client";
 import { ActiveFilters } from "../components/ActiveFilters";
 import { BlsLevels } from "../components/BlsLevels";
-import { CompanyLogo } from "../components/CompanyLogo";
 import { CountyImpact } from "../components/CountyImpact";
+import { EmployerRanking } from "../components/EmployerRanking";
+import { Figure, Figures } from "../components/Figures";
 import { IndicatorChart } from "../components/IndicatorChart";
 import { FilterBar, type FilterValues, resolveAfter } from "../components/FilterBar";
 import { PageHeader } from "../components/PageHeader";
-import { Peek } from "../components/Peek";
-import { CompanyPeek } from "../components/peeks";
 import { ProjectionNote } from "../components/ProjectionNote";
 import { QueryError } from "../components/QueryError";
 import { SkeletonChart, SkeletonRows } from "../components/Skeleton";
@@ -102,7 +101,6 @@ export function StatsPage() {
     (best, r) => (!best || r.layoff_total > best.layoff_total ? r : best),
     null,
   );
-  const topMax = Math.max(1, ...(top.data ?? []).map((e) => e.layoff_total));
 
   return (
     <div className="space-y-6">
@@ -130,7 +128,7 @@ export function StatsPage() {
         onChange={handleFilterChange}
       />
 
-      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-slate-200 bg-slate-200 sm:grid-cols-4 dark:border-slate-800 dark:bg-slate-800">
+      <Figures>
         <Figure label="Workers affected" value={byMonth.data ? fmtNum(sumWorkers) : null} accent />
         <Figure label="Notices" value={byMonth.data ? fmtNum(sumNotices) : null} />
         {/* Per month, not per notice: notices from count-less sources (OK)
@@ -144,7 +142,7 @@ export function StatsPage() {
           value={byMonth.data ? (peak ? fmtMonth(peak.month) : "—") : null}
           note={peak ? `${fmtNum(peak.layoff_total)} workers` : undefined}
         />
-      </dl>
+      </Figures>
 
       <ChartCard title="Notices and layoffs by month">
         {byMonth.isLoading ? (
@@ -256,76 +254,13 @@ export function StatsPage() {
         ) : top.isError ? (
           <QueryError message="Error loading top employers." onRetry={() => top.refetch()} />
         ) : (
-          <ol className="divide-y divide-slate-100 dark:divide-slate-800">
-            {(top.data ?? []).map((e, i) => (
-              <li key={e.employer} className="flex items-center gap-3 py-2.5">
-                <span className="w-6 shrink-0 text-right font-display text-sm text-slate-400 tabular-nums">
-                  {i + 1}
-                </span>
-                <CompanyLogo name={e.employer} companyId={e.company_id} size={28} />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">
-                    {e.company_id ? (
-                      <Peek content={() => <CompanyPeek id={e.company_id!} name={e.employer} />}>
-                        <Link
-                          to="/companies/$companyId"
-                          params={{ companyId: String(e.company_id) }}
-                          className="text-slate-900 hover:text-sky-700 hover:underline dark:text-slate-100 dark:hover:text-sky-400"
-                        >
-                          {e.employer}
-                        </Link>
-                      </Peek>
-                    ) : (
-                      e.employer
-                    )}
-                  </div>
-                  <div aria-hidden className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                    <div
-                      className="h-full rounded-full"
-                      style={{ width: `${(e.layoff_total / topMax) * 100}%`, backgroundColor: chart.layoffs }}
-                    />
-                  </div>
-                </div>
-                <div className="w-28 shrink-0 text-right">
-                  <div className="text-sm font-semibold tabular-nums">{fmtNum(e.layoff_total)}</div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400">
-                    {e.notice_count} {e.notice_count === 1 ? "notice" : "notices"}
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ol>
+          <EmployerRanking rows={top.data ?? []} />
         )}
       </ChartCard>
     </div>
   );
 }
 
-function Figure({
-  label,
-  value,
-  note,
-  accent = false,
-}: {
-  label: string;
-  value: string | null;
-  note?: string;
-  accent?: boolean;
-}) {
-  return (
-    <div className="bg-white p-4 dark:bg-slate-900">
-      <dt className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
-        {label}
-      </dt>
-      <dd
-        className={`mt-1 font-display text-2xl font-semibold tabular-nums ${accent ? "text-brand dark:text-brand-dark" : "text-slate-900 dark:text-slate-50"}`}
-      >
-        {value ?? <span className="inline-block h-7 w-20 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />}
-      </dd>
-      {note && <div className="text-xs text-slate-500 dark:text-slate-400">{note}</div>}
-    </div>
-  );
-}
 
 function ChartCard({ title, children }: { title: string; children: ReactNode }) {
   return (

@@ -97,6 +97,34 @@ class MergedMemberOut(BaseModel):
     layoff_total: int
 
 
+class CompanyYearOut(BaseModel):
+    year: int
+    notice_count: int
+    layoff_total: int
+
+
+class CompanyStateOut(BaseModel):
+    state: str
+    notice_count: int
+    layoff_total: int
+
+
+class CompanySummaryOut(BaseModel):
+    """A company's filing history at a glance (merged dupes rolled up,
+    superseded notices excluded -- the same set as /companies/{id}/notices)."""
+
+    notice_count: int
+    layoff_total: int
+    # Notices that published a worker count; 0 means layoff_total is "not
+    # published" (count-less sources), not "no workers affected".
+    counted_notices: int
+    first_notice: date | None
+    last_notice: date | None
+    by_year: list[CompanyYearOut]
+    # Sorted by workers affected, then notices.
+    by_state: list[CompanyStateOut]
+
+
 class NoticeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

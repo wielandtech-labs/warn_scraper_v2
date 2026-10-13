@@ -449,3 +449,14 @@ export interface Outlook {
   } | null;
   claims: OutlookClaim[];
 }
+
+// A company's filing history at a glance (merged dupes rolled up).
+export interface CompanySummaryOut {
+  notice_count: number;
+  layoff_total: number;
+  counted_notices: number; // 0 => worker counts not published
+  first_notice: string | null;
+  last_notice: string | null;
+  by_year: { year: number; notice_count: number; layoff_total: number }[];
+  by_state: { state: string; notice_count: number; layoff_total: number }[];
+}

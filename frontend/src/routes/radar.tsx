@@ -4,35 +4,84 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { useMemo } from "react";
 
 import { api } from "../api/client";
+import { ClosureBadge } from "../components/ClosureBadge";
+import { CompanyLogo } from "../components/CompanyLogo";
 import { DataTable } from "../components/DataTable";
 import { EMPTY_FILTERS, FilterBar, type FilterValues } from "../components/FilterBar";
+import { PageHeader } from "../components/PageHeader";
 import { Pagination } from "../components/Pagination";
 import { QueryError } from "../components/QueryError";
 import { SkeletonTable } from "../components/Skeleton";
+import { StateSilhouette } from "../components/StateSilhouette";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { fmtDate, fmtNum } from "../lib/format";
 import type { OccupationEstimate, RadarNoticeOut } from "../api/types";
 
 const PAGE_SIZE = 50;
+// Cohorts this close get the brand-red countdown chip.
+const SOON_DAYS = 14;
 // Default lookahead. Also clamps far-future junk dates out of the first view.
 const DEFAULT_DAYS = 180;
 
 const HORIZONS = [
-  { label: "Next 30 days", days: 30 },
-  { label: "Next 60 days", days: 60 },
-  { label: "Next 90 days", days: 90 },
-  { label: "Next 6 months", days: 180 },
-  { label: "Next year", days: 365 },
-  { label: "Next 2 years", days: 730 },
+  { label: "30 days", value: 30 },
+  { label: "60 days", value: 60 },
+  { label: "90 days", value: 90 },
+  { label: "6 months", value: 180 },
+  { label: "1 year", value: 365 },
+  { label: "2 years", value: 730 },
 ] as const;
 
 const MIN_COHORTS = [
   { label: "Any size", value: 0 },
-  { label: "50+ workers", value: 50 },
-  { label: "100+ workers", value: 100 },
-  { label: "250+ workers", value: 250 },
-  { label: "500+ workers", value: 500 },
+  { label: "50+", value: 50 },
+  { label: "100+", value: 100 },
+  { label: "250+", value: 250 },
+  { label: "500+", value: 500 },
 ] as const;
+
+/* A labelled row of pill buttons -- the radar's two view controls. */
+function Pills({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: readonly { label: string; value: number }[];
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+        {label}
+      </span>
+      <div
+        role="group"
+        aria-label={label}
+        className="inline-flex flex-wrap rounded-full border border-slate-200 bg-white p-0.5 dark:border-slate-800 dark:bg-slate-900"
+      >
+        {options.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            aria-pressed={value === o.value}
+            onClick={() => onChange(o.value)}
+            className={
+              "rounded-full px-3 py-1 text-xs font-medium transition-colors " +
+              (value === o.value
+                ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100")
+            }
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /** "~40 Machinists" when a count estimate exists, else "12% Machinists".
  *  Employer-filed counts are exact, so they drop the "~". */
@@ -51,6 +100,13 @@ export function RadarPage() {
   const page = Math.max(1, search.page ?? 1);
   const offset = (page - 1) * PAGE_SIZE;
   const days = Math.min(730, Math.max(1, search.days ?? DEFAULT_DAYS));
+  // A shared link can carry a value outside the pill presets; show it as an
+  // extra, selected pill rather than leaving the active filter invisible.
+  const withCurrent = (
+    opts: readonly { label: string; value: number }[],
+    value: number,
+    label: string,
+  ) => (opts.some((o) => o.value === value) ? opts : [...opts, { label, value }]);
   const minLayoffs = Math.max(0, search.min_layoffs ?? 0);
 
   const apiParams = {
@@ -102,10 +158,16 @@ export function RadarPage() {
             <Link
               to="/notices/$noticeId"
               params={{ noticeId: row.notice_id }}
-              className="font-medium text-sky-700 hover:underline dark:text-sky-400"
+              className="whitespace-nowrap font-medium text-sky-700 hover:underline dark:text-sky-400"
             >
               {fmtDate(row.effective_date)}
-              <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-xs font-normal text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+              <span
+                className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs font-normal ${
+                  row.days_until <= SOON_DAYS
+                    ? "bg-brand/10 text-brand dark:bg-brand/20 dark:text-brand-dark"
+                    : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                }`}
+              >
                 {row.days_until === 0 ? "today" : `in ${row.days_until}d`}
               </span>
             </Link>
@@ -118,16 +180,24 @@ export function RadarPage() {
         enableSorting: false,
         cell: (info) => {
           const row = info.row.original;
-          if (row.company_id == null)
-            return <span className="font-medium">{row.employer}</span>;
           return (
-            <Link
-              to="/companies/$companyId"
-              params={{ companyId: String(row.company_id) }}
-              className="font-medium text-sky-700 hover:underline dark:text-sky-400"
-            >
-              {row.employer}
-            </Link>
+            <span className="flex items-center gap-2.5">
+              <CompanyLogo name={row.employer} companyId={row.company_id} size={24} />
+              <span className="min-w-0">
+                {row.company_id == null ? (
+                  <span className="font-medium">{row.employer}</span>
+                ) : (
+                  <Link
+                    to="/companies/$companyId"
+                    params={{ companyId: String(row.company_id) }}
+                    className="font-medium text-slate-900 hover:text-sky-700 hover:underline dark:text-slate-100 dark:hover:text-sky-400"
+                  >
+                    {row.employer}
+                  </Link>
+                )}{" "}
+                <ClosureBadge category={row.closure_category} />
+              </span>
+            </span>
           );
         },
       },
@@ -137,21 +207,26 @@ export function RadarPage() {
         header: "Location",
         cell: (info) => {
           const row = info.row.original;
-          return [row.city, row.county].filter(Boolean).join(", ") || row.state;
+          const place = [row.city, row.county].filter(Boolean).join(", ");
+          return (
+            <span className="inline-flex items-center gap-1.5">
+              <StateSilhouette code={row.state} size={16} className="shrink-0 text-slate-300 dark:text-slate-600" />
+              <span>
+                {place ? `${place} · ` : ""}
+                {row.state}
+              </span>
+            </span>
+          );
         },
       },
-      { header: "State", accessorKey: "state", enableSorting: false },
       {
         header: "Workers",
         accessorKey: "layoff_count",
         enableSorting: false,
-        cell: (info) => fmtNum(info.getValue() as number | null),
-      },
-      {
-        header: "Type",
-        accessorKey: "closure_category",
-        enableSorting: false,
-        cell: (info) => (info.getValue() as string | null) ?? "—",
+        meta: { align: "right" },
+        cell: (info) => (
+          <span className="font-semibold tabular-nums">{fmtNum(info.getValue() as number | null)}</span>
+        ),
       },
       {
         id: "industry",
@@ -189,21 +264,31 @@ export function RadarPage() {
     [],
   );
 
-  const selectClass =
-    "rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900";
-  const labelClass =
-    "text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400";
-
   return (
-    <div>
-      <div className="mb-3">
-        <h1 className="text-2xl font-semibold">Radar</h1>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          WARN notices must be filed at least 60 days before separation — these
-          layoffs haven't happened yet. Cohorts are listed by the date they hit
-          the labor market, soonest first.
-        </p>
-      </div>
+    <div className="space-y-4">
+      <PageHeader
+        kicker="Upcoming"
+        title="Layoff radar"
+        lede={
+          <>
+            WARN notices must be filed at least 60 days before separation — these layoffs
+            haven&apos;t happened yet. Cohorts are listed by the date they hit the labor market,
+            soonest first.
+          </>
+        }
+        aside={
+          query.data && (
+            <div className="text-right">
+              <div className="font-display text-3xl font-semibold tabular-nums">
+                {fmtNum(query.data.total)}
+              </div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                upcoming {query.data.total === 1 ? "cohort" : "cohorts"}
+              </div>
+            </div>
+          )
+        }
+      />
 
       <FilterBar
         values={search}
@@ -213,45 +298,21 @@ export function RadarPage() {
         industries={industriesQuery.data}
       />
 
-      <div className="card mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <label className="flex flex-col gap-1">
-          <span className={labelClass}>Horizon</span>
-          <select
-            className={selectClass}
-            value={days}
-            onChange={(e) =>
-              navigate({ search: (prev) => ({ ...prev, days: Number(e.target.value), page: 1 }) })
-            }
-          >
-            {HORIZONS.map((h) => (
-              <option key={h.days} value={h.days}>
-                {h.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className={labelClass}>Min cohort size</span>
-          <select
-            className={selectClass}
-            value={minLayoffs}
-            onChange={(e) =>
-              navigate({
-                search: (prev) => ({
-                  ...prev,
-                  min_layoffs: Number(e.target.value) || undefined,
-                  page: 1,
-                }),
-              })
-            }
-          >
-            {MIN_COHORTS.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <Pills
+          label="Horizon"
+          options={withCurrent(HORIZONS, days, `${days} days`)}
+          value={days}
+          onChange={(v) => navigate({ search: (prev) => ({ ...prev, days: v, page: 1 }) })}
+        />
+        <Pills
+          label="Cohort size"
+          options={withCurrent(MIN_COHORTS, minLayoffs, `${minLayoffs}+`)}
+          value={minLayoffs}
+          onChange={(v) =>
+            navigate({ search: (prev) => ({ ...prev, min_layoffs: v || undefined, page: 1 }) })
+          }
+        />
       </div>
 
       {query.isLoading && <SkeletonTable rows={10} />}

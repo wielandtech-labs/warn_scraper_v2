@@ -23,9 +23,16 @@ export function ContentPage({
   useDocumentTitle(docTitle);
   return (
     <article className="mx-auto max-w-3xl">
-      <h1 className="text-2xl font-semibold">{title}</h1>
-      {intro && <p className="mt-2 text-slate-600 dark:text-slate-400">{intro}</p>}
-      <div className="mt-4 space-y-4 text-slate-700 [&_a]:text-sky-700 [&_a]:underline [&_h2]:mt-6 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-slate-900 [&_li]:mt-1 [&_ul]:list-disc [&_ul]:pl-6 dark:text-slate-300 dark:[&_a]:text-sky-400 dark:[&_h2]:text-slate-100">
+      <header className="border-b border-slate-200 pb-5 dark:border-slate-800">
+        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-brand">WARN Index</p>
+        <h1 className="mt-1.5 text-3xl font-semibold leading-tight text-slate-900 dark:text-slate-50">
+          {title}
+        </h1>
+        {intro && (
+          <p className="mt-2 text-lg leading-relaxed text-slate-600 dark:text-slate-400">{intro}</p>
+        )}
+      </header>
+      <div className="mt-6 space-y-4 leading-relaxed text-slate-700 [&_a]:text-sky-700 [&_a]:underline [&_h2]:mt-6 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-slate-900 [&_li]:mt-1 [&_ul]:list-disc [&_ul]:pl-6 dark:text-slate-300 dark:[&_a]:text-sky-400 dark:[&_h2]:text-slate-100">
         {children}
       </div>
     </article>

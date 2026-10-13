@@ -3,10 +3,12 @@ import { Link } from "@tanstack/react-router";
 
 import { api } from "../api/client";
 import type { StateStatusOut } from "../api/types";
+import { Figure, Figures } from "../components/Figures";
+import { PageHeader } from "../components/PageHeader";
 import { UsMap } from "../components/UsMap";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { type ResolvedTheme, useTheme } from "../hooks/useTheme";
-import { STATE_NAMES, US_STATES, fmtDate, fmtNum } from "../lib/format";
+import { STATE_NAMES, US_STATES, fmtDate, fmtNum, fmtRelativeDays } from "../lib/format";
 import { UNSUPPORTED } from "../lib/unavailable";
 
 type Health = "operational" | "failing" | "unsupported" | "never";
@@ -22,19 +24,19 @@ const BADGE: Record<Health, { label: string; className: string }> = {
   never: { label: "Never run", className: "badge-slate" },
 };
 
-// Map fills matching the badge hues (green/red/slate at map-legible strength);
-// dark fills follow the dark choropleth ramp's mid-saturation approach, with
-// failing brightest so problem states stay the most salient.
+// Map fills matching the badge hues. "Operational" is the normal state of 48
+// states, so it takes a quiet sage that sits in the warm palette; failing
+// keeps a saturated red so a problem state is the most salient thing on the map.
 const HEALTH_FILLS: Record<ResolvedTheme, Record<Health, string>> = {
   light: {
-    operational: "#86efac", // green-300
-    failing: "#f87171", // red-400
+    operational: "#bcd3b4",
+    failing: "#e5484d",
     unsupported: "#e1e0d9", // slate-200
     never: "#e1e0d9",
   },
   dark: {
-    operational: "#15803d", // green-700
-    failing: "#dc2626", // red-600
+    operational: "#3e5c3f",
+    failing: "#e5484d",
     unsupported: "#2c2c2a", // slate-800
     never: "#2c2c2a",
   },
@@ -54,16 +56,6 @@ function coverage(run: StateStatusOut | undefined): string | null {
   const from = run.first_notice_date.slice(0, 4);
   const to = run.last_notice_date.slice(0, 4);
   return from === to ? from : `${from}–${to}`;
-}
-
-/** Short "x days ago" suffix for a last-success timestamp. */
-function relDays(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
-  if (days <= 0) return "today";
-  if (days === 1) return "yesterday";
-  if (days < 60) return `${days} days ago`;
-  return `${Math.floor(days / 30)} months ago`;
 }
 
 export function StatusPage() {
@@ -100,37 +92,26 @@ export function StatusPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Scraper status</h1>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          Health of each state scraper and when it last successfully updated.
-          Scrapers run daily; a state is “operational” when its most recent run
-          succeeded.
-        </p>
-      </div>
+      <PageHeader
+        kicker="Data pipeline"
+        title="Scraper status"
+        lede={
+          <>
+            Health of each state scraper and when it last successfully updated. Scrapers run
+            daily; a state is &ldquo;operational&rdquo; when its most recent run succeeded.
+          </>
+        }
+      />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="card">
-          <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Operational</div>
-          <div className="mt-1 text-3xl font-semibold text-green-700 dark:text-green-400">
-            {fmtNum(counts.operational)}
-          </div>
-        </div>
-        <div className="card">
-          <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Failing</div>
-          <div className="mt-1 text-3xl font-semibold text-red-700 dark:text-red-400">
-            {fmtNum(counts.failing)}
-          </div>
-        </div>
-        <div className="card">
-          <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            No public source / never run
-          </div>
-          <div className="mt-1 text-3xl font-semibold text-slate-700 dark:text-slate-300">
-            {fmtNum(counts.other)}
-          </div>
-        </div>
-      </div>
+      <Figures cols={3}>
+        <Figure label="Operational" value={statusQuery.data ? fmtNum(counts.operational) : null} />
+        <Figure
+          label="Failing"
+          value={statusQuery.data ? fmtNum(counts.failing) : null}
+          accent={counts.failing > 0}
+        />
+        <Figure label="No public source / never run" value={statusQuery.data ? fmtNum(counts.other) : null} />
+      </Figures>
 
       {statusQuery.isLoading && (
         <div className="card text-center text-sm text-slate-500 dark:text-slate-400">Loading…</div>
@@ -139,52 +120,57 @@ export function StatusPage() {
       {/* Don't render the map until data arrives — with no data every state
           would confidently show as never run. */}
       {statusQuery.data && (
-        <UsMap
-          fills={Object.fromEntries(rows.map((r) => [r.code, healthFills[r.health]]))}
-          srLabel="Map of scraper health by state. The table below contains the same data as accessible links."
-          tooltip={(code) => {
-            const r = rows.find((row) => row.code === code);
-            if (!r) return null;
-            return (
-              <>
-                <div className="font-medium text-slate-900 dark:text-slate-100">{r.name}</div>
-                <div className="text-slate-600 dark:text-slate-400">{BADGE[r.health].label}</div>
-                {r.run?.last_success_at && (
-                  <div className="text-slate-600 dark:text-slate-400">
-                    Last success {relDays(r.run.last_success_at)}
-                  </div>
-                )}
-                {coverage(r.run) && (
-                  <div className="text-slate-600 dark:text-slate-400">
-                    Notices {coverage(r.run)}
-                  </div>
-                )}
-              </>
-            );
-          }}
-          legend={
-            <>
-              {(
-                [
-                  ["operational", "Operational"],
-                  ["failing", "Failing"],
-                  ["unsupported", "No public source / never run"],
-                ] as const
-              ).map(([health, label]) => (
-                <span key={health} className="flex items-center gap-1.5">
-                  <span
-                    className="inline-block h-3 w-3 rounded-sm"
-                    style={{ backgroundColor: healthFills[health] }}
-                  />
-                  {label}
-                </span>
-              ))}
-            </>
-          }
-        />
+        <div className="card">
+          <div className="mx-auto max-w-4xl">
+            <UsMap
+              framed={false}
+              fills={Object.fromEntries(rows.map((r) => [r.code, healthFills[r.health]]))}
+              srLabel="Map of scraper health by state. The table below contains the same data as accessible links."
+              tooltip={(code) => {
+                const r = rows.find((row) => row.code === code);
+                if (!r) return null;
+                return (
+                  <>
+                    <div className="font-medium text-slate-900 dark:text-slate-100">{r.name}</div>
+                    <div className="text-slate-600 dark:text-slate-400">{BADGE[r.health].label}</div>
+                    {r.run?.last_success_at && (
+                      <div className="text-slate-600 dark:text-slate-400">
+                        Last success {fmtRelativeDays(r.run.last_success_at)}
+                      </div>
+                    )}
+                    {coverage(r.run) && (
+                      <div className="text-slate-600 dark:text-slate-400">
+                        Notices {coverage(r.run)}
+                      </div>
+                    )}
+                  </>
+                );
+              }}
+              legend={
+                <>
+                  {(
+                    [
+                      ["operational", "Operational"],
+                      ["failing", "Failing"],
+                      ["unsupported", "No public source / never run"],
+                    ] as const
+                  ).map(([health, label]) => (
+                    <span key={health} className="flex items-center gap-1.5">
+                      <span
+                        className="inline-block h-3 w-3 rounded-sm"
+                        style={{ backgroundColor: healthFills[health] }}
+                      />
+                      {label}
+                    </span>
+                  ))}
+                </>
+              }
+            />
+          </div>
+        </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <table className="data-table w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-950 dark:text-slate-400">
             <tr>
@@ -235,7 +221,7 @@ export function StatusPage() {
                       <span>
                         {fmtDate(r.run.last_success_at)}{" "}
                         <span className="text-xs text-slate-500 dark:text-slate-400">
-                          ({relDays(r.run.last_success_at)})
+                          ({fmtRelativeDays(r.run.last_success_at)})
                         </span>
                       </span>
                     ) : (
