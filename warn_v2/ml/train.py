@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -25,14 +26,16 @@ from typing import Any
 import joblib
 import numpy as np
 import pandas as pd
+import sklearn
 from sklearn.metrics import average_precision_score
-from sqlalchemy import select
+from sqlalchemy import delete, select, tuple_
 from sqlalchemy.orm import Session
 
 from warn_v2.db.models import MlModelRun, RepeatRiskScore
 from warn_v2.ml.backtest import FittedModel, default_years, fit, run_backtest
 from warn_v2.ml.events import FEATURES, HORIZON_DAYS, build_events, load_notices
 from warn_v2.ml.report import build_report, render_markdown
+from warn_v2.reports.generate import _atomic_write
 
 log = logging.getLogger(__name__)
 
@@ -51,6 +54,7 @@ class FoldScore:
     pr_auc: float
     ece: float
     rule_pr_auc: float  # the prior-events rule on the same fold
+    pooled_ex_2020: float  # across all backtest years, for cross-year comparison
 
 
 def latest_fold(report: dict[str, Any], algorithm: str) -> FoldScore:
@@ -59,6 +63,7 @@ def latest_fold(report: dict[str, Any], algorithm: str) -> FoldScore:
     return FoldScore(
         year=fold["year"], pr_auc=m[algorithm]["pr_auc"], ece=m[algorithm]["ece"],
         rule_pr_auc=m["prior_events"]["pr_auc"],
+        pooled_ex_2020=report["pooled_ex_2020"][algorithm]["pr_auc"],
     )
 
 
@@ -74,9 +79,18 @@ def decide(challenger: FoldScore, champion: FoldScore | None) -> tuple[bool, str
     if champion is None:
         return True, "no champion yet"
     if champion.year != challenger.year:
-        # A new test year opened; the two numbers aren't comparable, and the
-        # rule gate above already held the challenger to an absolute bar.
-        return True, f"new test year {challenger.year} (champion was graded on {champion.year})"
+        # A new test year opened, so the latest-fold numbers aren't comparable.
+        # Fall back to the pooled ex-2020 PR-AUC, which spans (nearly) the same
+        # years for both.
+        if challenger.pooled_ex_2020 < champion.pooled_ex_2020 - CHAMPION_TOLERANCE:
+            return False, (
+                f"pooled ex-2020 PR-AUC {challenger.pooled_ex_2020:.3f} trails champion "
+                f"{champion.pooled_ex_2020:.3f} (new test year {challenger.year})"
+            )
+        return True, (
+            f"new test year {challenger.year}; pooled ex-2020 PR-AUC "
+            f"{challenger.pooled_ex_2020:.3f} vs champion {champion.pooled_ex_2020:.3f}"
+        )
     if challenger.pr_auc < champion.pr_auc - CHAMPION_TOLERANCE:
         return False, (
             f"PR-AUC {challenger.pr_auc:.3f} trails champion {champion.pr_auc:.3f} "
@@ -145,12 +159,59 @@ def _champion(session: Session) -> MlModelRun | None:
 
 
 def _load(run: MlModelRun) -> dict[str, Any] | None:
+    """The champion's bundle, or None when it can't be used by this code:
+    missing file, a pickle from another sklearn, or a different feature set
+    (FittedModel predicts with this module's FEATURES)."""
     try:
         bundle: dict[str, Any] = joblib.load(Path(run.artifact_path) / "model.joblib")
-    except (OSError, EOFError, ValueError) as exc:
+    except Exception as exc:  # unpickling raises almost anything on skew
         log.warning("champion %s artifact unreadable (%s)", run.version, exc)
         return None
+    if bundle.get("features") != FEATURES or bundle.get("sklearn") != sklearn.__version__:
+        log.warning("champion %s was built for other features/sklearn", run.version)
+        return None
     return bundle
+
+
+def _json(obj: Any) -> str:
+    """Strict JSON: NaN (nothing matured yet, no scores) becomes null."""
+
+    def clean(v: Any) -> Any:
+        if isinstance(v, dict):
+            return {k: clean(x) for k, x in v.items()}
+        if isinstance(v, list | tuple):
+            return [clean(x) for x in v]
+        if isinstance(v, float | np.floating):
+            return None if math.isnan(v) else float(v)
+        if isinstance(v, np.integer):
+            return int(v)
+        return v
+
+    return json.dumps(clean(obj), indent=2, default=str, allow_nan=False)
+
+
+def _prune(session: Session, keep_version: str) -> int:
+    """Drop superseded scores: keep the current scorer's rows plus each
+    event's first-ever score (what realized performance grades). Without
+    this, weekly promotions would rescore every open event every week."""
+    rows = session.execute(
+        select(RepeatRiskScore.model_version, RepeatRiskScore.company_key,
+               RepeatRiskScore.event_start, RepeatRiskScore.scored_at)
+    ).all()
+    first: dict[tuple[str, date], tuple[datetime, str]] = {}
+    for v, k, t, at in rows:
+        cur = first.get((k, t))
+        if cur is None or (at, v) < cur:
+            first[(k, t)] = (at, v)
+    doomed = [
+        (v, k, t) for v, k, t, _ in rows
+        if v != keep_version and first[(k, t)][1] != v
+    ]
+    pk = tuple_(RepeatRiskScore.model_version, RepeatRiskScore.company_key,
+                RepeatRiskScore.event_start)
+    for i in range(0, len(doomed), 500):
+        session.execute(delete(RepeatRiskScore).where(pk.in_(doomed[i:i + 500])))
+    return len(doomed)
 
 
 def train_and_score(
@@ -161,36 +222,35 @@ def train_and_score(
     code_version: str | None = None,
     years: list[int] | None = None,
     now: datetime | None = None,
-) -> MlModelRun:
+) -> MlModelRun | None:
+    """One weekly run. Returns the new run row, or None when the data can't
+    support a backtest yet (e.g. a small staging database)."""
     now = now or datetime.now(UTC)
     notices = load_notices(session)
     events = build_events(notices, as_of=as_of)
     result = run_backtest(events, years or default_years(as_of))
+    if not result.folds:
+        log.warning("no backtest fold had enough data (%d events); nothing trained", len(events))
+        return None
     report = build_report(notices, events, result, as_of=as_of)
     algorithm = report["chosen"]["model"]
     challenger_fold = latest_fold(report, algorithm)
 
-    # Challenger: the chosen algorithm on every labelled event.
+    # Challenger: the chosen algorithm on every labelled event. Its PSI
+    # reference is its own scores on its most recent labelled year, so PSI
+    # measures input drift rather than the gap between two different models.
     labelled = events[events["labelled"]]
     challenger = fit(algorithm, labelled)
-    last = result.oof[result.oof["fold"] == challenger_fold.year]
-    reference = last[algorithm].to_numpy()  # its backtest scores, for PSI
+    recent = labelled[labelled["t0"] > labelled["t0"].max() - pd.Timedelta(days=HORIZON_DAYS)]
+    reference = challenger.predict(recent)
 
     version = f"{now:%Y%m%dT%H%M%S}-{algorithm}"
     artifact_dir = reports_dir / "models" / MODEL / version
     artifact_dir.mkdir(parents=True, exist_ok=True)
     joblib.dump(
-        {"model": challenger, "features": FEATURES, "version": version,
-         "reference_scores": reference},
+        {"model": challenger, "features": FEATURES, "sklearn": sklearn.__version__,
+         "version": version, "reference_scores": reference},
         artifact_dir / "model.joblib",
-    )
-    (artifact_dir / "backtest.json").write_text(json.dumps(report, indent=2, default=str))
-    # The latest report, at a stable path for the API to serve later.
-    (reports_dir / "repeat_risk_backtest.json").write_text(
-        json.dumps(report, indent=2, default=str)
-    )
-    (reports_dir / "repeat_risk_backtest.md").write_text(
-        render_markdown(report), encoding="utf-8"
     )
 
     champ_run = _champion(session)
@@ -201,7 +261,7 @@ def train_and_score(
     )
     promote, why = decide(challenger_fold, champ_fold)
     if champ_run is not None and champ_bundle is None:
-        why += f" (champion {champ_run.version} artifact unreadable)"
+        why += f" (champion {champ_run.version} artifact unusable)"
     scorer: FittedModel | None = None
     scorer_version, scorer_reference = "", np.array([])
     if promote:
@@ -214,7 +274,7 @@ def train_and_score(
     # Score open events (features are fixed at t0, so a version scores each
     # event once; re-runs of the same champion only add new events).
     todo = open_events(events, as_of)
-    n_new = 0
+    n_new = n_pruned = 0
     current = np.array([])
     if scorer is not None and len(todo):
         current = scorer.predict(todo)
@@ -233,6 +293,7 @@ def train_and_score(
         session.add_all(new)
         n_new = len(new)
         session.flush()
+        n_pruned = _prune(session, scorer_version)
 
     metrics = {
         "latest_fold": vars(challenger_fold),
@@ -241,6 +302,7 @@ def train_and_score(
         "scorer_version": scorer_version,
         "open_events": len(todo),
         "scores_written": n_new,
+        "scores_pruned": n_pruned,
         "score_psi": psi(scorer_reference, current),
         "realized": realized(session, events, as_of),
         "labelled_events": int(events["labelled"].sum()),
@@ -248,12 +310,17 @@ def train_and_score(
     run = MlModelRun(
         model=MODEL, version=version, created_at=now, code_version=code_version,
         data_as_of=as_of, algorithm=algorithm, promoted=promote, decision=why,
-        artifact_path=str(artifact_dir), metrics=json.dumps(metrics, default=float),
+        artifact_path=str(artifact_dir), metrics=_json(metrics),
     )
     session.add(run)
     session.flush()
-    (artifact_dir / "metadata.json").write_text(json.dumps(
-        {"version": version, "promoted": promote, "decision": why, **metrics},
-        indent=2, default=float,
+
+    # Files last, so a run that fails above never replaces the published
+    # report. Atomic, since the API serves the stable paths concurrently.
+    _atomic_write(artifact_dir, "backtest.json", _json(report))
+    _atomic_write(artifact_dir, "metadata.json", _json(
+        {"version": version, "promoted": promote, "decision": why, **metrics}
     ))
+    _atomic_write(reports_dir, "repeat_risk_backtest.json", _json(report))
+    _atomic_write(reports_dir, "repeat_risk_backtest.md", render_markdown(report))
     return run

@@ -270,7 +270,11 @@ def build_events(notices: pd.DataFrame, *, as_of: date) -> pd.DataFrame:
                 "labelled": labelled,
             })
 
-    events = pd.DataFrame.from_records(records)
+    columns = ["company_key", "t0", "state", *NUMERIC_FEATURES,
+               "next_gap_days", "label", "labelled"]
+    events = pd.DataFrame.from_records(records, columns=columns)
+    # Typed even when empty: an object-dtype mask indexes columns, not rows.
+    events = events.astype({"labelled": bool, "t0": "datetime64[ns]"})
     return events.sort_values(["t0", "company_key"]).reset_index(drop=True)
 
 

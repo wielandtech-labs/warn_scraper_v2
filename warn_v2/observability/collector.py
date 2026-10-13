@@ -288,13 +288,24 @@ def _ml_metrics(s):
     import json
     import math
 
-    from sqlalchemy import select
+    from sqlalchemy import func, select
 
     from warn_v2.db.models import MlModelRun
 
+    newest = (
+        select(MlModelRun.model, func.max(MlModelRun.created_at).label("at"))
+        .group_by(MlModelRun.model)
+        .subquery()
+    )
     latest = {}
-    for run in s.scalars(select(MlModelRun).order_by(MlModelRun.created_at, MlModelRun.id)):
-        latest[run.model] = run  # ascending, so the last one wins
+    runs = s.scalars(
+        select(MlModelRun)
+        .join(newest, (MlModelRun.model == newest.c.model)
+              & (MlModelRun.created_at == newest.c.at))
+        .order_by(MlModelRun.id)
+    )
+    for run in runs:
+        latest[run.model] = run  # on a created_at tie, the higher id wins
     families = {
         "warn_ml_last_run_timestamp_seconds": ("Start time of the model's latest weekly run.", []),
         "warn_ml_last_run_promoted": (

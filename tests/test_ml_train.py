@@ -20,8 +20,8 @@ YEARS = [2015, 2018, 2021]
 NOW = datetime(2023, 6, 1, 12, tzinfo=UTC)
 
 
-def _fold(pr=0.6, ece=0.02, rule=0.55, year=2021):
-    return FoldScore(year=year, pr_auc=pr, ece=ece, rule_pr_auc=rule)
+def _fold(pr=0.6, ece=0.02, rule=0.55, year=2021, pooled=0.62):
+    return FoldScore(year=year, pr_auc=pr, ece=ece, rule_pr_auc=rule, pooled_ex_2020=pooled)
 
 
 @pytest.mark.parametrize(
@@ -30,7 +30,8 @@ def _fold(pr=0.6, ece=0.02, rule=0.55, year=2021):
         (_fold(ece=0.08), None, False, "ECE"),
         (_fold(pr=0.50), None, False, "prior-events rule"),
         (_fold(), None, True, "no champion"),
-        (_fold(), _fold(pr=0.9, year=2020), True, "new test year"),
+        (_fold(), _fold(pr=0.9, year=2020, pooled=0.63), True, "new test year"),
+        (_fold(), _fold(year=2020, pooled=0.70), False, "trails champion"),
         (_fold(pr=0.60), _fold(pr=0.65), False, "trails champion"),
         (_fold(pr=0.64), _fold(pr=0.65), True, "vs champion"),
     ],
@@ -98,7 +99,20 @@ def test_champion_lifecycle(seeded, tmp_path, monkeypatch):
     third, m3 = _run(db, tmp_path, now=NOW + timedelta(days=14))
     assert third.promoted and m3["scorer_version"] == third.version
     assert _scores(db, third.version) == m3["open_events"]
-    assert db.scalar(select(func.count()).select_from(MlModelRun)) == 3
+
+    # Superseded scores are pruned — except each event's first score, which
+    # realized performance grades. v1 scored first, so all of v1 survives;
+    # v3's rows were neither first nor current once v4 takes over.
+    fourth, m4 = _run(db, tmp_path, now=NOW + timedelta(days=21))
+    assert fourth.promoted and m4["scores_pruned"] == m3["open_events"]
+    assert _scores(db, third.version) == 0
+    assert _scores(db, first.version) == m1["open_events"]
+    assert _scores(db, fourth.version) == m4["open_events"]
+    assert db.scalar(select(func.count()).select_from(MlModelRun)) == 4
+
+    # Strict JSON on disk and in the row (NaN -> null) for Grafana / the API.
+    meta = (Path(fourth.artifact_path) / "metadata.json").read_text()
+    assert "NaN" not in meta and "NaN" not in fourth.metrics
 
 
 def test_champion_with_missing_artifact_is_replaced(seeded, tmp_path):
@@ -106,7 +120,7 @@ def test_champion_with_missing_artifact_is_replaced(seeded, tmp_path):
     first, _ = _run(db, tmp_path)
     (Path(first.artifact_path) / "model.joblib").unlink()
     second, m2 = _run(db, tmp_path, now=NOW + timedelta(days=7))
-    assert second.promoted and "artifact unreadable" in second.decision
+    assert second.promoted and "artifact unusable" in second.decision
     assert m2["scorer_version"] == second.version
 
 
@@ -124,3 +138,16 @@ def test_realized_grades_the_first_score_of_matured_events(seeded):
     db.commit()
     r = realized(db, events, AS_OF)
     assert r["n"] == 400 and r["pr_auc"] == pytest.approx(1.0)
+
+
+def test_too_little_data_records_nothing(db, tmp_path):
+    assert train_and_score(db, as_of=AS_OF, reports_dir=tmp_path, years=YEARS) is None
+    assert db.scalar(select(func.count()).select_from(MlModelRun)) == 0
+    assert not (tmp_path / "repeat_risk_backtest.json").exists()
+
+
+def test_champion_built_for_other_features_is_unusable(seeded, tmp_path, monkeypatch):
+    db = seeded
+    first, _ = _run(db, tmp_path)
+    monkeypatch.setattr(train, "FEATURES", [*train.FEATURES, "new_feature"])
+    assert train._load(first) is None

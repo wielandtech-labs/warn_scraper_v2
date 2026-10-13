@@ -1853,11 +1853,14 @@ def ml_train_cmd(reports_dir: Path) -> None:
             reports_dir=reports_dir,
             code_version=os.getenv("WARN_IMAGE_TAG"),
         )
+        if run is None:
+            click.echo("not enough data for a backtest yet; nothing trained")
+            return
         m = json.loads(run.metrics)
         click.echo(
             f"version={run.version} algorithm={run.algorithm} promoted={run.promoted} "
             f"({run.decision}) scorer={m['scorer_version']} open={m['open_events']} "
-            f"written={m['scores_written']} psi={m['score_psi']:.3f} "
+            f"written={m['scores_written']} pruned={m['scores_pruned']} psi={m['score_psi']} "
             f"realized_n={m['realized']['n']}"
         )
 
