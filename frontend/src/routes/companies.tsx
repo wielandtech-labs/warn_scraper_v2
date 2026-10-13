@@ -8,6 +8,8 @@ import { CompanyLogo } from "../components/CompanyLogo";
 import { DataTable } from "../components/DataTable";
 import { ExportButtons } from "../components/ExportButtons";
 import { Pagination } from "../components/Pagination";
+import { Peek } from "../components/Peek";
+import { CompanyPeek } from "../components/peeks";
 import { QueryError } from "../components/QueryError";
 import { SkeletonTable } from "../components/Skeleton";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
@@ -137,22 +139,28 @@ function CompaniesView() {
         header: "Name",
         accessorKey: "name",
         cell: (info) => (
-          <Link
-            to="/companies/$companyId"
-            params={{ companyId: String(info.row.original.id) }}
-            // Carry the list's filters/sort/page into the detail URL so its
-            // "← All companies" link can restore this exact view.
-            search={(prev) => prev}
-            className="inline-flex items-center gap-2.5 font-medium text-sky-700 hover:underline dark:text-sky-400"
+          <Peek
+            content={() => (
+              <CompanyPeek id={info.row.original.id} name={info.getValue() as string} />
+            )}
           >
-            <CompanyLogo
-              name={info.getValue() as string}
-              companyId={info.row.original.id}
-              hasWebsite={!!info.row.original.website}
-              size={24}
-            />
-            {info.getValue() as string}
-          </Link>
+            <Link
+              to="/companies/$companyId"
+              params={{ companyId: String(info.row.original.id) }}
+              // Carry the list's filters/sort/page into the detail URL so its
+              // "← All companies" link can restore this exact view.
+              search={(prev) => prev}
+              className="inline-flex items-center gap-2.5 font-medium text-sky-700 hover:underline dark:text-sky-400"
+            >
+              <CompanyLogo
+                name={info.getValue() as string}
+                companyId={info.row.original.id}
+                hasWebsite={!!info.row.original.website}
+                size={24}
+              />
+              {info.getValue() as string}
+            </Link>
+          </Peek>
         ),
       },
       {
