@@ -2,6 +2,7 @@ import { Fragment, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 
 import { STATE_NAMES } from "../lib/format";
+import { Figure, Figures } from "./Figures";
 
 /**
  * Renderer for the constrained markdown produced by warn_v2/reports/render.py:
@@ -165,9 +166,13 @@ const NUMERIC_CELL = /^[+\-−]?[\d,.]+%?$/;
 const BAND_CELL = /^([\d,.]+)\s*\(([\d,.]+)[–-]([\d,.]+)\)$/;
 const STATE_BY_NAME = new Map(Object.entries(STATE_NAMES).map(([code, name]) => [name, code]));
 
-const num = (s: string) => Number(s.replace(/[,%+]/g, "").replace(/^−/, "-"));
-// Tailwind needs literal class names; no template-built ones.
-const SM_COLS = ["", "sm:grid-cols-1", "sm:grid-cols-2", "sm:grid-cols-3"];
+/** Parsed figure, 0 for anything non-numeric ("—", blank) so bars and
+ *  scales never see NaN. */
+const num = (s: string | undefined) => {
+  const n = Number((s ?? "").replace(/[,%+]/g, "").replace(/^−/, "-"));
+  return Number.isFinite(n) ? n : 0;
+};
+
 
 /** Sign of a change cell: 1 rise, -1 fall, 0 flat/unknown. */
 function signOf(cell: string): number {
@@ -211,30 +216,26 @@ function headlineParts(text: string): { label: string; value: string }[] | null 
 
 function HeadlineFigures({ parts }: { parts: { label: string; value: string }[] }) {
   return (
-    <dl
-      className={`grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-slate-200 bg-slate-200 ${SM_COLS[Math.min(parts.length, 3)]} dark:border-slate-800 dark:bg-slate-800`}
-    >
+    <Figures cols={parts.length >= 3 ? 3 : 2}>
       {parts.map((p) => {
         const s = signOf(p.value);
         return (
-          <div key={p.label} className="bg-white px-4 py-3 dark:bg-slate-900">
-            <dt className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
-              {unescapeEntities(p.label)}
-            </dt>
-            <dd
-              className={`mt-0.5 font-display text-2xl font-semibold tabular-nums ${
-                s > 0 ? "text-brand dark:text-brand-dark" : "text-slate-900 dark:text-slate-50"
-              }`}
-            >
-              <span aria-hidden className="mr-1 text-sm">
-                {s > 0 ? "▲" : s < 0 ? "▼" : ""}
-              </span>
-              {p.value.replace(/^-/, "−")}
-            </dd>
-          </div>
+          <Figure
+            key={p.label}
+            label={unescapeEntities(p.label)}
+            accent={s > 0}
+            value={
+              <>
+                <span aria-hidden className="mr-1 text-sm">
+                  {s > 0 ? "▲" : s < 0 ? "▼" : ""}
+                </span>
+                {p.value.replace(/^-/, "−")}
+              </>
+            }
+          />
         );
       })}
-    </dl>
+    </Figures>
   );
 }
 
@@ -367,7 +368,10 @@ function DataTable({ b }: { b: Extract<Block, { kind: "table" }> }) {
   const ranked = b.header.some(isDeltaHeader);
   const workersCol = ranked ? b.header.findIndex((h) => /^workers affected$/i.test(h)) : -1;
   const barMax =
-    workersCol >= 0 ? Math.max(1, ...b.rows.map((r) => num(r[workersCol] ?? "0") || 0)) : 1;
+    workersCol >= 0 ? Math.max(1, ...b.rows.map((r) => num(r[workersCol]))) : 1;
+  // Only a by-state table's first column holds state names; county tables
+  // can hold "Delaware" or "Washington" counties.
+  const linkStates = /^state$/i.test(b.header[0] ?? "");
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -387,7 +391,7 @@ function DataTable({ b }: { b: Extract<Block, { kind: "table" }> }) {
           {b.rows.map((row, j) => (
             <tr key={j} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
               {row.map((cell, k) => {
-                const code = k === 0 ? STATE_BY_NAME.get(cell) : undefined;
+                const code = k === 0 && linkStates ? STATE_BY_NAME.get(cell) : undefined;
                 return (
                   <td
                     key={k}
@@ -405,7 +409,7 @@ function DataTable({ b }: { b: Extract<Block, { kind: "table" }> }) {
                       </Link>
                     ) : isDeltaHeader(b.header[k] ?? "") ? (
                       <Delta cell={cell} />
-                    ) : k === workersCol ? (
+                    ) : k === workersCol && NUMERIC_CELL.test(cell) ? (
                       <span className="inline-flex items-center justify-end gap-2 tabular-nums">
                         <span
                           aria-hidden
@@ -477,6 +481,13 @@ export function ReportMarkdown({
                 <h3 key={i} className="font-display text-2xl font-semibold leading-tight text-slate-900 dark:text-slate-50">
                   {inline(b.text)}
                 </h3>
+              );
+            }
+            if (b.level > 2) {
+              return (
+                <h5 key={i} className="pt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  {inline(b.text)}
+                </h5>
               );
             }
             // Sections open with a hairline rule, as the site's pages do.
