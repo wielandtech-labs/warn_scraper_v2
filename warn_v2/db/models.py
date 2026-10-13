@@ -456,3 +456,49 @@ class BlsSeries(Base):
     series_id: Mapped[str] = mapped_column(String(32), primary_key=True)
     period: Mapped[str] = mapped_column(String(7), primary_key=True)  # "YYYY-MM"
     value: Mapped[float] = mapped_column(Float, nullable=False)
+
+
+class MlModelRun(Base):
+    """One weekly training run of an ML model (see warn_v2/ml/train.py).
+
+    Every run backtests a challenger and records why it was or wasn't
+    promoted; the latest promoted run is the champion that scores. ``metrics``
+    is the JSON the collector reads for the warn_ml_* gauges (backtest
+    PR-AUC/ECE, score PSI vs training, realized PR-AUC of matured scores).
+    """
+
+    __tablename__ = "ml_model_runs"
+
+    id: Mapped[int] = mapped_column(BigIntPK, primary_key=True, autoincrement=True)
+    model: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    version: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    code_version: Mapped[str | None] = mapped_column(String(128))  # image tag
+    data_as_of: Mapped[date] = mapped_column(Date, nullable=False)
+    algorithm: Mapped[str] = mapped_column(String(16), nullable=False)
+    promoted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    decision: Mapped[str] = mapped_column(Text, nullable=False)
+    artifact_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    metrics: Mapped[str] = mapped_column(Text, nullable=False)  # JSON
+
+
+class RepeatRiskScore(Base):
+    """The champion's repeat-layoff probability for one employer event.
+
+    Features are fixed at the event's t0, so a model version scores an event
+    once; later runs of the same version only add new events. Rows are kept
+    after the horizon closes — they are what realized performance is graded on.
+    """
+
+    __tablename__ = "repeat_risk_scores"
+
+    model_version: Mapped[str] = mapped_column(String(64), primary_key=True)
+    company_key: Mapped[str] = mapped_column(String(600), primary_key=True)
+    event_start: Mapped[date] = mapped_column(Date, primary_key=True)
+    company_id: Mapped[int | None] = mapped_column(BigInteger, index=True)
+    score: Mapped[float] = mapped_column(Float, nullable=False)
+    scored_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

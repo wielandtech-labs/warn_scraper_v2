@@ -217,3 +217,52 @@ def test_subscriptions_metric_renders_and_is_absent_when_empty(
     registry.register(WarnCollector())
     assert _sub_samples() == {}
     assert "warn_subscriptions" in generate_latest(registry).decode()
+
+
+def _ml_samples() -> dict[tuple[str, ...], float]:
+    out: dict[tuple[str, ...], float] = {}
+    for family in WarnCollector().collect():
+        if family.name.startswith("warn_ml_"):
+            for sample in family.samples:
+                out[(sample.name, *sample.labels.values())] = sample.value
+    return out
+
+
+def test_ml_gauges_come_from_each_models_latest_run(
+    db_session_factory: sessionmaker[Session],
+) -> None:
+    import json
+    from datetime import date
+
+    from warn_v2.db.models import MlModelRun
+
+    def metrics(pr: float, realized: float) -> str:
+        return json.dumps({
+            "latest_fold": {"year": 2024, "pr_auc": pr, "ece": 0.01, "rule_pr_auc": 0.5},
+            "pooled": {"pr_auc": 0.59}, "pooled_ex_2020": {"pr_auc": 0.64},
+            "score_psi": 0.03, "open_events": 900,
+            "realized": {"n": 0 if realized != realized else 300, "pr_auc": realized},
+        })
+
+    t = datetime(2026, 10, 11, tzinfo=UTC)
+    with db_session_factory() as s:
+        s.add_all([
+            MlModelRun(model="repeat_risk", version="old", created_at=t,
+                       data_as_of=date(2026, 10, 11), algorithm="gbm",
+                       promoted=True, decision="x", artifact_path="/a",
+                       metrics=metrics(0.61, 0.55)),
+            MlModelRun(model="repeat_risk", version="new", created_at=t + timedelta(days=7),
+                       data_as_of=date(2026, 10, 18), algorithm="gbm", promoted=False,
+                       decision="x", artifact_path="/b", metrics=metrics(0.66, float("nan"))),
+        ])
+        s.commit()
+
+    got = _ml_samples()
+    assert got[("warn_ml_backtest_pr_auc", "repeat_risk", "latest_fold")] == 0.66
+    assert got[("warn_ml_last_run_promoted", "repeat_risk")] == 0.0
+    assert got[("warn_ml_open_events", "repeat_risk")] == 900
+    # NaN (nothing matured yet in the latest run) is omitted, not exported.
+    assert ("warn_ml_realized_pr_auc", "repeat_risk") not in got
+    registry = CollectorRegistry()
+    registry.register(WarnCollector())
+    assert "warn_ml_score_psi" in generate_latest(registry).decode()

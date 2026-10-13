@@ -1803,10 +1803,10 @@ def ml_backtest_cmd(
 ) -> None:
     """Rolling-origin backtest of the repeat-layoff model (see docs/ml/)."""
     import json
-    from datetime import date, datetime, timedelta
+    from datetime import date, datetime
 
-    from warn_v2.ml.backtest import run_backtest
-    from warn_v2.ml.events import HORIZON_DAYS, build_events, load_notices, load_notices_jsonl
+    from warn_v2.ml.backtest import default_years, run_backtest
+    from warn_v2.ml.events import build_events, load_notices, load_notices_jsonl
     from warn_v2.ml.report import build_report, render_markdown
 
     cutoff = as_of.date() if isinstance(as_of, datetime) else date.today()
@@ -1820,9 +1820,7 @@ def ml_backtest_cmd(
     events = build_events(notices, as_of=cutoff)
     click.echo(f"notices={len(notices)} events={len(events)} "
                f"labelled={int(events['labelled'].sum())}")
-    # Test years end at the last one whose every event has an observed horizon.
-    years = list(range(first_year, (cutoff - timedelta(days=HORIZON_DAYS)).year))
-    result = run_backtest(events, years)
+    result = run_backtest(events, default_years(cutoff, first_year))
     report = build_report(notices, events, result, as_of=cutoff)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "repeat_risk_backtest.json").write_text(json.dumps(report, indent=2, default=str))
@@ -1830,6 +1828,41 @@ def ml_backtest_cmd(
     click.echo(f"folds={len(result.folds)} chosen={report['chosen']['model']} "
                f"pr_auc={report['pooled'][report['chosen']['model']]['pr_auc']:.3f}")
 
+
+
+@main.command("ml-train")
+@click.option(
+    "--reports-dir",
+    default="/var/reports",
+    show_default=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Reports PVC: model artifacts go under models/repeat_risk/<version>/",
+)
+def ml_train_cmd(reports_dir: Path) -> None:
+    """Weekly repeat-layoff train -> gate -> score (shadow mode; see docs/ml/)."""
+    import json
+    from datetime import UTC, datetime
+
+    from warn_v2.db.session import session_scope
+    from warn_v2.ml.train import train_and_score
+
+    with session_scope() as session:
+        run = train_and_score(
+            session,
+            as_of=datetime.now(UTC).date(),
+            reports_dir=reports_dir,
+            code_version=os.getenv("WARN_IMAGE_TAG"),
+        )
+        if run is None:
+            click.echo("not enough data for a backtest yet; nothing trained")
+            return
+        m = json.loads(run.metrics)
+        click.echo(
+            f"version={run.version} algorithm={run.algorithm} promoted={run.promoted} "
+            f"({run.decision}) scorer={m['scorer_version']} open={m['open_events']} "
+            f"written={m['scores_written']} pruned={m['scores_pruned']} psi={m['score_psi']} "
+            f"realized_n={m['realized']['n']}"
+        )
 
 if __name__ == "__main__":
     main()

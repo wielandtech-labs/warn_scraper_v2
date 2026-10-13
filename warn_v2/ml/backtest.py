@@ -25,6 +25,7 @@ one year, cost ~0.05 PR-AUC in ranking on the real data.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 from typing import Any
 
 import numpy as np
@@ -185,6 +186,12 @@ class BacktestResult:
     # Out-of-fold predictions for every test event: t0, company_key, state,
     # label, and one column per model.
     oof: pd.DataFrame = field(default_factory=pd.DataFrame)
+
+
+def default_years(as_of: date, first_year: int = 2010) -> list[int]:
+    """Test years from `first_year` through the last one whose every event
+    has an observed horizon by `as_of`."""
+    return list(range(first_year, (as_of - timedelta(days=HORIZON_DAYS)).year))
 
 
 def fold_split(events: pd.DataFrame, year: int) -> tuple[pd.DataFrame, pd.DataFrame]:

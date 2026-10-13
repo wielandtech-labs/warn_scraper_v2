@@ -3,10 +3,7 @@
 **Question.** An employer has just filed a WARN notice. What is the
 probability that it files another one 1 to 12 months from now?
 
-**Status.** Offline study. Nothing in production reads this model yet. The plan from here:
-
-1. A weekly train-and-score CronJob running in shadow mode.
-2. Once a few shadow runs have been reviewed, scores exposed on company pages.
+**Status.** Shadow mode. A weekly CronJob (`warn-v2 ml-train`) trains and scores, but nothing user-facing reads the scores yet. Once a few shadow runs have been reviewed, scores will be exposed on company pages.
 
 Code is in `warn_v2/ml/`. Reproduce the results with:
 
@@ -86,6 +83,24 @@ Snapshot of the public API taken 2026-10-12: 85,562 notices → 41,862 companies
 - **First-time filers:** the model is near chance for them (PR-AUC 0.111 against prevalence 0.079), and they are about two thirds of events. **The product should show "not enough history" for them rather than a score.**
 - **Calibration:** after Platt scaling it holds across deciles, from 0.04 to 0.73 predicted against 0.06 to 0.71 observed. The top deciles run slightly hot, by about 0.02.
 - **A bug the backtest caught:** in a leap-year fold, the calibration set had shrunk to the filings from one day. The fix is in `fit()`, and a regression test covers it.
+
+## Operation (shadow mode)
+
+The weekly run (`warn_v2/ml/train.py`, chart value `mlTrain`, Sundays 05:41, after the consolidator):
+
+1. Rebuilds the dataset and reruns the backtest. The report is written to `<reports>/repeat_risk_backtest.{json,md}`.
+2. Fits the chosen algorithm on every labelled event: the **challenger**. It is saved to `<reports>/models/repeat_risk/<version>/` along with its backtest and metadata.
+3. **Promotes** it only if all three gates pass on the latest test year:
+   - ECE ≤ 0.05;
+   - PR-AUC at or above the prior-events rule's;
+   - when the champion was graded on the same year, PR-AUC no more than 0.02 below the champion's.
+
+   Otherwise the previous champion keeps scoring. A champion whose artifact can't be read is replaced.
+4. **Scores** every event whose horizon is still open with the champion, into `repeat_risk_scores`. Features are fixed at t0, so a version scores each event only once.
+5. **Records monitoring** on the `ml_model_runs` row, exported as `warn_ml_*` gauges by the DB-backed collector:
+   - the challenger's backtest PR-AUC and ECE;
+   - **PSI** of today's scores against the champion's own backtest scores (above 0.25 means the inputs moved);
+   - **realized PR-AUC**: each event's *first* score, graded once its horizon has closed and its label is in. It stays empty until scores are a year old.
 
 ## Known limitations
 
