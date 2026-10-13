@@ -77,6 +77,10 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version }}
 - name: SIGNUP_ENABLED
   value: "1"
 {{- end }}
+{{- if .Values.repeatRisk.public }}
+- name: REPEAT_RISK_PUBLIC
+  value: "1"
+{{- end }}
 {{- if .Values.stripe.enabled }}
 - name: STRIPE_SECRET_KEY
   valueFrom:

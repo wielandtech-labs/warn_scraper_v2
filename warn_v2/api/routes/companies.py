@@ -9,6 +9,7 @@ from warn_v2.api.deps import PaginationParams, ViewerSchemas, get_db
 from warn_v2.api.schemas import FamilyMemberOut, MergedMemberOut, Page
 from warn_v2.companies.naics import naics_filter
 from warn_v2.db.models import Company, Notice
+from warn_v2.ml.serve import RepeatRiskOut, company_risk, public_enabled
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
@@ -161,6 +162,22 @@ def list_company_notices(
     total = db.scalar(count_stmt) or 0
     items = list(db.scalars(stmt.offset(pagination.offset).limit(pagination.limit)))
     return view.notice_page(items, total, pagination.limit, pagination.offset)
+
+
+@router.get("/{company_id}/repeat-risk", response_model=RepeatRiskOut)
+def get_company_repeat_risk(
+    company_id: int,
+    db: Session = Depends(get_db),
+) -> RepeatRiskOut:
+    """Historical-pattern risk that this employer files another WARN notice
+    within 12 months of its latest filing (see docs/ml/repeat-risk-model-card.md).
+    404 while the feature is dark (REPEAT_RISK_PUBLIC unset)."""
+    if not public_enabled():
+        raise HTTPException(status_code=404, detail="Not found")
+    company = db.get(Company, company_id)
+    if company is None:
+        raise HTTPException(status_code=404, detail="Company not found")
+    return company_risk(db, company)
 
 
 @router.get("/{company_id}/members", response_model=list[MergedMemberOut])

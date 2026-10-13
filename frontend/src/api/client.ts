@@ -13,6 +13,7 @@ import type {
   CountyImpactStat,
   EmployerStat,
   FamilyMemberOut,
+  RepeatRiskOut,
   ForecastOut,
   Outlook,
   IndicatorDataset,
@@ -234,6 +235,9 @@ export const api = {
   getCompany: (id: number) => get<CompanyOut>(`/api/companies/${id}`),
   listCompanyNotices: (id: number, q: { limit?: number; offset?: number } = {}) =>
     get<Page<NoticeOut>>(`/api/companies/${id}/notices` + qs(q)),
+  /** Repeat-filing risk for the company's latest open filing (404 while dark). */
+  getCompanyRepeatRisk: (id: number) =>
+    get<RepeatRiskOut>(`/api/companies/${id}/repeat-risk`),
   /** Sibling companies sharing this company's corporate family (empty if none). */
   getCompanyFamily: (id: number) =>
     get<FamilyMemberOut[]>(`/api/companies/${id}/family`),
