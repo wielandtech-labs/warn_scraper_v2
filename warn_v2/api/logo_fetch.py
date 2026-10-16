@@ -20,14 +20,18 @@ from __future__ import annotations
 import ipaddress
 import re
 import socket
+import struct
 import threading
 import time
 from collections import OrderedDict
+from collections.abc import Callable
 from urllib.parse import urljoin, urlsplit
 
 import httpx
 
 MAX_BYTES = 100_000
+OVERRIDE_MAX_BYTES = 300_000  # admin-set logo images (e.g. a 256px Commons PNG)
+MIN_LOGO_WIDTH = 64  # narrower reads as a blurry favicon, not a logo
 HTML_MAX_BYTES = 200_000
 TIMEOUT_S = 3.0
 DEADLINE_S = 8.0  # whole lookup, all candidates; per-request timeouts reset per read
@@ -57,6 +61,51 @@ def sniff_type(data: bytes) -> str | None:
             if media == "image/webp" and not data.startswith(b"RIFF"):
                 continue
             return media
+    return None
+
+
+_JPEG_SOF = {0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}
+
+
+def _jpeg_width(data: bytes) -> int | None:
+    i = 2  # past SOI
+    while i + 9 <= len(data):
+        if data[i] != 0xFF:
+            return None
+        marker = data[i + 1]
+        if marker == 0xFF:  # fill byte
+            i += 1
+            continue
+        if marker in _JPEG_SOF:
+            return struct.unpack(">H", data[i + 7 : i + 9])[0]
+        if marker == 0x01 or 0xD0 <= marker <= 0xD9:  # standalone markers
+            i += 2
+            continue
+        i += 2 + struct.unpack(">H", data[i + 2 : i + 4])[0]
+    return None
+
+
+def image_width(data: bytes, media: str) -> int | None:
+    """Pixel width from the image header (largest entry for ICO); None if unreadable."""
+    try:
+        if media == "image/png":
+            return struct.unpack(">I", data[16:20])[0]
+        if media == "image/x-icon":
+            count = struct.unpack("<H", data[4:6])[0]
+            widths = [data[6 + 16 * n] or 256 for n in range(count)]  # 0 means 256
+            return max(widths) if widths else None
+        if media == "image/jpeg":
+            return _jpeg_width(data)
+        if media == "image/webp":
+            chunk = data[12:16]
+            if chunk == b"VP8 ":
+                return struct.unpack("<H", data[26:28])[0] & 0x3FFF
+            if chunk == b"VP8L":
+                return 1 + (data[21] | ((data[22] & 0x3F) << 8))
+            if chunk == b"VP8X":
+                return 1 + int.from_bytes(data[24:27], "little")
+    except (IndexError, struct.error):
+        return None
     return None
 
 
@@ -135,13 +184,28 @@ def _declared_icons(html: str, base: str) -> list[str]:
     return ordered[:MAX_DECLARED]
 
 
+# Malformed hrefs/Locations surface as ValueError or httpx.InvalidURL
+# (not an HTTPError); any of them just means "no logo from this URL".
+_FETCH_ERRORS = (httpx.HTTPError, httpx.InvalidURL, ValueError)
+
+
+def fetch_image(url: str) -> tuple[bytes, str] | None:
+    """One admin-set logo URL, under the same SSRF guard: (bytes, media type), or None."""
+    with httpx.Client(timeout=TIMEOUT_S, headers=_UA, follow_redirects=False) as client:
+        try:
+            got = _get(client, url, OVERRIDE_MAX_BYTES)
+        except _FETCH_ERRORS:
+            return None
+    if got is None:
+        return None
+    media = sniff_type(got[0])
+    return (got[0], media) if media else None
+
+
 def fetch_logo(domain: str) -> tuple[bytes, str] | None:
     """Best-effort icon for `domain`: (bytes, media type), or None."""
     base = f"https://{domain}/"
     deadline = time.monotonic() + DEADLINE_S
-    # Malformed hrefs/Locations surface as ValueError or httpx.InvalidURL
-    # (not an HTTPError); any of them just means "no logo from this URL".
-    fetch_errors = (httpx.HTTPError, httpx.InvalidURL, ValueError)
     with httpx.Client(timeout=TIMEOUT_S, headers=_UA, follow_redirects=False) as client:
 
         def try_image(url: str) -> tuple[bytes, str] | None:
@@ -149,7 +213,7 @@ def fetch_logo(domain: str) -> tuple[bytes, str] | None:
                 return None
             try:
                 got = _get(client, url, MAX_BYTES)
-            except fetch_errors:
+            except _FETCH_ERRORS:
                 return None
             if got is None:
                 return None
@@ -161,7 +225,7 @@ def fetch_logo(domain: str) -> tuple[bytes, str] | None:
             return hit
         try:
             page = _get(client, base, HTML_MAX_BYTES, truncate=True)
-        except fetch_errors:
+        except _FETCH_ERRORS:
             page = None
         if page is not None:
             html = page[0].decode("utf-8", errors="replace")
@@ -197,6 +261,10 @@ class _TTLCache:
             while len(self._data) > self._size:
                 self._data.popitem(last=False)
 
+    def evict(self, key: str) -> None:
+        with self._lock:
+            self._data.pop(key, None)
+
     def clear(self) -> None:
         with self._lock:
             self._data.clear()
@@ -210,21 +278,34 @@ _inflight: dict[str, threading.Lock] = {}
 _inflight_guard = threading.Lock()
 
 
-def logo_for(website: str | None) -> tuple[bytes, str] | None:
-    """Cached logo lookup keyed by domain (many companies share one site)."""
-    domain = domain_of(website)
-    if domain is None:
-        return None
-    found, value = cache.get(domain)
+def override_key(logo_url: str) -> str:
+    return "url:" + logo_url
+
+
+def _cached(key: str, fetch: Callable[[], tuple[bytes, str] | None]) -> tuple[bytes, str] | None:
+    found, value = cache.get(key)
     if found:
         return value
     with _inflight_guard:
-        lock = _inflight.setdefault(domain, threading.Lock())
+        lock = _inflight.setdefault(key, threading.Lock())
     with lock:
-        found, value = cache.get(domain)
+        found, value = cache.get(key)
         if not found:
-            value = fetch_logo(domain)
-            cache.put(domain, value)
+            value = fetch()
+            cache.put(key, value)
     with _inflight_guard:
-        _inflight.pop(domain, None)
+        _inflight.pop(key, None)
     return value
+
+
+def logo_for(website: str | None, logo_url: str | None = None) -> tuple[bytes, str] | None:
+    """Cached logo lookup: the admin-set logo_url first, else the site's icon
+    keyed by domain (many companies share one site)."""
+    if logo_url:
+        hit = _cached(override_key(logo_url), lambda: fetch_image(logo_url))
+        if hit:
+            return hit
+    domain = domain_of(website)
+    if domain is None:
+        return None
+    return _cached(domain, lambda: fetch_logo(domain))

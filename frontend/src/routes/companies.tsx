@@ -161,7 +161,7 @@ function CompaniesView() {
               <CompanyLogo
                 name={info.getValue() as string}
                 companyId={info.row.original.id}
-                hasWebsite={!!info.row.original.website}
+                hasLogo={!!info.row.original.has_logo}
                 size={24}
               />
               {info.getValue() as string}

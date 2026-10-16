@@ -1,16 +1,17 @@
-"""Routes: /admin — admin-only data curation (company merge/unmerge, and the
-entity-resolution model's merge suggestions)."""
+"""Routes: /admin — admin-only data curation (company merge/unmerge, the
+entity-resolution model's merge suggestions, and company logo overrides)."""
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import delete, func, or_, select
+from sqlalchemy.orm import Session, aliased
 
+from warn_v2.api import logo_fetch
 from warn_v2.api.deps import get_db, require_admin
 from warn_v2.companies.merge import apply_overrides, flatten
 from warn_v2.db.models import (
@@ -257,3 +258,150 @@ def reject_merge_suggestion(
     row.status, row.decided_by, row.decided_at = "rejected", admin.id, datetime.now(UTC)
     db.commit()
     return SuggestionDecision(id=row.id, status=row.status)
+
+
+# --- logo search (driven by the logo-search skill; see .claude/skills/logo-search) ---
+
+LOGO_RECHECK_DAYS = 90
+
+
+class LogoQueueItem(BaseModel):
+    id: int
+    name: str
+    website: str | None
+    states: list[str]
+    last_notice_year: int | None
+    layoff_total: int
+
+
+class LogoProbe(BaseModel):
+    source: Literal["override", "favicon"] | None
+    media: str | None = None
+    width: int | None = None
+
+
+class LogoUpdate(BaseModel):
+    # None = "searched, nothing to set" (a miss, or the favicon is already fine).
+    logo_url: str | None = Field(None, max_length=1024)
+
+
+@router.get("/logo-queue", response_model=list[LogoQueueItem])
+def logo_queue(
+    limit: int = Query(40, ge=1, le=200),
+    _admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> list[LogoQueueItem]:
+    """Canonical companies with no admin-set logo that are due a search,
+    biggest employers first (workers affected, same rollup as /companies)."""
+    member = aliased(Company)
+    canon_id = func.coalesce(member.canonical_company_id, member.id)
+    totals_sq = (
+        select(
+            canon_id.label("cid"),
+            func.coalesce(func.sum(Notice.layoff_count), 0).label("layoff_total"),
+            func.max(Notice.notice_date).label("last_notice"),
+        )
+        .select_from(Notice)
+        .join(member, member.id == Notice.company_id)
+        .where(Notice.is_superseded.is_(False))
+        .group_by(canon_id)
+        .subquery()
+    )
+    due = datetime.now(UTC) - timedelta(days=LOGO_RECHECK_DAYS)
+    rows = db.execute(
+        select(Company, totals_sq.c.layoff_total, totals_sq.c.last_notice)
+        .join(totals_sq, totals_sq.c.cid == Company.id)
+        .where(
+            Company.canonical_company_id.is_(None),
+            Company.logo_url.is_(None),
+            or_(Company.logo_checked_at.is_(None), Company.logo_checked_at < due),
+        )
+        .order_by(totals_sq.c.layoff_total.desc(), Company.id)
+        .limit(limit)
+    ).all()
+
+    ids = [company.id for company, _, _ in rows]
+    states: dict[int, set[str]] = defaultdict(set)
+    if ids:
+        canon = func.coalesce(Company.canonical_company_id, Company.id)
+        for cid, state in db.execute(
+            select(canon, Notice.state)
+            .join(Notice, Notice.company_id == Company.id)
+            .where(canon.in_(ids), Notice.is_superseded.is_(False))
+            .distinct()
+        ):
+            states[cid].add(state)
+    return [
+        LogoQueueItem(
+            id=company.id,
+            name=company.name,
+            website=company.website,
+            states=sorted(states[company.id]),
+            last_notice_year=last_notice.year if last_notice else None,
+            layoff_total=int(total),
+        )
+        for company, total, last_notice in rows
+    ]
+
+
+def _company_or_404(db: Session, company_id: int) -> Company:
+    company = db.get(Company, company_id)
+    if company is None:
+        raise HTTPException(status_code=404, detail="Company not found")
+    return company
+
+
+@router.get("/companies/{company_id}/logo-probe", response_model=LogoProbe)
+def logo_probe(
+    company_id: int,
+    _admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> LogoProbe:
+    """What /api/logos/{id} would serve right now, and how wide it is."""
+    company = _company_or_404(db, company_id)
+    for source, found in (
+        ("override", logo_fetch.logo_for(None, company.logo_url)),
+        ("favicon", logo_fetch.logo_for(company.website)),
+    ):
+        if found is not None:
+            body, media = found
+            return LogoProbe(source=source, media=media,
+                             width=logo_fetch.image_width(body, media))
+    return LogoProbe(source=None)
+
+
+@router.put("/companies/{company_id}/logo", response_model=LogoProbe)
+def set_company_logo(
+    company_id: int,
+    body: LogoUpdate,
+    _admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> LogoProbe:
+    """Set (validated) or clear the logo override; either way stamp the check."""
+    url = (body.logo_url or "").strip() or None
+    probe = LogoProbe(source=None)
+    if url is not None:
+        # Fetch before touching the DB: no transaction held open across the remote call.
+        found = logo_fetch.fetch_image(url)
+        if found is None:
+            raise HTTPException(
+                status_code=422,
+                detail="Not a fetchable raster image (https, public host, PNG/ICO/JPEG/WebP, "
+                       f"<= {logo_fetch.OVERRIDE_MAX_BYTES} bytes)",
+            )
+        image, media = found
+        width = logo_fetch.image_width(image, media)
+        if width is None or width < logo_fetch.MIN_LOGO_WIDTH:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Image too small: width {width} < {logo_fetch.MIN_LOGO_WIDTH}px",
+            )
+        logo_fetch.cache.put(logo_fetch.override_key(url), found)
+        probe = LogoProbe(source="override", media=media, width=width)
+    company = _company_or_404(db, company_id)
+    if company.logo_url and company.logo_url != url:
+        logo_fetch.cache.evict(logo_fetch.override_key(company.logo_url))
+    company.logo_url = url
+    company.logo_checked_at = datetime.now(UTC)
+    db.commit()
+    return probe

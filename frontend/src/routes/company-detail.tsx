@@ -125,7 +125,7 @@ export function CompanyDetail() {
         kicker={c.sic_desc ?? "Company"}
         title={
           <span className="flex items-center gap-4">
-            <CompanyLogo name={c.name} companyId={c.id} hasWebsite={!!c.website} size={56} />
+            <CompanyLogo name={c.name} companyId={c.id} hasLogo={!!c.has_logo} size={56} />
             <span className="min-w-0">{c.name}</span>
           </span>
         }

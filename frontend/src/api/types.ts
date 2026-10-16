@@ -20,6 +20,8 @@ export interface CompanyOut {
   naics_code: string | null;
   naics_desc: string | null;
   website: string | null;
+  // /api/logos/{id} has something to try (admin-set logo or site icon).
+  has_logo: boolean;
   enriched_at: string | null;
   enrichment_confidence: number | null;
   enrichment_source: "provider" | "edgar" | "claude" | null;

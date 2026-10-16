@@ -82,6 +82,21 @@ class Company(Base):
     # provider-enriched site-variant twin). Null for rows enriched before
     # this field existed.
 
+    # --- logo search (see .claude/skills/logo-search) ---
+    # Admin-set raster logo URL, served by /api/logos ahead of the site favicon.
+    logo_url: Mapped[str | None] = mapped_column(String(1024))
+    # Stamped on every logo-search decision (set, miss, favicon already good)
+    # so the queue skips the company until the recheck window passes.
+    logo_checked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), index=True
+    )
+
+    @property
+    def has_logo(self) -> bool:
+        """Whether /api/logos/{id} has anything to try: an override, a site icon,
+        or (for a merged dupe) the canonical's override."""
+        return bool(self.logo_url or self.website or self.canonical_company_id)
+
     # --- consolidation (see warn_v2/scripts/consolidate_companies.py) ---
     canonical_company_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("companies.id", ondelete="SET NULL"), index=True

@@ -38,13 +38,13 @@ function initials(name: string): string {
 interface Props {
   name: string;
   companyId: number | null | undefined;
-  /** false = known to have no website: skip the request entirely. */
-  hasWebsite?: boolean;
+  /** false = known to have no logo source: skip the request entirely. */
+  hasLogo?: boolean;
   size?: number;
   className?: string;
 }
 
-export function CompanyLogo({ name, companyId, hasWebsite, size = 32, className = "" }: Props) {
+export function CompanyLogo({ name, companyId, hasLogo, size = 32, className = "" }: Props) {
   return (
     <span
       aria-hidden
@@ -54,7 +54,7 @@ export function CompanyLogo({ name, companyId, hasWebsite, size = 32, className 
       {initials(name)}
       {/* Keyed by id: a recycled table row must not inherit the previous
           company's loaded/failed state. */}
-      {companyId != null && hasWebsite !== false && (
+      {companyId != null && hasLogo !== false && (
         <LogoImage key={companyId} companyId={companyId} size={size} />
       )}
     </span>

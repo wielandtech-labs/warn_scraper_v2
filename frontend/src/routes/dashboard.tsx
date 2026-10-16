@@ -148,7 +148,7 @@ export function Dashboard() {
                 <CompanyLogo
                   name={n.company?.name ?? n.employer}
                   companyId={n.company?.id}
-                  hasWebsite={!!n.company?.website}
+                  hasLogo={!!n.company?.has_logo}
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-4">
