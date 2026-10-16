@@ -38,6 +38,9 @@ class CompanyOut(BaseModel):
     naics_code: str | None
     naics_desc: str | None
     website: str | None
+    # True when /api/logos/{id} can serve something (admin-set logo or site
+    # icon); the UI skips the request otherwise. The logo URL itself stays internal.
+    has_logo: bool = False
     enriched_at: datetime | None
     enrichment_confidence: Decimal | None
     enrichment_source: str | None

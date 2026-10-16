@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import socket
+import struct
 
 import httpx
 import pytest
@@ -208,3 +209,82 @@ def test_route_404s_without_website_or_company(api_client, db, routes):
         assert r.status_code == 404
         assert "max-age=86400" in r.headers["cache-control"]
     assert seen == []
+
+
+def _png(width: int) -> bytes:
+    ihdr = b"\x00\x00\x00\x0dIHDR" + struct.pack(">II", width, width)
+    return b"\x89PNG\r\n\x1a\n" + ihdr + b"\x00" * 8
+
+
+def _webp(chunk: bytes, payload: bytes) -> bytes:
+    return b"RIFF" + b"\x00" * 4 + b"WEBP" + chunk + b"\x00" * 4 + payload
+
+
+@pytest.mark.parametrize(
+    ("data", "width"),
+    [
+        (_png(128), 128),
+        # ICO: two entries, 16px and 0 (= 256px); the largest wins.
+        (b"\x00\x00\x01\x00\x02\x00" + b"\x10" + b"\x00" * 15 + b"\x00" + b"\x00" * 15, 256),
+        # JPEG: APP0 segment, then SOF0 with height 50, width 300.
+        (b"\xff\xd8\xff\xe0\x00\x10" + b"\x00" * 14 + b"\xff\xc0\x00\x11\x08\x00\x32\x01\x2c", 300),
+        (_webp(b"VP8X", b"\x00" * 4 + (199).to_bytes(3, "little") + b"\x00" * 3), 200),
+        (_webp(b"VP8L", b"\x2f" + bytes([199, 0]) + b"\x00" * 2), 200),
+        (_webp(b"VP8 ", b"\x00" * 3 + b"\x9d\x01\x2a" + struct.pack("<H", 96)), 96),
+    ],
+)
+def test_image_width(data, width):
+    media = logos.sniff_type(data)
+    assert media is not None
+    assert logos.image_width(data, media) == width
+
+
+def test_image_width_unreadable_is_none():
+    assert logos.image_width(b"\x89PNG\r\n\x1a\n", "image/png") is None
+    assert logos.image_width(b"\xff\xd8\xff\xe0", "image/jpeg") is None
+
+
+def test_override_preferred_over_favicon(public_dns, routes):
+    table, _ = routes
+    big = _png(256)
+    table["https://upload.example.org/logo.png"] = httpx.Response(200, content=big)
+    table["https://acme.com/apple-touch-icon.png"] = httpx.Response(200, content=PNG)
+    assert logos.logo_for("acme.com", "https://upload.example.org/logo.png") == (big, "image/png")
+    # A dead override falls back to the site icon.
+    assert logos.logo_for("acme.com", "https://upload.example.org/gone.png") == (PNG, "image/png")
+
+
+def test_fetch_image_guarded(public_dns, routes):
+    table, seen = routes
+    table["https://cdn.example.org/a.svg"] = httpx.Response(200, content=SVG)
+    assert logos.fetch_image("https://cdn.example.org/a.svg") is None
+    assert logos.fetch_image("http://cdn.example.org/a.png") is None
+    public_dns["internal.example"] = "10.0.0.5"
+    seen.clear()
+    assert logos.fetch_image("https://internal.example/a.png") is None
+    assert seen == []
+
+
+def test_route_serves_override_without_website(api_client, db, public_dns, routes):
+    table, _ = routes
+    big = _png(256)
+    table["https://upload.example.org/kmart.png"] = httpx.Response(200, content=big)
+    db.add(Company(id=3, name="Kmart", website=None,
+                   logo_url="https://upload.example.org/kmart.png"))
+    db.commit()
+    r = api_client.get("/api/logos/3")
+    assert r.status_code == 200
+    assert r.content == big
+
+
+def test_merged_dupe_borrows_canonical_override(api_client, db, public_dns, routes):
+    table, _ = routes
+    big = _png(256)
+    table["https://upload.example.org/kmart.png"] = httpx.Response(200, content=big)
+    db.add(Company(id=4, name="Kmart", logo_url="https://upload.example.org/kmart.png"))
+    db.add(Company(id=5, name="KMART CORPORATION # 7435", canonical_company_id=4))
+    db.commit()
+    assert db.get(Company, 5).has_logo
+    r = api_client.get("/api/logos/5")
+    assert r.status_code == 200
+    assert r.content == big

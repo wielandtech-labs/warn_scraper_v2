@@ -104,7 +104,7 @@ export function NoticeDetail() {
             <CompanyLogo
               name={n.company?.name ?? n.employer}
               companyId={n.company?.id}
-              hasWebsite={!!n.company?.website}
+              hasLogo={!!n.company?.has_logo}
               size={56}
             />
             <span className="min-w-0">{n.employer}</span>
@@ -255,7 +255,7 @@ export function NoticeDetail() {
                 <CompanyLogo
                   name={n.company.name}
                   companyId={n.company.id}
-                  hasWebsite={!!n.company.website}
+                  hasLogo={!!n.company.has_logo}
                   size={36}
                 />
                 <span className="font-medium text-slate-900 group-hover:underline dark:text-slate-100">

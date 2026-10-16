@@ -38,7 +38,7 @@ export function NoticeList({
                 <CompanyLogo
                   name={n.company?.name ?? n.employer}
                   companyId={n.company?.id}
-                  hasWebsite={!!n.company?.website}
+                  hasLogo={!!n.company?.has_logo}
                   size={28}
                 />
               ) : (

@@ -171,7 +171,7 @@ export function NoticesPage() {
               <CompanyLogo
                 name={company?.name ?? name}
                 companyId={company?.id}
-                hasWebsite={!!company?.website}
+                hasLogo={!!company?.has_logo}
                 size={24}
               />
               <span className="min-w-0">
