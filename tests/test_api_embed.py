@@ -106,6 +106,7 @@ def test_unknown_notice_is_404_card(api_client):
     assert r.status_code == 404
     assert r.headers["content-type"].startswith("text/html")
     assert r.headers["content-security-policy"] == "frame-ancestors *"
+    assert "max-age=300" in r.headers["cache-control"]
     assert "Notice not found" in r.text
 
 
@@ -120,6 +121,8 @@ def test_badge_sums_recent_non_superseded(api_client, db, monkeypatch):
             _notice("CA-3", "CA", date(2026, 9, 15), 9000),  # 31 days back: out
             _notice("CA-4", "CA", date(2026, 10, 2), 7000, is_superseded=True),
             _notice("CA-5", "CA", date(2026, 10, 3), None),
+            _notice("CA-7", "CA", date(2026, 10, 4), 300, closure_category="Non-WARN"),
+            _notice("CA-8", "CA", date(2027, 10, 4), 800),  # mis-parsed future date
             _notice("TX-1", "TX", date(2026, 10, 3), 50),
         ]
     )

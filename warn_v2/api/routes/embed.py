@@ -20,7 +20,7 @@ from html import escape
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import HTMLResponse
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from warn_v2.api.deps import get_db
 from warn_v2.api.filters import apply_stats_closure_filter as _apply_closure_filter
@@ -32,10 +32,9 @@ from warn_v2.states import is_valid_state, state_name
 router = APIRouter(include_in_schema=False)
 
 CARD_TTL_S = 3600
-_CARD_HEADERS = {
+_FRAME_HEADERS = {
     "Content-Security-Policy": "frame-ancestors *",
     "X-Robots-Tag": "noindex",
-    "Cache-Control": f"public, max-age={CARD_TTL_S}",
 }
 
 # No `color-scheme` declaration and a transparent page: a framed document whose
@@ -52,9 +51,10 @@ font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 .card{max-width:480px;background:var(--bg);border:1px solid var(--line);border-radius:12px;
 padding:16px}
 .head{display:flex;gap:12px;align-items:center}
-.logo{width:40px;height:40px;border-radius:8px;object-fit:contain;background:#fff;
+.logo{width:40px;height:40px;border-radius:8px;background:#fff center/contain no-repeat;
 border:1px solid var(--line);flex:none}
-h1{font-size:16px;margin:0;line-height:1.3;overflow-wrap:anywhere}
+h1{font-size:16px;margin:0;line-height:1.3;overflow-wrap:anywhere;display:-webkit-box;
+-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden}
 .where{color:var(--muted);font-size:13px}
 .tags{margin-top:4px;display:flex;gap:6px;flex-wrap:wrap}
 .tag{background:var(--tag);border-radius:999px;padding:1px 8px;font-size:11px;
@@ -70,6 +70,8 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 
 
 def _page(title: str, body: str, status_code: int = 200) -> HTMLResponse:
+    # A miss is short-lived: the id may be a notice that is about to be ingested.
+    max_age = CARD_TTL_S if status_code == 200 else 300
     return HTMLResponse(
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
@@ -77,7 +79,7 @@ def _page(title: str, body: str, status_code: int = 200) -> HTMLResponse:
         f"<title>{escape(title)} — WARN Index</title><style>{_CSS}</style></head>"
         f"<body><div class='card'>{body}</div></body></html>",
         status_code=status_code,
-        headers=_CARD_HEADERS,
+        headers={**_FRAME_HEADERS, "Cache-Control": f"public, max-age={max_age}"},
     )
 
 
@@ -96,7 +98,9 @@ def _company(db: Session, notice: Notice) -> Company | None:
 @router.get("/embed/notices/{notice_id}")
 def notice_card(notice_id: str, db: Session = Depends(get_db)) -> HTMLResponse:
     base = site_base_url()
-    notice = db.get(Notice, notice_id)
+    notice = db.get(
+        Notice, notice_id, options=[joinedload(Notice.company), joinedload(Notice.location)]
+    )
     if notice is None:
         return _page(
             "Notice not found",
@@ -112,9 +116,11 @@ def notice_card(notice_id: str, db: Session = Depends(get_db)) -> HTMLResponse:
     logo = ""
     if company is not None and company.logo_url:
         # Through the site's own logo proxy, so third-party pages never hotlink
-        # whatever host the logo was found on.
+        # whatever host the logo was found on. A CSS background rather than an
+        # <img>: when the proxy 404s it fails silently instead of drawing a
+        # broken-image glyph (the card has no script to swap in a fallback).
         src = escape(f"{base}/api/logos/{company.id}", quote=True)
-        logo = f"<img class='logo' src='{src}' alt='' loading='lazy'>"
+        logo = f"<span class='logo' style=\"background-image:url('{src}')\"></span>"
 
     st = state_name(notice.state) or notice.state
     city = notice.location.city if notice.location is not None else None
@@ -132,7 +138,8 @@ def notice_card(notice_id: str, db: Session = Depends(get_db)) -> HTMLResponse:
     )
     url = escape(f"{base}/notices/{notice.notice_id}", quote=True)
     body = (
-        f"<div class='head'>{logo}<div><h1>{escape(employer)}</h1>"
+        f"<div class='head'>{logo}<div><h1 title='{escape(employer, quote=True)}'>"
+        f"{escape(employer)}</h1>"
         f"<div class='where'>{escape(where)}</div>{tags_html}</div></div>"
         f"<p class='big'>{count}</p>"
         "<dl>"
@@ -183,9 +190,12 @@ def render_badge(label: str, value: str) -> bytes:
 
 def _state_badge(db: Session, code: str) -> bytes:
     # Same population as the site's state totals: not superseded, Non-WARN out.
-    since = _today() - timedelta(days=BADGE_WINDOW_DAYS)
+    today = _today()
+    since = today - timedelta(days=BADGE_WINDOW_DAYS)
     stmt = select(func.coalesce(func.sum(Notice.layoff_count), 0)).where(
-        Notice.state == code, Notice.notice_date >= since
+        Notice.state == code,
+        Notice.notice_date >= since,
+        Notice.notice_date <= today,  # a mis-parsed future date isn't "recent"
     )
     workers = db.execute(_apply_closure_filter(_not_superseded(stmt), None)).scalar_one()
     return render_badge(

@@ -7,6 +7,9 @@ export function EmbedButton({ noticeId, employer }: { noticeId: string; employer
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  // Where the current click started: a text selection dragged out of the
+  // textarea also ends with a click on the <dialog> itself.
+  const downOnBackdrop = useRef(false);
 
   const origin = window.location.origin;
   const src = `${origin}/embed/notices/${noticeId}`;
@@ -37,7 +40,8 @@ export function EmbedButton({ noticeId, employer }: { noticeId: string; employer
         ref={dialogRef}
         onClose={() => setOpen(false)}
         // A click on the backdrop lands on the <dialog> element itself.
-        onClick={(e) => e.target === e.currentTarget && close()}
+        onMouseDown={(e) => (downOnBackdrop.current = e.target === e.currentTarget)}
+        onClick={(e) => e.target === e.currentTarget && downOnBackdrop.current && close()}
         className="w-[min(36rem,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white p-0 text-slate-900 shadow-xl backdrop:bg-slate-900/50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
       >
         <div className="space-y-4 p-5">
