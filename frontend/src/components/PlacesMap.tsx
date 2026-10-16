@@ -68,6 +68,14 @@ const CONUS: [[number, number], [number, number]] = [
   [-66.9, 49.4],
 ];
 
+// How a box of places is framed: room for the bubbles at the edges, and no
+// closer than a metro area when the box is one point.
+const FIT = { padding: 40, maxZoom: 9 };
+const toLngLatBounds = (b: View["bounds"]): [[number, number], [number, number]] => [
+  [b.min_lon, b.min_lat],
+  [b.max_lon, b.max_lat],
+];
+
 const EMPTY: PlacesGeoJSON = { type: "FeatureCollection", features: [] };
 const BUBBLE_LAYERS = ["clusters", "points", "counts"];
 const HEAT_LAYERS = ["heat", "heat-points"];
@@ -93,7 +101,7 @@ function baseSourceId(theme: ResolvedTheme) {
   return `base-${theme}`;
 }
 
-/** Raster source for the theme's tile layer: Leaflet's `{s}` subdomain and
+/** Raster source for the theme's tile layer: the URLs' `{s}` subdomain and
  *  `{r}` retina placeholders aren't MapLibre syntax, so expand them. */
 function baseSource(theme: ResolvedTheme) {
   const { url, attribution } = TILE_LAYERS[theme];
@@ -244,8 +252,9 @@ export const PlacesMap = forwardRef<
     data: PlacesGeoJSON;
     mode: MapMode;
     theme: ResolvedTheme;
-    /** Starting view; null frames the contiguous US. */
-    initial: { lat: number; lon: number; zoom: number } | null;
+    /** Starting view: a center + zoom, a box to fit, or null for the
+     *  contiguous US. Read once, at mount. */
+    initial: { lat: number; lon: number; zoom: number } | { bounds: View["bounds"] } | null;
     selected: SelectedPlace | null;
     onViewChange: (v: View) => void;
     onSelect: (p: SelectedPlace | null) => void;
@@ -265,14 +274,7 @@ export const PlacesMap = forwardRef<
 
   useImperativeHandle(ref, () => ({
     flyTo: (lat, lon, zoom) => mapRef.current?.flyTo({ center: [lon, lat], zoom, essential: true }),
-    fitBounds: (b) =>
-      mapRef.current?.fitBounds(
-        [
-          [b.min_lon, b.min_lat],
-          [b.max_lon, b.max_lat],
-        ],
-        { padding: 40, maxZoom: 9 },
-      ),
+    fitBounds: (b) => mapRef.current?.fitBounds(toLngLatBounds(b), FIT),
   }));
 
   // Create the map once. Everything else is pushed in by the effects below.
@@ -280,9 +282,11 @@ export const PlacesMap = forwardRef<
     const map = new MapLibreMap({
       container: container.current!,
       style: initialStyle(theme),
-      ...(initial
-        ? { center: [initial.lon, initial.lat] as [number, number], zoom: initial.zoom }
-        : { bounds: CONUS, fitBoundsOptions: { padding: 8 } }),
+      ...(initial === null
+        ? { bounds: CONUS, fitBoundsOptions: { padding: 8 } }
+        : "bounds" in initial
+          ? { bounds: toLngLatBounds(initial.bounds), fitBoundsOptions: FIT }
+          : { center: [initial.lon, initial.lat] as [number, number], zoom: initial.zoom }),
       minZoom: 2,
       maxZoom: 17,
       dragRotate: false,

@@ -38,7 +38,7 @@ const rootRoute = createRootRoute({
 });
 
 // The four chart/map-heavy pages are code-split: recharts (dashboard, stats,
-// state-detail) and leaflet (map, state-detail) each land in their own lazily
+// state-detail) and MapLibre (map, state-detail) each land in their own lazily
 // fetched chunk instead of the entry bundle, so every first paint — and every
 // visit that never opens them — skips those bytes entirely.
 const indexRoute = createRoute({
@@ -262,7 +262,7 @@ const industryReportRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/reports/industry/$sector",
   // Code-split like the other chart/map-heavy pages: this route pulls in
-  // recharts (trend chart) and leaflet (sector map).
+  // recharts (trend chart) and MapLibre (sector map).
   component: lazyRouteComponent(() => import("./routes/industry-report"), "IndustryReportPage"),
 });
 

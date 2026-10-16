@@ -2,14 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 
-import { api, type MapPlaces } from "../api/client";
+import { api } from "../api/client";
 import { FilterBar, type FilterValues } from "../components/FilterBar";
 import { MapNoticePanel, type PanelSort } from "../components/MapNoticePanel";
 import { MapPlaceSearch, type PlacePick } from "../components/MapPlaceSearch";
 import {
   PlacesMap,
   type MapMode,
-  type PlacesGeoJSON,
   type PlacesMapHandle,
   type SelectedPlace,
   type View,
@@ -18,6 +17,7 @@ import { PageHeader } from "../components/PageHeader";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useTheme } from "../hooks/useTheme";
 import { fmtNum } from "../lib/format";
+import { EMPTY_PLACES, placesBounds, stateOf, toGeoJSON } from "../lib/mapPlaces";
 
 // The earliest year any state's backfill reaches (IL, 1999).
 const FIRST_YEAR = 1999;
@@ -26,19 +26,6 @@ const THIS_YEAR = new Date().getFullYear();
 // the thumb on THIS_YEAR would make the current year unselectable (moving to
 // the value it already shows fires no change).
 const ANY_YEAR = THIS_YEAR + 1;
-
-function toGeoJSON(p: MapPlaces): PlacesGeoJSON {
-  return {
-    type: "FeatureCollection",
-    features: p.lat.map((lat, i) => ({
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [p.lon[i], lat] },
-      properties: { n: p.notices[i], w: p.workers[i], label: p.label[i], lat, lon: p.lon[i] },
-    })),
-  };
-}
-
-const stateOf = (label: string) => label.slice(-2);
 
 /** The calendar year the date filters select exactly, if they do. */
 function selectedYear(after?: string, before?: string): number | null {
@@ -102,7 +89,7 @@ export function MapPage() {
   });
   const places = placesQuery.data;
   const geojson = useMemo(
-    () => (places ? toGeoJSON(places) : { type: "FeatureCollection" as const, features: [] }),
+    () => (places ? toGeoJSON(places) : EMPTY_PLACES),
     [places],
   );
 
@@ -216,20 +203,7 @@ export function MapPage() {
       return;
     }
     // A state: frame the places it has notices at.
-    let b: View["bounds"] | null = null;
-    for (let i = 0; i < places.lat.length; i++) {
-      if (stateOf(places.label[i]) !== pick.code) continue;
-      const lat = places.lat[i];
-      const lon = places.lon[i];
-      b = b
-        ? {
-            min_lat: Math.min(b.min_lat, lat),
-            max_lat: Math.max(b.max_lat, lat),
-            min_lon: Math.min(b.min_lon, lon),
-            max_lon: Math.max(b.max_lon, lon),
-          }
-        : { min_lat: lat, max_lat: lat, min_lon: lon, max_lon: lon };
-    }
+    const b = placesBounds(places, (i) => stateOf(places.label[i]) === pick.code);
     setSelected(null);
     if (b) mapRef.current?.fitBounds(b);
   };

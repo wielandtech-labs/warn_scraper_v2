@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import type { ResolvedTheme } from "../hooks/useTheme";
 
 /* All non-Tailwind color tokens, keyed by resolved theme. Anything rendered
-   from JS (Recharts props, choropleth SVG fills, Leaflet tile URLs) reads
+   from JS (Recharts props, choropleth SVG fills, map tile URLs) reads
    from here so a theme toggle re-renders it; CSS-driven color lives in
    Tailwind dark: variants instead. */
 
