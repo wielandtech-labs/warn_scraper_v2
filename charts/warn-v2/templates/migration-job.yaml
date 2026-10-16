@@ -26,4 +26,6 @@ spec:
           command: ["uv", "run", "alembic", "upgrade", "head"]
           env:
             {{- include "warn-v2.envSecrets" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.migrations.resources | nindent 12 }}
 {{- end }}
