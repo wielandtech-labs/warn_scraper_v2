@@ -1617,6 +1617,33 @@ def export_bigquery_cmd(project: str, dataset: str, snapshot: bool, dry_run: boo
     click.echo(f"loaded notices{' + snapshot' if snapshot else ''} to {project}.{dataset}")
 
 
+@main.command("export-public-mirror")
+@click.option("--out", "out_dir", type=click.Path(file_okay=False, path_type=Path),
+              default="dist", show_default=True)
+@click.option("--push", is_flag=True, help="Upload the folder to the Hugging Face dataset repo")
+@click.option("--repo", default="warn-index/us-warn-layoffs", show_default=True,
+              envvar="HF_DATASET_REPO")
+def export_public_mirror_cmd(out_dir: Path, push: bool, repo: str) -> None:
+    """Write the public dataset snapshot (parquet + csv.gz + dataset card).
+
+    Public columns only -- never provider-enriched fields. With --push,
+    uploads to Hugging Face using HF_TOKEN; exits non-zero on failure so the
+    k8s Job surfaces as Failed.
+    """
+    from warn_v2.db.session import session_scope
+    from warn_v2.scripts.export_public_mirror import push_mirror, write_mirror
+
+    with session_scope() as session:
+        df = write_mirror(session, out_dir)
+    click.echo(f"wrote {len(df)} notices to {out_dir}")
+    if push:
+        token = os.environ.get("HF_TOKEN")
+        if not token:
+            raise click.UsageError("--push needs HF_TOKEN")
+        push_mirror(out_dir, repo, token)
+        click.echo(f"pushed to https://huggingface.co/datasets/{repo}")
+
+
 @main.command("issue-key")
 @click.option("--email", required=True)
 @click.option("--name", default=None, help="Label shown in key listings")
@@ -1724,6 +1751,41 @@ def send_alert_digest_cmd() -> None:
         f"notices={summary['notices']} failed={summary['failed']} "
         f"not_due={summary['not_due']}"
     )
+
+
+@main.command("post-alerts")
+@click.option("--dry-run", is_flag=True, help="Log the posts that would go out; write nothing.")
+@click.option("--min-layoffs", type=int, default=250, show_default=True)
+@click.option("--max-posts", type=int, default=5, show_default=True,
+              help="Cap per platform per run, so one big scrape can't flood a feed.")
+@click.option("--platform", "platforms", default="bluesky,discord,slack", show_default=True,
+              help="Comma-separated channels; unconfigured ones are skipped.")
+def post_alerts_cmd(dry_run: bool, min_layoffs: int, max_posts: int, platforms: str) -> None:
+    """Announce large new WARN notices on Bluesky and chat webhooks.
+
+    Each notice is posted at most once per platform (notice_social_posts).
+    """
+    from datetime import UTC, datetime
+
+    from warn_v2.db.session import session_scope
+    from warn_v2.social.run import PLATFORMS, run_alerts
+
+    chosen = [p.strip() for p in platforms.split(",") if p.strip()]
+    unknown = sorted(set(chosen) - set(PLATFORMS))
+    if unknown:
+        raise click.BadParameter(
+            f"unknown platform(s): {', '.join(unknown)}", param_hint="--platform"
+        )
+    with session_scope() as session:
+        summary = run_alerts(
+            session,
+            now=datetime.now(UTC),
+            platforms=chosen,
+            min_layoffs=min_layoffs,
+            max_posts=max_posts,
+            dry_run=dry_run,
+        )
+    click.echo(" ".join(f"{p}={n}" for p, n in summary.items()) + (" (dry run)" if dry_run else ""))
 
 
 @main.command("sentiment-report")

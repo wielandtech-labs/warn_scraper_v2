@@ -21,6 +21,14 @@ STATE_AUDIT.md table is stale for CA (2006, 20,077 rows), NY (2006, 8,708),
 MN (2012, 482), WA (2004, ~1,480), MI (2000, 2,168); those use the post-run
 numbers recorded in historical-sources.md Progress.
 
+**2026-10-16 benchmark contests several ✉/⛔ verdicts below.** LaborCurrent
+shows notices for GA 2001–2022, TX 1999–2003, TN 2011–2016, MO 2006–2011,
+DC 2006–2013, FL 2012, NC 2012 and CA 2009–2014 at volumes we lack. It also
+exposes live holes: OH 2025 and PA 2023 are empty, and the KS/ME/VT JobLink
+caps were never re-run. The table and the re-runnable script are in
+[coverage-vs-aggregators.md](coverage-vs-aggregators.md). Verdicts below
+stay as they are until a re-probe confirms or overturns them.
+
 **Route legend:** ✅ done · 🔨 build item (route verified, code/Job pending) ·
 🔍 sweep verdict 2026-07-10 (recoverable, needs a parser build) ·
 ✉ FOIA/records request only · ⛔ source floor (state confirms nothing older
@@ -78,7 +86,7 @@ Reachable floor = floor after running every verified route (no FOIA).
 | NM | 114 | 2016–2026 | ✅ | ✉ | ✉ | 2016 | Sweep: 2016 PDF is the earliest list ever published (older pages are guides) |
 | NV | 621 | 2017–2026 | ✅ | ✉ | ✉ | 2017 | Sweep: detr.state.nv.us/nvdetr.org 2001–2016 have guides only — no list pre-2017; Jun–Dec 2025 gap also ✉ |
 | NY | 8,708 | 2006–2026 | ✅ | ✅ | ✉ | 2006 | Crosstab floor 2006; pre-2006 → FOIA backstop (draft exists) |
-| OH | 3,172 | 1996–2026 | ✅ | ✅ | ✅ | 1996 | Complete; gap-year re-run 2007–2024 pending; 2025 unaccounted |
+| OH | 3,172 | 1996–2026 | ✅ | ✅ | ✅ | 1996 | Complete; gap-year re-run 2007–2024 pending; 2025 year page found 2026-10-16 (87 notices) → backfill 2025 |
 | OK | 198 | 2001–2026 | ✅ | ✅ | ✉ | 2001 | Portal reaches 2001; pre-2001 → FOIA drafted |
 | OR | 866 | 1989–2026 | ✅ | ✅ | ✅ | **1989** ✅ | **done 2026-07-10** (+766, floor 2020→**1989-03**, ~100→866): Socrata + Wayback capture union — **no mid-2000s gap** (the sweep's "possible gap" worry was wrong); ~389 date-less 1990s rows dropped (dates only in scanned per-notice PDFs) → ✉; HECC-master-vs-Socrata dedup **done 2026-07-11** (w_homelab #719: 73 masters superseded by track-computed notice-id list, 866→793 non-superseded) |
 | PA | 3,715 | 1998–2026 | ✅ | ✅ | ✅ | 1998-07 ✅ | **done 2026-07-10** (+394, floor 2001→1998-07; the dry-run-throttled 1999 Oct+Nov healed on the real run); **Dec 2000 never captured — permanent gap** |

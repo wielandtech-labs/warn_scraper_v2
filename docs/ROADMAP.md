@@ -88,7 +88,9 @@ outstanding.
   added **+798 rows** after #181 filtered cross-year junk. Six
   wrapped-count artifacts (up to 1.58M "affected") were parser-fixed
   (#183) and healed in place with source-verified values (w_homelab
-  #614). OH is complete 1996–2024; 2025 stays with the OH request.
+  #614). OH is complete 1996–2024. 2025: JFS published a 2025 year page
+  (found 2026-10-16, 87 notices); discovery fixed, backfill via
+  `backfill-historical --state OH --year-start 2025 --year-end 2025`.
 - ~~**`mark-superseded` for IA (479), PA (286), IL (14)** — `--dry-run`
   preview, then commit. (A+gate)~~ — DONE 2026-07-06: those audit numbers
   count rows *already marked* in earlier passes; the sweep found only 3

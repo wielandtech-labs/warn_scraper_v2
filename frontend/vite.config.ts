@@ -13,6 +13,7 @@ const API_PATHS = [
   "/metrics",
   "/docs",
   "/openapi.json",
+  "/embed",
 ];
 
 // Point the dev proxy at another backend, e.g. the public site, to preview UI

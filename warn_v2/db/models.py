@@ -265,6 +265,30 @@ class NoticeOccupation(Base):
     )
 
 
+class NoticeSocialPost(Base):
+    """One notice announced on one outbound channel (Bluesky, a webhook, ...).
+
+    The composite primary key is the idempotency guard for
+    ``warn-v2 post-alerts``: a notice is posted at most once per platform,
+    and a row is written only after the platform accepted the post (see
+    ``warn_v2.social.run``).
+    """
+
+    __tablename__ = "notice_social_posts"
+
+    notice_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("notices.notice_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    platform: Mapped[str] = mapped_column(String(32), primary_key=True)
+    external_post_id: Mapped[str | None] = mapped_column(String(256))
+    posted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), index=True
+    )
+    payload: Mapped[str | None] = mapped_column(Text)  # JSON-encoded post body
+
+
 class User(Base):
     __tablename__ = "users"
 

@@ -1314,8 +1314,48 @@ def test_oh_year_sources_cover_all_eras(_no_stm_cdx):
     assert urls_2023[0].endswith("/2023-public-notices-of-layoffs-and-closures")
     assert "web.archive.org/web/20250601id_/" in urls_2023[1]
     assert "-sa/" not in urls_2023[1]
-    # 2025: no known source
-    assert _oh_year_sources(2025) == []
+    # 2025+: live year page only (the retired portal never had one)
+    assert _oh_year_sources(2025) == [
+        "https://jfs.ohio.gov/job-workforce-services/job-programs-and-services/"
+        "submit-a-warn-notice/2025-public-notices-of-layoffs-and-closures"
+    ]
+
+
+@respx.mock
+def test_oh_fetch_and_parse_2025_year_csv(_no_wayback_delays):
+    """Regression: 2025 had no source, so prod held zero OH notices that year.
+
+    The 2025 year page links its CSV on the DAM host; the trimmed fixture is
+    the live file (2026-10-16), including the duplicated hidden Company column
+    and two "UPDATE" amendments dated 2026 that exist only in this file.
+    """
+    from warn_v2.scrapers.states.oh import _fetch_oh_year, _year_page_url, parse_oh_year
+
+    csv_url = (
+        "https://dam.assets.ohio.gov/raw/upload/f_auto/q_auto/v1776198587/"
+        "jfs.ohio.gov/2026/2025_warn_notice.csv"
+    )
+    page = f'<html><script>{{"csvUrl":"{csv_url}"}}</script></html>'.encode()
+    respx.get(_year_page_url(2025)).mock(return_value=httpx.Response(200, content=page))
+    respx.get(csv_url).mock(
+        return_value=httpx.Response(200, content=_oh_fixture("year_2025.csv"))
+    )
+
+    rows = parse_oh_year(_fetch_oh_year(2025), 2025)
+
+    assert len(rows) == 9
+    assert sum(r.notice_date.year == 2025 for r in rows) == 7
+    by_emp = {r.employer: r for r in rows}
+    cooper = by_emp["Cooper Standard"]
+    assert cooper.notice_date == date(2025, 12, 15)
+    assert cooper.layoff_count == 228
+    assert (cooper.city, cooper.county) == ("New Lexington", "Perry")
+    assert cooper.closure_type == "Closure"
+    assert cooper.effective_date == date(2027, 7, 1)
+    assert cooper.source_url == _year_page_url(2025)
+    assert cooper.raw_notice_url.endswith("/CooperStandard.pdf")
+    assert by_emp["Nordstrom Credit Operations"].layoff_count is None
+    assert by_emp["Jack Cooper Transport Company"].extra["union"] == "Local 964"
 
 
 def test_parse_oh_year_era_a_pdf():

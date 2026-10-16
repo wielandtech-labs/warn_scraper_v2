@@ -265,12 +265,11 @@ def _text(cell) -> str:
 #              captures); anchored slug variants remain as fallback
 #   2020-2022  archive.stm?year=Y HTML pages (same table layout the live
 #              scraper parses) -> Wayback replay
-#   2021-2024  per-year pages on the current (June-2026) site linking a
+#   2021-      per-year pages on the current (June-2026) site linking a
 #              dam.assets.ohio.gov CSV — same shape the live scraper parses;
 #              fallback: Wayback captures of the retired portal pages with
 #              the table embedded as JSON in <div id="js-placeholder-json-data">
-#
-# 2025 is unaccounted for anywhere (no live page, nothing in the CDX index).
+#              (2021-2024 only)
 # ---------------------------------------------------------------------------
 
 _WAYBACK = "https://web.archive.org/web/{ts}id_/{url}"
@@ -422,10 +421,14 @@ def _oh_year_sources(year: int) -> list[str]:
             for slug in slugs
         ]
         return urls
-    if 2020 <= year <= 2024:
+    if year >= 2020:
         urls = []
         if year >= 2021:
+            # JFS adds a year page once a year closes (2025's was absent at the
+            # 2026-07-06 probe, live by 2026-10-16). The current year has none;
+            # the live scraper covers it.
             urls.append(_year_page_url(year))
+        if 2021 <= year <= 2024:
             # Old-portal capture (all four year pages captured 2025-06 with
             # status 200 — verified 2026-07-06).
             urls.append(_WAYBACK.format(ts="20250601", url=_portal_url(year)))
@@ -436,7 +439,7 @@ def _oh_year_sources(year: int) -> list[str]:
                 )
             )
         return urls
-    return []  # 2025: no known source; current year: live scraper
+    return []
 
 
 def _looks_like_oh_data(raw: bytes) -> bool:

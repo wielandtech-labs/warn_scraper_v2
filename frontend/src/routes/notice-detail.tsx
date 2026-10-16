@@ -5,6 +5,7 @@ import { Link, useParams } from "@tanstack/react-router";
 import { api, ApiError } from "../api/client";
 import { ClosureBadge } from "../components/ClosureBadge";
 import { CompanyLogo } from "../components/CompanyLogo";
+import { EmbedButton } from "../components/EmbedDialog";
 import { Figure, Figures } from "../components/Figures";
 import { LocationMap } from "../components/LocationMap";
 import { NoticeList } from "../components/NoticeList";
@@ -132,6 +133,7 @@ export function NoticeDetail() {
                 State listing ↗
               </a>
             )}
+            <EmbedButton noticeId={n.notice_id} employer={n.company?.name ?? n.employer} />
           </div>
         }
       />

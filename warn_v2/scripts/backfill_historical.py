@@ -394,7 +394,7 @@ _BACKFILL: dict[str, BackfillSpec] = {
         parse_for_url=lambda u: (lambda raw, _u=u: parse_in_archive_html(raw, _u)),
     ),
     # OH: four era formats back to 1996, mostly via Wayback replay (see
-    # docs/historical-sources.md); 2025 has no known source anywhere.
+    # docs/historical-sources.md); 2021+ from the per-year CSV pages.
     "OH": BackfillSpec(
         year_start=1996,
         fetch_year=lambda s, y: _fetch_oh_year(y),
