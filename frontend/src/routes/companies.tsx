@@ -20,7 +20,7 @@ import { fmtNum, SOURCE_LABEL } from "../lib/format";
 const PAGE_SIZE = 50;
 
 export function CompaniesPage() {
-  useDocumentTitle("Companies & corporate families — WARN Index");
+  useDocumentTitle("Companies & Corporate Families — WARN Layoff Database — WARN Index");
   const navigate = useNavigate({ from: "/companies" });
   const search = useSearch({ from: "/companies" });
   const view = search.view ?? "companies";
@@ -42,8 +42,8 @@ export function CompaniesPage() {
         title={view === "families" ? "Corporate families" : "Companies"}
         lede={
           view === "families"
-            ? "Companies grouped into corporate families, ranked by total layoffs across all their subsidiaries."
-            : "Every employer that has filed a WARN notice, with filings under variant names rolled up into one record."
+            ? "Employers in the WARN database grouped into corporate families, ranked by total layoffs across all subsidiaries."
+            : "Every employer that has filed a WARN notice, indexed in our layoff database with filings under variant names rolled up into single records."
         }
         aside={
           <div

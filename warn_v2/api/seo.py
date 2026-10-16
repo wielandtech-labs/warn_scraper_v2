@@ -19,10 +19,11 @@ from html import escape
 
 from warn_v2.states import state_name
 
-DEFAULT_TITLE = "WARN Index — US layoff & closure notices"
+DEFAULT_TITLE = "WARN Index — US WARN Layoff Tracker & Layoff Database"
 DEFAULT_DESCRIPTION = (
-    "Search, map, and track WARN Act layoff and plant-closure notices across "
-    "all 50 US states and DC, updated daily."
+    "The national WARN layoff tracker and database. Track, search, and map "
+    "Worker Adjustment and Retraining Notification (WARN) layoffs and plant "
+    "closures across all 50 US states, updated daily."
 )
 
 
@@ -51,34 +52,38 @@ class PageMeta:
 # Static content pages (Phase 3) get their meta from this table. Keyed by path.
 _CONTENT_PAGES: dict[str, tuple[str, str]] = {
     "/about": (
-        "About — WARN Index",
-        "Who we are and how WARN Index collects, cleans, and publishes US "
-        "layoff-notice data.",
+        "About WARN Index — US Layoff Tracker & Database",
+        "About WARN Index: a nationwide, daily-updated US layoff tracker and "
+        "standardized WARN database aggregating notices across all 50 state "
+        "labor agencies.",
     ),
     "/warn-act": (
-        "What is the WARN Act? — WARN Index",
+        "What is the WARN Act? Guide to Worker Adjustment and Retraining Notification — WARN Index",
         "A plain-English guide to the federal Worker Adjustment and Retraining "
-        "Notification (WARN) Act: who must file, when, and what the notices mean.",
+        "Notification (WARN) Act: covered employers, 60-day notice requirements, "
+        "and state mini-WARN laws.",
     ),
     "/methodology": (
-        "Methodology & data sources — WARN Index",
-        "How WARN Index scrapes 50+ state labor agencies, de-duplicates and "
-        "enriches employers, and geocodes layoff notices.",
+        "Methodology & Data Sources — WARN Layoff Database — WARN Index",
+        "How the WARN Index layoff database scrapes 50+ state labor agencies, "
+        "standardizes employer records, and geocodes WARN layoffs.",
     ),
     "/faq": (
-        "FAQ — WARN Index",
-        "Frequently asked questions about WARN notices, our data, coverage, and "
-        "how to use the layoff database.",
+        "FAQ — WARN Layoff Database & Tracker — WARN Index",
+        "Frequently asked questions about Worker Adjustment and Retraining "
+        "Notification (WARN) filings, state coverage, and using the WARN Index "
+        "layoff database.",
     ),
     "/cited-by": (
-        "Cited by — WARN Index",
+        "Cited By — WARN Index Layoff Data in the News",
         "Newsrooms, researchers, and analysts that rely on WARN Index's "
-        "layoff-notice data.",
+        "layoff database and WARN notices in their reporting.",
     ),
     "/api-docs": (
-        "Data & API — WARN Index",
-        "Use the WARN Index layoff dataset via a public JSON API or bulk "
-        "CSV/JSON downloads.",
+        "WARN Dataset & API — Layoff Database Access — WARN Index",
+        "Access the complete WARN dataset and layoff database via public REST "
+        "API or bulk CSV and JSON downloads. Historical Worker Adjustment and "
+        "Retraining Notification records.",
     ),
 }
 
@@ -88,34 +93,35 @@ _CONTENT_PAGES: dict[str, tuple[str, str]] = {
 # paths (see routes/seo.py `_APP_PAGES`).
 _APP_PAGES_META: dict[str, tuple[str, str]] = {
     "/notices": (
-        "Layoff notices — WARN Index",
-        "Search and filter every WARN Act layoff and closure notice on record "
-        "by state, employer, industry, and date. Export as CSV or JSON.",
+        "WARN Layoffs & Filings — Search Layoff Database — WARN Index",
+        "Search and filter the complete WARN layoff database by state, "
+        "employer, industry, and date. Download CSV/JSON records from our "
+        "nationwide WARN tracker.",
     ),
     "/companies": (
-        "Companies & corporate families — WARN Index",
-        "The employers behind US WARN notices, de-duplicated and enriched — "
-        "with corporate family groupings and total workers affected.",
+        "Companies & Corporate Families — WARN Layoff Database — WARN Index",
+        "Track the employers behind US WARN layoffs, de-duplicated and enriched "
+        "into corporate families with total workers affected across all subsidiaries.",
     ),
     "/map": (
-        "Layoff map — WARN Index",
-        "Interactive map of US WARN Act layoff and closure notices, "
-        "filterable by state, industry, and date.",
+        "WARN Layoff Map — Interactive US WARN Tracker — WARN Index",
+        "Interactive map of US WARN layoffs and plant-closure notices across "
+        "all 50 states, filterable by state, industry, and date.",
     ),
     "/stats": (
-        "Layoff statistics & trends — WARN Index",
-        "Charts of US WARN notices over time and by state, industry, and "
-        "employer.",
+        "WARN Layoff Statistics & Trends — WARN Index Tracker",
+        "Historical trends and charts of US WARN layoffs by state, industry "
+        "sector, and employer from our nationwide layoff database.",
     ),
     "/reports": (
-        "Economic sentiment & industry scorecards — WARN Index",
+        "Economic Sentiment & Industry Reports — WARN Index",
         "Weekly layoff-trend scorecards for every NAICS industry sector plus "
-        "a national outlook, computed from WARN Act notices.",
+        "a national economic outlook, computed from the WARN dataset.",
     ),
     "/outlook": (
-        "Layoff outlook — WARN Index",
+        "Layoff Outlook & Macro Trends — WARN Index",
         "Statistically tested findings on where US layoffs are heading: state "
-        "and industry trends and the link to unemployment, from WARN notices.",
+        "and industry trends and the link to unemployment, derived from the WARN database.",
     ),
 }
 
@@ -151,9 +157,10 @@ def page_meta_for_path(path: str) -> PageMeta:
 
     if path == "/states":
         return PageMeta(
-            "Layoffs by state — WARN Index",
-            "Browse WARN Act layoff and closure notices by US state. Totals, "
-            "trends, and the latest filings for each jurisdiction.",
+            "WARN Layoffs by State — State WARN Tracker — WARN Index",
+            "Browse Worker Adjustment and Retraining Notification (WARN) layoffs "
+            "and closure notices by US state. Totals, trends, and the latest "
+            "filings for each jurisdiction.",
             "/states",
         )
 
@@ -163,9 +170,10 @@ def page_meta_for_path(path: str) -> PageMeta:
         name = state_name(code)
         if name:
             return PageMeta(
-                f"{name} layoffs & WARN notices — WARN Index",
-                f"WARN Act layoff and plant-closure notices in {name}: latest "
-                f"filings, affected-worker totals, top employers, and trends.",
+                f"{name} WARN Layoffs & Notices — WARN Index Tracker",
+                f"Worker Adjustment and Retraining Notification (WARN) layoffs "
+                f"and plant-closure notices in {name}: latest filings, affected-worker "
+                f"totals, top employers, and trends.",
                 f"/states/{code}",
                 image=f"/og/states/{code}.png",
             )

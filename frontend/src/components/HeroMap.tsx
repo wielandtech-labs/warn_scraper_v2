@@ -98,13 +98,13 @@ export function HeroMap({ byState, bucket, after, rangeLabel, national, failed =
         <div className="relative z-10 space-y-5">
           <div>
             <p className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-brand">
-              WARN Act notices · {rangeLabel}
+              WARN Layoff Tracker · {rangeLabel}
             </p>
             <h1 className="mt-2 text-3xl font-semibold leading-tight text-slate-900 sm:text-4xl dark:text-slate-50">
-              Layoffs, as they’re announced.
+              US WARN Layoff Tracker &amp; Database
             </h1>
             <p className="mt-2 max-w-md text-sm text-slate-600 dark:text-slate-400">
-              Every advance-notice filing from state WARN Act listings, gathered daily and mapped.
+              Track Worker Adjustment and Retraining Notification (WARN) filings, plant closures, and workforce reductions across all 50 states, updated daily.
             </p>
           </div>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">

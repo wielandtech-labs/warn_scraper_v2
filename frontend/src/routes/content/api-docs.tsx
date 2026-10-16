@@ -5,12 +5,14 @@ import { ContentPage } from "./ContentPage";
 export function ApiDocsPage() {
   return (
     <ContentPage
-      title="Data & API access"
-      docTitle="Data & API — WARN Index"
-      intro="Use the WARN Index dataset programmatically or as bulk downloads."
+      title="WARN Dataset & Database API"
+      docTitle="WARN Dataset & API — Layoff Database Access — WARN Index"
+      intro="Access the complete historical WARN dataset and layoff database programmatically or via bulk CSV and JSON downloads."
     >
       <p>
-        All read endpoints return JSON and live under <code>/api</code>. The
+        The WARN Index provides programmatic and bulk data access to standardized
+        Worker Adjustment and Retraining Notification (WARN) filings across all 50 US
+        states. All read endpoints return JSON and live under <code>/api</code>. The
         full interactive reference (OpenAPI / Swagger) is at{" "}
         <a href="/docs">/docs</a>, and the raw schema at{" "}
         <a href="/openapi.json">/openapi.json</a>.
@@ -76,10 +78,11 @@ export function ApiDocsPage() {
         <a href="mailto:contact@wielandtech.com">get in touch</a>.
       </p>
 
-      <h2>Bulk download</h2>
+      <h2>Bulk WARN dataset download</h2>
       <p>
-        Every notices/companies filter has a matching export that streams the
-        whole result set as CSV or JSON:
+        Researchers, analysts, and engineering teams can export records from our
+        nationwide layoff database. Every notices/companies filter has a matching export
+        that streams the result set as CSV or JSON:
       </p>
       <ul>
         <li>
