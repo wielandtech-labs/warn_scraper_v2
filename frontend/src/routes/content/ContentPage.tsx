@@ -14,15 +14,17 @@ export function ContentPage({
   docTitle,
   intro,
   children,
+  maxWidth = "max-w-3xl",
 }: {
   title: string;
   docTitle: string;
   intro?: string;
   children: ReactNode;
+  maxWidth?: string;
 }) {
   useDocumentTitle(docTitle);
   return (
-    <article className="mx-auto max-w-3xl">
+    <article className={`mx-auto ${maxWidth}`}>
       <header className="border-b border-slate-200 pb-5 dark:border-slate-800">
         <p className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-brand">WARN Index</p>
         <h1 className="mt-1.5 text-3xl font-semibold leading-tight text-slate-900 dark:text-slate-50">

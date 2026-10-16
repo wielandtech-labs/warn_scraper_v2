@@ -202,6 +202,32 @@ export function ReportsPage() {
         </div>
       </section>
 
+      <section className="card flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5">
+        <div className="space-y-1">
+          <h3 className="font-semibold text-slate-900 dark:text-slate-100">
+            Citing our reports in news or research?
+          </h3>
+          <p className="text-xs text-slate-600 dark:text-slate-400">
+            WARN Index data is open for journalistic and academic citation. Access citation formats,
+            fast facts, or request custom data cuts for your beat.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            to="/cited-by"
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Press Kit &amp; Citation Guide &rarr;
+          </Link>
+          <Link
+            to="/api-docs"
+            className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand/90"
+          >
+            Download Dataset
+          </Link>
+        </div>
+      </section>
+
       <p className="text-xs text-slate-500 dark:text-slate-400">
         Looking for a specific state? Each{" "}
         <Link to="/states" className="font-medium text-sky-700 hover:underline dark:text-sky-400">
