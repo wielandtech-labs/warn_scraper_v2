@@ -243,7 +243,7 @@ def _assert_no_provider_fields_anywhere(payload) -> None:
 def test_paid_session_gets_no_provider_fields_on_non_reshaped_endpoints(api_client, db, role):
     """Policy pin: only the 5 reshaped endpoints may serve provider fields.
 
-    family/stats/map-pins keep static response models and must stay
+    family/stats/map-pins/map-places keep static response models and must stay
     public-shaped even for paid/enterprise sessions — this test fails if a
     future change widens the surface without deliberately updating the policy.
     """
@@ -258,6 +258,7 @@ def test_paid_session_gets_no_provider_fields_on_non_reshaped_endpoints(api_clie
         "/api/stats/by-parent-group",
         "/api/stats/by-state",
         "/api/map-pins",
+        "/api/map-places",
     ):
         resp = api_client.get(path)
         assert resp.status_code == 200, path

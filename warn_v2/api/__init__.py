@@ -23,6 +23,7 @@ from warn_v2.api.routes import (
     keys,
     logos,
     map_pins,
+    map_places,
     notices,
     og,
     radar,
@@ -121,6 +122,7 @@ def create_app(static_dir: Path | None = None) -> FastAPI:
     app.include_router(radar.router, prefix="/api", dependencies=limited)
     app.include_router(reports.router, prefix="/api", dependencies=limited)
     app.include_router(map_pins.router, prefix="/api", dependencies=limited)
+    app.include_router(map_places.router, prefix="/api", dependencies=limited)
     app.include_router(search.router, prefix="/api", dependencies=limited)
     # Rate-limited like the data routes: every POST here sends mail, so an
     # unthrottled endpoint is a way to pump messages at an address.

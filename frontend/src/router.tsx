@@ -175,22 +175,27 @@ const mapRoute = createRoute({
     closure_category?: string;
     industry?: string;
     subsector?: string;
+    min_layoffs?: number;
     after?: string;
     before?: string;
     lat?: number;
     lon?: number;
     zoom?: number;
+    mode?: "heat";
   } => ({
     state: (search.state as string) || undefined,
     closure_category: (search.closure_category as string) || undefined,
     industry: (search.industry as string) || undefined,
     subsector: (search.subsector as string) || undefined,
+    min_layoffs: numParam(search.min_layoffs),
     after: (search.after as string) || undefined,
     before: (search.before as string) || undefined,
     // Viewport — kept in the URL so back/refresh/share restore the same view.
     lat: numParam(search.lat),
     lon: numParam(search.lon),
     zoom: numParam(search.zoom),
+    // Bubbles is the default and stays out of the URL.
+    mode: search.mode === "heat" ? "heat" : undefined,
   }),
   component: lazyRouteComponent(() => import("./routes/map"), "MapPage"),
 });

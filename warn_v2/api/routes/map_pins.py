@@ -91,18 +91,10 @@ def list_map_pins(
         subsector=subsector,
         after=after,
         before=before,
+        # Viewport filter: only applied when the full box is provided.
+        bbox=(min_lat, min_lon, max_lat, max_lon),
         location_joined=True,
     )
-    # Viewport filter: only applied when the full box is provided. Lets the map
-    # request just the visible pins as the user pans/zooms (antimeridian-crossing
-    # boxes aren't handled — irrelevant for the contiguous US + mainland AK).
-    if None not in (min_lat, min_lon, max_lat, max_lon):
-        stmt = stmt.where(
-            Location.lat >= min_lat,
-            Location.lat <= max_lat,
-            Location.lon >= min_lon,
-            Location.lon <= max_lon,
-        )
 
     rows = db.execute(stmt.limit(limit)).all()
     # Hand-rolled dicts + a direct JSONResponse instead of response_model

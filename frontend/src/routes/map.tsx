@@ -1,151 +1,162 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import L from "leaflet";
-import { MapContainer, Marker, Popup, TileLayer, useMapEvents } from "react-leaflet";
-import MarkerClusterGroup from "react-leaflet-cluster";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 
-import { api } from "../api/client";
+import { api, type MapPlaces } from "../api/client";
 import { FilterBar, type FilterValues } from "../components/FilterBar";
+import { MapNoticePanel, type PanelSort } from "../components/MapNoticePanel";
+import { MapPlaceSearch, type PlacePick } from "../components/MapPlaceSearch";
+import {
+  PlacesMap,
+  type MapMode,
+  type PlacesGeoJSON,
+  type PlacesMapHandle,
+  type SelectedPlace,
+  type View,
+} from "../components/PlacesMap";
 import { PageHeader } from "../components/PageHeader";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useTheme } from "../hooks/useTheme";
-import { fmtDate, fmtNum } from "../lib/format";
-import { TILE_LAYERS } from "../lib/themeColors";
-import "../lib/leafletIcon"; // sets the default marker icon (brand pin)
+import { fmtNum } from "../lib/format";
 
-const CENTER_US: [number, number] = [39.5, -98.35];
-// Per-device pin ceilings. The API tops out at 50 000, but instantiating that
-// many Leaflet markers locks up a phone — so we request far fewer, smaller still
-// on small screens. Newest-first ordering means low zoom shows the most recent
-// pins; zooming in shrinks the bbox so a region still loads in full.
-const MOBILE_PIN_CAP = 3_000;
-const DESKTOP_PIN_CAP = 10_000;
+// The earliest year any state's backfill reaches (IL, 1999).
+const FIRST_YEAR = 1999;
+const THIS_YEAR = new Date().getFullYear();
+// The slider's last notch, past the current year, means "any year": resting
+// the thumb on THIS_YEAR would make the current year unselectable (moving to
+// the value it already shows fires no change).
+const ANY_YEAR = THIS_YEAR + 1;
 
-interface Bbox {
-  min_lat: number;
-  min_lon: number;
-  max_lat: number;
-  max_lon: number;
-}
-
-// ~11 m precision; keeps the query key stable so tiny float jitter doesn't refetch.
-const round = (n: number) => Math.round(n * 1e4) / 1e4;
-
-const boundsToBbox = (b: L.LatLngBounds): Bbox => ({
-  min_lat: round(b.getSouth()),
-  min_lon: round(b.getWest()),
-  max_lat: round(b.getNorth()),
-  max_lon: round(b.getEast()),
-});
-
-// Fraction to expand the fetched bounds beyond the visible viewport on each
-// side. Panning stays served from this buffer until the view leaves it, so
-// ordinary dragging doesn't refetch.
-const FETCH_BUFFER = 0.5;
-
-interface Viewport {
-  bounds: L.LatLngBounds; // visible bounds (unbuffered) — used for containment
-  lat: number; // center
-  lon: number;
-  zoom: number;
-}
-
-const toViewport = (map: L.Map): Viewport => {
-  const c = map.getCenter();
+function toGeoJSON(p: MapPlaces): PlacesGeoJSON {
   return {
-    bounds: map.getBounds(),
-    lat: round(c.lat),
-    lon: round(c.lng),
-    zoom: map.getZoom(),
+    type: "FeatureCollection",
+    features: p.lat.map((lat, i) => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [p.lon[i], lat] },
+      properties: { n: p.notices[i], w: p.workers[i], label: p.label[i], lat, lon: p.lon[i] },
+    })),
   };
-};
+}
 
-// Reports the current map viewport up to the parent. Lives inside MapContainer
-// (react-leaflet hooks require the map context). moveend/zoomend fire once at
-// the end of a pan/zoom gesture, so this is naturally throttled — no debounce
-// needed. A mount effect seeds the bounds so the first fetch is viewport-scoped.
-function ViewportWatcher({ onChange }: { onChange: (v: Viewport) => void }) {
-  const map = useMapEvents({
-    moveend: () => onChange(toViewport(map)),
-    zoomend: () => onChange(toViewport(map)),
-  });
-  useEffect(() => {
-    onChange(toViewport(map));
-  }, [map, onChange]);
-  return null;
+const stateOf = (label: string) => label.slice(-2);
+
+/** The calendar year the date filters select exactly, if they do. */
+function selectedYear(after?: string, before?: string): number | null {
+  const m = after?.match(/^(\d{4})-01-01$/);
+  return m && before === `${m[1]}-12-31` ? Number(m[1]) : null;
 }
 
 export function MapPage() {
   useDocumentTitle("Layoff map — WARN Index");
   const { resolved } = useTheme();
-  const tiles = TILE_LAYERS[resolved];
   const navigate = useNavigate({ from: "/map" });
   const search = useSearch({ from: "/map" });
-  const [bbox, setBbox] = useState<Bbox | null>(null);
-  // The buffered bounds + zoom the current `bbox` was fetched for. While the
-  // visible view stays inside these at the same zoom, panning needs no refetch.
-  const fetched = useRef<{ bounds: L.LatLngBounds; zoom: number } | null>(null);
-  // Chosen once on mount; crossing the 640px line via resize/orientation is rare
-  // enough not to warrant a media-query subscription.
-  const [pinCap] = useState(() =>
-    window.matchMedia("(max-width: 639px)").matches ? MOBILE_PIN_CAP : DESKTOP_PIN_CAP,
+  const mode: MapMode = search.mode === "heat" ? "heat" : "bubbles";
+  const mapRef = useRef<PlacesMapHandle>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const [view, setView] = useState<View | null>(null);
+  const [selected, setSelected] = useState<SelectedPlace | null>(null);
+  const [sort, setSort] = useState<PanelSort>("notice_date");
+  // Seeded once: later URL changes come *from* the map, not to it.
+  const [initial] = useState(() =>
+    search.lat != null && search.lon != null
+      ? { lat: search.lat, lon: search.lon, zoom: search.zoom ?? 4 }
+      : null,
   );
 
-  // Mirror the viewport into the URL (replace: panning must not spam history)
-  // so back/refresh/share land on the same view. The pins query only refetches
-  // when the visible view leaves the buffered region we last fetched, or the
-  // zoom changes — so dragging within the buffer reuses the loaded pins.
-  const handleViewport = useCallback(
-    (v: Viewport) => {
-      navigate({
-        search: (prev) => ({ ...prev, lat: v.lat, lon: v.lon, zoom: v.zoom }),
-        replace: true,
-        resetScroll: false, // panning the map must not scroll the page to top
-      });
-      const prev = fetched.current;
-      if (!prev || prev.zoom !== v.zoom || !prev.bounds.contains(v.bounds)) {
-        const buffered = v.bounds.pad(FETCH_BUFFER);
-        fetched.current = { bounds: buffered, zoom: v.zoom };
-        setBbox(boundsToBbox(buffered));
-      }
-    },
-    [navigate],
+  const filters = useMemo(
+    () => ({
+      state: search.state,
+      closure_category: search.closure_category,
+      industry: search.industry,
+      subsector: search.subsector,
+      min_layoffs: search.min_layoffs,
+      after: search.after,
+      before: search.before,
+    }),
+    [
+      search.state,
+      search.closure_category,
+      search.industry,
+      search.subsector,
+      search.min_layoffs,
+      search.after,
+      search.before,
+    ],
   );
+  // On phones the filter card would fill the first screen, so it starts
+  // folded behind a toggle that says how many filters are on.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFilters = [
+    filters.state,
+    filters.closure_category,
+    filters.industry ?? filters.subsector,
+    filters.min_layoffs,
+    filters.after ?? filters.before,
+  ].filter((v) => v != null).length;
 
-  const filters = {
-    state: search.state,
-    closure_category: search.closure_category,
-    industry: search.industry,
-    subsector: search.subsector,
-    after: search.after,
-    before: search.before,
-  };
-
-  // Pins for the buffered region around the current viewport. Zooming in shrinks
-  // the bbox so the API returns only what's visible — the map scales past the cap.
-  const query = useQuery({
-    queryKey: ["map-pins", filters, bbox, pinCap],
-    queryFn: () => api.listMapPins({ ...filters, ...(bbox ?? {}), limit: pinCap }),
-    enabled: bbox !== null,
-    placeholderData: (prev) => prev, // keep old pins on screen during a refetch
+  const placesQuery = useQuery({
+    queryKey: ["map-places", filters],
+    queryFn: () => api.listMapPlaces(filters),
+    placeholderData: keepPreviousData, // old places stay up while filters change
   });
-
-  // Total geocoded notices matching the (non-spatial) filters, for an honest
-  // "showing X of Y" — Page.total from /notices mirrors the map-pins filters.
-  const totalQuery = useQuery({
-    queryKey: ["map-pins-total", filters],
-    queryFn: () =>
-      api.listNotices({ ...filters, geocoded_only: true, limit: 1 }).then((p) => p.total),
-  });
+  const places = placesQuery.data;
+  const geojson = useMemo(
+    () => (places ? toGeoJSON(places) : { type: "FeatureCollection" as const, features: [] }),
+    [places],
+  );
 
   const industriesQuery = useQuery({
     queryKey: ["stats", "industries"],
     queryFn: () => api.statsIndustries(),
   });
 
+  // New filters change every place's counts: carry the selection over with
+  // fresh numbers, or drop it if the place no longer has matching notices.
+  useEffect(() => {
+    setSelected((sel) => {
+      if (!sel || !places) return sel;
+      const i = places.lat.findIndex((lat, j) => lat === sel.lat && places.lon[j] === sel.lon);
+      return i < 0
+        ? null
+        : { ...sel, n: places.notices[i], w: places.workers[i], label: places.label[i] };
+    });
+  }, [places]);
+
+  // Totals for the visible area, from the loaded places — no request needed.
+  const summary = useMemo(() => {
+    let notices = 0;
+    let workers = 0;
+    if (places && view) {
+      const b = view.bounds;
+      for (let i = 0; i < places.lat.length; i++) {
+        const lat = places.lat[i];
+        const lon = places.lon[i];
+        if (lat >= b.min_lat && lat <= b.max_lat && lon >= b.min_lon && lon <= b.max_lon) {
+          notices += places.notices[i];
+          workers += places.workers[i];
+        }
+      }
+    }
+    return { notices, workers };
+  }, [places, view]);
+
+  // Mirror the viewport into the URL (replace: panning must not spam history)
+  // so back/refresh/share land on the same view.
+  const handleViewChange = useCallback(
+    (v: View) => {
+      setView(v);
+      navigate({
+        search: (prev) => ({ ...prev, lat: v.lat, lon: v.lon, zoom: v.zoom }),
+        replace: true,
+        resetScroll: false,
+      });
+    },
+    [navigate],
+  );
+
   const handleFilterChange = (next: FilterValues) => {
-    // Keep the viewport params — changing a filter shouldn't move the map.
+    // Keep the viewport and mode — changing a filter shouldn't move the map.
     navigate({
       search: (prev) => ({
         ...next,
@@ -153,87 +164,203 @@ export function MapPage() {
         lat: prev.lat,
         lon: prev.lon,
         zoom: prev.zoom,
+        mode: prev.mode,
       }),
     });
   };
 
-  // Every item from listMapPins is guaranteed to have lat/lon — no client filter needed.
-  const points = query.data ?? [];
-  const total = totalQuery.data;
-  const capped = points.length >= pinCap;
+  const setMode = (m: MapMode) =>
+    navigate({
+      search: (prev) => ({ ...prev, mode: m === "heat" ? "heat" : undefined }),
+      replace: true,
+      resetScroll: false,
+    });
 
-  // Memoized on `points` only: every pan mirrors the viewport into the URL,
-  // which re-renders this component via useSearch — without the memo, React
-  // re-reconciles up to 10k <Marker> elements (and the fresh position arrays
-  // make react-leaflet call setLatLng on every one) on every pan, even when
-  // nothing refetched. React Query keeps `points` referentially stable
-  // between refetches (placeholderData included), so this bails out of the
-  // whole marker subtree unless the data actually changed.
-  const markers = useMemo(
-    () =>
-      points.map((n) => (
-        <Marker
-          key={n.notice_id}
-          position={[Number(n.lat), Number(n.lon)]}
-        >
-          <Popup>
-            <div className="text-sm">
-              <div className="font-semibold">{n.employer}</div>
-              <div className="text-slate-600 dark:text-slate-400">
-                {n.state} · {fmtDate(n.notice_date)}
-              </div>
-              <div className="mt-1">
-                {fmtNum(n.layoff_count)} affected
-              </div>
-              <Link
-                to="/notices/$noticeId"
-                params={{ noticeId: n.notice_id }}
-                className="mt-1 inline-block text-sky-700 hover:underline dark:text-sky-400"
-              >
-                Details →
-              </Link>
-            </div>
-          </Popup>
-        </Marker>
-      )),
-    [points],
-  );
+  // Year slider: the URL only changes once the thumb rests, so dragging
+  // across 25 years doesn't fire 25 fetches. Back on "Any" it clears the
+  // year — only when a year was set, so other date filters are left alone.
+  const urlYear = selectedYear(search.after, search.before);
+  const [draftYear, setDraftYear] = useState<number | null>(urlYear);
+  useEffect(() => setDraftYear(urlYear), [urlYear]);
+  useEffect(() => {
+    if (draftYear === urlYear) return;
+    const t = setTimeout(
+      () =>
+        navigate({
+          search: (prev) =>
+            draftYear === null
+              ? { ...prev, after: undefined, before: undefined }
+              : { ...prev, after: `${draftYear}-01-01`, before: `${draftYear}-12-31` },
+          resetScroll: false,
+        }),
+      300,
+    );
+    return () => clearTimeout(t);
+  }, [draftYear, urlYear, navigate]);
+
+  const handlePick = (pick: PlacePick) => {
+    if (!places) return;
+    if (pick.kind === "place") {
+      const i = pick.index;
+      const place = {
+        lat: places.lat[i],
+        lon: places.lon[i],
+        n: places.notices[i],
+        w: places.workers[i],
+        label: places.label[i],
+      };
+      setSelected(place);
+      // Past the clustering cutoff (zoom 11), so the place shows as its own
+      // point under the selection ring rather than inside a cluster's centroid.
+      mapRef.current?.flyTo(place.lat, place.lon, 12);
+      return;
+    }
+    // A state: frame the places it has notices at.
+    let b: View["bounds"] | null = null;
+    for (let i = 0; i < places.lat.length; i++) {
+      if (stateOf(places.label[i]) !== pick.code) continue;
+      const lat = places.lat[i];
+      const lon = places.lon[i];
+      b = b
+        ? {
+            min_lat: Math.min(b.min_lat, lat),
+            max_lat: Math.max(b.max_lat, lat),
+            min_lon: Math.min(b.min_lon, lon),
+            max_lon: Math.max(b.max_lon, lon),
+          }
+        : { min_lat: lat, max_lat: lat, min_lon: lon, max_lon: lon };
+    }
+    setSelected(null);
+    if (b) mapRef.current?.fitBounds(b);
+  };
+
+  const chipStats = selected ? { notices: selected.n, workers: selected.w } : summary;
 
   return (
     <div className="space-y-4">
       <PageHeader
         kicker="Explore"
         title="Layoff map"
-        lede="Geocoded WARN notices, clustered by place. Zoom in to break clusters apart; click a pin for the filing."
+        lede="Every geocoded WARN notice, grouped by place. Bubbles grow with the workers affected; tap one to list its notices."
       />
-      <FilterBar
-        values={search}
-        onChange={handleFilterChange}
-        showEmployer={false}
-        industries={industriesQuery.data}
-      />
-
-      <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
-        <MapContainer
-          center={search.lat != null && search.lon != null ? [search.lat, search.lon] : CENTER_US}
-          zoom={search.zoom ?? 4}
-          scrollWheelZoom
-          className="bg-slate-100 dark:bg-slate-900"
-          style={{ height: "70vh", width: "100%", position: "relative" }}
-        >
-          <ViewportWatcher onChange={handleViewport} />
-          {/* key remounts the layer on theme change — attribution is not a
-              mutable prop in react-leaflet v4. */}
-          <TileLayer key={resolved} attribution={tiles.attribution} url={tiles.url} />
-          <MarkerClusterGroup chunkedLoading>{markers}</MarkerClusterGroup>
-        </MapContainer>
+      <div id="map-filters" className={filtersOpen ? "" : "hidden md:block"}>
+        <FilterBar
+          values={search}
+          onChange={handleFilterChange}
+          showEmployer={false}
+          industries={industriesQuery.data}
+        />
       </div>
 
-      <div className="text-xs text-slate-500 dark:text-slate-400">
-        Showing {fmtNum(points.length)}
-        {total != null && ` of ${fmtNum(total)}`} geocoded notices in view.
-        {capped && " Zoom in to load all pins in a region."}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="flex w-full gap-2 sm:w-auto">
+          <MapPlaceSearch places={places} onPick={handlePick} />
+          <button
+            type="button"
+            aria-expanded={filtersOpen}
+            aria-controls="map-filters"
+            onClick={() => setFiltersOpen((o) => !o)}
+            className="shrink-0 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 md:hidden dark:border-slate-700 dark:text-slate-300"
+          >
+            Filters{activeFilters > 0 ? ` · ${activeFilters}` : ""}
+          </button>
+        </div>
+        <div className="inline-flex rounded-full border border-slate-200 bg-white p-0.5 dark:border-slate-800 dark:bg-slate-900" role="group" aria-label="Map style">
+          {(
+            [
+              ["bubbles", "Bubbles"],
+              ["heat", "Heatmap"],
+            ] as const
+          ).map(([m, label]) => (
+            <button
+              key={m}
+              type="button"
+              aria-pressed={mode === m}
+              onClick={() => setMode(m)}
+              className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                mode === m
+                  ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <label className="flex min-w-0 flex-1 items-center gap-2 text-sm sm:max-w-sm">
+          <span className="shrink-0 text-slate-500 dark:text-slate-400">Year</span>
+          <input
+            type="range"
+            min={FIRST_YEAR}
+            max={ANY_YEAR}
+            step={1}
+            value={draftYear ?? ANY_YEAR}
+            onChange={(e) => {
+              const y = Number(e.target.value);
+              setDraftYear(y === ANY_YEAR ? null : y);
+            }}
+            aria-valuetext={draftYear === null ? "Any year" : String(draftYear)}
+            className={`min-w-0 flex-1 accent-brand ${draftYear === null ? "opacity-50" : ""}`}
+          />
+          <output className="w-16 shrink-0 tabular-nums text-slate-700 dark:text-slate-300">
+            {draftYear ?? "Any"}
+          </output>
+        </label>
       </div>
+
+      {/* grid-cols-1 = minmax(0, 1fr): an auto track would size to the map
+          canvas, which then grows to fill the track — a resize feedback loop. */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
+          <PlacesMap
+            ref={mapRef}
+            data={geojson}
+            mode={mode}
+            theme={resolved}
+            initial={initial}
+            selected={selected}
+            onViewChange={handleViewChange}
+            onSelect={setSelected}
+            className="h-[60svh] w-full bg-slate-100 md:h-[75vh] dark:bg-slate-900"
+          />
+          {placesQuery.isFetching && (
+            <div className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-white/90 px-2.5 py-1 text-xs text-slate-600 shadow dark:bg-slate-900/90 dark:text-slate-300">
+              Loading…
+            </div>
+          )}
+          {/* Phones: the list sits below the map — this says what's in it and
+              takes you there. Top-left: the bottom edge holds the attribution,
+              the top-right the controls. */}
+          <button
+            type="button"
+            onClick={() => panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            className="absolute left-3 top-3 max-w-[calc(100%-4.5rem)] truncate rounded-full bg-slate-900/90 px-4 py-2 text-sm font-medium text-white shadow-lg md:hidden dark:bg-slate-100/90 dark:text-slate-900"
+          >
+            {selected ? `${selected.label}: ` : ""}
+            {fmtNum(chipStats.notices)} notices · {fmtNum(chipStats.workers)} workers ↓
+          </button>
+        </div>
+
+        <MapNoticePanel
+          ref={panelRef}
+          filters={filters}
+          bounds={view?.bounds ?? null}
+          selected={selected}
+          summary={summary}
+          sort={sort}
+          onSortChange={setSort}
+          onClearSelection={() => setSelected(null)}
+          className="max-h-[80svh] scroll-mt-4 md:h-[75vh] md:max-h-none"
+        />
+      </div>
+
+      <p className="text-xs text-slate-500 dark:text-slate-400">
+        {places
+          ? `${fmtNum(places.notices.reduce((a, b) => a + b, 0))} geocoded notices at ${fmtNum(places.lat.length)} places match these filters. Most are placed at their city's center.`
+          : placesQuery.isError
+            ? "Couldn't load the map data."
+            : "Loading map data…"}
+      </p>
     </div>
   );
 }

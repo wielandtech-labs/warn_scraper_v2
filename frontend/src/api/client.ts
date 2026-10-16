@@ -122,6 +122,11 @@ export interface NoticesQuery {
   after?: string;
   before?: string;
   geocoded_only?: boolean;
+  // Map box — sent together (a partial box is ignored); implies geocoded.
+  min_lat?: number;
+  min_lon?: number;
+  max_lat?: number;
+  max_lon?: number;
   sort_by?: string;
   sort_dir?: string;
   limit?: number;
@@ -167,6 +172,20 @@ export interface MapPinQuery {
   limit?: number;
 }
 
+/** /api/map-places: one entry per distinct geocoded point, as parallel
+ *  arrays (busiest place first). `workers` sums reported layoff counts. */
+export interface MapPlaces {
+  lat: number[];
+  lon: number[];
+  notices: number[];
+  workers: number[];
+  label: string[]; // "City, ST", or "ST" when the point has no city
+}
+
+export type MapPlacesQuery = Omit<MapPinQuery, "min_lat" | "min_lon" | "max_lat" | "max_lon" | "limit"> & {
+  min_layoffs?: number;
+};
+
 export const api = {
   // ---------- Auth ----------
   login: (email: string, password: string) =>
@@ -203,6 +222,10 @@ export const api = {
   /** Geocoded notices for the map — lightweight DTO, viewport-scoped, up to 50 000 per fetch. */
   listMapPins: (q: MapPinQuery = {}) =>
     get<MapPin[]>("/api/map-pins" + qs(q as Record<string, string | number | undefined>)),
+
+  /** Every geocoded notice matching the filters, aggregated per place — the /map payload. */
+  listMapPlaces: (q: MapPlacesQuery = {}) =>
+    get<MapPlaces>("/api/map-places" + qs(q as Record<string, string | number | undefined>)),
 
   // ---------- Companies ----------
   listCompanies: (q: {
