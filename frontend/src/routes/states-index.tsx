@@ -89,7 +89,7 @@ export function StatesIndexPage() {
   const metricNoun = metric === "notices" ? "notices" : "workers";
 
   const setSearch = (patch: Partial<typeof search>) =>
-    navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true });
+    navigate({ search: (prev) => ({ ...prev, ...patch }) });
 
   return (
     <div className="space-y-6">
@@ -97,7 +97,9 @@ export function StatesIndexPage() {
         kicker="50 states + DC"
         title="Layoffs by state"
         lede={
-          byState.data ? (
+          // While the next range loads, the previous range's total would sit
+          // under the new range's wording; fall back to the generic lede.
+          byState.data && !byState.isPlaceholderData ? (
             <>
               <span className="font-semibold text-slate-900 dark:text-slate-100">
                 {fmtNum(totalWorkers)}
@@ -157,13 +159,12 @@ export function StatesIndexPage() {
       {/* Don't render until data arrives — with no data every state would
           confidently show zeros. */}
       {byState.data && (
-        <>
-          <div
-            className={
-              "grid gap-4 transition-opacity lg:grid-cols-5 " +
-              (byState.isPlaceholderData ? "opacity-60" : "")
-            }
-          >
+        <div
+          className={
+            "space-y-6 transition-opacity " + (byState.isPlaceholderData ? "opacity-60" : "")
+          }
+        >
+          <div className="grid gap-4 lg:grid-cols-5">
             <section className="card flex flex-col justify-center lg:col-span-3" aria-label="Map">
               <UsChoroplethMap
                 data={all}
@@ -279,6 +280,8 @@ export function StatesIndexPage() {
                     params={{ state: s.code }}
                     onMouseEnter={() => setHovered(s.code)}
                     onMouseLeave={() => setHovered(null)}
+                    onFocus={() => setHovered(s.code)}
+                    onBlur={() => setHovered(null)}
                     className="card group flex flex-col gap-2.5 !p-4 transition-colors hover:border-slate-300 dark:hover:border-slate-700"
                   >
                     <div className="flex items-center gap-3">
@@ -343,7 +346,7 @@ export function StatesIndexPage() {
               </div>
             )}
           </section>
-        </>
+        </div>
       )}
     </div>
   );

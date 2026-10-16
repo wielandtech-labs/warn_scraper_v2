@@ -306,7 +306,14 @@ function DateMenu({
           : "Any date";
 
   return (
-    <div ref={rootRef} className="relative">
+    <div
+      ref={rootRef}
+      className="relative"
+      // Tabbing out of the panel closes it, like an outside click.
+      onBlur={(e) => {
+        if (!rootRef.current?.contains(e.relatedTarget as Node | null)) setOpen(false);
+      }}
+    >
       <button
         ref={buttonRef}
         type="button"

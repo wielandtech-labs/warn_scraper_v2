@@ -1,5 +1,3 @@
-import { useMemo } from "react";
-
 import { useTheme } from "../hooks/useTheme";
 import { fmtCompact, fmtNum } from "../lib/format";
 import { CHOROPLETH } from "../lib/themeColors";
@@ -40,23 +38,20 @@ export function UsChoroplethMap({
   const { resolved } = useTheme();
   const ramp = CHOROPLETH[resolved][metric];
 
-  const { thresholds, values } = useMemo(() => {
-    const values = new Map(
-      data
-        .filter((d) => !isUnpublished(d.code, metric))
-        .map((d) => [d.code, metric === "notices" ? d.notice_count : d.layoff_total]),
-    );
-    // Quartiles of the nonzero values: the distribution is heavily skewed
-    // toward a few large states, so fixed linear buckets would leave most of
-    // the country in the lowest one.
-    const nonzero = [...values.values()].filter((v) => v > 0).sort((a, b) => a - b);
-    const thresholds = nonzero.length
-      ? [0.25, 0.5, 0.75].map(
-          (q) => nonzero[Math.min(nonzero.length - 1, Math.floor(q * nonzero.length))],
-        )
-      : [];
-    return { thresholds, values };
-  }, [data, metric]);
+  const values = new Map(
+    data
+      .filter((d) => !isUnpublished(d.code, metric))
+      .map((d) => [d.code, metric === "notices" ? d.notice_count : d.layoff_total]),
+  );
+  // Quartiles of the nonzero values: the distribution is heavily skewed
+  // toward a few large states, so fixed linear buckets would leave most of
+  // the country in the lowest one.
+  const nonzero = [...values.values()].filter((v) => v > 0).sort((a, b) => a - b);
+  const thresholds = nonzero.length
+    ? [0.25, 0.5, 0.75].map(
+        (q) => nonzero[Math.min(nonzero.length - 1, Math.floor(q * nonzero.length))],
+      )
+    : [];
 
   const byCode = new Map(data.map((d) => [d.code, d]));
   const hatched = data.filter((d) => !values.has(d.code)).map((d) => d.code);
