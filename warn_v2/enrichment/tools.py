@@ -148,7 +148,7 @@ def _fetch_url(url: str) -> dict[str, Any]:
             url,
             follow_redirects=True,
             timeout=_TIMEOUT_S,
-            headers={"User-Agent": "warn-v2/0.1 (research bot; contact@wielandtech.com)"},
+            headers={"User-Agent": "warn-v2/0.1 (research bot; info@warnindex.com)"},
         )
         r.raise_for_status()
         content_type = r.headers.get("content-type", "")
