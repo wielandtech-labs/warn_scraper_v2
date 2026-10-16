@@ -37,7 +37,7 @@ interface Row {
 }
 
 export function StatesIndexPage() {
-  useDocumentTitle("Layoffs by state — WARN Index");
+  useDocumentTitle("WARN Layoffs by State — State WARN Tracker — WARN Index");
   const navigate = useNavigate({ from: "/states" });
   const search = useSearch({ from: "/states" });
   // A year by default: all-time totals mostly measure how far back each
@@ -96,7 +96,7 @@ export function StatesIndexPage() {
     <div className="space-y-6">
       <PageHeader
         kicker="50 states + DC"
-        title="Layoffs by state"
+        title="WARN Layoffs by State"
         lede={
           // While the next range loads, the previous range's total would sit
           // under the new range's wording; fall back to the generic lede.
@@ -105,11 +105,11 @@ export function StatesIndexPage() {
               <span className="font-semibold text-slate-900 dark:text-slate-100">
                 {fmtNum(totalWorkers)}
               </span>{" "}
-              workers affected {RANGE_PHRASE[range]}, across {reporting} jurisdictions with WARN
-              filings. Open a state for its trend, top employers and latest filings.
+              workers affected {RANGE_PHRASE[range]}, across {reporting} jurisdictions in our WARN
+              layoff tracker. Open a state for its trend, top employers, and latest filings.
             </>
           ) : (
-            "Browse WARN Act layoff and closure notices for each US state and DC."
+            "Browse Worker Adjustment and Retraining Notification (WARN) layoffs and closure notices for each US state and DC."
           )
         }
       />

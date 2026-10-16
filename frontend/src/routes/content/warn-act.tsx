@@ -3,9 +3,9 @@ import { ContentPage } from "./ContentPage";
 export function WarnActPage() {
   return (
     <ContentPage
-      title="What is the WARN Act?"
-      docTitle="What is the WARN Act? — WARN Index"
-      intro="A plain-English guide to the federal law behind these layoff notices."
+      title="What is the Worker Adjustment and Retraining Notification (WARN) Act?"
+      docTitle="What is the WARN Act? Guide to Worker Adjustment and Retraining Notification — WARN Index"
+      intro="A plain-English guide to the federal Worker Adjustment and Retraining Notification (WARN) Act, 60-day advance notice requirements, and state mini-WARN laws."
     >
       <p>
         The <strong>Worker Adjustment and Retraining Notification (WARN) Act</strong> is
@@ -25,28 +25,37 @@ export function WarnActPage() {
         least a third of the active workforce at a site).
       </p>
 
-      <h2>State "mini-WARN" laws</h2>
+      <h2>State &quot;mini-WARN&quot; laws</h2>
       <p>
         Many states have their own WARN-style laws with lower thresholds, longer
         notice periods, or broader coverage than the federal rule — for example
-        California, New York, New Jersey, and Illinois. Because notices are filed
-        with each state's labor agency, coverage and detail vary by jurisdiction.
-        Browse the <a href="/states">per-state pages</a> to see what each one
+        California (Cal-WARN), New York, New Jersey, and Illinois. Because notices are filed
+        with each state&apos;s labor agency, coverage and detail vary by jurisdiction.
+        Browse our <a href="/states">state WARN tracker</a> to see what each state
         publishes.
       </p>
 
-      <h2>What a notice tells you</h2>
+      <h2>What a WARN notice tells you</h2>
       <ul>
-        <li>The employer and the affected work site</li>
-        <li>How many workers are affected</li>
-        <li>Whether it is a layoff or a full closure</li>
-        <li>The expected effective date of the separations</li>
+        <li>The employer name and affected facility or work site</li>
+        <li>How many workers are affected by the layoffs</li>
+        <li>Whether the action is a temporary layoff or a permanent plant closure</li>
+        <li>The expected effective date of the employee separations</li>
       </ul>
+
+      <h2>Using the WARN Index layoff database</h2>
+      <p>
+        Because WARN filings are published across dozens of disparate state labor portals,
+        WARN Index normalizes every filing into a centralized, searchable{" "}
+        <a href="/notices">layoff database</a>. You can use our{" "}
+        <a href="/">WARN layoff tracker</a> to search notices in real time, monitor trends across industries,
+        or download the entire <a href="/api-docs">WARN dataset</a> for economic research.
+      </p>
 
       <h2>Limitations of the data</h2>
       <p>
-        WARN notices are a <em>leading indicator</em>, not a complete census of job
-        loss. Smaller employers, layoffs below the thresholds, and certain
+        WARN notices are a <em>leading indicator</em>, not a complete census of all US job
+        losses. Smaller employers, layoffs below statutory thresholds, and certain
         exceptions (unforeseeable business circumstances, natural disasters) may not
         appear. Filings can also be amended or withdrawn. See our{" "}
         <a href="/methodology">methodology</a> for how we handle these cases.

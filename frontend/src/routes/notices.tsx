@@ -29,7 +29,7 @@ import type { NoticeOut } from "../api/types";
 const PAGE_SIZE = 50;
 
 export function NoticesPage() {
-  useDocumentTitle("Layoff notices — WARN Index");
+  useDocumentTitle("WARN Layoffs & Filings — Search Layoff Database — WARN Index");
   const navigate = useNavigate({ from: "/notices" });
   const search = useSearch({ from: "/notices" });
   const page = search.page ?? 1;
@@ -244,19 +244,19 @@ export function NoticesPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        kicker="Every filing · updated daily"
-        title="Layoff notices"
+        kicker="Layoff database · updated daily"
+        title="WARN Layoff Notices"
         lede={
           query.data ? (
             <>
               <span className="font-semibold text-slate-900 dark:text-slate-100">
                 {fmtNum(query.data.total)}
               </span>{" "}
-              WARN Act notices {filterCount ? "match these filters" : "across every state we track"}.
+              Worker Adjustment and Retraining Notification (WARN) notices {filterCount ? "match these filters" : "across our nationwide layoff database"}.
               <span className="hidden sm:inline"> Hover a company or state for its history.</span>
             </>
           ) : (
-            "Every advance-notice filing from state WARN Act listings."
+            "Search the complete database of Worker Adjustment and Retraining Notification (WARN) layoff notices across all 50 states."
           )
         }
         aside={

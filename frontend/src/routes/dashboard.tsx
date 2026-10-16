@@ -34,7 +34,7 @@ const RANGE_LABEL: Record<TimeRange, string> = {
 };
 
 export function Dashboard() {
-  useDocumentTitle("WARN Index — US layoff & closure notices");
+  useDocumentTitle("WARN Index — US WARN Layoff Tracker & Layoff Database");
   const { resolved } = useTheme();
   const chart = CHART_COLORS[resolved];
   const [range, setRange] = useState<TimeRange>("all");

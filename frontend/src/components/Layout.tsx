@@ -220,7 +220,9 @@ export function Layout({ children }: { children: ReactNode }) {
             <span aria-hidden>·</span>
             <Link className="hover:underline" to="/terms">Terms</Link>
           </nav>
-          <p>Data from US state WARN Act listings · scraped daily.</p>
+          <p>
+            The national WARN layoff tracker and database — daily Worker Adjustment and Retraining Notification filings from all 50 states.
+          </p>
         </div>
       </footer>
     </div>

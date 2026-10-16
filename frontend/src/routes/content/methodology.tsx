@@ -4,8 +4,8 @@ export function MethodologyPage() {
   return (
     <ContentPage
       title="Methodology & data sources"
-      docTitle="Methodology & data sources — WARN Index"
-      intro="How we collect, clean, and enrich the layoff-notice data."
+      docTitle="Methodology & Data Sources — WARN Layoff Database — WARN Index"
+      intro="How we collect, clean, standardize, and enrich the nationwide WARN layoff database."
     >
       <h2>Where the data comes from</h2>
       <p>
