@@ -258,6 +258,22 @@ alertDigest:
     requests: { cpu: 50m, memory: 128Mi }
     limits:   { cpu: 300m, memory: 256Mi }
 
+# Large new WARN notices announced on Bluesky / Discord / Slack
+# (warn-v2 post-alerts). Each notice is posted once per channel. Credentials
+# live in the warn-v2-social SealedSecret, all keys optional: bluesky-handle,
+# bluesky-app-password, discord-webhook-url, slack-webhook-url.
+socialAlerts:
+  enabled: false          # flip on in HelmRelease once warn-v2-social exists
+  dryRun: true            # log the would-be posts; flip off after checking a run's logs
+  schedule: "25 */2 * * *"  # every 2h, so the tiered scrapes' finds go out same-day
+  minLayoffs: 250
+  maxPosts: 5             # per channel per run
+  platforms: "bluesky,discord,slack"
+  secretName: warn-v2-social
+  resources:
+    requests: { cpu: 50m, memory: 192Mi }
+    limits:   { cpu: 500m, memory: 384Mi }
+
 # Storage for the report JSON (payloads.json, industries.json,
 # forecasts.json). Written by the weekly sentimentReport CronJob, read
 # (read-only) by the api pod. The markdown reports themselves ship in the
