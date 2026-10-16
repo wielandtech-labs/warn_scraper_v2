@@ -14,8 +14,7 @@ import { StateSilhouette } from "../components/StateSilhouette";
 import { YearBars } from "../components/YearBars";
 import { useAuth } from "../hooks/useAuth";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import { fmtDate, fmtNum, fmtRelativeDays, stateName } from "../lib/format";
-import { SOURCE_LABEL } from "./companies";
+import { fmtDate, fmtNum, fmtRelativeDays, SOURCE_LABEL, stateName } from "../lib/format";
 
 const NOTICE_PAGE = 25;
 // Merged-record names shown before "Show all".

@@ -1,6 +1,7 @@
 import type { IndustryStat } from "../api/types";
 import { fmtDate, fmtNum, stateName } from "../lib/format";
-import { ALL_TIME, EMPTY_FILTERS, type FilterValues } from "./FilterBar";
+import { ALL_TIME } from "../lib/filters";
+import { EMPTY_FILTERS, type FilterValues } from "./FilterBar";
 
 /* The filters in force, as removable chips -- so a reader scanning a result
    list can see (and undo) what it is narrowed to without re-reading the

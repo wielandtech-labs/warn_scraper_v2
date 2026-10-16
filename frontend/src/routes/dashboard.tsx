@@ -13,9 +13,9 @@ import { QueryError } from "../components/QueryError";
 import { SkeletonChart, SkeletonRows } from "../components/Skeleton";
 import {
   TimeRangeToggle,
-  toRangeQuery,
   type TimeRange,
 } from "../components/TimeRangeToggle";
+import { toRangeQuery } from "../lib/timeRange";
 import { ProjectionNote } from "../components/ProjectionNote";
 import { WarnTimeChart } from "../components/WarnTimeChart";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";

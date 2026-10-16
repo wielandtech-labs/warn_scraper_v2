@@ -20,9 +20,9 @@ import { SkeletonBlock, SkeletonChart, SkeletonRows } from "../components/Skelet
 import { StateSilhouette } from "../components/StateSilhouette";
 import {
   TimeRangeToggle,
-  toRangeQuery,
   type TimeRange,
 } from "../components/TimeRangeToggle";
+import { toRangeQuery } from "../lib/timeRange";
 import { UnavailableNotice } from "../components/UnavailableNotice";
 import { WarnTimeChart } from "../components/WarnTimeChart";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
