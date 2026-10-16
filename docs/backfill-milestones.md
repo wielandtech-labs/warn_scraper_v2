@@ -7,6 +7,9 @@ and the route for each. Runbooks and prior probe history live in
 the verdicts of the **2026-07-10 milestone probe sweep** (Wayback CDX +
 live-site probes of every state without a known route; every positive verdict
 below was verified by fetching an actual capture and reading WARN rows in it).
+The **2026-10 sweep** (section near the end) re-probed 11 benchmark gaps. It
+overturns several ✉/⛔ verdicts below (GA, TX 2003, MO, DC, FL 2012, NC 2012)
+and traces the CA 2008–2013 shortfall to a discovery bug.
 
 **Wave complete 2026-07-10:** the sweep's entire 23-item build queue was built
 (PRs #258–#281), merged, and **run in prod** (one-off Job train w_homelab
@@ -436,6 +439,61 @@ Still queued (pre-sweep items): JobLink re-backfill Jobs AZ/KS/DE/ME/VT
 (~900), TN 2018–2024 (~500+), CA 2000–2005 (Wayback HTML slices), OH gap-year
 re-run 2007–2024. MI 2000–2024 shipped mid-sweep (**done 2026-07-10**, +2,063).
 
+## 2026-10 sweep — coverage-gap probes (benchmark vs LaborCurrent)
+
+Trigger: a 2026-10-16 benchmark against laborcurrent.com (92k notices vs our
+86k) showed history for 11 states that the July sweep had marked ✉ or ⛔.
+Aggregators (LaborCurrent, APProjects) count only as **evidence that a source
+exists**: every route below is a state agency page, live or in Wayback, and
+nothing is ingested from an aggregator. Method as in July: targeted CDX
+prefixes (`matchType=domain` used only with a `from`/`to` window and a regex
+filter), live legacy endpoints, and a fetched capture with WARN rows read out
+of it before anything is marked verified. Row estimates come from parsing those
+captures offline; the builds were not run.
+
+**Seven July verdicts were wrong** (GA, TX 2003, MO, DC, FL 2012, NC 2012, and
+the CA 2008–2013 "partial captures"), and the CA one is a bug in our own code.
+The ✉ rows in the July tables above stay as written for the record; where they
+disagree, this section supersedes them.
+
+### Verdicts
+
+| State | Gap (LaborCurrent est.) | Verdict | Route (verified capture) | Est. rows |
+|---|---|---|---|---|
+| CA | 2009–2014 (+3,500) | ✅ **verified — our bug** | `_discover_ca_historical_urls` (ca.py) asks CDX for `collapse=urlkey`, which returns the **earliest** capture per URL, not the latest. So the 2026-07-08 run ingested year-to-date snapshots: the 2010 slices from a 2009-12-27 capture and the 2012 slices from 2011-12-20, which is why prod has 2010 = 96 and 2012 = 102. The latest full captures (2013–2017, e.g. `eddwarncndel09.pdf` @20130407160455) carry notices received in 2008 ≈ 1,504 · 2009 ≈ 1,439 · 2010 ≈ 879 · 2011 ≈ 781 · 2012 ≈ 715 · 2013 ≈ 950, against prod's 864 / 425 / 96 / 522 / 102 / 351. The 2009 detailed slices total exactly 1,582 records, the same as LaborCurrent's 2009 count | **+3,000–3,800** |
+| GA | 2001–2022 (+2,850) | ✅ **verified, PY1988–PY2005** | GDOL's CICS "WarnID Listing" **was** crawled (July said it wasn't): `www.dol.state.ga.us/WS4-MW5/cics.jsp?TRANSID=WR01&FRMNAME=WR01{A,B,C,D}`, 189 captures 2004-04 → 2006-10. Each form shows a sliding window of about 6 program years (ID#, company, city, county, # affected, event date, trade-cert date). Verified: WR01B @20051111185719 (PY2004: ACUITY LIGHTING, Conyers, 106 …). The 2004-08 and 2006-10 captures together give **2,455 distinct WARN IDs, Jul-1988 → Jun-2006** (PY2001 = 226, PY2005 = 183). WR03* are TAA/NAFTA petitions, not WARN. Rows carry a C/S/N type (closure, layoff ≥ 100, layoff < 100); keep N rows, as GDOL listed them as WARN IDs | **~2,450** (≈1,000 inside 2001–2006) |
+| NE | 2014–2019 (+525) | 🔍 **verified, scope decision needed** | The WARN endpoint we ingest (`WARNReportData/?year=`) matches prod row for row, so WARN coverage is complete. The aggregators' extra rows come from NDOL's separate **Layoff and Closures Report**: live `dol.nebraska.gov/LayoffServices/LayoffAndClosureReportData/?year={2011..2020}` (2015 = 102, 2017 = 126, 2019 = 194 events, all sizes; Date/Company/Type/Jobs/City) plus Wayback `www.dol.nebraska.gov/nwd/employers/dislocated/layoffreport.cfm?report={Mon\|QtrN}&yr={2008..2010}` (Jul-2008 → 2010). These events are not WARN notices. Ingest them tagged `closure_category = "Non-WARN"` (the MS precedent, #279) or skip them; aggregates exclude Non-WARN either way | ~900–1,050 (Non-WARN) |
+| MO | 2006–2011 (+256) | ✅ **verified, PY2001–PY2011** | July probed `ded.mo.gov` but missed the **`rapidresponse.ded.mo.gov`** subdomain: `upload/warnnotices{2001..2004}.pdf` + `upload/warn_notices_2005_pdf_format.pdf` (captures 2006-09), `documents/{06,07,08,09}WARN+NOTICES.pdf` + `WARN2010.pdf` (2012-03-16), `WARNcurrent.pdf` (20120522203548, PY2011 to May 2012). Text PDFs, one program year (Jul–Jun) each: date received / company / location / county / WIA region / type / layoff date / # affected. Verified: `08WARN+NOTICES.pdf` (Chrysler North Plant, Fenton, 7/1/08, 1,816) | **~450–600** |
+| AZ | 2008–09 (+137) | ⚠ **partial: 2008 is alerts only, 2009 negative** | `www.azdes.gov/wia/layoff/warn_5_30_08.pdf` (20081014223804) holds 44 rows for Jan–May 2008, all type **A** (local-area alerts), with no type-W WARN notices. Nothing for Jun-2008 → 2009. **Bonus, an older era:** `uploadedFiles/.../Employment_Administration/warn_{2006,2007}.pdf` (20101229) and monthly `wia/warn/{month}{yr}.pdf` Jul-2003 → May-2005. Each row is typed A (alert), W (WARN), or P (closure): 2006 ≈ 117 W, 2007 ≈ 216 W | ~350–450 W-type 2003–07 (+ ~300 A/P to tag or skip) |
+| TN | 2011–2017 (+470) | ✅ **verified, 2012 → mid-2015** (+ 2016–17 scans) | `tn.gov/labor-wfd/warn/warnnotices.shtml` @20121011153614: monthly tables Jan–Oct 2012, **116 rows**. `tn.gov/workforce/article/warn-report-archive` @20150713005337: **189 rows** 2013 → Jun-2015 (company/county/count/notice date/LO-CL date/notice type). Text memo PDFs per notice `labor-wfd/warn/{2012,2013,2014}/*.pdf` (82/94/54 files) cross-check these and fill Nov–Dec 2012. 2016–17: about 50 `assets/entities/labor/attachments/WARN_2016_*`/`WARN_2017_*` letters, **image-only**, so they need OCR. 2011 and earlier: nothing | ~350–400 |
+| TX | 1999–2003 (+1,400) | ✅ **2003 verified**; 1999–2002 ✉ | `www.twc.state.tx.us/svcs/jtpa/warn20030101.xls` @20130614231245: **316 rows**, calendar 2003, columns like the later TWC files (received/notice/layoff dates, job site, county, WDA, count, city). July said "nothing pre-2004"; it had looked under `/files/news/` only. The `svcs/jtpa/warn.html` index reads "WARN Notices since 2003", and the 1999–2003 `/svcs/` captures carry no list, so 1999–2002 stays ✉ | **316** |
+| NC | 2012 (+87) | ✅ **verified, full 2012** + PY2009 + late 2011 | July looked only at `Portals/11/WARN/Warn.pdf`. The other path, `www.nccommerce.com/Portals/11/Documents/Reports/WARN/Warn.pdf` @20121228074019, has a date range of **1/1/2012 – 12/27/2012** (15 pp, summary-count layout like `Warn-2013.pdf`). The same layout is on host `intranet.nccommerce.com/warn/data/warn.pdf`: @20100704223347 = PY2009 (7/1/2009–6/29/2010, 11 pp), @20111125051935 = Oct–Nov 2011, @20090117092954 = 1–15 Jan 2009 | ~110–130 (2012) + ~100 (PY2009) + ~30 |
+| DC | 2006–2013 (+180) | ✅ **verified, 2002 → Jan-2012** | "Monthly WARN Notification Log" `does.dc.gov/does/cwp/view,a,1232,q,572897.asp`: 220 captures 2004 → 2012-05 (the old CWP URLs are opaque ids, which is how July missed it; found via the "View current WARN notices" link on `…q,643926.asp`). It is a growing log, so take the union across captures. One capture per quarter gives **172 distinct rows**, 2002–Jan 2012 (2009 = 44). Feb-2012 → 2014: the 2014 Drupal page has no table, so ✉ | **~170** |
+| FL | 2012 (+165) | ✅ **verified, our pin** | `fl.py` pins 2012 to capture `20191120063637`, which is header-only. Earlier post-year captures are complete: `floridajobs.org/REACT/warn.asp?year=2012` @20160622205839 = **167 rows** (Evaluation Solutions 12/27/2012 …); also @20130329171424, @20141005035552 | **167** |
+| KY | 2010–13 (+200) | ⛔ **negative** | The only primary list for these years, `oet.ky.gov/warn/WARNNoticesReceivedin{2010..2013}forKY.pdf` (captures 2013-04/05), holds about 31 / 26 / 64 / 22 rows, **fewer** than prod's 38 / 31 / 76 / 61 from the kcc workbooks. The gap is probably counting (multi-site splits), not a missing source | 0 |
+
+Unchanged ✉: GA Jul-2006 → 2022 (the CICS app stops at 2006-10; the later
+GDOL `public/es/warn/searchwarns/list` captures are empty forms), TX
+1999–2002, TN ≤ 2011 + Jul–Dec 2015, DC Feb-2012 → 2014, AZ Jun-2008 → 2009.
+
+### Ranked build queue (2026-10 sweep) — one follow-up build per row
+
+| # | Build | Kind | Est. rows |
+|---|---|---|---|
+| 1 | **CA**: CDX discovery picks the latest `application/pdf` capture per file (drop `collapse=urlkey`; filter `mimetype`/length so 5–8 KB soft-404 "200" captures lose), then re-run `backfill-historical --state CA` for 2006–2014 | bug fix + re-run | +3,000–3,800 |
+| 2 | **GA** CICS WarnID listings: parse WR01A–D, union all 189 captures by WARN ID, PY1988–PY2005 | Wayback HTML | ~2,450 |
+| 3 | **MO** rapidresponse PY2001–PY2011 PDFs (10 files) | Wayback PDF | ~450–600 |
+| 4 | **TN** 2012 shtml + 2013–15 archive table (memo PDFs as cross-check), then 2016–17 letters via OCR | Wayback HTML (+OCR) | ~350–400 |
+| 5 | **AZ** 2003–2007 annual/monthly PDFs (keep W, decide A/P) | Wayback PDF | ~350–450 |
+| 6 | **TX** 2003 XLS (reuse the 2004–2013 XLS parser) | Wayback XLS | 316 |
+| 7 | **NC** 2012 + PY2009 + Oct–Nov 2011 + Jan 2009 rolling-PDF editions (existing summary-count parser era) | Wayback PDF | ~240–260 |
+| 8 | **DC** monthly log, union of all 220 captures | Wayback HTML | ~170 |
+| 9 | **FL** 2012: re-pin to @20160622205839 (one-line change, same parser) | re-pin | 167 |
+| — | **NE** Layoff and Closures report 2008–2020: **needs a scope decision first** (ingest as tagged Non-WARN, or skip) | live + Wayback HTML | ~900–1,050 Non-WARN |
+
+WARN-scope total ≈ **+7,500–8,600** (Non-WARN NE excluded), against the
+~6k LaborCurrent lead.
+
 ## Cross-cutting lessons from the sweep
 
 - **CDX `matchType=domain` + `filter=original:.*warn.*` can silently return 0
@@ -448,3 +506,16 @@ re-run 2007–2024. MI 2000–2024 shipped mid-sweep (**done 2026-07-10**, +2,06
 - Several states' "current" pages silently hold full history the scraper
   ignores (UT) or legacy endpoints still serve old years live (NE, SC direct
   PDF URLs, GA entry pages) — probe live before assuming Wayback-only.
+- *(2026-10)* **CDX `collapse=urlkey` keeps the FIRST capture per URL**, not
+  the last. Any "latest capture" logic built on it reads year-to-date
+  snapshots (the cause of CA 2008–2013). Query without collapse and pick the
+  max timestamp, filtering on `mimetype`, because soft-404s are archived as
+  200 `text/html`.
+- *(2026-10)* A negative verdict holds only for the hosts and paths actually
+  probed. Agencies kept WARN lists on **subdomains** (`rapidresponse.ded.mo.gov`,
+  `intranet.nccommerce.com`), on **mainframe/CICS URLs** (GA `WS4-MW5/cics.jsp`),
+  behind **opaque CMS ids** (DC `cwp/view,a,…,q,572897.asp`: follow nav links
+  from a homepage capture), and under **sibling paths** (NC
+  `Documents/Reports/WARN/` vs `WARN/`; TX `svcs/jtpa/` vs `files/news/`).
+- *(2026-10)* When pinning one capture per year, choose by content (row count),
+  not recency. FL 2012's newest capture was the header-only one.
