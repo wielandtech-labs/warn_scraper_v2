@@ -24,6 +24,7 @@ one year, cost ~0.05 PR-AUC in ranking on the real data.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
@@ -235,6 +236,33 @@ def run_backtest(events: pd.DataFrame, years: list[int]) -> BacktestResult:
     return result
 
 
+def _weighted_ap(y: np.ndarray, p: np.ndarray) -> Callable[[np.ndarray | None], float]:
+    """average_precision_score(y, p, sample_weight=w) as a function of w,
+    with the score sort done once. Same arithmetic as sklearn's (cumulative
+    weighted TP/FP at each distinct score, step-function integral); skipping
+    its input validation is what makes a 300-draw bootstrap cheap. Rows of
+    weight 0 are kept rather than dropped: they only add zero-width steps."""
+    if not np.isfinite(p).all():
+        raise ValueError("scores must be finite")  # sklearn's check
+    order = np.argsort(-p, kind="stable")
+    pos = (y[order] == 1).astype(float)
+    neg = 1.0 - pos
+    ends = np.r_[np.nonzero(np.diff(p[order]))[0], len(p) - 1]
+
+    def ap(w: np.ndarray | None) -> float:
+        ws = np.ones(len(p)) if w is None else w[order].astype(float)
+        tps = np.cumsum(pos * ws)[ends]
+        fps = np.cumsum(neg * ws)[ends]
+        ps = tps + fps
+        precision = np.divide(tps, ps, out=np.zeros_like(tps), where=ps != 0)
+        recall = tps / tps[-1] if tps[-1] else np.ones_like(tps)  # sklearn's no-positives case
+        precision = np.r_[precision[::-1], 1.0]
+        recall = np.r_[recall[::-1], 0.0]
+        return float(max(0.0, -np.sum(np.diff(recall) * precision[:-1])))
+
+    return ap
+
+
 def bootstrap_ci(
     oof: pd.DataFrame, a: str, b: str | None = None, *, n_boot: int = 300, seed: int = 0
 ) -> dict[str, float]:
@@ -245,13 +273,13 @@ def bootstrap_ci(
     _, inv = np.unique(oof["company_key"].to_numpy(), return_inverse=True)
     n_keys = int(inv.max()) + 1
     y = oof["label"].to_numpy(int)
-    pa = oof[a].to_numpy()
-    pb = oof[b].to_numpy() if b else None
+    ap_a = _weighted_ap(y, oof[a].to_numpy())
+    ap_b = _weighted_ap(y, oof[b].to_numpy()) if b else None
 
     def stat(w: np.ndarray | None) -> float:
-        v = average_precision_score(y, pa, sample_weight=w)
-        if pb is not None:
-            v -= average_precision_score(y, pb, sample_weight=w)
+        v = ap_a(w)
+        if ap_b is not None:
+            v -= ap_b(w)
         return float(v)
 
     # Resampling companies with replacement == weighting each row by how many

@@ -180,23 +180,37 @@ def coverage_masks(notices: pd.DataFrame, as_of: date) -> dict[str, dict[str, bo
     return out
 
 
-def _horizon_covered(mask: dict[str, bool], t0: pd.Timestamp) -> bool:
-    end = t0 + pd.Timedelta(days=HORIZON_DAYS)
-    months = month_range(t0.strftime("%Y-%m"), end.strftime("%Y-%m"))
-    return all(mask.get(m, False) for m in months)
+def _month_index(days: np.ndarray) -> np.ndarray:
+    """Days since the epoch -> months since 1970-01."""
+    months: np.ndarray = days.astype("datetime64[D]").astype("datetime64[M]").astype(np.int64)
+    return months
 
 
-def _followup_days(mask: dict[str, bool], t0: pd.Timestamp, as_of: pd.Timestamp) -> float:
-    """Days after t0 that the event is observed, capped at the horizon: up to
-    `as_of`, or up to the first day of the first uncovered month in its
-    state's window, whichever comes first. The survival model censors here
-    instead of dropping the event (see warn_v2/ml/survival.py)."""
-    end = min(as_of, t0 + pd.Timedelta(days=HORIZON_DAYS))
-    days = float((end - t0).days)
-    for m in month_range(t0.strftime("%Y-%m"), end.strftime("%Y-%m")):
-        if not mask.get(m, False):
-            return float(max(0, min(days, (pd.Timestamp(m + "-01") - t0).days)))
-    return days
+def _coverage(masks: dict[str, dict[str, bool]], states: np.ndarray,
+              m_lo: int, m_hi: int) -> tuple[np.ndarray, np.ndarray]:
+    """For each event's state, over months m_lo..m_hi: running count of
+    uncovered months (prefix sums, one leading 0) and the first uncovered
+    month at or after each month (m_hi + 1 when none). Months missing from a
+    state's mask are uncovered, as are all months of a state with no mask."""
+    span = m_hi - m_lo + 1
+    names, inv = np.unique(states, return_inverse=True)
+    uncov = np.ones((len(names), span), dtype=bool)
+    for j, st in enumerate(names):
+        for month, ok in masks.get(str(st), {}).items():
+            k = int(month[:4]) * 12 + int(month[5:7]) - 1 - 1970 * 12 - m_lo
+            if ok and 0 <= k < span:
+                uncov[j, k] = False
+    prefix = np.zeros((len(names), span + 1), dtype=np.int64)
+    np.cumsum(uncov, axis=1, out=prefix[:, 1:])
+    pos = np.where(uncov, np.arange(span), span)
+    first_after = np.minimum.accumulate(pos[:, ::-1], axis=1)[:, ::-1] + m_lo
+    return prefix[inv], first_after[inv]
+
+
+def _log1p_each(x: np.ndarray) -> np.ndarray:
+    # math.log1p per value, not np.log1p: numpy's need not match libm to the
+    # last bit, and these features feed a trained model.
+    return np.array([_log1p(v) for v in x.tolist()], dtype=float)
 
 
 def _log1p(x: float) -> float:
@@ -211,93 +225,155 @@ def build_events(notices: pd.DataFrame, *, as_of: date) -> pd.DataFrame:
     the next event, NaN if none yet), followup_days (days observed, capped at
     the horizon and cut at the first coverage hole), label (1/0, NaN when
     censored), labelled (bool).
+
+    Vectorized over all notices at once (dates as integer days); every
+    per-company window is a slice of one array sorted by (company, date).
     """
     as_of_ts = pd.Timestamp(as_of)
     notices = notices[notices["notice_date"] <= as_of_ts]
     masks = coverage_masks(notices, as_of)
-
-    state_dates = {
-        st: np.sort(g.to_numpy(dtype="datetime64[D]"))
-        for st, g in notices.groupby("state")["notice_date"]
-    }
-    state_first = {st: d[0] for st, d in state_dates.items()}
-    us_dates = np.sort(notices["notice_date"].to_numpy(dtype="datetime64[D]"))
-
-    def trailing(d: np.ndarray, t0: np.datetime64, days: int) -> int:
-        lo = np.searchsorted(d, t0 - np.timedelta64(days, "D"), side="right")
-        hi = np.searchsorted(d, t0, side="right")
-        return int(hi - lo)
-
-    records: list[dict[str, object]] = []
-    for key, grp in notices.groupby("company_key", sort=False):
-        dates = grp["notice_date"].to_numpy(dtype="datetime64[D]")
-        counts = grp["layoff_count"].to_numpy(dtype=float)
-        states = grp["state"].to_numpy()
-        closure = (grp["closure_category"] == "Closure").to_numpy()
-        leads = (grp["effective_date"] - grp["notice_date"]).dt.days.to_numpy(dtype=float)
-
-        starts: list[int] = []  # index of each event's first notice
-        for i, d in enumerate(dates):
-            if not starts or d > dates[starts[-1]] + np.timedelta64(EVENT_GAP_DAYS, "D"):
-                starts.append(i)
-
-        for e, i in enumerate(starts):
-            t0 = dates[i]
-            day = slice(i, int(np.searchsorted(dates, t0, side="right")))
-            prior = slice(0, i)  # strictly before t0: dates are sorted, i is t0's first
-            day_counts = counts[day]
-            day_states = states[day]
-            # The event's state: where most t0 notices were filed (ties -> first).
-            vals, freq = np.unique(day_states, return_counts=True)
-            state = str(vals[int(np.argmax(freq))])
-            lead = leads[day]
-            lead = lead[~np.isnan(lead)]
-            lead_med = float(np.median(lead)) if lead.size else float(DEFAULT_LEAD_DAYS)
-            prior_counts = counts[prior]
-            prev = dates[i - 1] if i else None
-
-            next_gap = (
-                float((dates[starts[e + 1]] - t0).astype(int)) if e + 1 < len(starts) else math.nan
-            )
-            t0_ts = pd.Timestamp(t0)
-            horizon_end = t0_ts + pd.Timedelta(days=HORIZON_DAYS)
-            mask = masks.get(state, {})
-            labelled = horizon_end < as_of_ts and _horizon_covered(mask, t0_ts)
-            label = (
-                float(not math.isnan(next_gap) and next_gap <= HORIZON_DAYS)
-                if labelled else math.nan
-            )
-
-            records.append({
-                "company_key": key,
-                "t0": t0_ts,
-                "state": state,
-                "day_notices": day.stop - day.start,
-                "day_states": len(vals),
-                "day_layoffs_log": _log1p(float(np.nansum(day_counts))),
-                "day_closure_frac": float(closure[day].mean()),
-                "lead_days": float(np.clip(lead_med, -30, 365)),
-                "lead_is_default": float(lead_med == DEFAULT_LEAD_DAYS),
-                "prior_notices_1y": trailing(dates[prior], t0, 365) if i else 0,
-                "prior_notices_3y": trailing(dates[prior], t0, 3 * 365) if i else 0,
-                "prior_events": e,
-                "days_since_prev_log": _log1p(float((t0 - prev).astype(int))) if i else 0.0,
-                "prior_layoffs_log": _log1p(float(np.nansum(prior_counts))) if i else 0.0,
-                "prior_states": len(set(states[prior])),
-                "state_cov_years": float((t0 - state_first[state]).astype(int)) / 365.25,
-                "state_notices_90d": trailing(state_dates[state], t0, 90),
-                "us_notices_90d_log": _log1p(trailing(us_dates, t0, 90)),
-                "month": t0_ts.month,
-                "next_gap_days": next_gap,
-                "followup_days": _followup_days(mask, t0_ts, as_of_ts),
-                "label": label,
-                "labelled": labelled,
-            })
-
     columns = ["company_key", "t0", "state", *NUMERIC_FEATURES,
                "next_gap_days", "followup_days", "label", "labelled"]
-    events = pd.DataFrame.from_records(records, columns=columns)
-    # Typed even when empty: an object-dtype mask indexes columns, not rows.
+
+    def days_of(s: pd.Series) -> np.ndarray:
+        out: np.ndarray = s.to_numpy(dtype="datetime64[D]").astype(np.int64)
+        return out
+
+    state_dates = {st: np.sort(days_of(g)) for st, g in notices.groupby("state")["notice_date"]}
+    us_dates = np.sort(days_of(notices["notice_date"]))
+
+    codes, keys = pd.factorize(notices["company_key"])
+    keep = codes >= 0  # groupby drops notices without a company key
+    code = codes[keep]
+    day = days_of(notices["notice_date"])[keep]
+    order = np.lexsort((day, code))  # stable: same-day notices keep their order
+    code, day = code[order], day[order]
+    counts = notices["layoff_count"].to_numpy(dtype=float)[keep][order]
+    states = notices["state"].to_numpy()[keep][order]
+    closure = (notices["closure_category"] == "Closure").to_numpy()[keep][order]
+    leads = (notices["effective_date"] - notices["notice_date"]).dt.days.to_numpy(
+        dtype=float)[keep][order]
+    n = len(day)
+
+    # Group boundaries, and event starts: an event opens at a company's first
+    # notice and at each notice more than EVENT_GAP_DAYS after the current
+    # event's t0 (chained from t0, not from the previous notice).
+    first = np.r_[True, code[1:] != code[:-1]] if n else np.zeros(0, dtype=bool)
+    gstart = np.maximum.accumulate(np.where(first, np.arange(n), 0))
+    starts: list[int] = []
+    anchor = 0
+    for i, (d, f) in enumerate(zip(day.tolist(), first.tolist(), strict=True)):
+        if f or d > anchor + EVENT_GAP_DAYS:
+            starts.append(i)
+            anchor = d
+    if not starts:
+        events = pd.DataFrame.from_records([], columns=columns)
+        events = events.astype({"labelled": bool, "t0": "datetime64[ns]"})
+        return events.sort_values(["t0", "company_key"]).reset_index(drop=True)
+
+    s = np.array(starts)
+    t0 = day[s]
+    n_ev = len(s)
+    ev_first = first[s]
+    ev_idx = np.arange(n_ev)
+    prior_events = ev_idx - np.maximum.accumulate(np.where(ev_first, ev_idx, 0))
+    has_next = np.r_[~ev_first[1:], False]
+    next_gap = np.where(has_next, np.r_[t0[1:], 0] - t0, np.nan).astype(float)
+    g0 = gstart[s]
+    has_prior = s > g0  # i: dates are sorted, so prior = [group start, s) is < t0
+
+    # One sorted search key for "this company, this day": a window of days
+    # ending at t0 never reaches into the previous company's range.
+    pad = 4 * 365
+    rel = day - day.min() + pad
+    ckey = code.astype(np.int64) * (int(rel.max()) + pad) + rel
+    day_end = np.searchsorted(ckey, ckey[s], side="right")
+    day_n = day_end - s
+
+    def trailing_prior(days: int) -> np.ndarray:
+        count: np.ndarray = s - np.searchsorted(ckey, ckey[s] - days, side="right")
+        return count
+
+    # Per-event aggregates over the t0 notices [s, day_end).
+    ev_rep = np.repeat(ev_idx, day_n)
+    pos = np.arange(int(day_n.sum())) - np.repeat(np.cumsum(day_n) - day_n, day_n) \
+        + np.repeat(s, day_n)
+    by_state = (
+        pd.DataFrame({"ev": ev_rep, "state": states[pos]})
+        .groupby(["ev", "state"]).size().rename("k").reset_index()
+    )
+    day_states = by_state.groupby("ev").size().to_numpy()
+    # The event's state: where most t0 notices were filed (ties -> first by name).
+    mode = by_state.sort_values(["ev", "k", "state"], ascending=[True, False, True],
+                                kind="stable").drop_duplicates("ev")
+    ev_state = mode["state"].to_numpy()
+    if len(ev_state) != n_ev:  # a null state would shift every later event's state
+        raise ValueError("notices with no state")
+    lead_med = (
+        pd.Series(leads[pos]).groupby(ev_rep).median()
+        .reindex(ev_idx).fillna(float(DEFAULT_LEAD_DAYS)).to_numpy()
+    )
+    csum = np.r_[0.0, np.cumsum(np.nan_to_num(counts))]  # integer counts: exact
+    cclosure = np.r_[0, np.cumsum(closure)]
+    seen = ~pd.DataFrame({"c": code, "s": states}).duplicated().to_numpy()
+    cseen = np.r_[0, np.cumsum(seen)]
+
+    prev_gap = np.where(has_prior, t0 - day[np.maximum(s - 1, 0)], 0)
+    state_first = np.array([state_dates[st][0] for st in ev_state])
+    state_90d = np.empty(n_ev, dtype=np.int64)
+    for st in np.unique(ev_state):
+        sel = ev_state == st
+        d = state_dates[st]
+        state_90d[sel] = (np.searchsorted(d, t0[sel], side="right")
+                          - np.searchsorted(d, t0[sel] - 90, side="right"))
+    us_90d = (np.searchsorted(us_dates, t0, side="right")
+              - np.searchsorted(us_dates, t0 - 90, side="right"))
+
+    # Censoring against the state's coverage mask, month by month.
+    as_of_day = int(np.datetime64(as_of, "D").astype(np.int64))
+    horizon_end = t0 + HORIZON_DAYS
+    follow_end = np.minimum(as_of_day, horizon_end)
+    m0, m1, m_end = _month_index(t0), _month_index(horizon_end), _month_index(follow_end)
+    m_lo = int(m0.min())
+    prefix, first_after = _coverage(masks, ev_state, m_lo, int(m1.max()))
+    row = np.arange(n_ev)
+    covered = prefix[row, m1 - m_lo + 1] == prefix[row, m0 - m_lo]
+    labelled = (horizon_end < as_of_day) & covered
+    label = np.where(labelled, ((~np.isnan(next_gap)) & (next_gap <= HORIZON_DAYS))
+                     .astype(float), np.nan)
+    followup = (follow_end - t0).astype(float)
+    hole = first_after[row, m0 - m_lo]
+    cut = hole <= m_end
+    hole_day = hole[cut].astype("datetime64[M]").astype("datetime64[D]").astype(np.int64)
+    followup[cut] = np.maximum(0, np.minimum(followup[cut], hole_day - t0[cut]))
+
+    t0_ts = t0.astype("datetime64[D]").astype("datetime64[ns]")
+    data = {
+        "company_key": np.asarray(keys, dtype=object)[code[s]],
+        "t0": t0_ts,
+        "state": np.array([str(v) for v in ev_state], dtype=object),
+        "day_notices": day_n.astype(np.int64),
+        "day_states": day_states.astype(np.int64),
+        "day_layoffs_log": _log1p_each(csum[day_end] - csum[s]),
+        "day_closure_frac": (cclosure[day_end] - cclosure[s]) / day_n,
+        "lead_days": np.clip(lead_med, -30, 365),
+        "lead_is_default": (lead_med == DEFAULT_LEAD_DAYS).astype(float),
+        "prior_notices_1y": trailing_prior(365).astype(np.int64),
+        "prior_notices_3y": trailing_prior(3 * 365).astype(np.int64),
+        "prior_events": prior_events.astype(np.int64),
+        "days_since_prev_log": np.where(has_prior, _log1p_each(prev_gap.astype(float)), 0.0),
+        "prior_layoffs_log": np.where(has_prior, _log1p_each(csum[s] - csum[g0]), 0.0),
+        "prior_states": (cseen[s] - cseen[g0]).astype(np.int64),
+        "state_cov_years": (t0 - state_first).astype(float) / 365.25,
+        "state_notices_90d": state_90d,
+        "us_notices_90d_log": _log1p_each(us_90d),
+        "month": pd.DatetimeIndex(t0_ts).month.to_numpy().astype(np.int64),
+        "next_gap_days": next_gap,
+        "followup_days": followup,
+        "label": label,
+        "labelled": labelled,
+    }
+    events = pd.DataFrame(data, columns=columns)
     events = events.astype({"labelled": bool, "t0": "datetime64[ns]"})
     return events.sort_values(["t0", "company_key"]).reset_index(drop=True)
 
