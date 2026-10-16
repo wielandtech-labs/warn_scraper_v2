@@ -164,6 +164,28 @@ export interface MapPlacesQuery {
   before?: string;
 }
 
+export type TimelineBucket = "year" | "quarter" | "month";
+
+/** /api/map-places/timeline: places as in MapPlaces, plus sparse
+ *  (place, period) cells as parallel arrays indexing into them. */
+export interface MapPlacesTimeline {
+  periods: string[]; // "2020", "2020-Q2" or "2020-04"; contiguous, oldest first
+  lat: number[];
+  lon: number[];
+  label: string[];
+  place: number[]; // index into lat/lon/label
+  period: number[]; // index into periods
+  notices: number[];
+  workers: number[];
+}
+
+/** /api/stats/industries/timeline: per-sector counts aligned with `periods`.
+ *  sector "unclassified" holds notices with no known industry. */
+export interface IndustryTimeline {
+  periods: string[];
+  sectors: { sector: string; name: string; notices: number[]; workers: number[] }[];
+}
+
 export const api = {
   // ---------- Auth ----------
   login: (email: string, password: string) =>
@@ -200,6 +222,10 @@ export const api = {
   /** Every geocoded notice matching the filters, aggregated per place — the /map payload. */
   listMapPlaces: (q: MapPlacesQuery = {}) =>
     get<MapPlaces>("/api/map-places" + qs(q as Record<string, string | number | undefined>)),
+  /** Per-place counts for every period — the /timelapse map, in one payload. */
+  mapPlacesTimeline: (
+    q: { bucket: TimelineBucket; industry?: string; after?: string },
+  ) => get<MapPlacesTimeline>("/api/map-places/timeline" + qs(q)),
 
   // ---------- Companies ----------
   listCompanies: (q: {
@@ -341,6 +367,8 @@ export const api = {
       before?: string;
     } = {},
   ) => get<IndustryStat[]>("/api/stats/industries" + qs(q)),
+  statsIndustriesTimeline: (q: { bucket: TimelineBucket; after?: string }) =>
+    get<IndustryTimeline>("/api/stats/industries/timeline" + qs(q)),
 
   // ---------- Sentiment reports ----------
   /** One state's latest sentiment report as raw markdown (404 if none).

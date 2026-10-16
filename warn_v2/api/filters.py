@@ -20,6 +20,16 @@ from warn_v2.companies.naics import naics_filter
 from warn_v2.db.models import Company, Location, Notice
 
 
+def apply_stats_closure_filter(stmt: Select, closure_category: str | None) -> Select:
+    """The closure filter aggregate charts use: the requested category, or by
+    default everything but Non-WARN. Non-WARN Rapid Response events (MS) are
+    not statutory WARN notices — keep them out of aggregate stats unless
+    explicitly requested."""
+    if closure_category:
+        return stmt.where(Notice.closure_category == closure_category)
+    return stmt.where(Notice.closure_category.is_distinct_from("Non-WARN"))
+
+
 def apply_notice_filters(
     stmt: Select,
     *,

@@ -167,6 +167,9 @@ export interface StateStatusOut {
   last_success_at: string | null;
   first_notice_date: string | null;
   last_notice_date: string | null;
+  /** first_notice_date minus isolated stray early rows: where the archive
+   *  really starts. */
+  coverage_start: string | null;
 }
 
 export interface Page<T> {

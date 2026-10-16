@@ -18,7 +18,7 @@ import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 
 import type { ResolvedTheme } from "../hooks/useTheme";
 import { toStateBubbles, type StateBubbleProps } from "../lib/stateBubbles";
-import { CHART_COLORS, TILE_LAYERS } from "../lib/themeColors";
+import { CHART_COLORS, HEAT_STOPS, TILE_LAYERS } from "../lib/themeColors";
 
 setWorkerUrl(workerUrl);
 
@@ -142,6 +142,13 @@ function initialStyle(theme: ResolvedTheme): StyleSpecification {
   };
 }
 
+// A place's heat weight ramps up to full at `max` workers (fixed, so frames of
+// a time-lapse share one scale) from a floor that keeps count-less places warm.
+const heatWeight = (max: number): ExpressionSpecification => [
+  "interpolate", ["linear"], ["get", "w"], 0, 0.15, max, 1,
+];
+const DEFAULT_HEAT_MAX = 500;
+
 function addDataLayers(map: MapLibreMap, theme: ResolvedTheme, stateBubbles: boolean) {
   const red = CHART_COLORS[theme].layoffs;
   const halo = theme === "dark" ? "#0d0d0d" : "#ffffff";
@@ -243,18 +250,11 @@ function addDataLayers(map: MapLibreMap, theme: ResolvedTheme, stateBubbles: boo
     source: "places-raw",
     layout: { visibility: "none" },
     paint: {
-      "heatmap-weight": ["interpolate", ["linear"], ["get", "w"], 0, 0.15, 500, 1],
+      "heatmap-weight": heatWeight(DEFAULT_HEAT_MAX),
       "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 3, 0.6, 10, 2.5],
       "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 3, 8, 10, 24],
       "heatmap-opacity": ["interpolate", ["linear"], ["zoom"], 10, 0.85, 13, 0.25],
-      "heatmap-color": [
-        "interpolate", ["linear"], ["heatmap-density"],
-        0, "rgba(218,47,37,0)",
-        0.2, "rgba(244,163,97,0.55)",
-        0.5, "rgba(230,103,103,0.8)",
-        0.8, "rgba(218,47,37,0.9)",
-        1, "rgba(130,20,15,0.95)",
-      ],
+      "heatmap-color": ["interpolate", ["linear"], ["heatmap-density"], ...HEAT_STOPS.flat()],
     },
   });
   // Close in, heat alone gives nothing to tap — fade real places in.
@@ -315,19 +315,32 @@ export const PlacesMap = forwardRef<
      *  at mount. Off for maps of a single state or sector. */
     stateBubbles?: boolean;
     selected: SelectedPlace | null;
+    /** Workers at which a place's heat saturates (default 500). */
+    heatMax?: number;
     onViewChange: (v: View) => void;
     onSelect: (p: SelectedPlace | null) => void;
     className?: string;
   }
 >(function PlacesMap(
-  { data, mode, theme, initial, stateBubbles = false, selected, onViewChange, onSelect, className },
+  {
+    data,
+    mode,
+    theme,
+    initial,
+    stateBubbles = false,
+    selected,
+    heatMax = DEFAULT_HEAT_MAX,
+    onViewChange,
+    onSelect,
+    className,
+  },
   ref,
 ) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   // Latest props for the long-lived map's event handlers and load callback.
-  const latest = useRef({ data, mode, theme, stateBubbles, selected, onViewChange, onSelect });
-  latest.current = { data, mode, theme, stateBubbles, selected, onViewChange, onSelect };
+  const latest = useRef({ data, mode, theme, stateBubbles, selected, heatMax, onViewChange, onSelect });
+  latest.current = { data, mode, theme, stateBubbles, selected, heatMax, onViewChange, onSelect };
   const loaded = useRef(false);
   const themeRef = useRef(theme); // the theme the base layer currently shows
 
@@ -365,16 +378,17 @@ export const PlacesMap = forwardRef<
     mapRef.current = map;
 
     map.on("load", () => {
-      const { data, mode, selected, theme, stateBubbles } = latest.current;
+      const { data, mode, selected, theme, stateBubbles, heatMax } = latest.current;
       addDataLayers(map, themeRef.current, stateBubbles);
       loaded.current = true;
       if (theme !== themeRef.current) {
         pushTheme(map, themeRef.current, theme); // toggled before the map loaded
         themeRef.current = theme;
       }
-      pushData(map, data, stateBubbles);
+      pushData(map, data, mode, stateBubbles);
       pushMode(map, mode, stateBubbles);
       pushSelected(map, selected);
+      if (heatMax !== DEFAULT_HEAT_MAX) map.setPaintProperty("heat", "heatmap-weight", heatWeight(heatMax));
       latest.current.onViewChange(toView(map));
     });
     map.on("moveend", () => latest.current.onViewChange(toView(map)));
@@ -427,16 +441,23 @@ export const PlacesMap = forwardRef<
   }, []);
 
   useEffect(() => {
-    if (mapRef.current && loaded.current) pushData(mapRef.current, data, stateBubbles);
+    if (mapRef.current && loaded.current) pushData(mapRef.current, data, latest.current.mode, stateBubbles);
   }, [data, stateBubbles]);
 
   useEffect(() => {
-    if (mapRef.current && loaded.current) pushMode(mapRef.current, mode, stateBubbles);
-  }, [mode, stateBubbles]);
+    if (!mapRef.current || !loaded.current) return;
+    pushData(mapRef.current, latest.current.data, mode, latest.current.stateBubbles);
+    pushMode(mapRef.current, mode, latest.current.stateBubbles);
+  }, [mode]);
 
   useEffect(() => {
     if (mapRef.current && loaded.current) pushSelected(mapRef.current, selected);
   }, [selected]);
+
+  useEffect(() => {
+    if (mapRef.current && loaded.current)
+      mapRef.current.setPaintProperty("heat", "heatmap-weight", heatWeight(heatMax));
+  }, [heatMax]);
 
   // Before load, the load handler applies the latest theme. (Not
   // isStyleLoaded(): it also reads false while a source re-tiles after
@@ -476,9 +497,11 @@ function pushTheme(map: MapLibreMap, from: ResolvedTheme, to: ResolvedTheme) {
   map.setPaintProperty("selected", "circle-stroke-color", to === "dark" ? "#f9f9f7" : "#1a1a19");
 }
 
-function pushData(map: MapLibreMap, data: PlacesGeoJSON, stateBubbles: boolean) {
-  (map.getSource("places") as GeoJSONSource).setData(data);
-  (map.getSource("places-raw") as GeoJSONSource).setData(data);
+/** Only the shown mode's source gets the data: re-clustering hidden bubbles
+ *  on every update (each frame of a time-lapse) would be wasted work. */
+function pushData(map: MapLibreMap, data: PlacesGeoJSON, mode: MapMode, stateBubbles: boolean) {
+  (map.getSource("places") as GeoJSONSource).setData(mode === "bubbles" ? data : EMPTY);
+  (map.getSource("places-raw") as GeoJSONSource).setData(mode === "heat" ? data : EMPTY);
   if (stateBubbles) (map.getSource("states") as GeoJSONSource).setData(toStateBubbles(data));
 }
 

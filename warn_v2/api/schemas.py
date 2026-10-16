@@ -191,6 +191,10 @@ class StateStatusOut(BaseModel):
     # the state has runs but no (non-superseded) notices yet.
     first_notice_date: date | None
     last_notice_date: date | None
+    # Where the state's archive really starts: first_notice_date, minus
+    # isolated stray rows (a lone 1997 notice ahead of a series starting in
+    # 2000). See runs._coverage_start. Null when there are no notices.
+    coverage_start: date | None = None
 
 
 class Page[T](BaseModel):
