@@ -459,15 +459,45 @@ function TableBlock({ b }: { b: Extract<Block, { kind: "table" }> }) {
   return <DataTable b={b} />;
 }
 
+/** Drop each `## <title>` section in `titles`, up to the next H1/H2. */
+function withoutSections(blocks: Block[], titles: string[]): Block[] {
+  let skipping = false;
+  return blocks.filter((b) => {
+    if (b.kind === "heading" && b.level <= 2) skipping = titles.includes(b.text.trim());
+    return !skipping;
+  });
+}
+
+/** Move the headline-figures line up to just after the generation stamp,
+ *  so it is the first thing a collapsed report shows. */
+function headlineFirst(blocks: Block[]): Block[] {
+  const from = blocks.findIndex((b) => b.kind === "para" && !b.meta && headlineParts(b.text));
+  if (from < 0) return blocks;
+  const rest = blocks.filter((_, i) => i !== from);
+  const stamp = rest.findIndex((b) => b.kind === "para" && b.meta);
+  const firstSection = rest.findIndex((b) => b.kind === "heading" && b.level === 2);
+  // Only a stamp ahead of the first section is the generation stamp.
+  const to = stamp >= 0 && (firstSection < 0 || stamp < firstSection) ? stamp + 1 : 0;
+  return [...rest.slice(0, to), blocks[from], ...rest.slice(to)];
+}
+
 export function ReportMarkdown({
   markdown,
   skipH1 = false,
+  leadWithHeadline = false,
+  skipSections = [],
 }: {
   markdown: string;
   /** Drop the report's H1 when the surrounding card already provides context. */
   skipH1?: boolean;
+  /** Show the "**A: x · B: y**" figures strip first, ahead of the sections. */
+  leadWithHeadline?: boolean;
+  /** `##` section titles to leave out, when the page already shows them. */
+  skipSections?: string[];
 }) {
-  const blocks = parseBlocks(markdown);
+  let blocks = parseBlocks(markdown);
+  if (skipSections.length) blocks = withoutSections(blocks, skipSections);
+  if (leadWithHeadline) blocks = headlineFirst(blocks);
   let sawMeta = false;
   let sawSection = false;
   return (

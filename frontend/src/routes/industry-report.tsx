@@ -77,6 +77,11 @@ export function IndustryReportPage() {
   const indicatorPeriods = (overTime.data ?? []).map((r) => r.period);
 
   const name = card?.sector_name ?? `NAICS ${sector}`;
+  // The skipped Scorecard section's "How this score works" line, kept as a
+  // footnote to the Score figure (the weights live in the generator).
+  const howScored = report.data
+    ? /^_How this score works: (.+)_\s*$/m.exec(report.data)?.[1]
+    : undefined;
   useDocumentTitle(
     missing
       ? "Scorecard not found — WARN Index"
@@ -111,7 +116,6 @@ export function IndustryReportPage() {
           </span>
         }
         lede="Chart, map and employers cover only notices matched to a NAICS code — a partial, unevenly-distributed subset; treat them as directional."
-        aside={<TimeRangeToggle value={range} onChange={setRange} />}
       />
 
       {card && (
@@ -130,16 +134,49 @@ export function IndustryReportPage() {
           />
         </Figures>
       )}
-      {card && (
-        <p className="-mt-3 text-xs text-slate-500 dark:text-slate-400">
-          Scorecard computed {fmtDate(card.generated_at)}. The written analysis below carries its
-          own generation date and can lag these figures by a few days.
-        </p>
+      {howScored && (
+        <p className="-mt-3 text-xs text-slate-500 dark:text-slate-400">Score: {howScored}</p>
       )}
+
+      <div className="card">
+        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-brand">
+          Weekly analysis
+        </p>
+        <h2 className="mb-3 mt-1 text-lg font-semibold">{name} scorecard</h2>
+        {card && (
+          <p className="-mt-2 mb-3 text-xs text-slate-500 dark:text-slate-400">
+            The figures above were computed {fmtDate(card.generated_at)}; this analysis carries
+            its own generation date and can lag them by a few days.
+          </p>
+        )}
+        {report.isLoading ? (
+          <div className="space-y-2">
+            <SkeletonBlock className="h-4 w-1/3" />
+            <SkeletonBlock className="h-24 w-full" />
+            <SkeletonBlock className="h-4 w-2/3" />
+          </div>
+        ) : report.isError ? (
+          <QueryError
+            message="Error loading the scorecard."
+            onRetry={() => report.refetch()}
+          />
+        ) : report.data ? (
+          <Collapsed label="Read the full scorecard">
+            {/* The Scorecard section repeats the grade tile, the Score figure and
+                the lede; dropping it lets the collapsed preview reach the prose. */}
+            <ReportMarkdown markdown={report.data} skipH1 leadWithHeadline skipSections={["Scorecard"]} />
+          </Collapsed>
+        ) : null}
+      </div>
 
       {vouched && (
         <div className="card">
-          <h2 className="mb-3 text-lg font-semibold">Job losses over time</h2>
+          {/* The range drives the chart, payroll levels, map and employers; the
+              figures and analysis above are fixed 90-day windows. */}
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">Job losses over time</h2>
+            <TimeRangeToggle value={range} onChange={setRange} />
+          </div>
           {overTime.isLoading ? (
             <SkeletonChart height={300} />
           ) : overTime.isError ? (
@@ -203,29 +240,6 @@ export function IndustryReportPage() {
           </section>
         </div>
       )}
-
-      <div className="card">
-        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-brand">
-          Weekly analysis
-        </p>
-        <h2 className="mb-3 mt-1 text-lg font-semibold">{name} scorecard</h2>
-        {report.isLoading ? (
-          <div className="space-y-2">
-            <SkeletonBlock className="h-4 w-1/3" />
-            <SkeletonBlock className="h-24 w-full" />
-            <SkeletonBlock className="h-4 w-2/3" />
-          </div>
-        ) : report.isError ? (
-          <QueryError
-            message="Error loading the scorecard."
-            onRetry={() => report.refetch()}
-          />
-        ) : report.data ? (
-          <Collapsed label="Read the full scorecard">
-            <ReportMarkdown markdown={report.data} skipH1 />
-          </Collapsed>
-        ) : null}
-      </div>
 
       <p className="text-xs text-slate-500 dark:text-slate-400">
         Drill into the underlying notices on the{" "}
