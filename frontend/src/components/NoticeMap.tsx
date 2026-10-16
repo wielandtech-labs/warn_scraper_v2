@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 
@@ -6,9 +6,55 @@ import { api } from "../api/client";
 import { useTheme } from "../hooks/useTheme";
 import { fmtNum } from "../lib/format";
 import { EMPTY_PLACES, placesBounds, toGeoJSON } from "../lib/mapPlaces";
-import { PlacesMap, type PlacesMapHandle, type SelectedPlace } from "./PlacesMap";
+import type { PlacesMap as PlacesMapComponent, PlacesMapHandle, SelectedPlace } from "./PlacesMap";
+
+// MapLibre is a ~300 KB gzip chunk plus its worker, and on the state and
+// sector pages the map sits below the fold. Fetch it only once the map nears
+// the viewport, so a visit that never scrolls there never pays for it.
+// If the chunk fails (offline, or a deploy replaced the hashed file since
+// this page loaded), say so inside the map box rather than letting the
+// rejection take down the whole page.
+const PlacesMap = lazy(() =>
+  import("./PlacesMap").then(
+    (m) => ({ default: m.PlacesMap }),
+    // The fallback ignores the map's props and ref.
+    () => ({ default: MapLoadFailed as unknown as typeof PlacesMapComponent }),
+  ),
+);
+
+function MapLoadFailed() {
+  return (
+    <div className="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-400">
+      The map couldn't load. Reload the page to try again.
+    </div>
+  );
+}
 
 const noop = () => {};
+
+/** True once the element comes within `rootMargin` of the viewport; stays
+ *  true. A callback ref, so it follows the element across re-renders (the
+ *  loading box is replaced by the map box). */
+function useNearViewport(rootMargin = "400px") {
+  const [el, setEl] = useState<Element | null>(null);
+  const [near, setNear] = useState(false);
+  useEffect(() => {
+    if (near || !el) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setNear(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) setNear(true);
+      },
+      { rootMargin },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [el, near, rootMargin]);
+  return [setEl, near] as const;
+}
 
 /** Bubble map of geocoded notices for one state and/or NAICS sector, scoped
  *  to a time window, fitted to its places. The same map and data as /map;
@@ -27,6 +73,7 @@ export function NoticeMap({
   height?: string;
 }) {
   const { resolved } = useTheme();
+  const [boxRef, near] = useNearViewport();
   const mapRef = useRef<PlacesMapHandle>(null);
   const [selected, setSelected] = useState<SelectedPlace | null>(null);
   const query = useQuery({
@@ -53,14 +100,14 @@ export function NoticeMap({
 
   if (query.isLoading) {
     return (
-      <div className="flex items-center justify-center text-slate-500 dark:text-slate-400" style={{ height }}>
+      <div ref={boxRef} className="flex items-center justify-center text-slate-500 dark:text-slate-400" style={{ height }}>
         Loading map…
       </div>
     );
   }
   if (!places || !bounds) {
     return (
-      <div className="flex h-24 items-center justify-center text-sm text-slate-500 dark:text-slate-400">
+      <div ref={boxRef} className="flex h-24 items-center justify-center text-sm text-slate-500 dark:text-slate-400">
         No geocoded notices to map for this period.
       </div>
     );
@@ -69,18 +116,27 @@ export function NoticeMap({
   const total = places.notices.reduce((a, b) => a + b, 0);
   return (
     <>
-      <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800" style={{ height }}>
-        <PlacesMap
-          ref={mapRef}
-          data={geojson}
-          mode="bubbles"
-          theme={resolved}
-          initial={{ bounds }}
-          selected={selected}
-          onViewChange={noop}
-          onSelect={setSelected}
-          className="h-full w-full bg-slate-100 dark:bg-slate-900"
-        />
+      {/* The bordered box holds its height while MapLibre loads, so the page doesn't jump. */}
+      <div
+        ref={boxRef}
+        className="overflow-hidden rounded-lg border border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-900"
+        style={{ height }}
+      >
+        {near && (
+          <Suspense fallback={null}>
+            <PlacesMap
+              ref={mapRef}
+              data={geojson}
+              mode="bubbles"
+              theme={resolved}
+              initial={{ bounds }}
+              selected={selected}
+              onViewChange={noop}
+              onSelect={setSelected}
+              className="h-full w-full bg-slate-100 dark:bg-slate-900"
+            />
+          </Suspense>
+        )}
       </div>
       <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
         {selected ? (
