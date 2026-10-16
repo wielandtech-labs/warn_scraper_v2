@@ -15,17 +15,9 @@ import { QueryError } from "../components/QueryError";
 import { SkeletonTable } from "../components/Skeleton";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import type { CompanyOut, ParentGroupStat } from "../api/types";
-import { fmtNum } from "../lib/format";
+import { fmtNum, SOURCE_LABEL } from "../lib/format";
 
 const PAGE_SIZE = 50;
-
-// enrichment_source → human label. Confidence alone is misleading: a "Web"
-// row is usually just a website found by the LLM, while "Provider" is a full record.
-export const SOURCE_LABEL: Record<string, string> = {
-  provider: "Provider",
-  edgar: "SEC",
-  claude: "Web",
-};
 
 export function CompaniesPage() {
   useDocumentTitle("Companies & corporate families — WARN Index");

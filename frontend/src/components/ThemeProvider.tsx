@@ -1,13 +1,10 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
-export type ThemePreference = "system" | "light" | "dark";
-export type ResolvedTheme = "light" | "dark";
+import {
+  ThemeContext,
+  type ResolvedTheme,
+  type ThemePreference,
+} from "../hooks/useTheme";
 
 // Must stay in sync with the pre-paint script in index.html, which reads the
 // same key and applies the same resolution rule before first paint.
@@ -17,14 +14,6 @@ const THEME_COLOR: Record<ResolvedTheme, string> = {
   light: "#DA2F25",
   dark: "#0d0d0d",
 };
-
-interface ThemeContextValue {
-  preference: ThemePreference;
-  resolved: ResolvedTheme;
-  setPreference: (p: ThemePreference) => void;
-}
-
-const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function readStoredPreference(): ThemePreference {
   try {
@@ -75,10 +64,4 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       {children}
     </ThemeContext.Provider>
   );
-}
-
-export function useTheme(): ThemeContextValue {
-  const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error("useTheme must be used within ThemeProvider");
-  return ctx;
 }

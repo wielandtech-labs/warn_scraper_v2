@@ -17,9 +17,9 @@ import { SkeletonBlock, SkeletonChart, SkeletonRows } from "../components/Skelet
 import { WarnTimeChart } from "../components/WarnTimeChart";
 import {
   TimeRangeToggle,
-  toRangeQuery,
   type TimeRange,
 } from "../components/TimeRangeToggle";
+import { toRangeQuery } from "../lib/timeRange";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { BLS_PAYROLLS } from "../lib/blsSeries";
 import { fmtDate, fmtNum, fmtPeriod } from "../lib/format";

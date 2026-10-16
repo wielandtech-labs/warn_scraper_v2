@@ -87,3 +87,11 @@ export function fmtRelativeDays(iso: string | null | undefined): string | null {
   const unit = n === 1 ? "day" : "days";
   return days < 0 ? `${fmtNum(n)} ${unit} ago` : `in ${fmtNum(n)} ${unit}`;
 }
+
+// enrichment_source → human label. Confidence alone is misleading: a "Web"
+// row is usually just a website found by the LLM, while "Provider" is a full record.
+export const SOURCE_LABEL: Record<string, string> = {
+  provider: "Provider",
+  edgar: "SEC",
+  claude: "Web",
+};

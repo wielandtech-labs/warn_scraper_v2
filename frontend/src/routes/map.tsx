@@ -162,16 +162,17 @@ export function MapPage() {
   const total = totalQuery.data;
   const capped = points.length >= pinCap;
 
-  // Memoized on `points` only: every pan mirrors the viewport into the URL,
+  // Memoized on the query data only: every pan mirrors the viewport into the URL,
   // which re-renders this component via useSearch — without the memo, React
   // re-reconciles up to 10k <Marker> elements (and the fresh position arrays
   // make react-leaflet call setLatLng on every one) on every pan, even when
   // nothing refetched. React Query keeps `points` referentially stable
-  // between refetches (placeholderData included), so this bails out of the
+  // between refetches (placeholderData included); `points` itself is a fresh
+  // `[]` while loading, so it can't be the dep, so this bails out of the
   // whole marker subtree unless the data actually changed.
   const markers = useMemo(
     () =>
-      points.map((n) => (
+      (query.data ?? []).map((n) => (
         <Marker
           key={n.notice_id}
           position={[Number(n.lat), Number(n.lon)]}
@@ -196,7 +197,7 @@ export function MapPage() {
           </Popup>
         </Marker>
       )),
-    [points],
+    [query.data],
   );
 
   return (

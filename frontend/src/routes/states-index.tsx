@@ -6,10 +6,11 @@ import { api } from "../api/client";
 import { PageHeader } from "../components/PageHeader";
 import { QueryError } from "../components/QueryError";
 import { StateSilhouette } from "../components/StateSilhouette";
-import { TimeRangeToggle, toRangeQuery, type TimeRange } from "../components/TimeRangeToggle";
+import { TimeRangeToggle } from "../components/TimeRangeToggle";
 import { type ChoroplethMetric, UsChoroplethMap } from "../components/UsChoroplethMap";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { STATE_NAMES, US_STATES, fmtNum } from "../lib/format";
+import { toRangeQuery, type TimeRange } from "../lib/timeRange";
 import { NO_COUNTS, UNSUPPORTED, isUnpublished } from "../lib/unavailable";
 
 const METRICS: { id: ChoroplethMetric; label: string }[] = [
