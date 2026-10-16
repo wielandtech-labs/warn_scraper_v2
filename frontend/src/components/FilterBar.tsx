@@ -50,23 +50,12 @@ export interface FilterBarProps {
   industries?: IndustryStat[];
   /** Window (in days) the page applies when no dates are set — that preset
    *  shows as active, and "All" writes `after=ALL_TIME` so it stays
-   *  distinguishable from the default. Resolve with `resolveAfter()`. */
+   *  distinguishable from the default. Resolve with `resolveAfter()` (lib/filters). */
   defaultDays?: number;
 }
 
 /** `after` value meaning "no cutoff" on pages with a `defaultDays` window. */
 export const ALL_TIME = "all";
-
-/** The `after` to send to the API for a page with a `defaultDays` window:
- *  the default cutoff when no dates are set, none for ALL_TIME. */
-export function resolveAfter(
-  values: Pick<FilterValues, "after" | "before">,
-  defaultDays: number,
-): string | undefined {
-  if (values.after === ALL_TIME) return undefined;
-  if (!values.after && !values.before) return daysAgoIso(defaultDays);
-  return values.after;
-}
 
 const PRESETS = [
   { label: "30d", days: 30 },
