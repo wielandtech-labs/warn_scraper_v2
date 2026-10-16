@@ -292,6 +292,7 @@ export function MapPage() {
             mode={mode}
             theme={resolved}
             initial={initial}
+            stateBubbles
             selected={selected}
             onViewChange={handleViewChange}
             onSelect={setSelected}
