@@ -507,6 +507,7 @@ def page_meta_for_path(path: str, db: Session | None = None) -> PageMeta:
         employer = None
         st = None
         affected = None
+        image = DEFAULT_IMAGE
         if db is not None:
             try:
                 from warn_v2.db.models import Notice
@@ -516,6 +517,7 @@ def page_meta_for_path(path: str, db: Session | None = None) -> PageMeta:
                     employer = notc.employer
                     st = notc.state
                     affected = notc.layoff_count
+                    image = f"/og/notices/{nid}.png"
             except Exception:
                 pass
         if employer and st:
@@ -537,6 +539,7 @@ def page_meta_for_path(path: str, db: Session | None = None) -> PageMeta:
             title,
             desc,
             f"/notices/{nid}",
+            image=image,
             json_ld=_breadcrumb_json_ld([
                 ("Home", "/"),
                 ("Notices", "/notices"),

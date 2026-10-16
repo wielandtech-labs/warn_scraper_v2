@@ -78,7 +78,7 @@ Reachable floor = floor after running every verified route (no FOIA).
 | NM | 114 | 2016–2026 | ✅ | ✉ | ✉ | 2016 | Sweep: 2016 PDF is the earliest list ever published (older pages are guides) |
 | NV | 621 | 2017–2026 | ✅ | ✉ | ✉ | 2017 | Sweep: detr.state.nv.us/nvdetr.org 2001–2016 have guides only — no list pre-2017; Jun–Dec 2025 gap also ✉ |
 | NY | 8,708 | 2006–2026 | ✅ | ✅ | ✉ | 2006 | Crosstab floor 2006; pre-2006 → FOIA backstop (draft exists) |
-| OH | 3,172 | 1996–2026 | ✅ | ✅ | ✅ | 1996 | Complete; gap-year re-run 2007–2024 pending; 2025 unaccounted |
+| OH | 3,172 | 1996–2026 | ✅ | ✅ | ✅ | 1996 | Complete; gap-year re-run 2007–2024 pending; 2025 year page found 2026-10-16 (87 notices) → backfill 2025 |
 | OK | 198 | 2001–2026 | ✅ | ✅ | ✉ | 2001 | Portal reaches 2001; pre-2001 → FOIA drafted |
 | OR | 866 | 1989–2026 | ✅ | ✅ | ✅ | **1989** ✅ | **done 2026-07-10** (+766, floor 2020→**1989-03**, ~100→866): Socrata + Wayback capture union — **no mid-2000s gap** (the sweep's "possible gap" worry was wrong); ~389 date-less 1990s rows dropped (dates only in scanned per-notice PDFs) → ✉; HECC-master-vs-Socrata dedup **done 2026-07-11** (w_homelab #719: 73 masters superseded by track-computed notice-id list, 866→793 non-superseded) |
 | PA | 3,715 | 1998–2026 | ✅ | ✅ | ✅ | 1998-07 ✅ | **done 2026-07-10** (+394, floor 2001→1998-07; the dry-run-throttled 1999 Oct+Nov healed on the real run); **Dec 2000 never captured — permanent gap** |

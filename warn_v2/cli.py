@@ -1753,6 +1753,41 @@ def send_alert_digest_cmd() -> None:
     )
 
 
+@main.command("post-alerts")
+@click.option("--dry-run", is_flag=True, help="Log the posts that would go out; write nothing.")
+@click.option("--min-layoffs", type=int, default=250, show_default=True)
+@click.option("--max-posts", type=int, default=5, show_default=True,
+              help="Cap per platform per run, so one big scrape can't flood a feed.")
+@click.option("--platform", "platforms", default="bluesky,discord,slack", show_default=True,
+              help="Comma-separated channels; unconfigured ones are skipped.")
+def post_alerts_cmd(dry_run: bool, min_layoffs: int, max_posts: int, platforms: str) -> None:
+    """Announce large new WARN notices on Bluesky and chat webhooks.
+
+    Each notice is posted at most once per platform (notice_social_posts).
+    """
+    from datetime import UTC, datetime
+
+    from warn_v2.db.session import session_scope
+    from warn_v2.social.run import PLATFORMS, run_alerts
+
+    chosen = [p.strip() for p in platforms.split(",") if p.strip()]
+    unknown = sorted(set(chosen) - set(PLATFORMS))
+    if unknown:
+        raise click.BadParameter(
+            f"unknown platform(s): {', '.join(unknown)}", param_hint="--platform"
+        )
+    with session_scope() as session:
+        summary = run_alerts(
+            session,
+            now=datetime.now(UTC),
+            platforms=chosen,
+            min_layoffs=min_layoffs,
+            max_posts=max_posts,
+            dry_run=dry_run,
+        )
+    click.echo(" ".join(f"{p}={n}" for p, n in summary.items()) + (" (dry run)" if dry_run else ""))
+
+
 @main.command("sentiment-report")
 @click.option(
     "--reports-dir",

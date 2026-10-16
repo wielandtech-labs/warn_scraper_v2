@@ -50,3 +50,9 @@ def normalize_closure_category(raw: str | None) -> str | None:
     if has_layoff and not has_clos:
         return LAYOFF
     return None
+
+
+def closure_label(category: str | None) -> str:
+    """Reader-facing name for a ``closure_category`` (share cards, social posts).
+    Uncategorized notices stay a neutral "WARN notice", never a guessed layoff."""
+    return {CLOSURE: "Closure", LAYOFF: "Mass layoff"}.get(category or "", "WARN notice")

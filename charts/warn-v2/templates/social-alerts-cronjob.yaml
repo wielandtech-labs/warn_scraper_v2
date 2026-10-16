@@ -1,0 +1,57 @@
+{{- if .Values.socialAlerts.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "warn-v2.fullname" . }}-social-alerts
+  labels:
+    {{- include "warn-v2.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.socialAlerts.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            {{- include "warn-v2.labels" . | nindent 12 }}
+            app.kubernetes.io/component: social-alerts
+        spec:
+          restartPolicy: Never
+          {{- include "warn-v2.podSecurityContext" . | nindent 10 }}
+          containers:
+            - name: social-alerts
+              {{- include "warn-v2.containerSecurityContext" . | nindent 14 }}
+              image: {{ include "warn-v2.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              args:
+                - post-alerts
+                - --min-layoffs
+                - {{ .Values.socialAlerts.minLayoffs | quote }}
+                - --max-posts
+                - {{ .Values.socialAlerts.maxPosts | quote }}
+                - --platform
+                - {{ .Values.socialAlerts.platforms | quote }}
+                {{- if .Values.socialAlerts.dryRun }}
+                - --dry-run
+                {{- end }}
+              env:
+                {{- include "warn-v2.envSecrets" . | nindent 16 }}
+                {{- /* Scoped to this job rather than envSecrets: only the
+                       poster talks to Bluesky and the webhooks. Every key is
+                       optional — post-alerts skips a channel whose credentials
+                       are missing, so the secret can carry just the channels
+                       in use. */}}
+                {{- range $env, $key := dict "BLUESKY_HANDLE" "bluesky-handle" "BLUESKY_APP_PASSWORD" "bluesky-app-password" "DISCORD_WEBHOOK_URL" "discord-webhook-url" "SLACK_WEBHOOK_URL" "slack-webhook-url" }}
+                - name: {{ $env }}
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $.Values.socialAlerts.secretName }}
+                      key: {{ $key }}
+                      optional: true
+                {{- end }}
+              resources:
+                {{- toYaml .Values.socialAlerts.resources | nindent 16 }}
+{{- end }}
