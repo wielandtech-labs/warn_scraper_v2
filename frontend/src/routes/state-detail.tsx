@@ -59,7 +59,7 @@ export function StateDetailPage() {
   const name = stateName(code);
 
   useDocumentTitle(
-    valid ? `${name} layoffs & WARN notices — WARN Index` : "Unknown state — WARN Index",
+    valid ? `${name} WARN Layoffs & Notices — WARN Index Tracker` : "Unknown state — WARN Index",
   );
 
   const [range, setRange] = useState<TimeRange>("5y");
@@ -179,17 +179,17 @@ export function StateDetailPage() {
           <StateSilhouette code={code} size={56} className="shrink-0 text-brand" />
           <div className="min-w-0">
             <p className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-brand">
-              WARN notices · {code}
+              State WARN Tracker · {code}
             </p>
             <h1 className="mt-1 text-3xl font-semibold leading-tight text-slate-900 dark:text-slate-50">
-              {name}
+              {name} Layoffs &amp; WARN Notices
             </h1>
             <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-400">
               {byState.data
                 ? noCounts
-                  ? `${fmtNum(noticeCount)} layoff and closure notices filed ${RANGE_PHRASE[range]}.`
-                  : `${fmtNum(layoffTotal)} workers affected across ${fmtNum(noticeCount)} notices filed ${RANGE_PHRASE[range]}.`
-                : "Layoff and closure notices filed under the WARN Act."}
+                  ? `Tracking ${fmtNum(noticeCount)} Worker Adjustment and Retraining Notification (WARN) filings in ${name} ${RANGE_PHRASE[range]}.`
+                  : `Tracking ${fmtNum(layoffTotal)} workers affected across ${fmtNum(noticeCount)} WARN layoff notices in ${name} ${RANGE_PHRASE[range]}.`
+                : `Worker Adjustment and Retraining Notification (WARN) Act layoff and plant-closure notices in ${name}.`}
             </p>
           </div>
         </div>

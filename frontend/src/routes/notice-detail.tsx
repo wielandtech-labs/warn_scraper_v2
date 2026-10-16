@@ -38,7 +38,9 @@ export function NoticeDetail() {
   const [showPdf, setShowPdf] = useState(false);
 
   useDocumentTitle(
-    query.data ? `${query.data.employer} — WARN notice — WARN Index` : undefined,
+    query.data
+      ? `${query.data.employer} (${query.data.state}) Layoffs & WARN Notice — WARN Index`
+      : undefined,
   );
 
   if (query.isLoading) {
