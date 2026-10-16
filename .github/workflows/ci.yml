@@ -12,6 +12,13 @@ concurrency:
 jobs:
   test:
     runs-on: homelab-warn-v2
+    # OpenMP/BLAS size their thread pools from the node's core count, not the
+    # runner pod's 2-CPU limit, so sklearn's HistGradientBoosting oversubscribes
+    # and the ML tests spend most of their time CFS-throttled.
+    env:
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v8.1.0
@@ -39,7 +46,7 @@ jobs:
             exit 1
           fi
       - name: Test
-        run: uv run python -m pytest -v
+        run: uv run python -m pytest -v --durations=15
 
   frontend:
     runs-on: homelab-warn-v2
