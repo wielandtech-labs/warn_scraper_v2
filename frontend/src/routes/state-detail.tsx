@@ -357,7 +357,7 @@ export function StateDetailPage() {
             />
           ) : report.data ? (
             <Collapsed label="Read the full outlook">
-              <ReportMarkdown markdown={report.data} skipH1 />
+              <ReportMarkdown markdown={report.data} skipH1 leadWithHeadline />
             </Collapsed>
           ) : null}
         </div>
