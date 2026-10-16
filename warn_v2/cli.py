@@ -1617,6 +1617,33 @@ def export_bigquery_cmd(project: str, dataset: str, snapshot: bool, dry_run: boo
     click.echo(f"loaded notices{' + snapshot' if snapshot else ''} to {project}.{dataset}")
 
 
+@main.command("export-public-mirror")
+@click.option("--out", "out_dir", type=click.Path(file_okay=False, path_type=Path),
+              default="dist", show_default=True)
+@click.option("--push", is_flag=True, help="Upload the folder to the Hugging Face dataset repo")
+@click.option("--repo", default="warn-index/us-warn-layoffs", show_default=True,
+              envvar="HF_DATASET_REPO")
+def export_public_mirror_cmd(out_dir: Path, push: bool, repo: str) -> None:
+    """Write the public dataset snapshot (parquet + csv.gz + dataset card).
+
+    Public columns only -- never provider-enriched fields. With --push,
+    uploads to Hugging Face using HF_TOKEN; exits non-zero on failure so the
+    k8s Job surfaces as Failed.
+    """
+    from warn_v2.db.session import session_scope
+    from warn_v2.scripts.export_public_mirror import push_mirror, write_mirror
+
+    with session_scope() as session:
+        df = write_mirror(session, out_dir)
+    click.echo(f"wrote {len(df)} notices to {out_dir}")
+    if push:
+        token = os.environ.get("HF_TOKEN")
+        if not token:
+            raise click.UsageError("--push needs HF_TOKEN")
+        push_mirror(out_dir, repo, token)
+        click.echo(f"pushed to https://huggingface.co/datasets/{repo}")
+
+
 @main.command("issue-key")
 @click.option("--email", required=True)
 @click.option("--name", default=None, help="Label shown in key listings")

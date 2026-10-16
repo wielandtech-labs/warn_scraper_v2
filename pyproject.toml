@@ -36,6 +36,8 @@ dependencies = [
     "scikit-learn>=1.5",
     "pillow>=12",
     "rapidfuzz>=3.9",
+    "pyarrow>=17",
+    "huggingface-hub>=0.25",
 ]
 
 [project.optional-dependencies]

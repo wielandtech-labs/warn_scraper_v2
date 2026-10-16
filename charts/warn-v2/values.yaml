@@ -309,6 +309,19 @@ bqExport:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 500m, memory: 512Mi }
 
+# Weekly public dataset snapshot on Hugging Face (warn-v2 export-public-mirror
+# --push): public columns only, never provider-enriched fields. HF_TOKEN (a
+# write token for the dataset's org) comes from the warn-v2-hf SealedSecret.
+publicMirror:
+  enabled: false          # flip on in HelmRelease once warn-v2-hf exists
+  schedule: "37 11 * * 1" # Monday, after the daily pipeline has settled
+  repo: warn-index/us-warn-layoffs
+  secretName: warn-v2-hf
+  secretKey: token
+  resources:
+    requests: { cpu: 100m, memory: 512Mi }
+    limits:   { cpu: 1000m, memory: 1536Mi }
+
 # Self-serve accounts (POST /api/auth/signup + password reset). The endpoints
 # ship dark and 503 until this is on. Requires smtp.enabled (verification and
 # reset emails).

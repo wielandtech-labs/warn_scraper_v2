@@ -26,7 +26,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session, aliased
 
 from warn_v2.api.deps import get_current_user, get_db
@@ -40,7 +40,7 @@ FREE_EXPORT_CAP = 1_000
 PAID_EXPORT_CAP = 200_000  # generous ceiling, comfortably above the full dataset
 _YIELD_PER = 1_000  # rows fetched per server-side cursor batch
 
-_NOTICE_PUBLIC_COLS = [
+NOTICE_PUBLIC_COLS = [
     "notice_id", "state", "employer", "notice_date", "effective_date",
     "layoff_count", "closure_category", "company_name", "naics_code", "naics_desc",
     "city", "county", "zip", "lat", "lon", "source_url", "raw_notice_url",
@@ -141,9 +141,33 @@ def export_notices(
     access: ExportAccess = Depends(),
     db: Session = Depends(get_db),
 ) -> StreamingResponse:
-    # Column tuples only — every column any tier can see is selected (unemitted
-    # ones never leave the process), so one statement serves all tiers.
-    stmt = (
+    stmt = apply_notice_filters(
+        notice_export_stmt(),
+        state=state, employer=employer, closure_category=closure_category,
+        industry=industry, subsector=subsector, min_layoffs=min_layoffs,
+        after=after, before=before, geocoded_only=geocoded_only,
+        location_joined=True, company_joined=True,
+    )
+    columns = list(NOTICE_PUBLIC_COLS)
+    if access.enriched:
+        columns += _NOTICE_ENRICHED_COLS
+    if access.enterprise:
+        columns += _NOTICE_ENTERPRISE_COLS
+    return _respond(
+        format, columns, _stream_rows(db, stmt.limit(access.cap)), "warn-notices"
+    )
+
+
+def notice_export_stmt() -> Select:
+    """Non-superseded notices joined to company + location, newest first.
+
+    Column tuples only — every column any tier can see is selected (unemitted
+    ones never leave the process), so one statement serves all tiers. Also the
+    source of the public dataset mirror (warn_v2.scripts.export_public_mirror),
+    which emits NOTICE_PUBLIC_COLS only, so the free export and the mirror
+    can't drift apart.
+    """
+    return (
         select(
             Notice.notice_id, Notice.state, Notice.employer, Notice.notice_date,
             Notice.effective_date, Notice.layoff_count, Notice.closure_category,
@@ -158,21 +182,6 @@ def export_notices(
         .outerjoin(Location, Location.id == Notice.location_id)
         .where(Notice.is_superseded.is_(False))
         .order_by(Notice.notice_date.desc().nullslast(), Notice.scraped_at.desc())
-    )
-    stmt = apply_notice_filters(
-        stmt,
-        state=state, employer=employer, closure_category=closure_category,
-        industry=industry, subsector=subsector, min_layoffs=min_layoffs,
-        after=after, before=before, geocoded_only=geocoded_only,
-        location_joined=True, company_joined=True,
-    )
-    columns = list(_NOTICE_PUBLIC_COLS)
-    if access.enriched:
-        columns += _NOTICE_ENRICHED_COLS
-    if access.enterprise:
-        columns += _NOTICE_ENTERPRISE_COLS
-    return _respond(
-        format, columns, _stream_rows(db, stmt.limit(access.cap)), "warn-notices"
     )
 
 
