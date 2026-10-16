@@ -19,6 +19,7 @@ from warn_v2.api.routes import (
     auth,
     billing,
     companies,
+    embed,
     exports,
     keys,
     logos,
@@ -131,6 +132,7 @@ def create_app(static_dir: Path | None = None) -> FastAPI:
     # --- SEO + feeds (site root, not /api): sitemap.xml, robots.txt, RSS ---
     app.include_router(seo.router)
     app.include_router(og.router)  # /og/*.png share cards
+    app.include_router(embed.router)  # /embed/* iframe card + badge for other sites
 
     # --- SPA static assets (mounted LAST so API routes take precedence) ---
     # In dev (no built bundle) the directory won't exist; skip silently.
