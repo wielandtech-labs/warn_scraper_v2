@@ -1,4 +1,4 @@
-import { type ReactNode, useRef, useState } from "react";
+import { type ReactNode, useId, useRef, useState } from "react";
 
 import { useNavigate } from "@tanstack/react-router";
 
@@ -18,6 +18,14 @@ interface UsMapProps {
   srLabel: string;
   /** false when the map already sits inside a card (no nested card frame). */
   framed?: boolean;
+  /** States drawn with a diagonal hatch over their fill — e.g. "no data
+   *  published", so it doesn't read as a measured zero. */
+  hatched?: string[];
+  /** A state to outline as if hovered, driven from outside the map (a
+   *  linked list row). The map's own hover wins while the pointer is on it. */
+  highlight?: string | null;
+  /** Called when the state under the pointer changes (null on leave). */
+  onHover?: (code: string | null) => void;
 }
 
 /** Clickable US map shaded per state; clicking a state navigates to its page.
@@ -25,12 +33,31 @@ interface UsMapProps {
  *  also renders a complete accessible equivalent (the same 51 jurisdictions
  *  as real links with the same data), so 51 SVG tab stops would add nothing —
  *  callers describe that equivalent in `srLabel`. */
-export function UsMap({ fills, tooltip, legend, srLabel, framed = true }: UsMapProps) {
+export function UsMap({
+  fills,
+  tooltip,
+  legend,
+  srLabel,
+  framed = true,
+  hatched = [],
+  highlight,
+  onHover,
+}: UsMapProps) {
   const navigate = useNavigate();
   const { resolved } = useTheme();
   const colors = US_MAP[resolved];
   const containerRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<{ code: string; x: number; y: number } | null>(null);
+  // Last code reported to onHover, so it fires on change, not every mousemove.
+  const reported = useRef<string | null>(null);
+  // useId's colons aren't safe inside a url(#…) reference.
+  const hatchId = useId().replace(/:/g, "");
+
+  function report(code: string | null) {
+    if (reported.current === code) return;
+    reported.current = code;
+    onHover?.(code);
+  }
 
   function go(code: string) {
     navigate({ to: "/states/$state", params: { state: code } });
@@ -47,12 +74,15 @@ export function UsMap({ fills, tooltip, legend, srLabel, framed = true }: UsMapP
     const rect = containerRef.current?.getBoundingClientRect();
     if (!code || !rect) {
       setHover(null);
+      report(null);
       return;
     }
     setHover({ code, x: e.clientX - rect.left, y: e.clientY - rect.top });
+    report(code);
   }
 
   const tooltipContent = hover ? tooltip(hover.code) : null;
+  const outlined = hover?.code ?? highlight;
   const flip =
     hover && containerRef.current
       ? hover.x > containerRef.current.clientWidth * 0.7
@@ -67,8 +97,24 @@ export function UsMap({ fills, tooltip, legend, srLabel, framed = true }: UsMapP
         aria-hidden="true"
         focusable="false"
         onMouseMove={handleMove}
-        onMouseLeave={() => setHover(null)}
+        onMouseLeave={() => {
+          setHover(null);
+          report(null);
+        }}
       >
+        {hatched.length > 0 && (
+          <defs>
+            <pattern
+              id={hatchId}
+              width={6}
+              height={6}
+              patternUnits="userSpaceOnUse"
+              patternTransform="rotate(45)"
+            >
+              <line x1={0} y1={0} x2={0} y2={6} stroke={colors.connector} strokeWidth={1.5} />
+            </pattern>
+          </defs>
+        )}
         {Object.entries(US_STATE_PATHS).map(([code, d]) => (
           <path
             key={code}
@@ -82,6 +128,16 @@ export function UsMap({ fills, tooltip, legend, srLabel, framed = true }: UsMapP
             onClick={() => go(code)}
           />
         ))}
+        {hatched.map((code) =>
+          US_STATE_PATHS[code] ? (
+            <path
+              key={`hatch-${code}`}
+              d={US_STATE_PATHS[code]}
+              fill={`url(#${hatchId})`}
+              className="pointer-events-none"
+            />
+          ) : null,
+        )}
         {/* DC is too small to hit on a geographic map — callout square. */}
         <g className="cursor-pointer" onClick={() => go("DC")}>
           <line
@@ -100,7 +156,7 @@ export function UsMap({ fills, tooltip, legend, srLabel, framed = true }: UsMapP
             height={20}
             rx={3}
             fill={fills.DC ?? colors.noData}
-            stroke={colors.connector}
+            stroke={outlined === "DC" ? colors.hoverStroke : colors.connector}
             data-code="DC"
           />
           <text
@@ -113,10 +169,11 @@ export function UsMap({ fills, tooltip, legend, srLabel, framed = true }: UsMapP
             DC
           </text>
         </g>
-        {/* Re-stroke the hovered state on top so neighbors don't overpaint it. */}
-        {hover && (
+        {/* Re-stroke the hovered (or linked) state on top so neighbors don't
+            overpaint it. */}
+        {outlined && (
           <path
-            d={US_STATE_PATHS[hover.code]}
+            d={US_STATE_PATHS[outlined]}
             fill="none"
             stroke={colors.hoverStroke}
             strokeWidth={1.5}

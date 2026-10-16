@@ -276,28 +276,8 @@ export function NoticesPage() {
           ) : undefined
         }
       />
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <ActiveFilters
-          values={search}
-          industries={industriesQuery.data}
-          onChange={(v) => handleFilterChange(v)}
-        />
-        <ExportButtons
-          basePath="/api/notices/export"
-          params={{
-            state: search.state,
-            employer: search.employer,
-            closure_category: search.closure_category,
-            industry: search.industry,
-            subsector: search.subsector,
-            min_layoffs: search.min_layoffs,
-            after: search.after,
-            before: search.before,
-          }}
-        />
-      </div>
       {/* On phones the full filter form would fill the first screen before
-          a single result; it sits behind a toggle there (chips above still
+          a single result; it sits behind a toggle there (chips below still
           show what is applied). Always shown from sm up. */}
       <button
         type="button"
@@ -315,27 +295,50 @@ export function NoticesPage() {
         />
       </div>
 
-      <div>
-        {alerting ? (
-          // Seeded from the filters on screen, so the alert matches the list
-          // the reader is looking at (dates excluded — an alert is forward-looking).
-          <AlertSignup
-            initialFilters={{
+      {/* What the list is narrowed to, and what to do with it, on one row. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ActiveFilters
+          values={search}
+          industries={industriesQuery.data}
+          onChange={(v) => handleFilterChange(v)}
+        />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          {!alerting && (
+            <button type="button" className="btn-secondary" onClick={() => setAlerting(true)}>
+              Alert me about these results
+            </button>
+          )}
+          <ExportButtons
+            basePath="/api/notices/export"
+            params={{
               state: search.state,
+              employer: search.employer,
+              closure_category: search.closure_category,
               industry: search.industry,
               subsector: search.subsector,
-              employer_query: search.employer,
-              closure_category: search.closure_category,
               min_layoffs: search.min_layoffs,
+              after: search.after,
+              before: search.before,
             }}
-            defaultOpen
           />
-        ) : (
-          <button type="button" className="btn-secondary" onClick={() => setAlerting(true)}>
-            Alert me about these results
-          </button>
-        )}
+        </div>
       </div>
+
+      {alerting && (
+        // Seeded from the filters on screen, so the alert matches the list
+        // the reader is looking at (dates excluded — an alert is forward-looking).
+        <AlertSignup
+          initialFilters={{
+            state: search.state,
+            industry: search.industry,
+            subsector: search.subsector,
+            employer_query: search.employer,
+            closure_category: search.closure_category,
+            min_layoffs: search.min_layoffs,
+          }}
+          defaultOpen
+        />
+      )}
 
       {query.isLoading && <SkeletonTable rows={10} />}
       {query.isError && (

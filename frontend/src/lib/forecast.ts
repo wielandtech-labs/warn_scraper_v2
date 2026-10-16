@@ -7,7 +7,7 @@
 // forecast is active it supersedes the pace projection: callers should skip
 // withProjectionSeries and render this instead.
 import { fmtMonth } from "./format";
-import type { Bucket } from "../components/TimeRangeToggle";
+import type { Bucket } from "./timeRange";
 import type { ForecastOut } from "../api/types";
 
 interface SeriesRow {

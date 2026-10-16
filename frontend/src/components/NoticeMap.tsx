@@ -57,12 +57,12 @@ export function NoticeMap({
 
   const points = query.data ?? [];
 
-  // Memoized on `points` (referentially stable between refetches) so parent
+  // Memoized on `query.data` (referentially stable between refetches) so parent
   // re-renders don't re-reconcile thousands of <Marker> elements. Must be
   // called before the early returns below (rules of hooks).
   const markers = useMemo(
     () =>
-      points.map((n) => (
+      (query.data ?? []).map((n) => (
         <Marker key={n.notice_id} position={[Number(n.lat), Number(n.lon)]}>
           <Popup>
             <div className="text-sm">
@@ -82,7 +82,7 @@ export function NoticeMap({
           </Popup>
         </Marker>
       )),
-    [points],
+    [query.data],
   );
 
   if (query.isLoading) {
