@@ -14,6 +14,9 @@ from warn_v2.ml import backtest
 from warn_v2.ml.backtest import bootstrap_ci, ece, fold_split, run_backtest
 from warn_v2.ml.events import HORIZON_DAYS, build_events
 
+# Trains models on a synthetic population: tens of seconds each in CI.
+pytestmark = pytest.mark.slow
+
 AS_OF = date(2023, 6, 1)
 
 

@@ -80,6 +80,12 @@ Run with: `.venv\Scripts\python.exe -m pytest` from the main checkout root
 (`uv` is on PATH too; `uv sync` refreshes the venv). All 1900+ tests should
 pass with 0 failures before opening a PR.
 
+Tests marked `slow` (the ML model-training tests) take ~2/3 of the runtime.
+For a quick loop use `-m "not slow" -n 4` (pytest-xdist); run the full suite
+before a PR. CI runs the two halves as parallel jobs, `test` and `test-slow`.
+Both count: there is no branch protection, so a red `test-slow` won't block a
+merge on its own. Mark a new test `slow` if it takes more than ~1s locally.
+
 From a git worktree (which has no `.venv` of its own): run
 `C:\Users\rapha\workspace\warn_scraper_v2\.venv\Scripts\python.exe -m pytest`
 with the worktree as cwd — `-m` puts the cwd first on `sys.path`, so the
