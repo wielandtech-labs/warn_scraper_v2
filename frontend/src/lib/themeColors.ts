@@ -97,18 +97,22 @@ export const US_MAP: Record<ResolvedTheme, UsMapColors> = {
   },
 };
 
-interface ChoroplethColors {
-  /* Zero bucket + four quartile buckets. On dark backgrounds lighter =
-     more salient, so the ramp direction inverts: severity brightens. */
-  buckets: [string, string, string, string, string];
-}
+/* Zero bucket + four quartile buckets. On dark backgrounds lighter = more
+   salient, so the ramp direction inverts: severity brightens. */
+type ChoroplethRamp = [string, string, string, string, string];
 
-export const CHOROPLETH: Record<ResolvedTheme, ChoroplethColors> = {
+/* One sequential ramp per metric, in the entity colors the charts use:
+   workers red, notices blue. Checked with the dataviz ordinal validator
+   (monotone lightness, single hue, light end >= 2:1 on the card surface)
+   in both themes. */
+export const CHOROPLETH: Record<ResolvedTheme, Record<"workers" | "notices", ChoroplethRamp>> = {
   light: {
-    buckets: ["#f0efec", "#b7d3f6", "#6da7ec", "#2a78d6", "#104281"],
+    workers: ["#f0efec", "#ee9a8f", "#e0584c", "#b8241b", "#7a150f"],
+    notices: ["#f0efec", "#88b6ef", "#4f92e6", "#1c5cab", "#0d366b"],
   },
   dark: {
-    buckets: ["#2c2c2a", "#184f95", "#256abf", "#5598e7", "#9ec5f4"],
+    workers: ["#2c2c2a", "#8f2a22", "#bd3329", "#e5574c", "#f7a59c"],
+    notices: ["#2c2c2a", "#184f95", "#256abf", "#5598e7", "#9ec5f4"],
   },
 };
 
