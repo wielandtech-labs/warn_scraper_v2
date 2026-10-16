@@ -213,6 +213,68 @@ def render_state_card(
     return _finish(img)
 
 
+def _fit_lines(
+    draw: ImageDraw.ImageDraw, text: str, width: float, sizes: range, max_lines: int
+) -> tuple[list[str], int]:
+    """Word-wrap `text` into at most `max_lines` lines no wider than `width`,
+    trying font sizes largest first; the last resort truncates with an ellipsis."""
+    words = text.split()
+    for size in sizes:
+        font = _font(size)
+        lines: list[str] = []
+        for word in words:
+            if lines and draw.textlength(f"{lines[-1]} {word}", font=font) <= width:
+                lines[-1] = f"{lines[-1]} {word}"
+            else:
+                lines.append(word)
+        if len(lines) <= max_lines and all(draw.textlength(ln, font=font) <= width for ln in lines):
+            return lines, size
+    size = sizes[-1]
+    font = _font(size)
+    lines = lines[:max_lines]
+    last = lines[-1]
+    while last and draw.textlength(f"{last}…", font=font) > width:
+        last = last[:-1]
+    lines[-1] = f"{last.rstrip()}…"
+    return lines, size
+
+
+def render_notice_card(
+    employer: str,
+    code: str,
+    place: str,
+    workers: int | None,
+    action: str,
+    dates: str,
+) -> bytes:
+    """1200x630 PNG for one WARN notice. `place` is "City, ST" (or just the
+    state name), `action` the closure label ("Mass layoff", "Closure"),
+    `dates` a preformatted line ("Filed Oct 14, 2026 · Effective Dec 13, 2026").
+    `workers` None = the filing gives no count (a dash, never a zero)."""
+    img, draw = _canvas()
+    if code == "DC":
+        square = (900 * SS, 200 * SS, 1080 * SS, 380 * SS)
+        draw.rounded_rectangle(square, radius=24 * SS, fill=SHAPE)
+    elif code in state_paths():
+        _silhouette(draw, code, (800 * SS, 110 * SS, 1140 * SS, 420 * SS))
+    kicker = f"WARN NOTICE · {place.upper()}"
+    draw.text((64 * SS, 150 * SS), kicker, font=_font(22, 500), fill=MUTED)
+    lines, size = _fit_lines(draw, employer, 760 * SS, range(68, 39, -4), 2)
+    y = 186
+    for line in lines:
+        draw.text((64 * SS, y * SS), line, font=_font(size), fill=INK)
+        y += round(size * 1.15)
+    figure = "—" if workers is None else _fmt(workers)  # em dash, never a fake zero
+    fy = max(y + 24, 340)
+    draw.text((64 * SS, fy * SS), figure, font=_font(96, 650), fill=BRAND)
+    fw = draw.textlength(figure, font=_font(96, 650))
+    label = "workers affected" if workers is not None else "count not published"
+    draw.text((64 * SS + fw + 24 * SS, (fy + 46) * SS), label, font=_font(30, 450), fill=MUTED)
+    draw.line((64 * SS, 524 * SS, 1136 * SS, 524 * SS), fill=HAIRLINE, width=2 * SS)
+    draw.text((64 * SS, 548 * SS), f"{action} · {dates}", font=_font(24, 450), fill=MUTED)
+    return _finish(img)
+
+
 def render_default_card() -> bytes:
     """The site-wide card (frontend/public/og-image.png)."""
     img, draw = _canvas()

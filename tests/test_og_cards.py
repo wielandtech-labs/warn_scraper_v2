@@ -77,10 +77,12 @@ def api_client(db):
 
     app.dependency_overrides[get_db] = _override
     og_route._cache.clear()
+    og_route._notice_cache.clear()
     client = TestClient(app, raise_server_exceptions=True)
     yield client
     app.dependency_overrides.clear()
     og_route._cache.clear()
+    og_route._notice_cache.clear()
 
 
 def _notice(nid: str, state: str, d: date, count: int | None) -> Notice:
@@ -151,7 +153,57 @@ def test_unknown_state_404(api_client):
     assert api_client.get("/og/states/ZZ.png").status_code == 404
 
 
+def test_notice_card_renders_long_names_and_missing_counts():
+    long = "Northrop Grumman Systems Corporation Mission Systems Sector " * 4
+    for code in ("WA", "DC"):
+        img = _png(og_cards.render_notice_card(long, code, "Seattle, WA", None, "Closure", "Filed"))
+        assert img.size == (1200, 630)
+
+
+def test_fit_lines_truncates_with_ellipsis():
+    _img, draw = og_cards._canvas()
+    lines, _size = og_cards._fit_lines(draw, "word " * 200, 400, range(40, 39, -4), 2)
+    assert len(lines) == 2 and lines[-1].endswith("…")
+
+
+def test_notice_card_route(api_client, db, monkeypatch):
+    calls = []
+    monkeypatch.setattr(og_cards, "render_notice_card", lambda **kw: calls.append(kw) or b"png")
+    n = _notice("N-1", "TX", date(2026, 10, 1), 400)
+    n.closure_category = "Layoff"
+    db.add(n)
+    db.commit()
+
+    r = api_client.get("/og/notices/N-1.png")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png"
+    assert calls[0]["workers"] == 400
+    assert calls[0]["place"] == "Texas"  # no location: falls back to the state name
+    assert calls[0]["action"] == "Mass layoff"
+    assert calls[0]["dates"] == "Filed Oct 1, 2026"
+    api_client.get("/og/notices/N-1.png")
+    assert len(calls) == 1  # cached
+    assert api_client.get("/og/notices/nope.png").status_code == 404
+
+
+def test_notice_card_cache_is_bounded(api_client, db, monkeypatch):
+    monkeypatch.setattr(og_cards, "render_notice_card", lambda **kw: b"png")
+    monkeypatch.setattr(og_route, "NOTICE_CACHE_MAX", 2)
+    db.add_all([_notice(f"N-{i}", "TX", date(2026, 1, 1), 1) for i in range(3)])
+    db.commit()
+    for i in range(3):
+        api_client.get(f"/og/notices/N-{i}.png")
+    assert list(og_route._notice_cache) == ["N-1", "N-2"]
+
+
 # ----- SEO wiring -----
+
+def test_notice_pages_point_og_image_at_their_card(db):
+    db.add(_notice("N-9", "TX", date(2026, 1, 1), 1))
+    db.commit()
+    assert page_meta_for_path("/notices/N-9", db).image == "/og/notices/N-9.png"
+    # Unknown notice: the site card, not a link to a 404 image.
+    assert page_meta_for_path("/notices/missing", db).image == "/og-image.png"
+
 
 def test_state_pages_point_og_image_at_their_card():
     meta = page_meta_for_path("/states/tx")
