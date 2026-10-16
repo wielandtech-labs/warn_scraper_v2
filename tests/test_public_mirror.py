@@ -74,6 +74,16 @@ def test_write_mirror_files_and_card(db, tmp_path):
     assert "employee_count" not in card
 
 
+def test_out_of_range_source_dates_do_not_break_the_export(db, tmp_path):
+    # A source typo far outside pandas' nanosecond range must not fail the run.
+    db.add(Notice(notice_id="typo", state="TX", employer="X", notice_date=date(2026, 1, 2),
+                  effective_date=date(3026, 1, 2), source_url="https://example.com"))
+    db.commit()
+    mirror.write_mirror(db, tmp_path, now=NOW)
+    parquet = pd.read_parquet(tmp_path / mirror.PARQUET)
+    assert parquet.loc[0, "effective_date"] == date(3026, 1, 2)
+
+
 def test_empty_database_still_writes(db, tmp_path):
     df = mirror.write_mirror(db, tmp_path, now=NOW)
     assert df.empty and (tmp_path / mirror.CARD).exists()

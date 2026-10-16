@@ -32,17 +32,17 @@ CARD = "README.md"
 
 def fetch_frame(db: Session) -> pd.DataFrame:
     base = site_base_url()
-    rows = [
-        {c: r._mapping[c] for c in NOTICE_PUBLIC_COLS}
-        for r in db.execute(notice_export_stmt().execution_options(yield_per=1_000))
-    ]
-    df = pd.DataFrame(rows, columns=NOTICE_PUBLIC_COLS)
+    rows = db.execute(notice_export_stmt().execution_options(yield_per=1_000))
+    df = pd.DataFrame.from_records(
+        (tuple(r._mapping[c] for c in NOTICE_PUBLIC_COLS) for r in rows),
+        columns=NOTICE_PUBLIC_COLS,
+    )
     df["detail_url"] = base + "/notices/" + df["notice_id"]
     for col in ("lat", "lon"):
         df[col] = pd.to_numeric(df[col]).astype("float64")
     df["layoff_count"] = df["layoff_count"].astype("Int64")
-    for col in ("notice_date", "effective_date"):
-        df[col] = pd.to_datetime(df[col]).dt.date
+    # Dates stay datetime.date objects (pyarrow writes them as date32): going
+    # through pd.to_datetime would raise on any source typo outside 1677-2262.
     return df[COLUMNS]
 
 
