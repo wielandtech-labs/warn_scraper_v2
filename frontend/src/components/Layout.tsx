@@ -204,11 +204,13 @@ export function Layout({ children }: { children: ReactNode }) {
             <span aria-hidden>·</span>
             <Link className="hover:underline" to="/warn-act">What is the WARN Act?</Link>
             <span aria-hidden>·</span>
+            <Link className="hover:underline" to="/mini-warn-laws">State Mini-WARN Laws</Link>
+            <span aria-hidden>·</span>
             <Link className="hover:underline" to="/methodology">Methodology</Link>
             <span aria-hidden>·</span>
             <Link className="hover:underline" to="/faq">FAQ</Link>
             <span aria-hidden>·</span>
-            <Link className="hover:underline" to="/cited-by">Cited by</Link>
+            <Link className="hover:underline" to="/cited-by">Press &amp; Cited By</Link>
             <span aria-hidden>·</span>
             <Link className="hover:underline" to="/states">Browse states</Link>
             <span aria-hidden>·</span>

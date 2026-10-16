@@ -19,6 +19,7 @@ import { ReportsPage } from "./routes/reports";
 import { StatusPage } from "./routes/status";
 import { AboutPage } from "./routes/content/about";
 import { WarnActPage } from "./routes/content/warn-act";
+import { MiniWarnLawsPage } from "./routes/content/mini-warn-laws";
 import { MethodologyPage } from "./routes/content/methodology";
 import { FaqPage } from "./routes/content/faq";
 import { CitedByPage } from "./routes/content/cited-by";
@@ -302,6 +303,11 @@ const warnActRoute = createRoute({
   path: "/warn-act",
   component: WarnActPage,
 });
+const miniWarnLawsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/mini-warn-laws",
+  component: MiniWarnLawsPage,
+});
 const methodologyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/methodology",
@@ -387,6 +393,7 @@ const routeTree = rootRoute.addChildren([
   statusRoute,
   aboutRoute,
   warnActRoute,
+  miniWarnLawsRoute,
   methodologyRoute,
   faqRoute,
   citedByRoute,

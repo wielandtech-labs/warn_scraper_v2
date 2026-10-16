@@ -70,6 +70,12 @@ _CONTENT_PAGES: dict[str, tuple[str, str]] = {
         "Notification (WARN) Act: covered employers, 60-day notice requirements, "
         "and state mini-WARN laws.",
     ),
+    "/mini-warn-laws": (
+        "State Mini-WARN Act Guide — California, New York, New Jersey — WARN Index",
+        "A comprehensive guide to state mini-WARN layoff laws: California Cal-WARN, "
+        "New York 90-day rules, New Jersey mandatory severance pay, Illinois, and "
+        "state-by-state statutory thresholds.",
+    ),
     "/methodology": (
         "Methodology & Data Sources — WARN Layoff Database — WARN Index",
         "How the WARN Index layoff database scrapes 50+ state labor agencies, "
@@ -82,9 +88,9 @@ _CONTENT_PAGES: dict[str, tuple[str, str]] = {
         "layoff database.",
     ),
     "/cited-by": (
-        "Cited By — WARN Index Layoff Data in the News",
-        "Newsrooms, researchers, and analysts that rely on WARN Index's "
-        "layoff database and WARN notices in their reporting.",
+        "Press Kit & Citation Guide — Layoff Data for Journalists — WARN Index",
+        "Citation formats (BibTeX, APA, MLA), newsroom fast facts, and bulk dataset "
+        "access for journalists and economic researchers citing WARN Index.",
     ),
     "/api-docs": (
         "WARN Dataset & API — Layoff Database Access — WARN Index",
@@ -254,6 +260,72 @@ def _faq_json_ld(is_warn_act: bool = False) -> dict[str, Any]:
     }
 
 
+def _mini_warn_faq_json_ld() -> dict[str, Any]:
+    questions = [
+        (
+            "Does a state mini-WARN law replace the federal WARN Act?",
+            "No. State mini-WARN laws operate concurrently with federal law. When an employer "
+            "is subject to both federal and state statutes, the employer must comply with "
+            "whichever law provides greater protection to workers.",
+        ),
+        (
+            "Which states require 90 days advance notice instead of 60 days?",
+            "New York, New Jersey, and Maine require 90 calendar days of advance notice "
+            "before a covered plant closure or mass layoff takes effect, compared to the "
+            "60-day federal baseline.",
+        ),
+        (
+            "Which states require mandatory severance pay for laid-off workers?",
+            "New Jersey mandates one week of severance pay per full year of employment, "
+            "plus a 4-week penalty for notice failures. Maine mandates one week of severance "
+            "pay per year of service for workers affected by covered facility closures "
+            "or relocations.",
+        ),
+        (
+            "How does California Cal-WARN differ from the federal WARN Act?",
+            "California Cal-WARN applies to employers with 75+ employees (including part-time) "
+            "and triggers upon a layoff of 50+ workers within 30 days without needing to "
+            "satisfy the federal 33% workforce threshold.",
+        ),
+    ]
+    return {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": q,
+                "acceptedAnswer": {"@type": "Answer", "text": a},
+            }
+            for q, a in questions
+        ],
+    }
+
+
+def _mini_warn_article_json_ld() -> dict[str, Any]:
+    base = site_base_url()
+    return {
+        "@context": "https://schema.org",
+        "@type": "TechArticle",
+        "headline": "State Mini-WARN Act Laws: Complete 50-State Guide & Comparison",
+        "description": (
+            "A comprehensive guide comparing federal WARN Act requirements against state "
+            "mini-WARN statutes in California, New York, New Jersey, Illinois, and more."
+        ),
+        "url": f"{base}/mini-warn-laws",
+        "author": {
+            "@type": "Organization",
+            "name": "WARN Index",
+            "url": base,
+        },
+        "publisher": {
+            "@type": "Organization",
+            "name": "WARN Index",
+            "url": base,
+        },
+    }
+
+
 def _breadcrumb_json_ld(crumbs: list[tuple[str, str]]) -> dict[str, Any]:
     base = site_base_url()
     return {
@@ -346,6 +418,35 @@ def page_meta_for_path(path: str, db: Session | None = None) -> PageMeta:
             json_ld=[
                 _faq_json_ld(is_warn_act=True),
                 _breadcrumb_json_ld([("Home", "/"), ("What is the WARN Act?", "/warn-act")]),
+            ],
+        )
+
+    if path == "/mini-warn-laws":
+        content = _CONTENT_PAGES["/mini-warn-laws"]
+        return PageMeta(
+            content[0],
+            content[1],
+            "/mini-warn-laws",
+            json_ld=[
+                _mini_warn_article_json_ld(),
+                _mini_warn_faq_json_ld(),
+                _breadcrumb_json_ld([
+                    ("Home", "/"),
+                    ("What is the WARN Act?", "/warn-act"),
+                    ("State Mini-WARN Laws", "/mini-warn-laws"),
+                ]),
+            ],
+        )
+
+    if path == "/cited-by":
+        content = _CONTENT_PAGES["/cited-by"]
+        return PageMeta(
+            content[0],
+            content[1],
+            "/cited-by",
+            json_ld=[
+                _dataset_json_ld(),
+                _breadcrumb_json_ld([("Home", "/"), ("Press Kit & Citation Guide", "/cited-by")]),
             ],
         )
 

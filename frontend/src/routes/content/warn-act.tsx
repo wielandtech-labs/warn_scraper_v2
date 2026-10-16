@@ -34,6 +34,16 @@ export function WarnActPage() {
         Browse our <a href="/states">state WARN tracker</a> to see what each state
         publishes.
       </p>
+      <div className="rounded-xl border border-sky-200 bg-sky-50/60 p-4 text-sm text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-200">
+        <p className="font-semibold">Explore the 50-State Mini-WARN Law Guide</p>
+        <p className="mt-1 leading-relaxed">
+          Need state-specific statutory thresholds, 90-day notice requirements, or New Jersey&apos;s
+          mandatory severance pay rules? Compare federal vs. state statutes in our in-depth{" "}
+          <a href="/mini-warn-laws" className="font-semibold underline">
+            State Mini-WARN Laws Comparison Guide &rarr;
+          </a>
+        </p>
+      </div>
 
       <h2>What a WARN notice tells you</h2>
       <ul>

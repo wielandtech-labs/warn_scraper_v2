@@ -272,6 +272,25 @@ def test_meta_json_ld_schemas():
     warn_act = page_meta_for_path("/warn-act")
     assert warn_act.json_ld is not None
 
+    # Mini-WARN laws has TechArticle, FAQPage, and BreadcrumbList
+    mini_warn = page_meta_for_path("/mini-warn-laws")
+    assert mini_warn.json_ld is not None
+    assert isinstance(mini_warn.json_ld, list)
+    mini_types = {item["@type"] for item in mini_warn.json_ld}
+    assert "TechArticle" in mini_types
+    assert "FAQPage" in mini_types
+    assert "BreadcrumbList" in mini_types
+    assert "California" in mini_warn.title or "Mini-WARN" in mini_warn.title
+
+    # Cited by has Dataset schema and BreadcrumbList
+    cited_by = page_meta_for_path("/cited-by")
+    assert cited_by.json_ld is not None
+    assert isinstance(cited_by.json_ld, list)
+    cited_types = {item["@type"] for item in cited_by.json_ld}
+    assert "Dataset" in cited_types
+    assert "BreadcrumbList" in cited_types
+    assert "Press Kit" in cited_by.title
+
     # State page has BreadcrumbList schema
     ca = page_meta_for_path("/states/CA")
     assert ca.json_ld is not None
