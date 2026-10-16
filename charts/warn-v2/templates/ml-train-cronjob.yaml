@@ -23,8 +23,10 @@ spec:
             app.kubernetes.io/component: ml-train
         spec:
           restartPolicy: Never
+          {{- include "warn-v2.podSecurityContext" . | nindent 10 }}
           containers:
             - name: ml-train
+              {{- include "warn-v2.containerSecurityContext" . | nindent 14 }}
               image: {{ include "warn-v2.image" . }}
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               args:

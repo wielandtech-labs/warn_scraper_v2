@@ -99,3 +99,20 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version }}
       key: {{ .Values.stripe.priceIdKey }}
 {{- end }}
 {{- end -}}
+
+{{/* Pod security context */}}
+{{- define "warn-v2.podSecurityContext" -}}
+automountServiceAccountToken: false
+{{- with .Values.podSecurityContext }}
+securityContext:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
+{{/* Container security context */}}
+{{- define "warn-v2.containerSecurityContext" -}}
+{{- with .Values.securityContext }}
+securityContext:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}

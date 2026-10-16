@@ -19,8 +19,10 @@ spec:
         app.kubernetes.io/component: migration
     spec:
       restartPolicy: Never
+      {{- include "warn-v2.podSecurityContext" . | nindent 6 }}
       containers:
         - name: migrate
+          {{- include "warn-v2.containerSecurityContext" . | nindent 10 }}
           image: {{ include "warn-v2.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["uv", "run", "alembic", "upgrade", "head"]

@@ -24,8 +24,10 @@ spec:
             app.kubernetes.io/component: pdf-downloader
         spec:
           restartPolicy: Never
+          {{- include "warn-v2.podSecurityContext" . | nindent 10 }}
           containers:
             - name: pdf-downloader
+              {{- include "warn-v2.containerSecurityContext" . | nindent 14 }}
               image: {{ include "warn-v2.image" . }}
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               args:
