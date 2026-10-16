@@ -39,14 +39,8 @@ COPY pyproject.toml uv.lock* README.md ./
 # Cache uv's download cache so wheels are not re-fetched when only source files change.
 # playwright install is a normal layer (browsers live in the image, not a mount).
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --extra browser \
+    uv sync --frozen --no-dev --extra browser --extra ocr \
     && uv run playwright install chromium --with-deps
-
-# OCR Python libs for the scanned-PDF fallback (pdf2image needs poppler, pytesseract
-# needs the tesseract binary — both installed above). Added via `uv pip install`
-# rather than the lockfile so `uv sync --frozen` stays valid without a uv.lock bump.
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install pytesseract pdf2image pillow
 
 COPY warn_v2 ./warn_v2
 COPY alembic.ini ./alembic.ini
