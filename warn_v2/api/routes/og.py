@@ -22,9 +22,7 @@ from warn_v2.api.routes.stats import (
     _not_superseded,
     _today,
 )
-from warn_v2.closure import closure_label
 from warn_v2.db.models import Notice
-from warn_v2.notifications.templates import fmt_date
 from warn_v2.states import is_valid_state, state_name
 
 router = APIRouter(tags=["seo"], include_in_schema=False)
@@ -91,25 +89,6 @@ def state_card(code: str, db: Session = Depends(get_db)) -> Response:
     )
 
 
-def notice_card_png(notice: Notice) -> bytes:
-    """Render `notice`'s share card. Also used by warn_v2.social to attach the
-    card to posts without an HTTP round trip."""
-    st_name = state_name(notice.state) or notice.state
-    city = notice.location.city if notice.location else None
-    place = f"{city}, {notice.state}" if city else st_name
-    dates = [f"Filed {fmt_date(notice.notice_date)}"] if notice.notice_date else []
-    if notice.effective_date:
-        dates.append(f"Effective {fmt_date(notice.effective_date)}")
-    return og_cards.render_notice_card(
-        employer=notice.employer,
-        code=notice.state,
-        place=place,
-        workers=notice.layoff_count,
-        action=closure_label(notice.closure_category),
-        dates=" · ".join(dates) or "Date not published",
-    )
-
-
 @router.get("/og/notices/{notice_id}.png")
 def notice_card(notice_id: str, db: Session = Depends(get_db)) -> Response:
     now = time.monotonic()
@@ -119,7 +98,7 @@ def notice_card(notice_id: str, db: Session = Depends(get_db)) -> Response:
         notice = db.get(Notice, notice_id)
         if notice is None:
             raise HTTPException(status_code=404, detail="Unknown notice")
-        hit = (now + TTL_S, notice_card_png(notice))
+        hit = (now + TTL_S, og_cards.notice_card_png(notice))
         with _lock:
             _notice_cache.pop(notice_id, None)
             while len(_notice_cache) >= NOTICE_CACHE_MAX:

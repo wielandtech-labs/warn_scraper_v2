@@ -191,6 +191,26 @@ def test_run_stops_platform_on_first_failure(db, monkeypatch):
     assert db.scalars(select(NoticeSocialPost)).all() == []
 
 
+@respx.mock
+def test_run_skips_a_rejected_notice_and_keeps_going(db, monkeypatch, caplog):
+    secret = "https://discord.test/api/webhooks/1/SECRET-TOKEN"
+    monkeypatch.setenv("DISCORD_WEBHOOK_URL", secret)
+    # The first (largest) notice's post is rejected; the next one goes out.
+    hook = respx.post(secret).mock(
+        side_effect=[httpx.Response(400), httpx.Response(204)]
+    )
+    db.add_all([_notice("n1", 800), _notice("n2", 400)])
+    db.commit()
+    summary = run.run_alerts(
+        db, now=NOW, platforms=["discord"], min_layoffs=250, max_posts=5, dry_run=False,
+        http=httpx.Client(),
+    )
+    assert summary == {"discord": 1} and hook.call_count == 2
+    assert [r.notice_id for r in db.scalars(select(NoticeSocialPost))] == ["n2"]
+    assert "SECRET-TOKEN" not in caplog.text  # the webhook URL is the credential
+    assert "rejected n1 (HTTP 400)" in caplog.text
+
+
 def test_run_skips_unconfigured_platforms(db):
     db.add(_notice("n1"))
     db.commit()

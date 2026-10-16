@@ -17,8 +17,16 @@ import json
 import re
 from functools import cache
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PIL import Image, ImageDraw, ImageFont
+
+from warn_v2.closure import closure_label
+from warn_v2.notifications.templates import fmt_date
+from warn_v2.states import state_name
+
+if TYPE_CHECKING:
+    from warn_v2.db.models import Notice
 
 WIDTH, HEIGHT = 1200, 630
 SS = 2  # supersample: draw at 2x and downscale, since Pillow doesn't anti-alias shapes
@@ -231,11 +239,15 @@ def _fit_lines(
             return lines, size
     size = sizes[-1]
     font = _font(size)
+    dropped = len(lines) > max_lines
     lines = lines[:max_lines]
-    last = lines[-1]
-    while last and draw.textlength(f"{last}…", font=font) > width:
-        last = last[:-1]
-    lines[-1] = f"{last.rstrip()}…"
+    for i, line in enumerate(lines):
+        # Any line still too wide (a single huge word) is clipped, and the last
+        # one always shows the ellipsis when words were dropped.
+        if draw.textlength(line, font=font) > width or (dropped and i == len(lines) - 1):
+            while line and draw.textlength(f"{line}…", font=font) > width:
+                line = line[:-1]
+            lines[i] = f"{line.rstrip()}…"
     return lines, size
 
 
@@ -273,6 +285,25 @@ def render_notice_card(
     draw.line((64 * SS, 524 * SS, 1136 * SS, 524 * SS), fill=HAIRLINE, width=2 * SS)
     draw.text((64 * SS, 548 * SS), f"{action} · {dates}", font=_font(24, 450), fill=MUTED)
     return _finish(img)
+
+
+def notice_card_png(notice: Notice) -> bytes:
+    """`notice`'s share card (served by routes/og.py; also attached to social
+    posts by warn_v2.social without an HTTP round trip)."""
+    st_name = state_name(notice.state) or notice.state
+    city = notice.location.city if notice.location else None
+    place = f"{city}, {notice.state}" if city else st_name
+    dates = [f"Filed {fmt_date(notice.notice_date)}"] if notice.notice_date else []
+    if notice.effective_date:
+        dates.append(f"Effective {fmt_date(notice.effective_date)}")
+    return render_notice_card(
+        employer=notice.employer,
+        code=notice.state,
+        place=place,
+        workers=notice.layoff_count,
+        action=closure_label(notice.closure_category),
+        dates=" · ".join(dates) or "Date not published",
+    )
 
 
 def render_default_card() -> bytes:

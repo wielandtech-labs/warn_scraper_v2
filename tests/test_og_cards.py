@@ -166,6 +166,15 @@ def test_fit_lines_truncates_with_ellipsis():
     assert len(lines) == 2 and lines[-1].endswith("…")
 
 
+def test_fit_lines_clips_a_single_overwide_word_on_any_line():
+    _img, draw = og_cards._canvas()
+    huge = "X" * 300
+    lines, size = og_cards._fit_lines(draw, f"{huge} Inc", 400, range(40, 39, -4), 2)
+    font = og_cards._font(size)
+    assert all(draw.textlength(ln, font=font) <= 400 for ln in lines)
+    assert lines[0].endswith("…") and lines[1] == "Inc"
+
+
 def test_notice_card_route(api_client, db, monkeypatch):
     calls = []
     monkeypatch.setattr(og_cards, "render_notice_card", lambda **kw: calls.append(kw) or b"png")
