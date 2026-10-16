@@ -37,7 +37,7 @@ export function AboutPage() {
       <p>
         Spotted an error, have a feature request, or using our WARN dataset in your research or reporting?
         We&apos;d love to hear from you — email{" "}
-        <a href="mailto:contact@wielandtech.com">contact@wielandtech.com</a>.
+        <a href="mailto:info@warnindex.com">info@warnindex.com</a>.
       </p>
     </ContentPage>
   );

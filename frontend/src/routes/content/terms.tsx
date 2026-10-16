@@ -69,7 +69,7 @@ export function TermsPage() {
       <h2>Contact</h2>
       <p>
         Questions, enterprise access, or data corrections:{" "}
-        <a href="mailto:contact@wielandtech.com">contact@wielandtech.com</a>.
+        <a href="mailto:info@warnindex.com">info@warnindex.com</a>.
       </p>
     </ContentPage>
   );
