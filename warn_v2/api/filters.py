@@ -32,6 +32,7 @@ def apply_notice_filters(
     after: date | None = None,
     before: date | None = None,
     geocoded_only: bool = False,
+    bbox: tuple[float | None, float | None, float | None, float | None] | None = None,
     location_joined: bool = False,
     company_joined: bool = False,
 ) -> Select:
@@ -48,6 +49,11 @@ def apply_notice_filters(
     ``min_layoffs`` likewise excludes notices with **no reported headcount** —
     ``layoff_count IS NULL`` fails ``>=``, and many states file notices without
     a number. Callers that surface this filter should say so.
+
+    ``bbox`` is ``(min_lat, min_lon, max_lat, max_lon)`` and applies only when
+    all four bounds are set — a partial box is ignored, not half-applied. It
+    implies ``geocoded_only`` (NULL coordinates fail the comparisons).
+    Antimeridian-crossing boxes aren't handled — irrelevant for the US.
     """
     if state:
         stmt = stmt.where(Notice.state == state.upper())
@@ -66,8 +72,17 @@ def apply_notice_filters(
         stmt = stmt.where(Notice.notice_date >= after)
     if before:
         stmt = stmt.where(Notice.notice_date <= before)
+    box = bbox if bbox is not None and None not in bbox else None
+    if (geocoded_only or box) and not location_joined:
+        stmt = stmt.join(Location, Notice.location_id == Location.id)
     if geocoded_only:
-        if not location_joined:
-            stmt = stmt.join(Location, Notice.location_id == Location.id)
         stmt = stmt.where(Location.lat.is_not(None), Location.lon.is_not(None))
+    if box:
+        min_lat, min_lon, max_lat, max_lon = box
+        stmt = stmt.where(
+            Location.lat >= min_lat,
+            Location.lat <= max_lat,
+            Location.lon >= min_lon,
+            Location.lon <= max_lon,
+        )
     return stmt

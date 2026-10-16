@@ -122,6 +122,11 @@ export interface NoticesQuery {
   after?: string;
   before?: string;
   geocoded_only?: boolean;
+  // Map box — sent together (a partial box is ignored); implies geocoded.
+  min_lat?: number;
+  min_lon?: number;
+  max_lat?: number;
+  max_lon?: number;
   sort_by?: string;
   sort_dir?: string;
   limit?: number;
@@ -139,32 +144,24 @@ export interface RadarQuery {
   offset?: number;
 }
 
-/** Lightweight pin object returned by /api/map-pins. */
-export interface MapPin {
-  notice_id: string;
-  employer: string;
-  state: string;
-  notice_date: string | null;
-  layoff_count: number | null;
-  lat: number;
-  lon: number;
+/** /api/map-places: one entry per distinct geocoded point, as parallel
+ *  arrays (busiest place first). `workers` sums reported layoff counts. */
+export interface MapPlaces {
+  lat: number[];
+  lon: number[];
+  notices: number[];
+  workers: number[];
+  label: string[]; // "City, ST", or "ST" when the point has no city
 }
 
-export interface MapPinQuery {
+export interface MapPlacesQuery {
   state?: string;
   closure_category?: string;
   industry?: string;
   subsector?: string;
+  min_layoffs?: number;
   after?: string;
   before?: string;
-  // Viewport bounds — sent together so the API returns only visible pins.
-  min_lat?: number;
-  min_lon?: number;
-  max_lat?: number;
-  max_lon?: number;
-  // Ceiling on pins returned (API caps at 50 000). The map sets a smaller,
-  // device-dependent cap so phones don't instantiate tens of thousands of markers.
-  limit?: number;
 }
 
 export const api = {
@@ -200,9 +197,9 @@ export const api = {
   getOccupationMix: (id: string) =>
     get<OccupationMixOut>(`/api/notices/${encodeURIComponent(id)}/occupation-mix`),
 
-  /** Geocoded notices for the map — lightweight DTO, viewport-scoped, up to 50 000 per fetch. */
-  listMapPins: (q: MapPinQuery = {}) =>
-    get<MapPin[]>("/api/map-pins" + qs(q as Record<string, string | number | undefined>)),
+  /** Every geocoded notice matching the filters, aggregated per place — the /map payload. */
+  listMapPlaces: (q: MapPlacesQuery = {}) =>
+    get<MapPlaces>("/api/map-places" + qs(q as Record<string, string | number | undefined>)),
 
   // ---------- Companies ----------
   listCompanies: (q: {

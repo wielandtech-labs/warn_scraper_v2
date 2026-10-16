@@ -53,6 +53,10 @@ def list_notices(
     after: date | None = Query(None, description="Only notices on or after this date"),
     before: date | None = Query(None, description="Only notices on or before this date"),
     geocoded_only: bool = Query(False, description="Only return notices with latitude/longitude"),
+    min_lat: float | None = Query(None, description="Map box south bound (with the other 3)"),
+    min_lon: float | None = Query(None, description="Map box west bound (with the other 3)"),
+    max_lat: float | None = Query(None, description="Map box north bound (with the other 3)"),
+    max_lon: float | None = Query(None, description="Map box east bound (with the other 3)"),
     sort_by: str | None = Query(
         None, description="Column: notice_date, state, employer, layoff_count, effective_date"
     ),
@@ -82,6 +86,7 @@ def list_notices(
         after=after,
         before=before,
         geocoded_only=geocoded_only,
+        bbox=(min_lat, min_lon, max_lat, max_lon),
     )
     stmt = apply_notice_filters(stmt, **filters)
     count_stmt = apply_notice_filters(count_stmt, **filters)

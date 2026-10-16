@@ -31,8 +31,8 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: true,
-    // Increase chunk size warning threshold — Leaflet + Recharts together
-    // push us slightly over the default 500 KB.
-    chunkSizeWarningLimit: 1000,
+    // Increase chunk size warning threshold: the map chunk carries MapLibre GL
+    // (~1.1 MB minified), lazy-loaded with the routes that show a map.
+    chunkSizeWarningLimit: 1200,
   },
 });

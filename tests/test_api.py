@@ -855,6 +855,60 @@ def test_map_pins_float_coords_and_cache_header(api_client, db):
     assert pin["notice_date"] == "2026-01-01"
 
 
+def test_map_places_aggregates_colocated_notices(api_client, db):
+    # Two notices at one (city-centroid) point, one elsewhere, one superseded.
+    a = _geocoded_notice(db, None, "Alpha Co", lat=34.05212, lon=-118.24399)
+    b = _geocoded_notice(db, None, "Beta Co", lat=34.05213, lon=-118.24401)
+    b.layoff_count = None  # counts as a notice, adds no workers
+    _geocoded_notice(db, None, "Gamma Co", lat=40.7, lon=-74.0)
+    sup = _geocoded_notice(db, None, "Delta Co", lat=40.7, lon=-74.0)
+    sup.is_superseded = True
+    db.get(Location, a.location_id).city = "Los Angeles"
+    db.commit()
+
+    resp = api_client.get("/api/map-places")
+    assert resp.headers["cache-control"] == "public, max-age=300"
+    body = resp.json()
+    places = sorted(zip(
+        body["lat"], body["lon"], body["notices"], body["workers"], body["label"], strict=True
+    ))
+    # Busiest place first in the payload; points 1e-5 apart merge at 4 dp.
+    assert body["notices"] == [2, 1]
+    assert places == [
+        (34.0521, -118.244, 2, 100, "Los Angeles, CA"),
+        (40.7, -74.0, 1, 100, "CA"),
+    ]
+
+
+def test_map_places_filters(api_client, db):
+    _geocoded_notice(db, None, "Closing Co", closure_category="Closure", lat=34.0, lon=-118.0)
+    _geocoded_notice(db, None, "Layoff Co", closure_category="Layoff", lat=40.7, lon=-74.0)
+    db.commit()
+
+    body = api_client.get("/api/map-places?closure_category=Closure").json()
+    assert (body["lat"], body["notices"]) == ([34.0], [1])
+    assert api_client.get("/api/map-places?after=2027-01-01").json()["lat"] == []
+    # _notice() reports 100 workers per notice.
+    assert len(api_client.get("/api/map-places?min_layoffs=100").json()["lat"]) == 2
+    assert api_client.get("/api/map-places?min_layoffs=101").json()["lat"] == []
+
+
+def test_notices_bbox_filter(api_client, db):
+    _geocoded_notice(db, None, "LA Co", lat=34.0, lon=-118.2)
+    _geocoded_notice(db, None, "NYC Co", lat=40.7, lon=-74.0)
+    _notice(db, employer="Nowhere Co")  # not geocoded
+    db.commit()
+
+    def employers(q: str) -> tuple[set[str], int]:
+        body = api_client.get("/api/notices" + q).json()
+        return {n["employer"] for n in body["items"]}, body["total"]
+
+    assert employers("") == ({"LA Co", "NYC Co", "Nowhere Co"}, 3)
+    assert employers("?min_lat=40&max_lat=41&min_lon=-75&max_lon=-73") == ({"NYC Co"}, 1)
+    # Partial box is ignored, not half-applied.
+    assert employers("?min_lat=40&max_lat=41&min_lon=-75")[1] == 3
+
+
 def test_gzip_enabled_for_large_responses(api_client):
     # Any body ≥1 KiB qualifies; openapi.json is always large enough.
     resp = api_client.get("/openapi.json", headers={"Accept-Encoding": "gzip"})
