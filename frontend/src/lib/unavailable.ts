@@ -19,6 +19,12 @@ export const NO_COUNTS: Record<string, string> = {
     "for Oklahoma notices.",
 };
 
+/** True when a state publishes no figure for the metric, so a zero there
+ *  would be a gap in the source rather than a measurement. */
+export function isUnpublished(code: string, metric: "workers" | "notices"): boolean {
+  return code in UNSUPPORTED || (metric === "workers" && code in NO_COUNTS);
+}
+
 /**
  * States where WARN notices are withheld by state statute (a legal barrier,
  * not a scraping gap). Their detail pages show an explainer instead of empty

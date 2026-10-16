@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-router";
 
 import { Layout } from "./components/Layout";
+import type { TimeRange } from "./components/TimeRangeToggle";
 import { NoticesPage } from "./routes/notices";
 import { NoticeDetail } from "./routes/notice-detail";
 import { RadarPage } from "./routes/radar";
@@ -221,6 +222,16 @@ const statsRoute = createRoute({
 const statesIndexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/states",
+  // Only non-default values reach the URL; the page fills in the defaults.
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { range?: TimeRange; metric?: "notices"; sort?: "name" } => ({
+    range: ["30d", "5y", "all"].includes(search.range as string)
+      ? (search.range as TimeRange)
+      : undefined,
+    metric: search.metric === "notices" ? "notices" : undefined,
+    sort: search.sort === "name" ? "name" : undefined,
+  }),
   component: StatesIndexPage,
 });
 
