@@ -1,0 +1,56 @@
+{{- if .Values.publicMirror.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "warn-v2.fullname" . }}-public-mirror
+  labels:
+    {{- include "warn-v2.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.publicMirror.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            {{- include "warn-v2.labels" . | nindent 12 }}
+            app.kubernetes.io/component: public-mirror
+        spec:
+          restartPolicy: Never
+          {{- include "warn-v2.podSecurityContext" . | nindent 10 }}
+          containers:
+            - name: public-mirror
+              {{- include "warn-v2.containerSecurityContext" . | nindent 14 }}
+              image: {{ include "warn-v2.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              args:
+                - export-public-mirror
+                - --out
+                - /work/dist
+                - --push
+                - --repo
+                - {{ .Values.publicMirror.repo | quote }}
+              env:
+                {{- include "warn-v2.envSecrets" . | nindent 16 }}
+                - name: HF_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.publicMirror.secretName }}
+                      key: {{ .Values.publicMirror.secretKey }}
+                {{- /* huggingface_hub keeps a cache under $HF_HOME; point it
+                       at the scratch volume, not the image's home dir. */}}
+                - name: HF_HOME
+                  value: /work/hf
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+              resources:
+                {{- toYaml .Values.publicMirror.resources | nindent 16 }}
+          volumes:
+            - name: work
+              emptyDir:
+                sizeLimit: 2Gi
+{{- end }}
