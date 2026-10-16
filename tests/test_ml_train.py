@@ -15,6 +15,9 @@ from warn_v2.ml import backtest, train
 from warn_v2.ml.events import build_events, load_notices
 from warn_v2.ml.train import FoldScore, decide, psi, realized, train_and_score
 
+# Trains models on a synthetic population: tens of seconds each in CI.
+pytestmark = pytest.mark.slow
+
 AS_OF = date(2023, 6, 1)
 YEARS = [2015, 2018, 2021]
 NOW = datetime(2023, 6, 1, 12, tzinfo=UTC)

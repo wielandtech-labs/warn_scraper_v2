@@ -17,6 +17,7 @@ import type { FeatureCollection, Point } from "geojson";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 
 import type { ResolvedTheme } from "../hooks/useTheme";
+import { toStateBubbles, type StateBubbleProps } from "../lib/stateBubbles";
 import { CHART_COLORS, HEAT_STOPS, TILE_LAYERS } from "../lib/themeColors";
 
 setWorkerUrl(workerUrl);
@@ -77,17 +78,34 @@ const toLngLatBounds = (b: View["bounds"]): [[number, number], [number, number]]
 ];
 
 const EMPTY: PlacesGeoJSON = { type: "FeatureCollection", features: [] };
-const BUBBLE_LAYERS = ["clusters", "points", "counts"];
+const BUBBLE_LAYERS = ["clusters", "points", "counts", "states", "state-counts"];
+// Circle layers recolored on a theme change.
+const CIRCLE_LAYERS = ["clusters", "points", "heat-points", "states"];
+// Layers a tap can land on.
+const TAPPABLE = ["states", "clusters", "points", "heat-points"];
+
+// With state bubbles on, the national view shows one bubble per state; from
+// this zoom (a few states across) they break into places and clusters.
+const STATE_MAX_ZOOM = 5;
 const HEAT_LAYERS = ["heat", "heat-points"];
 
 // Area-true sizing: radius grows with sqrt(workers), clamped at both ends so a
-// place with no reported count stays tappable and a metro cluster stays sane.
+// place with no reported count stays tappable and a big state or metro
+// cluster doesn't bury its neighbours.
 const sqrtW: ExpressionSpecification = ["sqrt", ["get", "w"]];
+const STATE_SIZE: ExpressionSpecification = [
+  "interpolate", ["linear"], sqrtW, 0, 8, 100, 11, 500, 19, 1500, 30,
+];
+// A phone frames the US around zoom 2, where full-size state bubbles pile up
+// in the Northeast; shrink them there, full size from zoom 3.5 (desktop).
+const STATE_RADIUS: ExpressionSpecification = [
+  "interpolate", ["linear"], ["zoom"], 2, ["*", 0.6, STATE_SIZE], 3.5, STATE_SIZE,
+];
 const CLUSTER_RADIUS: ExpressionSpecification = [
-  "interpolate", ["linear"], sqrtW, 0, 12, 100, 20, 400, 34, 1000, 44,
+  "interpolate", ["linear"], sqrtW, 0, 9, 100, 14, 400, 22, 1000, 30,
 ];
 const POINT_RADIUS: ExpressionSpecification = [
-  "interpolate", ["linear"], sqrtW, 0, 5, 10, 8, 40, 14, 120, 24,
+  "interpolate", ["linear"], sqrtW, 0, 4, 10, 6, 40, 10, 120, 17,
 ];
 // Notice count, abbreviated past 1,000 ("12.3k").
 const COUNT_LABEL: ExpressionSpecification = [
@@ -131,9 +149,11 @@ const heatWeight = (max: number): ExpressionSpecification => [
 ];
 const DEFAULT_HEAT_MAX = 500;
 
-function addDataLayers(map: MapLibreMap, theme: ResolvedTheme) {
+function addDataLayers(map: MapLibreMap, theme: ResolvedTheme, stateBubbles: boolean) {
   const red = CHART_COLORS[theme].layoffs;
   const halo = theme === "dark" ? "#0d0d0d" : "#ffffff";
+  // Place-level bubbles start where the state bubbles end.
+  const placeZoom = stateBubbles ? { minzoom: STATE_MAX_ZOOM } : {};
 
   map.addSource("places", {
     type: "geojson",
@@ -148,11 +168,45 @@ function addDataLayers(map: MapLibreMap, theme: ResolvedTheme) {
   // make hot spots jump as clusters regroup on zoom.
   map.addSource("places-raw", { type: "geojson", data: EMPTY });
   map.addSource("selected", { type: "geojson", data: EMPTY });
+  map.addSource("states", { type: "geojson", data: EMPTY });
+
+  map.addLayer({
+    id: "states",
+    type: "circle",
+    source: "states",
+    maxzoom: STATE_MAX_ZOOM,
+    layout: { visibility: stateBubbles ? "visible" : "none" },
+    paint: {
+      "circle-color": red,
+      "circle-opacity": 0.78,
+      "circle-radius": STATE_RADIUS,
+      "circle-stroke-color": halo,
+      "circle-stroke-width": 1.5,
+    },
+  });
+  map.addLayer({
+    id: "state-counts",
+    type: "symbol",
+    source: "states",
+    maxzoom: STATE_MAX_ZOOM,
+    layout: {
+      visibility: stateBubbles ? "visible" : "none",
+      "text-field": COUNT_LABEL,
+      "text-font": FONT,
+      "text-size": 10,
+      // On a phone the small Northeastern states' bubbles nearly touch:
+      // drop colliding labels (busiest first) rather than overprint them.
+      "text-allow-overlap": false,
+      "symbol-sort-key": ["-", ["get", "w"]],
+    },
+    paint: { "text-color": "#ffffff" },
+  });
 
   map.addLayer({
     id: "clusters",
     type: "circle",
     source: "places",
+    ...placeZoom,
     filter: ["has", "point_count"],
     paint: {
       "circle-color": red,
@@ -166,6 +220,7 @@ function addDataLayers(map: MapLibreMap, theme: ResolvedTheme) {
     id: "points",
     type: "circle",
     source: "places",
+    ...placeZoom,
     filter: ["!", ["has", "point_count"]],
     paint: {
       "circle-color": red,
@@ -179,11 +234,12 @@ function addDataLayers(map: MapLibreMap, theme: ResolvedTheme) {
     id: "counts",
     type: "symbol",
     source: "places",
+    ...placeZoom,
     filter: [">", ["get", "n"], 1],
     layout: {
       "text-field": COUNT_LABEL,
       "text-font": FONT,
-      "text-size": 11,
+      "text-size": 10,
       "text-allow-overlap": true,
     },
     paint: { "text-color": "#ffffff" },
@@ -255,6 +311,9 @@ export const PlacesMap = forwardRef<
     /** Starting view: a center + zoom, a box to fit, or null for the
      *  contiguous US. Read once, at mount. */
     initial: { lat: number; lon: number; zoom: number } | { bounds: View["bounds"] } | null;
+    /** One bubble per state in the national view (below zoom 5). Read once,
+     *  at mount. Off for maps of a single state or sector. */
+    stateBubbles?: boolean;
     selected: SelectedPlace | null;
     /** Workers at which a place's heat saturates (default 500). */
     heatMax?: number;
@@ -268,6 +327,7 @@ export const PlacesMap = forwardRef<
     mode,
     theme,
     initial,
+    stateBubbles = false,
     selected,
     heatMax = DEFAULT_HEAT_MAX,
     onViewChange,
@@ -279,14 +339,14 @@ export const PlacesMap = forwardRef<
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   // Latest props for the long-lived map's event handlers and load callback.
-  const latest = useRef({ data, mode, theme, selected, heatMax, onViewChange, onSelect });
-  latest.current = { data, mode, theme, selected, heatMax, onViewChange, onSelect };
+  const latest = useRef({ data, mode, theme, stateBubbles, selected, heatMax, onViewChange, onSelect });
+  latest.current = { data, mode, theme, stateBubbles, selected, heatMax, onViewChange, onSelect };
   const loaded = useRef(false);
   const themeRef = useRef(theme); // the theme the base layer currently shows
 
   useImperativeHandle(ref, () => ({
     flyTo: (lat, lon, zoom) => mapRef.current?.flyTo({ center: [lon, lat], zoom, essential: true }),
-    fitBounds: (b) => mapRef.current?.fitBounds(toLngLatBounds(b), FIT),
+    fitBounds: (b) => mapRef.current && fitPlaces(mapRef.current, b, latest.current.stateBubbles),
   }));
 
   // Create the map once. Everything else is pushed in by the effects below.
@@ -318,15 +378,15 @@ export const PlacesMap = forwardRef<
     mapRef.current = map;
 
     map.on("load", () => {
-      addDataLayers(map, themeRef.current);
+      const { data, mode, selected, theme, stateBubbles, heatMax } = latest.current;
+      addDataLayers(map, themeRef.current, stateBubbles);
       loaded.current = true;
-      const { data, mode, selected, theme, heatMax } = latest.current;
       if (theme !== themeRef.current) {
         pushTheme(map, themeRef.current, theme); // toggled before the map loaded
         themeRef.current = theme;
       }
-      pushData(map, data, mode);
-      pushMode(map, mode);
+      pushData(map, data, mode, stateBubbles);
+      pushMode(map, mode, stateBubbles);
       pushSelected(map, selected);
       if (heatMax !== DEFAULT_HEAT_MAX) map.setPaintProperty("heat", "heatmap-weight", heatWeight(heatMax));
       latest.current.onViewChange(toView(map));
@@ -344,6 +404,11 @@ export const PlacesMap = forwardRef<
         // The data was replaced mid-tap and the cluster id is stale; the tap is moot.
       }
     });
+    // A state bubble zooms to the state's places, where they break apart.
+    map.on("click", "states", (e: MapLayerMouseEvent) => {
+      const p = e.features?.[0]?.properties as StateBubbleProps | undefined;
+      if (p) fitPlaces(map, p, true);
+    });
     const selectPoint = (e: MapLayerMouseEvent) => {
       const f = e.features?.[0];
       if (!f) return;
@@ -356,11 +421,11 @@ export const PlacesMap = forwardRef<
     // are recognised by the rendered-feature query).
     map.on("click", (e) => {
       const hits = map.queryRenderedFeatures(e.point, {
-        layers: ["clusters", "points", "heat-points"].filter((l) => map.getLayer(l)),
+        layers: TAPPABLE.filter((l) => map.getLayer(l)),
       });
       if (hits.length === 0) latest.current.onSelect(null);
     });
-    for (const layer of ["clusters", "points", "heat-points"]) {
+    for (const layer of TAPPABLE) {
       map.on("mouseenter", layer, () => (map.getCanvas().style.cursor = "pointer"));
       map.on("mouseleave", layer, () => (map.getCanvas().style.cursor = ""));
     }
@@ -376,13 +441,13 @@ export const PlacesMap = forwardRef<
   }, []);
 
   useEffect(() => {
-    if (mapRef.current && loaded.current) pushData(mapRef.current, data, latest.current.mode);
-  }, [data]);
+    if (mapRef.current && loaded.current) pushData(mapRef.current, data, latest.current.mode, stateBubbles);
+  }, [data, stateBubbles]);
 
   useEffect(() => {
     if (!mapRef.current || !loaded.current) return;
-    pushData(mapRef.current, latest.current.data, mode);
-    pushMode(mapRef.current, mode);
+    pushData(mapRef.current, latest.current.data, mode, latest.current.stateBubbles);
+    pushMode(mapRef.current, mode, latest.current.stateBubbles);
   }, [mode]);
 
   useEffect(() => {
@@ -406,16 +471,26 @@ export const PlacesMap = forwardRef<
   return <div ref={container} className={className} />;
 });
 
+/** Frame a box of places. With state bubbles on, never stop short of the
+ *  zoom where they break into places: a big state (TX, CA, AK) would
+ *  otherwise fit below it, and zooming to it would still show one bubble. */
+function fitPlaces(map: MapLibreMap, b: View["bounds"], stateBubbles: boolean) {
+  const cam = map.cameraForBounds(toLngLatBounds(b), FIT);
+  if (!cam) return;
+  const zoom = stateBubbles ? Math.max(cam.zoom ?? 0, STATE_MAX_ZOOM + 0.1) : cam.zoom;
+  map.easeTo({ center: cam.center, zoom });
+}
+
 /** Swap the raster source under the data layers and recolor strokes, rather
  *  than setStyle(), which would drop the data sources and re-cluster. */
 function pushTheme(map: MapLibreMap, from: ResolvedTheme, to: ResolvedTheme) {
   map.removeLayer("base");
   map.removeSource(baseSourceId(from));
   map.addSource(baseSourceId(to), baseSource(to));
-  map.addLayer({ id: "base", type: "raster", source: baseSourceId(to) }, "clusters");
+  map.addLayer({ id: "base", type: "raster", source: baseSourceId(to) }, "states");
   const red = CHART_COLORS[to].layoffs;
   const halo = to === "dark" ? "#0d0d0d" : "#ffffff";
-  for (const l of ["clusters", "points", "heat-points"]) {
+  for (const l of CIRCLE_LAYERS) {
     map.setPaintProperty(l, "circle-color", red);
     map.setPaintProperty(l, "circle-stroke-color", halo);
   }
@@ -424,13 +499,17 @@ function pushTheme(map: MapLibreMap, from: ResolvedTheme, to: ResolvedTheme) {
 
 /** Only the shown mode's source gets the data: re-clustering hidden bubbles
  *  on every update (each frame of a time-lapse) would be wasted work. */
-function pushData(map: MapLibreMap, data: PlacesGeoJSON, mode: MapMode) {
+function pushData(map: MapLibreMap, data: PlacesGeoJSON, mode: MapMode, stateBubbles: boolean) {
   (map.getSource("places") as GeoJSONSource).setData(mode === "bubbles" ? data : EMPTY);
   (map.getSource("places-raw") as GeoJSONSource).setData(mode === "heat" ? data : EMPTY);
+  if (stateBubbles) (map.getSource("states") as GeoJSONSource).setData(toStateBubbles(data));
 }
 
-function pushMode(map: MapLibreMap, mode: MapMode) {
-  for (const l of BUBBLE_LAYERS) map.setLayoutProperty(l, "visibility", mode === "bubbles" ? "visible" : "none");
+function pushMode(map: MapLibreMap, mode: MapMode, stateBubbles: boolean) {
+  for (const l of BUBBLE_LAYERS) {
+    const on = mode === "bubbles" && (stateBubbles || !l.startsWith("state"));
+    map.setLayoutProperty(l, "visibility", on ? "visible" : "none");
+  }
   for (const l of HEAT_LAYERS) map.setLayoutProperty(l, "visibility", mode === "heat" ? "visible" : "none");
 }
 

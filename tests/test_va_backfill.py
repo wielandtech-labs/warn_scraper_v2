@@ -273,6 +273,7 @@ def test_pyworkbook_source_url_bound_per_workbook(archive):
 # End-to-end through the backfill registry
 # ---------------------------------------------------------------------------
 
+@pytest.mark.slow
 def test_backfill_va_ingests_all_members(db):
     stats = backfill_historical("VA")
 
