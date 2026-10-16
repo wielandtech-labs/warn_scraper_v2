@@ -16,9 +16,9 @@ from sqlalchemy.orm import Session
 
 from warn_v2.api import og_cards
 from warn_v2.api.deps import get_db
+from warn_v2.api.filters import apply_stats_closure_filter as _apply_closure_filter
 from warn_v2.api.routes.stats import (
     _aggregate_over_time,
-    _apply_closure_filter,
     _not_superseded,
     _today,
 )

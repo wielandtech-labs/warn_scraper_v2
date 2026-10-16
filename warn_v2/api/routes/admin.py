@@ -3,8 +3,9 @@ entity-resolution model's merge suggestions, and company logo overrides)."""
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
-from typing import Literal
+from typing import Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -58,21 +59,28 @@ def _reconcile(db: Session) -> tuple[dict[int, int], int]:
     (already flat) pointers is idempotent for overrides applied earlier.
     """
     db.flush()
-    current: dict[int, int] = dict(
-        db.execute(
+    current: dict[int, int] = {
+        cid: tid
+        for cid, tid in db.execute(
             select(Company.id, Company.canonical_company_id).where(
                 Company.canonical_company_id.is_not(None)
             )
         ).all()
-    )
-    overrides = db.execute(
-        select(CompanyMergeOverride.company_id, CompanyMergeOverride.target_company_id)
-        .order_by(CompanyMergeOverride.decided_at.desc())
-    ).all()
+        if tid is not None
+    }
+    overrides = [
+        (cid, tid)
+        for cid, tid in db.execute(
+            select(CompanyMergeOverride.company_id, CompanyMergeOverride.target_company_id)
+            .order_by(CompanyMergeOverride.decided_at.desc())
+        ).all()
+    ]
     new = flatten(apply_overrides(current, overrides))
 
     changed = [cid for cid in current.keys() | new.keys() if current.get(cid) != new.get(cid)]
-    rows = db.scalars(select(Company).where(Company.id.in_(changed))) if changed else []
+    rows: Sequence[Company] = (
+        list(db.scalars(select(Company).where(Company.id.in_(changed)))) if changed else []
+    )
     for c in rows:
         c.canonical_company_id = new.get(c.id)
         if c.canonical_company_id is None:
@@ -359,14 +367,17 @@ def logo_probe(
 ) -> LogoProbe:
     """What /api/logos/{id} would serve right now, and how wide it is."""
     company = _company_or_404(db, company_id)
-    for source, found in (
+    for src, found in (
         ("override", logo_fetch.logo_for(None, company.logo_url)),
         ("favicon", logo_fetch.logo_for(company.website)),
     ):
         if found is not None:
             body, media = found
-            return LogoProbe(source=source, media=media,
-                             width=logo_fetch.image_width(body, media))
+            return LogoProbe(
+                source=cast(Literal["override", "favicon"], src),
+                media=media,
+                width=logo_fetch.image_width(body, media),
+            )
     return LogoProbe(source=None)
 
 

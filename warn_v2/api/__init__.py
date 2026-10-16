@@ -167,7 +167,7 @@ def create_app(static_dir: Path | None = None) -> FastAPI:
 
             def __init__(self, *args: Any, **kwargs: Any) -> None:
                 super().__init__(*args, **kwargs)
-                self._index_html = (Path(self.directory) / "index.html").read_text(
+                self._index_html = (Path(self.directory or "") / "index.html").read_text(
                     encoding="utf-8"
                 )
 

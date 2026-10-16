@@ -5,7 +5,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import click
 
@@ -1374,7 +1374,7 @@ def reset_enrichment_cmd(sources: str, include_null_source: bool, dry_run: bool)
         click.echo("no sources given", err=True)
         sys.exit(1)
 
-    cond = Company.enrichment_source.in_(wanted) if wanted else None
+    cond: Any = Company.enrichment_source.in_(wanted) if wanted else None
     if include_null_source:
         # Enriched but source-less AND id-less = legacy EDGAR/Claude rows; the
         # unique_id guard keeps any old source-less provider hit out of scope.
@@ -1384,6 +1384,10 @@ def reset_enrichment_cmd(sources: str, include_null_source: bool, dry_run: bool)
             Company.unique_id.is_(None),
         )
         cond = null_cond if cond is None else or_(cond, null_cond)
+
+    if cond is None:
+        click.echo("no filter conditions specified", err=True)
+        sys.exit(1)
 
     with session_scope() as session:
         rows = session.execute(

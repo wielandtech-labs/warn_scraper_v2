@@ -181,6 +181,8 @@ def _stored_pdf(notice: Notice, pdf_dir: Path) -> bytes | None:
 
 def _fetch_pdf(notice: Notice) -> bytes | None:
     """Fetch the notice's raw_notice_url (301 → PDF), or None on failure."""
+    if not notice.raw_notice_url:
+        return None
     try:
         r = httpx.get(
             notice.raw_notice_url, headers=_UA, timeout=30, follow_redirects=True

@@ -26,6 +26,7 @@ from __future__ import annotations
 import io
 import re
 from collections import defaultdict
+from typing import Any
 
 import httpx
 import pdfplumber
@@ -59,9 +60,9 @@ _ROW_BUCKET = 5
 _ROW_MAX_OFFSET = 6
 
 
-def _parse_page_rows(page: object) -> list[dict]:
+def _parse_page_rows(page: Any) -> list[dict]:
     """Extract structured data from one PDF page using word x-positions."""
-    words = page.extract_words()  # type: ignore[union-attr]
+    words = page.extract_words()
 
     # Group words into visual rows by y-coordinate
     row_map: dict[int, list] = defaultdict(list)

@@ -52,7 +52,7 @@ def _upsert(db: Session, rows: list[dict]) -> int:
     if db.get_bind().dialect.name == "postgresql":
         from sqlalchemy.dialects.postgresql import insert
     else:  # tests run SQLite
-        from sqlalchemy.dialects.sqlite import insert
+        from sqlalchemy.dialects.sqlite import insert  # type: ignore[assignment]
     # Chunked so a full-history refresh doesn't build one enormous statement.
     written = 0
     for i in range(0, len(rows), 1000):

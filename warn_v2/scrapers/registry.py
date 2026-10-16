@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import importlib
 import pkgutil
+from typing import Any
 
 from warn_v2.scrapers.base import StateScraper
 
 REGISTRY: dict[str, StateScraper] = {}
 
 
-def register(scraper: StateScraper) -> StateScraper:
+def register(scraper: Any) -> StateScraper:
     """Decorator/helper: register a scraper instance under its `state` key."""
     key = scraper.state.upper()
     if key in REGISTRY:

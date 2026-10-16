@@ -106,7 +106,7 @@ def _bump_daily(db: Session, key_id: int) -> int:
     if db.get_bind().dialect.name == "postgresql":
         from sqlalchemy.dialects.postgresql import insert
     else:  # tests run SQLite
-        from sqlalchemy.dialects.sqlite import insert
+        from sqlalchemy.dialects.sqlite import insert  # type: ignore[assignment]
     stmt = (
         insert(ApiUsageDaily)
         .values(key_id=key_id, day=datetime.now(UTC).date(), count=1)
@@ -141,11 +141,12 @@ def enforce_limits(
         REQUESTS_TOTAL.labels(tier="admin").inc()
         return
 
+    tier: str
     key: ApiKey | None = getattr(request.state, "api_key", None)
     if key is not None:
-        tier, ident = role, f"key:{key.id}"
+        tier, ident = role or "free", f"key:{key.id}"
     elif user is not None:
-        tier, ident = role, f"user:{user.id}"
+        tier, ident = role or "free", f"user:{user.id}"
     else:
         tier, ident = "anon", f"ip:{_client_ip(request)}"
 

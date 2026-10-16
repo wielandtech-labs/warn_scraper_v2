@@ -575,6 +575,8 @@ def _backfill_url_list(
     limit: int | None = None,
 ) -> None:
     log.info("%s: discovering historical file URLs", scraper.state)
+    if spec.discover_urls is None:
+        return
     try:
         urls = spec.discover_urls()
     except ScrapeFailed as e:
@@ -648,6 +650,8 @@ def _backfill_year_loop(
     dry_run: bool,
 ) -> None:
     log.info("%s: backfilling years %d-%d", state, start, end)
+    if spec.fetch_year is None:
+        return
 
     for year in range(start, end + 1):
         stats["years_attempted"] += 1

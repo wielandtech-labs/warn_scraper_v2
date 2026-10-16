@@ -47,7 +47,7 @@ def create_checkout_session(user: User, success_url: str, cancel_url: str) -> st
         success_url=success_url,
         cancel_url=cancel_url,
     )
-    return session.url
+    return session.url or ""
 
 
 def create_portal_session(customer_id: str, return_url: str) -> str:
@@ -57,7 +57,7 @@ def create_portal_session(customer_id: str, return_url: str) -> str:
         customer=customer_id,
         return_url=return_url,
     )
-    return session.url
+    return session.url or ""
 
 
 def verify_webhook(payload: bytes, sig_header: str) -> stripe.Event:

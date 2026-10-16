@@ -5,6 +5,7 @@ import re
 from collections.abc import Iterable
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -134,7 +135,7 @@ def upsert_notices(session: Session, rows: Iterable[NoticeRow]) -> tuple[int, in
         company = _get_or_create_company(session, row.employer, row.naics_code)
         location = _get_or_create_location(session, row)
 
-        payload = {
+        payload: dict[str, Any] = {
             "notice_id": nid,
             "state": row.state.upper(),
             "employer": row.employer,

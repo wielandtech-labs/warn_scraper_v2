@@ -38,7 +38,7 @@ from sqlalchemy.orm import Session
 
 from warn_v2.companies.normalize import canonical_name
 from warn_v2.db.models import Company, Notice
-from warn_v2.ml import HORIZON_DAYS
+from warn_v2.ml import HORIZON_DAYS as HORIZON_DAYS
 from warn_v2.outlook.coverage import usable_months
 from warn_v2.outlook.panel import month_range
 

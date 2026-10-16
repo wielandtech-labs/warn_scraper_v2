@@ -36,7 +36,8 @@ def list_scraper_runs(
         count_stmt = count_stmt.where(ScraperRun.status == status)
 
     total = db.scalar(count_stmt) or 0
-    items = list(db.scalars(stmt.offset(pagination.offset).limit(pagination.limit)))
+    raw_items = list(db.scalars(stmt.offset(pagination.offset).limit(pagination.limit)))
+    items = [ScraperRunOut.model_validate(r) for r in raw_items]
     return Page(items=items, total=total, limit=pagination.limit, offset=pagination.offset)
 
 
@@ -71,7 +72,7 @@ def scraper_status(db: Session = Depends(get_db)) -> list[StateStatusOut]:
         .where(ScraperRun.status.in_(SCRAPER_SUCCESS_STATUSES))
         .group_by(ScraperRun.state)
     )
-    last_success = dict(success_rows.all())
+    last_success = {r[0]: r[1] for r in success_rows}
 
     # Notice-date coverage per state (non-superseded, matching the public
     # stats), so the status page can show how far back each state reaches.

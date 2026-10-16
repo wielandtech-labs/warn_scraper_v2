@@ -18,8 +18,10 @@ def load_archive(path: Path) -> list[tuple[str, bytes]]:
     """Return (member_name, bytes) for every regular file in a tar.gz,
     sorted by member name for deterministic ingest order."""
     with tarfile.open(path, "r:gz") as tar:
-        return sorted(
-            (m.name, tar.extractfile(m).read())
-            for m in tar.getmembers()
-            if m.isfile()
-        )
+        out = []
+        for m in tar.getmembers():
+            if m.isfile():
+                f = tar.extractfile(m)
+                if f is not None:
+                    out.append((m.name, f.read()))
+        return sorted(out)

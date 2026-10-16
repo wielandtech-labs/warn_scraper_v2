@@ -138,6 +138,7 @@ def _radar_row(notice: Notice, today: date) -> RadarNoticeOut:
                 pattern.occupations[:_PREVIEW_OCCUPATIONS], notice.layoff_count
             )
             source = "oews_estimate"
+    assert notice.effective_date is not None
     return RadarNoticeOut(
         notice_id=notice.notice_id,
         employer=notice.employer,
