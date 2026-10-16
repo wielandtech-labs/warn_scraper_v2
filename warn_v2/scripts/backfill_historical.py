@@ -474,10 +474,10 @@ _BACKFILL: dict[str, BackfillSpec] = {
     # PA: archived per-month pages via Wayback — pinned pre-CDX captures for
     # Jul-1998 - Nov-2000 (dli/li.state.pa.us; Dec-2000 never archived), then
     # CDX discovery (portal.state.pa.us 2001-2015, SharePoint dli.pa.gov
-    # 2011-2022; same content template throughout). _fetch_pa_year hard-caps
-    # at 2022 — the AEM live era (2023+) stamps notice_date from its publish
-    # date, so re-parsing those months would mint duplicates of rows the
-    # regular scraper already stores.
+    # 2011-Sep 2024; same content template throughout). _fetch_pa_year caps
+    # at Sep-2024, the pa.gov cutover: the live scraper skips the entries the
+    # migration bulk-copied (their date is the migration day), and stamps
+    # everything after from its real publish date.
     "PA": BackfillSpec(
         year_start=1998,
         fetch_year=lambda s, y: _fetch_pa_year(y),

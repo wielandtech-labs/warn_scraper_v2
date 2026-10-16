@@ -18,6 +18,13 @@ The dli/li.state.pa.us pages carry the same notice-block template as the
 import json
 from datetime import date
 from pathlib import Path
+from unittest.mock import patch
+
+import httpx
+import pytest
+import respx
+
+from warn_v2.scrapers.base import ScrapeFailed
 
 _FIXTURES = (
     Path(__file__).resolve().parents[1] / "warn_v2" / "scrapers" / "fixtures" / "pa"
@@ -171,3 +178,103 @@ def test_backfill_registry_pa_year_start():
     from warn_v2.scripts.backfill_historical import _BACKFILL
 
     assert _BACKFILL["PA"].year_start == 1998
+
+
+# ---------------------------------------------------------------------------
+# 2023 - Sep-2024: the pa.gov migration window
+# ---------------------------------------------------------------------------
+# The live AEM page stamps every entry it bulk-copied from dli.pa.gov with the
+# migration day (2024-09-16..19), so prod had no PA notices Jan-2023 - Aug-2024.
+# Those months now come from the archived SharePoint month pages instead.
+
+
+@respx.mock
+def test_cdx_snapshots_keeps_latest_capture_without_collapse():
+    """collapse=urlkey returned each page's EARLIEST capture (Jan-2023 -> a
+    2023-01-05 snapshot holding one week of notices); the latest must win."""
+    from warn_v2.scrapers.states import pa
+
+    page = (
+        "https://www.dli.pa.gov/Individuals/Workforce-Development/warn/notices/"
+        "Pages/January-2023.aspx"
+    )
+    route = respx.get(pa._CDX_API).mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                ["timestamp", "original"],
+                ["20230105161242", page],
+                ["20240614064321", page],
+                ["20240212160102", page],
+            ],
+        )
+    )
+    with patch("time.sleep"):
+        snaps = pa._cdx_snapshots("dli.pa.gov/x/", pa._SP_MONTH_RE)
+    assert snaps == {
+        (2023, 1): f"https://web.archive.org/web/20240614064321id_/{page}"
+    }
+    assert "collapse" not in route.calls.last.request.url.params
+
+
+@respx.mock
+def test_cdx_snapshots_refuses_a_truncated_listing(monkeypatch):
+    from warn_v2.scrapers.states import pa
+
+    monkeypatch.setattr(pa, "_CDX_LIMIT", 2)
+    respx.get(pa._CDX_API).mock(
+        return_value=httpx.Response(
+            200, json=[["timestamp", "original"], ["1", "a"], ["2", "b"]]
+        )
+    )
+    with patch("time.sleep"), pytest.raises(ScrapeFailed, match="row limit"):
+        pa._cdx_snapshots("dli.pa.gov/x/", pa._SP_MONTH_RE)
+
+
+def test_fetch_pa_year_covers_2023_and_stops_at_the_cutover(monkeypatch):
+    from warn_v2.scrapers.states import pa
+
+    snaps = {(y, m): f"snap-{y}-{m}" for y in (2023, 2024) for m in range(1, 13)}
+    monkeypatch.setattr(pa, "_month_snapshots", lambda: snaps)
+    monkeypatch.setattr(pa, "_wayback_get", lambda url: "<html></html>")
+
+    months = lambda y: [json.loads(c)["month"] for c in pa._fetch_pa_year(y)]  # noqa: E731
+    assert months(2023) == list(range(1, 13))
+    # Sep-2024 is the last SharePoint month; Oct+ notices live on pa.gov
+    # with real publish dates.
+    assert months(2024) == list(range(1, 10))
+    assert pa._fetch_pa_year(2025) is None
+
+
+def test_parse_pa_month_sharepoint_2023_multiline_schedules():
+    """Jan-2023 (capture 2024-06-14). Three notices spread their EFFECTIVE
+    DATE over several lines ("2nd Phase:  7/31/2023 (15 Employees)",
+    "March 1, 2023 - 1 Employee"); those later lines must not become
+    employers, and the closure line after them still belongs to the notice."""
+    from warn_v2.scrapers.states.pa import parse_pa_month
+
+    rows = parse_pa_month(_envelope("archive_sp_2023_01.html", 1), 2023)
+    assert [r.employer for r in rows] == [
+        "Morrison HealthCare",
+        "LSC Communications \u2013 Lancaster EAST Plant",
+        "LSC Communications \u2013 Lancaster WEST Plant",
+        "C.H. Briggs",
+        "Brinks Home",
+        "Spreadshirt, Inc.",
+        "Heartland Healthcare Services",
+        "Finance of America Holdings, LLC",
+        "Ascent Tubular Products",
+        "Qualfon",
+    ]
+    assert {r.notice_date for r in rows} == {date(2023, 1, 1)}
+    by = {r.employer: r for r in rows}
+    # "February 1, 2023 - 82 Employees" / "March 1, ..." / "April 1, ..."
+    assert by["C.H. Briggs"].effective_date == date(2023, 2, 1)
+    assert by["C.H. Briggs"].closure_type == "Closing"
+    assert by["C.H. Briggs"].layoff_count == 104
+    # "1st Phase:  1/9/2023 (49 Employees)" / "2nd Phase:  7/31/2023 ..."
+    assert by["Spreadshirt, Inc."].effective_date == date(2023, 1, 9)
+    assert by["Spreadshirt, Inc."].closure_type == "Closing"
+    # "Phase 1:  1/11/23 (38 workers)" ... "Phase 4:  TBD (6 workers)"
+    assert by["Ascent Tubular Products"].effective_date == date(2023, 1, 11)
+    assert by["Ascent Tubular Products"].city == "Munhall"

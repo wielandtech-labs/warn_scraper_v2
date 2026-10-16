@@ -143,3 +143,14 @@ def test_pa_parse_affected(raw, expected) -> None:
     from warn_v2.scrapers.states.pa import _parse_affected
 
     assert _parse_affected(raw) == expected
+
+
+def test_pa_skips_entries_stamped_with_the_migration_day(pa_sample_html: bytes) -> None:
+    """The 2023 - mid-Sep-2024 accordion entries carry the pa.gov migration day
+    (2024-09-16..19) as modifyDate. Ingesting them piled ~19 months of notices
+    into 2024-09; the archived month pages supply them with real months."""
+    rows = get_scraper("PA").parse(pa_sample_html)
+    assert min(r.notice_date for r in rows) == date(2024, 9, 23)
+    assert all(not date(2024, 9, 16) <= r.notice_date <= date(2024, 9, 19) for r in rows)
+    # The first genuine post-migration entry is kept.
+    assert any(r.employer.startswith("Cygnus Home Service") for r in rows)
