@@ -102,14 +102,14 @@ class ViewerSchemas:
     # (and Pydantic's annotation-based nested serialization) would strip the
     # enriched fields, so Page must be parametrized with the runtime class.
     def company_page(self, items: list, total: int, limit: int, offset: int) -> Page:
-        cls = Page[self.company]  # type: ignore[misc, valid-type]
+        cls = Page[self.company]  # type: ignore[misc, valid-type, name-defined]
         return cls(
             items=[self.company.model_validate(c) for c in items],
             total=total, limit=limit, offset=offset,
         )
 
     def notice_page(self, items: list, total: int, limit: int, offset: int) -> Page:
-        cls = Page[self.notice]  # type: ignore[misc, valid-type]
+        cls = Page[self.notice]  # type: ignore[misc, valid-type, name-defined]
         return cls(
             items=[self.notice.model_validate(n) for n in items],
             total=total, limit=limit, offset=offset,

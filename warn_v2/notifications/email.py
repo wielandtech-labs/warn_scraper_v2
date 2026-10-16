@@ -73,6 +73,6 @@ def send_email(
     cfg = _config()
     msg = _build_message(str(cfg["from"]), to, subject, text_body, html_body, unsubscribe_url)
 
-    with smtplib.SMTP_SSL(cfg["host"], cfg["port"]) as server:
-        server.login(cfg["username"], cfg["password"])
+    with smtplib.SMTP_SSL(str(cfg["host"]), int(cfg["port"])) as server:
+        server.login(str(cfg["username"]), str(cfg["password"]))
         server.send_message(msg)

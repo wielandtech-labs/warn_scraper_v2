@@ -221,7 +221,7 @@ def _persist_provider_result(
 
 
 def _persist_lookup_result(
-    session: Session, company: Company, sic_code: str, sic_desc: str | None,
+    session: Session, company: Company, sic_code: str | None, sic_desc: str | None,
     naics_code: str | None, naics_desc: str | None, confidence: float, sources: list[str],
 ) -> None:
     """Write EDGAR lookup findings back to the Company row and commit."""
@@ -337,7 +337,8 @@ def _propagate_siblings(session: Session, donors: dict, *, dry_run: bool = False
         )
         if not dry_run:
             company = session.get(Company, company_id)
-            _persist_sibling_result(session, company, donor)
+            if company is not None:
+                _persist_sibling_result(session, company, donor)
         count += 1
     return count
 
@@ -381,9 +382,11 @@ def _call_deadline(seconds: int, what: str):
     thread; prod is Linux and single-threaded, and the CronJob's
     activeDeadlineSeconds is the backstop either way.
     """
+    alarm_fn = getattr(signal, "alarm", None)
     if (
         seconds <= 0
         or not hasattr(signal, "SIGALRM")
+        or alarm_fn is None
         or threading.current_thread() is not threading.main_thread()
     ):
         yield
@@ -393,11 +396,11 @@ def _call_deadline(seconds: int, what: str):
         raise TimeoutError(f"{what} exceeded {seconds}s")
 
     previous = signal.signal(signal.SIGALRM, _fire)
-    signal.alarm(seconds)
+    alarm_fn(seconds)
     try:
         yield
     finally:
-        signal.alarm(0)
+        alarm_fn(0)
         signal.signal(signal.SIGALRM, previous)
 
 
@@ -615,10 +618,11 @@ def enrich_batch(
                 # Certainty guard: a heavily-stripped query can resolve to an
                 # unrelated company. Only accept a hit that shares a distinctive
                 # token with the ORIGINAL WARN name; otherwise reject (no unique id).
-                rejected = pr is not None and not match_is_consistent(
+                rejected = False
+                if pr is not None and not match_is_consistent(
                     company.name, pr.entity_name
-                )
-                if rejected:
+                ):
+                    rejected = True
                     log.warning(
                         "company_id=%d name=%r: rejected provider match entity=%r conf=%.2f "
                         "(shares no distinctive token with original)",

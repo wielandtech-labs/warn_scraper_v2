@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC
+from typing import Any
 
 from prometheus_client.core import (
     CounterMetricFamily,
@@ -78,7 +79,7 @@ class WarnCollector(Collector):
             #     are collector-only (NOT declared in metrics.py) — same as
             #     warn_companies — to avoid a duplicate-registration conflict.
             # ------------------------------------------------------------------
-            rows = s.execute(
+            rows: Any = s.execute(
                 select(Notice.state, func.count()).group_by(Notice.state)
             ).all()
             g = GaugeMetricFamily(
@@ -204,7 +205,7 @@ class WarnCollector(Collector):
                 .where(ScraperRun.finished_at.isnot(None))
                 .group_by(ScraperRun.state)
             ).all()
-            c = SummaryMetricFamily(
+            summary = SummaryMetricFamily(
                 "warn_scrape_duration_seconds",
                 "Wall-clock duration of scraper runs by state (sum + count).",
                 labels=["state"],
@@ -212,8 +213,8 @@ class WarnCollector(Collector):
             for state, dur_sum, count in rows:
                 # add_metric(labels, count_value, sum_value) — there is no
                 # quantiles arg on SummaryMetricFamily.
-                c.add_metric([state], float(count), float(dur_sum or 0.0))
-            yield c
+                summary.add_metric([state], int(count), float(dur_sum or 0.0))
+            yield summary
 
             # ------------------------------------------------------------------
             # 8. Last *successful* scrape timestamp per state (unix seconds).

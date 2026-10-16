@@ -33,7 +33,7 @@ Metrics:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -212,7 +212,7 @@ def km_censoring(time: np.ndarray, observed: np.ndarray) -> tuple[np.ndarray, np
 def _g_at(uniq: np.ndarray, surv: np.ndarray, t: np.ndarray, *, left: bool) -> np.ndarray:
     """G(t), or G(t-) with left=True. Floored so one late censoring can't
     blow a weight up."""
-    side = "left" if left else "right"
+    side: Literal["left", "right"] = "left" if left else "right"
     idx = np.searchsorted(uniq, t, side=side) - 1
     g = np.where(idx >= 0, surv[np.clip(idx, 0, None)], 1.0)
     return np.maximum(g, 0.05)

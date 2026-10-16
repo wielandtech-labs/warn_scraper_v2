@@ -80,7 +80,7 @@ def conditional_get(
     cached = _load(url)
     req_headers = dict(headers or {})
     conditional = cached is not None and _age(cached.fetched_at) <= _FORCE_REFETCH_AFTER
-    if conditional:
+    if conditional and cached is not None:
         if cached.etag:
             req_headers["If-None-Match"] = cached.etag
         if cached.last_modified:

@@ -91,8 +91,12 @@ def build_profiles(companies: pd.DataFrame, notices: pd.DataFrame) -> pd.DataFra
             "current_canonical_id": (int(c.canonical_company_id)
                                      if pd.notna(c.canonical_company_id) else None),
             "enriched": pd.notna(getattr(c, "enriched_at", None)),
-            "enrichment_confidence": (float(conf) if pd.notna(
-                conf := getattr(c, "enrichment_confidence", None)) else None),
+            "enrichment_confidence": (
+                float(conf)
+                if (conf := getattr(c, "enrichment_confidence", None)) is not None
+                and pd.notna(conf)
+                else None
+            ),
         })
     out = pd.DataFrame(rows)
     # pandas infers a string dtype that turns None into NaN; downstream code
@@ -129,9 +133,11 @@ def load_profiles(session: Session) -> pd.DataFrame:
     prof = build_profiles(companies, notices)
     # All notices, superseded included: only the heuristic baseline's survivor
     # tie-break reads this (as the consolidator does), never a feature.
-    all_counts = dict(session.execute(
-        select(Notice.company_id, func.count(Notice.notice_id))
-        .where(Notice.company_id.is_not(None)).group_by(Notice.company_id)
-    ).all())
+    all_counts = {
+        r[0]: r[1] for r in session.execute(
+            select(Notice.company_id, func.count(Notice.notice_id))
+            .where(Notice.company_id.is_not(None)).group_by(Notice.company_id)
+        )
+    }
     prof["n_notices_all"] = prof["company_id"].map(lambda c: int(all_counts.get(c, 0)))
     return prof

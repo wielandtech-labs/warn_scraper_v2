@@ -89,7 +89,7 @@ def download_pdfs(
                 target_state,
             )
             return stats
-        state_filter: frozenset[str] | None = frozenset([target_state])
+        state_filter: frozenset[str] = frozenset([target_state])
     else:
         state_filter = _pdf_states()
         log.info(
@@ -180,6 +180,8 @@ def prune_non_pdf(
         pending_commit = 0
         for notice in session.scalars(stmt):
             stats["checked"] += 1
+            if notice.pdf_path is None:
+                continue
             abs_path = pdf_dir / notice.pdf_path
             try:
                 magic = abs_path.open("rb").read(4)
@@ -252,6 +254,8 @@ def re_extract(
         pending_commit = 0
         for notice in session.scalars(stmt):
             stats["considered"] += 1
+            if notice.pdf_path is None:
+                continue
             abs_path = pdf_dir / notice.pdf_path
             try:
                 pdf_bytes = abs_path.read_bytes()

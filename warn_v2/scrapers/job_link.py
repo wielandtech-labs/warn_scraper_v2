@@ -70,7 +70,7 @@ def _next_page_url(host: str, soup: BeautifulSoup) -> str | None:
     a = soup.select_one(".pagination a.next_page[href]")
     if a is None:
         return None
-    href: str = a["href"]
+    href = str(a["href"])
     return f"https://{host}{href}" if href.startswith("/") else href
 
 
@@ -142,7 +142,7 @@ class JobLinkScraper:
             table = soup.find("table")
             if table:
                 for a in table.find_all("a", href=True):
-                    href: str = a["href"]
+                    href = str(a["href"])
                     if "/warn_lookups/" in href:
                         full = (
                             f"https://{self.host}{href}"

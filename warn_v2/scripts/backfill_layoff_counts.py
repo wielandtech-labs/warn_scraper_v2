@@ -71,6 +71,8 @@ def backfill_layoff_counts(
         pending_commit = 0
         for notice in session.scalars(stmt):
             stats["considered"] += 1
+            if notice.pdf_path is None:
+                continue
             abs_path = pdf_dir / notice.pdf_path
             try:
                 pdf_bytes = abs_path.read_bytes()

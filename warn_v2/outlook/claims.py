@@ -121,7 +121,9 @@ def trend_claims(rows: list[dict[str, Any]], *, kind: str, window_months: int) -
 
 def national_claim(pooled: dict[str, Any] | None, *, window_months: int) -> Claim | None:
     """The random-effects pooled state trend, gated on its 95% interval."""
-    confidence = _z_confidence(pooled["z"]) if pooled else None
+    if not pooled:
+        return None
+    confidence = _z_confidence(pooled["z"])
     if confidence is None:
         return None
     pct = pooled["pct"]

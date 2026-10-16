@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -76,7 +77,7 @@ def list_notices(
     count_stmt = select(func.count()).select_from(Notice).where(Notice.is_superseded.is_(False))
 
     # Same filters applied to the page query and its count (see warn_v2.api.filters).
-    filters = dict(
+    filters: dict[str, Any] = dict(
         state=state,
         employer=employer,
         closure_category=closure_category,

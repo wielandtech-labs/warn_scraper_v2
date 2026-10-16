@@ -261,7 +261,7 @@ def _county_deltas(
                 UNKNOWN_COUNTY
                 if name.lower() == UNKNOWN_COUNTY.lower()
                 else county_employment.normalize_key(state, county)
-            )
+            ) or UNKNOWN_COUNTY
             votes = labels.setdefault(key, {})
             votes[name] = votes.get(name, 0) + n
             prev = out.get(key, (0, 0))

@@ -295,8 +295,9 @@ def _find_attachment_url(soup: BeautifulSoup) -> str | None:
     downloader classifies it by the response, not the link.
     """
     for a in soup.find_all("a", href=True):
-        if "gk-download" in a["href"]:
-            return a["href"]
+        href = a.get("href")
+        if isinstance(href, str) and "gk-download" in href:
+            return href
     return None
 
 

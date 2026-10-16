@@ -8,10 +8,11 @@ from __future__ import annotations
 import calendar
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import String, cast, func, select
+from sqlalchemy import Select, String, cast, func, select
 from sqlalchemy.orm import Session, aliased
 
 from warn_v2.api.deps import get_db
@@ -146,7 +147,7 @@ def _apply_date_filters(stmt, after: date | None, before: date | None):
     return stmt
 
 
-def _not_superseded(stmt):
+def _not_superseded(stmt: Select[Any]) -> Select[Any]:
     return stmt.where(Notice.is_superseded.is_(False))
 
 
