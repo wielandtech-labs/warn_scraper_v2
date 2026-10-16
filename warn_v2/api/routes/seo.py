@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from warn_v2.api.deps import get_db
 from warn_v2.api.filters import apply_notice_filters
 from warn_v2.api.seo import content_page_paths, site_base_url
-from warn_v2.db.models import Notice
+from warn_v2.db.models import Company, Notice
 from warn_v2.states import STATE_NAMES, is_valid_state, state_name
 
 router = APIRouter(tags=["seo"], include_in_schema=False)
@@ -44,14 +44,63 @@ def robots_txt() -> str:
 
 
 @router.get("/sitemap.xml")
-def sitemap_xml() -> Response:
+def sitemap_xml(db: Session = Depends(get_db)) -> Response:
     base = site_base_url()
     urlset = Element("urlset", xmlns="http://www.sitemaps.org/schemas/sitemap/0.9")
-    paths = [*_APP_PAGES, *content_page_paths()]
-    paths += [f"/states/{code}" for code in sorted(STATE_NAMES)]
-    for path in paths:
+
+    # 1. Main app routes (daily, high priority)
+    for path in _APP_PAGES:
         url = SubElement(urlset, "url")
         SubElement(url, "loc").text = base + path
+        SubElement(url, "changefreq").text = "daily"
+        SubElement(url, "priority").text = "1.0" if path == "/" else "0.9"
+
+    # 2. Static content pages (monthly)
+    for path in content_page_paths():
+        url = SubElement(urlset, "url")
+        SubElement(url, "loc").text = base + path
+        SubElement(url, "changefreq").text = "monthly"
+        SubElement(url, "priority").text = "0.7"
+
+    # 3. 50 states + DC (daily)
+    for code in sorted(STATE_NAMES):
+        url = SubElement(urlset, "url")
+        SubElement(url, "loc").text = f"{base}/states/{code}"
+        SubElement(url, "changefreq").text = "daily"
+        SubElement(url, "priority").text = "0.8"
+
+    # 4. Canonical companies (weekly)
+    try:
+        canonical_companies = db.scalars(
+            select(Company.id)
+            .where(Company.canonical_company_id.is_(None))
+            .order_by(Company.id.desc())
+            .limit(10000)
+        ).all()
+        for cid in canonical_companies:
+            url = SubElement(urlset, "url")
+            SubElement(url, "loc").text = f"{base}/companies/{cid}"
+            SubElement(url, "changefreq").text = "weekly"
+            SubElement(url, "priority").text = "0.6"
+    except Exception:
+        pass
+
+    # 5. Recent non-superseded notices (monthly)
+    try:
+        recent_notices = db.scalars(
+            select(Notice.notice_id)
+            .where(Notice.is_superseded.is_(False))
+            .order_by(Notice.notice_date.desc().nullslast(), Notice.scraped_at.desc())
+            .limit(5000)
+        ).all()
+        for nid in recent_notices:
+            url = SubElement(urlset, "url")
+            SubElement(url, "loc").text = f"{base}/notices/{nid}"
+            SubElement(url, "changefreq").text = "monthly"
+            SubElement(url, "priority").text = "0.5"
+    except Exception:
+        pass
+
     xml = b'<?xml version="1.0" encoding="UTF-8"?>\n' + tostring(urlset, encoding="utf-8")
     return Response(content=xml, media_type="application/xml")
 

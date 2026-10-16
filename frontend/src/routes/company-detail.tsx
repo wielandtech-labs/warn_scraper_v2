@@ -80,7 +80,7 @@ export function CompanyDetail() {
   });
 
   useDocumentTitle(
-    company.data ? `${company.data.name} — WARN Index` : undefined,
+    company.data ? `${company.data.name} Layoffs & WARN Notices — WARN Index` : undefined,
   );
 
   if (Number.isNaN(id)) {
@@ -122,7 +122,7 @@ export function CompanyDetail() {
       </Link>
 
       <PageHeader
-        kicker={c.sic_desc ?? "Company"}
+        kicker={c.sic_desc ?? "Company Layoff History"}
         title={
           <span className="flex items-center gap-4">
             <CompanyLogo name={c.name} companyId={c.id} hasLogo={!!c.has_logo} size={56} />
@@ -135,7 +135,7 @@ export function CompanyDetail() {
               <span className="font-semibold text-slate-900 dark:text-slate-100">
                 {fmtNum(s.layoff_total)}
               </span>{" "}
-              workers affected across {fmtNum(s.notice_count)} WARN{" "}
+              workers affected across {fmtNum(s.notice_count)} WARN layoff{" "}
               {s.notice_count === 1 ? "notice" : "notices"} in {s.by_state.length}{" "}
               {s.by_state.length === 1 ? "state" : "states"}
               {sinceYear ? ` since ${sinceYear}` : ""}.

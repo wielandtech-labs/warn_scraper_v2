@@ -172,7 +172,21 @@ def create_app(static_dir: Path | None = None) -> FastAPI:
                 )
 
             def _render_index(self, scope: Any) -> Response:
-                meta = page_meta_for_path(scope.get("path", "/"))
+                path = scope.get("path", "/")
+                db = None
+                try:
+                    from warn_v2.db.session import get_session_factory
+
+                    db = get_session_factory()()
+                except Exception:
+                    db = None
+
+                try:
+                    meta = page_meta_for_path(path, db=db)
+                finally:
+                    if db is not None:
+                        db.close()
+
                 resp = HTMLResponse(render_index(self._index_html, meta))
                 # Deploys must be picked up on the next navigation; no-cache
                 # still allows conditional revalidation, just not blind reuse.

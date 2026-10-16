@@ -12,12 +12,17 @@ This module is pure (no FastAPI imports) so it's trivially unit-testable.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 from dataclasses import dataclass
 from html import escape
+from typing import TYPE_CHECKING, Any
 
 from warn_v2.states import state_name
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 DEFAULT_TITLE = "WARN Index — US WARN Layoff Tracker & Layoff Database"
 DEFAULT_DESCRIPTION = (
@@ -43,6 +48,8 @@ class PageMeta:
     description: str
     path: str  # canonical path, leading slash, no host
     image: str = DEFAULT_IMAGE  # 1200x630 og:image path, no host
+    json_ld: dict[str, Any] | list[dict[str, Any]] | None = None
+    fallback_html: str | None = None
 
     @property
     def canonical(self) -> str:
@@ -131,11 +138,146 @@ def content_page_paths() -> list[str]:
     return sorted(_CONTENT_PAGES)
 
 
-def page_meta_for_path(path: str) -> PageMeta:
-    """Resolve a request path to its SEO metadata.
+def _dataset_json_ld() -> dict[str, Any]:
+    base = site_base_url()
+    return {
+        "@context": "https://schema.org",
+        "@type": "Dataset",
+        "name": "WARN Index — US WARN Act Layoff Dataset",
+        "description": DEFAULT_DESCRIPTION,
+        "url": f"{base}/api-docs",
+        "keywords": [
+            "WARN layoffs",
+            "WARN layoff tracker",
+            "WARN Database",
+            "WARN Dataset",
+            "WARN tracker",
+            "Layoff database",
+            "Worker Adjustment and Retraining Notification",
+        ],
+        "creator": {
+            "@type": "Organization",
+            "name": "WARN Index",
+            "url": base,
+        },
+        "distribution": [
+            {
+                "@type": "DataDownload",
+                "encodingFormat": "text/csv",
+                "contentUrl": f"{base}/api/notices/export?format=csv",
+            },
+            {
+                "@type": "DataDownload",
+                "encodingFormat": "application/json",
+                "contentUrl": f"{base}/api/notices/export?format=json",
+            },
+        ],
+        "spatialCoverage": {
+            "@type": "Place",
+            "name": "United States",
+        },
+    }
+
+
+def _website_json_ld() -> dict[str, Any]:
+    base = site_base_url()
+    return {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "WARN Index",
+        "url": base,
+        "description": DEFAULT_DESCRIPTION,
+        "potentialAction": {
+            "@type": "SearchAction",
+            "target": f"{base}/notices?employer={{search_term_string}}",
+            "query-input": "required name=search_term_string",
+        },
+    }
+
+
+def _faq_json_ld(is_warn_act: bool = False) -> dict[str, Any]:
+    if is_warn_act:
+        questions = [
+            (
+                "What is the Worker Adjustment and Retraining Notification (WARN) Act?",
+                "The Worker Adjustment and Retraining Notification (WARN) Act is a US federal law "
+                "that requires employers with 100 or more full-time employees to give at least "
+                "60 calendar days advance written notice before a plant closing or mass layoff.",
+            ),
+            (
+                "Who has to give notice?",
+                "The federal WARN Act generally applies to employers with 100 or more "
+                "full-time employees. Notice is triggered by a plant closing (50+ employees) "
+                "or mass layoff (500+ employees, or 50-499 if they make up at least one third "
+                "of active workforce).",
+            ),
+            (
+                "What are state mini-WARN laws?",
+                "Many states have their own WARN-style laws with lower thresholds, longer notice "
+                "periods, or broader coverage (e.g. California, New York, New Jersey, Illinois).",
+            ),
+        ]
+    else:
+        questions = [
+            (
+                "What is a WARN notice?",
+                "A legally required advance notice that an employer files with state labor "
+                "agencies before a covered plant closing or mass layoff.",
+            ),
+            (
+                "How does the WARN layoff tracker work?",
+                "We scrape state labor agency listings daily, normalizing and deduplicating "
+                "filings into a unified nationwide layoff database.",
+            ),
+            (
+                "Which states are covered?",
+                "All 50 US states and the District of Columbia.",
+            ),
+            (
+                "Can I download the WARN dataset or use an API?",
+                "Yes. The complete dataset is available via public REST API and bulk "
+                "CSV/JSON downloads.",
+            ),
+        ]
+
+    return {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": q,
+                "acceptedAnswer": {"@type": "Answer", "text": a},
+            }
+            for q, a in questions
+        ],
+    }
+
+
+def _breadcrumb_json_ld(crumbs: list[tuple[str, str]]) -> dict[str, Any]:
+    base = site_base_url()
+    return {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": i + 1,
+                "name": name,
+                "item": base + path if path.startswith("/") else path,
+            }
+            for i, (name, path) in enumerate(crumbs)
+        ],
+    }
+
+
+def page_meta_for_path(path: str, db: Session | None = None) -> PageMeta:
+    """Resolve a request path to its SEO metadata and JSON-LD structured data.
 
     Falls back to site defaults for any path without bespoke metadata (e.g.
-    ``/login``, detail pages) — those still get a correct canonical URL.
+    ``/login``) — those still get a correct canonical URL. If a DB session is
+    passed, dynamic titles/descriptions are resolved for company and notice
+    detail pages.
     """
     # Normalise: strip query/fragment and a trailing slash (except root).
     path = path.split("?", 1)[0].split("#", 1)[0]
@@ -145,7 +287,12 @@ def page_meta_for_path(path: str) -> PageMeta:
         path = "/"
 
     if path == "/":
-        return PageMeta(DEFAULT_TITLE, DEFAULT_DESCRIPTION, "/")
+        return PageMeta(
+            DEFAULT_TITLE,
+            DEFAULT_DESCRIPTION,
+            "/",
+            json_ld=[_website_json_ld(), _dataset_json_ld()],
+        )
 
     if path == "/status":
         return PageMeta(
@@ -153,6 +300,7 @@ def page_meta_for_path(path: str) -> PageMeta:
             "Live status of WARN Index's state scrapers: which jurisdictions "
             "are operational and when each last successfully updated.",
             "/status",
+            json_ld=_breadcrumb_json_ld([("Home", "/"), ("Status", "/status")]),
         )
 
     if path == "/states":
@@ -162,6 +310,43 @@ def page_meta_for_path(path: str) -> PageMeta:
             "and closure notices by US state. Totals, trends, and the latest "
             "filings for each jurisdiction.",
             "/states",
+            json_ld=_breadcrumb_json_ld([("Home", "/"), ("States", "/states")]),
+        )
+
+    if path == "/api-docs":
+        content = _CONTENT_PAGES["/api-docs"]
+        return PageMeta(
+            content[0],
+            content[1],
+            "/api-docs",
+            json_ld=[
+                _dataset_json_ld(),
+                _breadcrumb_json_ld([("Home", "/"), ("Data & API", "/api-docs")]),
+            ],
+        )
+
+    if path == "/faq":
+        content = _CONTENT_PAGES["/faq"]
+        return PageMeta(
+            content[0],
+            content[1],
+            "/faq",
+            json_ld=[
+                _faq_json_ld(is_warn_act=False),
+                _breadcrumb_json_ld([("Home", "/"), ("FAQ", "/faq")]),
+            ],
+        )
+
+    if path == "/warn-act":
+        content = _CONTENT_PAGES["/warn-act"]
+        return PageMeta(
+            content[0],
+            content[1],
+            "/warn-act",
+            json_ld=[
+                _faq_json_ld(is_warn_act=True),
+                _breadcrumb_json_ld([("Home", "/"), ("What is the WARN Act?", "/warn-act")]),
+            ],
         )
 
     m = re.fullmatch(r"/states/([A-Za-z]{2})", path)
@@ -176,11 +361,99 @@ def page_meta_for_path(path: str) -> PageMeta:
                 f"totals, top employers, and trends.",
                 f"/states/{code}",
                 image=f"/og/states/{code}.png",
+                json_ld=_breadcrumb_json_ld([
+                    ("Home", "/"),
+                    ("States", "/states"),
+                    (name, f"/states/{code}"),
+                ]),
             )
 
-    content = _CONTENT_PAGES.get(path) or _APP_PAGES_META.get(path)
-    if content:
-        return PageMeta(content[0], content[1], path)
+    # Companies detail
+    m = re.fullmatch(r"/companies/(\d+)", path)
+    if m:
+        cid = int(m.group(1))
+        company_name = None
+        if db is not None:
+            try:
+                from warn_v2.db.models import Company
+
+                comp = db.get(Company, cid)
+                if comp and comp.name:
+                    company_name = comp.name
+            except Exception:
+                pass
+        name_display = company_name or f"Company #{cid}"
+        title = f"{name_display} Layoffs & WARN Notices — WARN Index"
+        desc = (
+            f"Worker Adjustment and Retraining Notification (WARN) filings, plant "
+            f"closures, and layoff history for {name_display}."
+        )
+        return PageMeta(
+            title,
+            desc,
+            f"/companies/{cid}",
+            json_ld=_breadcrumb_json_ld([
+                ("Home", "/"),
+                ("Companies", "/companies"),
+                (name_display, f"/companies/{cid}"),
+            ]),
+        )
+
+    # Notices detail
+    m = re.fullmatch(r"/notices/([^/?#]+)", path)
+    if m and not path.startswith("/notices/export"):
+        nid = m.group(1)
+        employer = None
+        st = None
+        affected = None
+        if db is not None:
+            try:
+                from warn_v2.db.models import Notice
+
+                notc = db.get(Notice, nid)
+                if notc:
+                    employer = notc.employer
+                    st = notc.state
+                    affected = notc.layoff_count
+            except Exception:
+                pass
+        if employer and st:
+            title = f"{employer} ({st}) WARN Notice — Layoff Database — WARN Index"
+            aff_str = f" ({affected:,} workers affected)" if affected else ""
+            desc = (
+                f"WARN Act advance layoff notice filed by {employer} in {st}{aff_str}. "
+                f"Track workforce reductions in the WARN Index layoff database."
+            )
+            item_name = f"{employer} ({st})"
+        else:
+            title = "WARN Layoff Notice Filing — WARN Index"
+            desc = (
+                "Worker Adjustment and Retraining Notification (WARN) advance notice "
+                "filing details from official state labor records."
+            )
+            item_name = f"Notice {nid}"
+        return PageMeta(
+            title,
+            desc,
+            f"/notices/{nid}",
+            json_ld=_breadcrumb_json_ld([
+                ("Home", "/"),
+                ("Notices", "/notices"),
+                (item_name, f"/notices/{nid}"),
+            ]),
+        )
+
+    matched_content = _CONTENT_PAGES.get(path) or _APP_PAGES_META.get(path)
+    if matched_content:
+        crumbs = [("Home", "/")]
+        title_clean = matched_content[0].split(" — ")[0]
+        crumbs.append((title_clean, path))
+        return PageMeta(
+            matched_content[0],
+            matched_content[1],
+            path,
+            json_ld=_breadcrumb_json_ld(crumbs),
+        )
 
     # Unknown SPA route: site defaults, but canonicalise to the requested path.
     return PageMeta(DEFAULT_TITLE, DEFAULT_DESCRIPTION, path)
@@ -194,31 +467,37 @@ def _head_tags(meta: PageMeta) -> str:
     base = escape(site_base_url(), quote=True)
     feed = base + "/feed.rss"
     image = base + escape(meta.image, quote=True)
-    return (
-        f'\n    <link rel="canonical" href="{url}" />'
-        f'\n    <meta property="og:site_name" content="WARN Index" />'
-        f'\n    <meta property="og:type" content="website" />'
-        f'\n    <meta property="og:title" content="{t}" />'
-        f'\n    <meta property="og:description" content="{d}" />'
-        f'\n    <meta property="og:url" content="{url}" />'
-        f'\n    <meta property="og:image" content="{image}" />'
-        f'\n    <meta property="og:image:width" content="1200" />'
-        f'\n    <meta property="og:image:height" content="630" />'
-        f'\n    <meta name="twitter:card" content="summary_large_image" />'
-        f'\n    <meta name="twitter:title" content="{t}" />'
-        f'\n    <meta name="twitter:description" content="{d}" />'
-        f'\n    <meta name="twitter:image" content="{image}" />'
-        f'\n    <link rel="alternate" type="application/rss+xml" '
-        f'title="WARN Index — latest notices" href="{feed}" />'
-    )
+    tags = [
+        f'    <link rel="canonical" href="{url}" />',
+        '    <meta property="og:site_name" content="WARN Index" />',
+        '    <meta property="og:type" content="website" />',
+        f'    <meta property="og:title" content="{t}" />',
+        f'    <meta property="og:description" content="{d}" />',
+        f'    <meta property="og:url" content="{url}" />',
+        f'    <meta property="og:image" content="{image}" />',
+        '    <meta property="og:image:width" content="1200" />',
+        '    <meta property="og:image:height" content="630" />',
+        '    <meta name="twitter:card" content="summary_large_image" />',
+        f'    <meta name="twitter:title" content="{t}" />',
+        f'    <meta name="twitter:description" content="{d}" />',
+        f'    <meta name="twitter:image" content="{image}" />',
+        (
+            '    <link rel="alternate" type="application/rss+xml" '
+            f'title="WARN Index — latest notices" href="{feed}" />'
+        ),
+    ]
+    if meta.json_ld:
+        ld_payload = meta.json_ld
+        ld_str = json.dumps(ld_payload, indent=2, ensure_ascii=False).replace("</", "<\\/")
+        tags.append(f'    <script type="application/ld+json">\n{ld_str}\n    </script>')
+    return "\n" + "\n".join(tags)
 
 
 def render_index(base_html: str, meta: PageMeta) -> str:
     """Return ``base_html`` with its title/description overridden for ``meta``
-    and the canonical/OG/Twitter tags injected before ``</head>``.
-
-    Operates by targeted substitution on the built ``index.html`` so the source
-    file keeps real, dev-friendly defaults (no template placeholders).
+    and the canonical/OG/Twitter/JSON-LD tags injected before ``</head>``.
+    Also injects a lightweight semantic fallback inside ``<div id="root">``
+    so crawlers receive meaningful HTML content even without executing JS.
     """
     title = escape(meta.title)
     desc = escape(meta.description, quote=True)
@@ -238,4 +517,32 @@ def render_index(base_html: str, meta: PageMeta) -> str:
     )
     if "</head>" in html:
         html = html.replace("</head>", _head_tags(meta) + "\n  </head>", 1)
+
+    # Provide crawler/no-JS semantic body fallback within root container
+    h1_text = escape(meta.title)
+    p_text = escape(meta.description)
+    fallback = (
+        '<div id="root">'
+        '<main style="max-width:48rem;margin:2rem auto;'
+        'padding:1rem;font-family:system-ui,sans-serif">'
+        f'<h1 style="font-size:1.75rem;font-weight:700;margin-bottom:0.75rem">{h1_text}</h1>'
+        '<p style="color:#475569;font-size:1.1rem;line-height:1.6;'
+        f'margin-bottom:1.5rem">{p_text}</p>'
+        '<nav style="display:flex;gap:1rem;font-size:0.875rem">'
+        '<a href="/" style="color:#0284c7">Home</a>'
+        '<a href="/notices" style="color:#0284c7">Notices</a>'
+        '<a href="/companies" style="color:#0284c7">Companies</a>'
+        '<a href="/states" style="color:#0284c7">States</a>'
+        '<a href="/api-docs" style="color:#0284c7">Data &amp; API</a>'
+        '</nav>'
+        '</main>'
+        '</div>'
+    )
+    html = re.sub(
+        r'<div id=["\']?root["\']?>.*?</div>',
+        lambda _m: fallback,
+        html,
+        count=1,
+        flags=re.DOTALL,
+    )
     return html

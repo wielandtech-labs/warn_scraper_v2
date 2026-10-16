@@ -15,7 +15,7 @@ from warn_v2.api.seo import (
     render_index,
     site_base_url,
 )
-from warn_v2.db.models import Notice
+from warn_v2.db.models import Company, Notice
 from warn_v2.states import STATE_NAMES
 
 _BASE_HTML = (
@@ -224,3 +224,107 @@ def test_state_feed_rss_filters_by_state(api_client, db):
 def test_state_feed_rss_unknown_state_404(api_client, db):
     db.commit()
     assert api_client.get("/states/ZZ/feed.rss").status_code == 404
+
+
+# --- JSON-LD, Dynamic Detail Meta, and Fallback Tests ------------------------
+
+def test_render_index_injects_json_ld():
+    payload = {"@context": "https://schema.org", "@type": "Dataset", "name": "Test"}
+    meta = PageMeta("T", "D", "/api-docs", json_ld=payload)
+    html = render_index(_BASE_HTML, meta)
+    assert '<script type="application/ld+json">' in html
+    assert '"@type": "Dataset"' in html
+    assert '"name": "Test"' in html
+
+
+def test_render_index_injects_semantic_fallback():
+    meta = PageMeta("Test Page Title", "Test description text", "/notices")
+    html = render_index(_BASE_HTML, meta)
+    assert '<div id="root">' in html
+    assert (
+        '<h1 style="font-size:1.75rem;font-weight:700;margin-bottom:0.75rem">'
+        "Test Page Title</h1>"
+    ) in html
+    assert "Test description text" in html
+    assert '<a href="/notices"' in html
+
+
+def test_meta_json_ld_schemas():
+    # Home has WebSite and Dataset schemas
+    home = page_meta_for_path("/")
+    assert home.json_ld is not None
+    assert isinstance(home.json_ld, list)
+    types = {item["@type"] for item in home.json_ld}
+    assert "WebSite" in types
+    assert "Dataset" in types
+
+    # API docs has Dataset schema
+    api_docs = page_meta_for_path("/api-docs")
+    assert api_docs.json_ld is not None
+    assert any(
+        (item["@type"] == "Dataset" if isinstance(item, dict) else False)
+        for item in (api_docs.json_ld if isinstance(api_docs.json_ld, list) else [api_docs.json_ld])
+    )
+
+    # FAQ and WARN Act have FAQPage schema
+    faq = page_meta_for_path("/faq")
+    assert faq.json_ld is not None
+    warn_act = page_meta_for_path("/warn-act")
+    assert warn_act.json_ld is not None
+
+    # State page has BreadcrumbList schema
+    ca = page_meta_for_path("/states/CA")
+    assert ca.json_ld is not None
+    assert ca.json_ld["@type"] == "BreadcrumbList"
+
+
+def test_meta_company_detail_page_with_and_without_db(db):
+    comp = Company(id=999, name="Initech Corporation")
+    db.add(comp)
+    db.commit()
+
+    # With DB
+    with_db = page_meta_for_path("/companies/999", db=db)
+    assert "Initech Corporation" in with_db.title
+    assert "Initech Corporation" in with_db.description
+    assert with_db.json_ld["@type"] == "BreadcrumbList"
+
+    # Without DB falls back gracefully
+    without_db = page_meta_for_path("/companies/999")
+    assert "Company #999" in without_db.title
+
+
+def test_meta_notice_detail_page_with_and_without_db(db):
+    _notice(db, state="OH", employer="Cleveland Dynamics", layoff_count=150)
+    db.commit()
+    nid = "seo_OH_2026-01-15_Clevelan"
+
+    # With DB
+    with_db = page_meta_for_path(f"/notices/{nid}", db=db)
+    assert "Cleveland Dynamics" in with_db.title
+    assert "(OH)" in with_db.title
+    assert "150 workers affected" in with_db.description
+
+    # Without DB falls back gracefully
+    without_db = page_meta_for_path(f"/notices/{nid}")
+    assert "WARN Layoff Notice Filing" in without_db.title
+
+
+def test_sitemap_includes_companies_and_notices(api_client, db):
+    comp = Company(id=101, name="Acme Tech")
+    db.add(comp)
+    _notice(db, state="CA", employer="Acme Tech")
+    db.commit()
+
+    resp = api_client.get("/sitemap.xml")
+    assert resp.status_code == 200
+    root = fromstring(resp.content)
+    ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+    locs = {el.text for el in root.findall(".//sm:loc", ns)}
+    base = site_base_url()
+    assert f"{base}/companies/101" in locs
+    assert any("/notices/seo_CA_" in loc for loc in locs)
+    # Checks priority and changefreq tags exist
+    frequencies = {el.text for el in root.findall(".//sm:changefreq", ns)}
+    assert "daily" in frequencies
+    assert "weekly" in frequencies
