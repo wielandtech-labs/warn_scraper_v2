@@ -236,7 +236,12 @@ export function Dashboard() {
       </div>
 
       <div className="card">
-        <h2 className="mb-1 text-lg font-semibold">Workers affected by industry</h2>
+        <div className="mb-1 flex items-baseline justify-between gap-3">
+          <h2 className="text-lg font-semibold">Workers affected by industry</h2>
+          <Link to="/timelapse" className="shrink-0 text-sm font-medium text-sky-700 hover:underline dark:text-sky-400">
+            Watch over time →
+          </Link>
+        </div>
         <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
           Notices matched to a NAICS sector. Open one for its weekly scorecard.
         </p>

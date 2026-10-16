@@ -201,6 +201,24 @@ const mapRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/map"), "MapPage"),
 });
 
+const timelapseRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/timelapse",
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { bucket?: "year" | "month"; since?: number; at?: string; industry?: string } => ({
+    // Quarterly from 2015 is the default and stays out of the URL.
+    bucket: search.bucket === "year" || search.bucket === "month" ? search.bucket : undefined,
+    since: numParam(search.since),
+    // A year key ("2020") arrives JSON-parsed as a number.
+    at: search.at != null && search.at !== "" ? String(search.at) : undefined,
+    // Sector ids like "11" arrive as numbers too.
+    industry: search.industry != null && search.industry !== "" ? String(search.industry) : undefined,
+  }),
+  // MapLibre + the race: code-split like /map.
+  component: lazyRouteComponent(() => import("./routes/timelapse"), "TimelapsePage"),
+});
+
 const statsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/stats",
@@ -359,6 +377,7 @@ const routeTree = rootRoute.addChildren([
   companiesRoute,
   companyDetailRoute,
   mapRoute,
+  timelapseRoute,
   statsRoute,
   statesIndexRoute,
   stateDetailRoute,

@@ -15,7 +15,10 @@ from sqlalchemy import String, cast, func, select
 from sqlalchemy.orm import Session, aliased
 
 from warn_v2.api.deps import get_db
+from warn_v2.api.filters import apply_stats_closure_filter as _apply_closure_filter
+from warn_v2.api.timeline import Bucket, month_col, period_of, period_range
 from warn_v2.companies.naics import (
+    NAICS_SECTORS,
     SECTOR_NAME,
     naics_filter,
     sector_for_code,
@@ -95,6 +98,18 @@ class IndustryStat(BaseModel):
     subsectors: list[SubsectorStat]
 
 
+class IndustryTimelineRow(BaseModel):
+    sector: str  # NAICS sector id, or "unclassified"
+    name: str
+    notices: list[int]  # aligned with IndustryTimeline.periods
+    workers: list[int]
+
+
+class IndustryTimeline(BaseModel):
+    periods: list[str]  # "2020", "2020-Q2" or "2020-04", oldest first, contiguous
+    sectors: list[IndustryTimelineRow]
+
+
 class CountyImpactStat(BaseModel):
     state: str
     county: str  # display name, legal-type suffix stripped ("Sedgwick")
@@ -128,16 +143,6 @@ def _apply_date_filters(stmt, after: date | None, before: date | None):
         stmt = stmt.where(Notice.notice_date >= after)
     if before:
         stmt = stmt.where(Notice.notice_date <= before)
-    return stmt
-
-
-def _apply_closure_filter(stmt, closure_category: str | None):
-    if closure_category:
-        stmt = stmt.where(Notice.closure_category == closure_category)
-    else:
-        # Non-WARN Rapid Response events (MS) are not statutory WARN notices —
-        # keep them out of aggregate stats unless explicitly requested.
-        stmt = stmt.where(Notice.closure_category.is_distinct_from("Non-WARN"))
     return stmt
 
 
@@ -579,6 +584,79 @@ def industries(
         )
     out.sort(key=lambda s: s.notice_count, reverse=True)
     return out
+
+
+UNCLASSIFIED = "unclassified"
+
+
+@router.get("/industries/timeline", response_model=IndustryTimeline)
+def industries_timeline(
+    bucket: Bucket = Query("quarter", description="Time bucket: year | quarter | month"),
+    state: str | None = Query(None, description="Restrict to one state"),
+    closure_category: str | None = Query(
+        None, description="Closure | Layoff | Non-WARN (default: all but Non-WARN)"
+    ),
+    after: date | None = Query(None, description="Only notices on or after this date"),
+    before: date | None = Query(None, description="Only notices on or before this date"),
+    db: Session = Depends(get_db),
+) -> IndustryTimeline:
+    """Notices and workers per NAICS sector per period, for the /timelapse
+    industry chart.
+
+    Unlike /industries, notices whose industry is unknown (no linked company,
+    no NAICS code, or a code in no known sector) are counted, as one
+    ``unclassified`` row — around 40% of notices, so leaving them out would
+    overstate how much of each period the sectors explain. ``periods`` is the
+    contiguous range from the first to the last period with a notice; each
+    row's ``notices``/``workers`` are aligned with it. Sectors with no notices
+    in the window are omitted.
+    """
+    prefix = func.substr(Company.naics_code, 1, 2)
+    stmt = (
+        select(
+            prefix,
+            month_col,
+            func.count(Notice.notice_id),
+            func.coalesce(func.sum(Notice.layoff_count), 0),
+        )
+        .select_from(Notice)
+        .outerjoin(Company, Notice.company_id == Company.id)
+        .where(Notice.notice_date.is_not(None))
+        .group_by(prefix, month_col)
+    )
+    stmt = _not_superseded(stmt)
+    stmt = _apply_date_filters(stmt, after, before)
+    stmt = _apply_closure_filter(stmt, closure_category)
+    if state:
+        stmt = stmt.where(Notice.state == state.upper())
+
+    # (sector, period) -> [notices, workers]
+    cells: dict[tuple[str, str], list[int]] = {}
+    for code, month, n, lt in db.execute(stmt).all():
+        sector = sector_for_code(code) or UNCLASSIFIED
+        cell = cells.setdefault((sector, period_of(month, bucket)), [0, 0])
+        cell[0] += _coerce_int(n)
+        cell[1] += _coerce_int(lt)
+
+    periods = period_range({p for _, p in cells}, bucket)
+    index = {p: i for i, p in enumerate(periods)}
+    rows: dict[str, IndustryTimelineRow] = {}
+    for (sector, period), (n, lt) in cells.items():
+        row = rows.get(sector)
+        if row is None:
+            row = rows[sector] = IndustryTimelineRow(
+                sector=sector,
+                name=SECTOR_NAME.get(sector, "Unclassified"),
+                notices=[0] * len(periods),
+                workers=[0] * len(periods),
+            )
+        row.notices[index[period]] = n
+        row.workers[index[period]] = lt
+    # Sector order (as in /industries' NAICS table) keeps the payload stable;
+    # the client ranks per frame.
+    order = {sid: i for i, (sid, _, _) in enumerate(NAICS_SECTORS)}
+    sectors = sorted(rows.values(), key=lambda r: order.get(r.sector, len(order)))
+    return IndustryTimeline(periods=periods, sectors=sectors)
 
 
 @router.get("/by-parent-group", response_model=list[ParentGroupStat])

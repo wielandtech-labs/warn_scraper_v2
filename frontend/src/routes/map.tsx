@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 
 import { api } from "../api/client";
 import { FilterBar, type FilterValues } from "../components/FilterBar";
@@ -216,6 +216,11 @@ export function MapPage() {
         kicker="Explore"
         title="Layoff map"
         lede="Every geocoded WARN notice, grouped by place. Bubbles grow with the workers affected; tap one to list its notices."
+        aside={
+          <Link to="/timelapse" className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400">
+            Watch it over time →
+          </Link>
+        }
       />
       <div id="map-filters" className={filtersOpen ? "" : "hidden md:block"}>
         <FilterBar

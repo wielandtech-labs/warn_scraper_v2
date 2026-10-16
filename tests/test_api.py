@@ -479,6 +479,8 @@ def test_scraper_status_aggregates(api_client, db):
     assert ca["last_run_at"] == ca["last_success_at"]
     assert ca["first_notice_date"] == "2010-06-01"  # superseded 1999 row excluded
     assert ca["last_notice_date"] == "2026-02-01"
+    # Neither 2010 nor 2011 is followed by a year with notices; 2026 is the latest.
+    assert ca["coverage_start"] == "2026-02-01"
 
     tx = rows["TX"]
     assert tx["last_status"] == "parse_failed"
@@ -486,6 +488,7 @@ def test_scraper_status_aggregates(api_client, db):
     assert tx["last_success_at"] is not None
     assert tx["last_success_at"] < tx["last_run_at"]  # success predates the failure
     assert tx["first_notice_date"] is None and tx["last_notice_date"] is None
+    assert tx["coverage_start"] is None
 
     nv = rows["NV"]
     assert nv["last_status"] == "fetch_failed"
@@ -891,6 +894,109 @@ def test_map_places_filters(api_client, db):
     # _notice() reports 100 workers per notice.
     assert len(api_client.get("/api/map-places?min_layoffs=100").json()["lat"]) == 2
     assert api_client.get("/api/map-places?min_layoffs=101").json()["lat"] == []
+
+
+def test_status_coverage_start_skips_stray_early_rows(api_client, db):
+    _run(db, "CA")
+    _notice(db, state="CA", notice_date=date(1997, 3, 1), employer="Stray Co")
+    _notice(db, state="CA", notice_date=date(2000, 2, 9), employer="A Co")
+    _notice(db, state="CA", notice_date=date(2000, 5, 1), employer="B Co")
+    _notice(db, state="CA", notice_date=date(2001, 1, 3), employer="C Co")
+    db.commit()
+
+    ca = api_client.get("/api/scraper-runs/status").json()[0]
+    assert ca["first_notice_date"] == "1997-03-01"
+    assert ca["coverage_start"] == "2000-02-09"
+
+
+def test_map_places_timeline_buckets_and_sparse_cells(api_client, db):
+    la = _geocoded_notice(db, None, "Alpha Co", lat=34.05212, lon=-118.24399)
+    la.notice_date = date(2020, 2, 10)
+    db.get(Location, la.location_id).city = "Los Angeles"
+    la2 = _geocoded_notice(db, None, "Beta Co", lat=34.05213, lon=-118.24401)
+    la2.notice_date = date(2020, 3, 5)
+    la2.layoff_count = None  # a notice, no workers
+    ny = _geocoded_notice(db, None, "Gamma Co", lat=40.7, lon=-74.0)
+    ny.notice_date = date(2020, 11, 1)
+    sup = _geocoded_notice(db, None, "Delta Co", lat=40.7, lon=-74.0)
+    sup.notice_date = date(2020, 11, 2)
+    sup.is_superseded = True
+    rr = _geocoded_notice(db, None, "Rapid Co", closure_category="Non-WARN", lat=40.7, lon=-74.0)
+    rr.notice_date = date(2020, 11, 3)
+    db.commit()
+
+    resp = api_client.get("/api/map-places/timeline")
+    assert resp.headers["cache-control"] == "public, max-age=300"
+    body = resp.json()
+    # Quarterly by default, contiguous: the empty Q2/Q3 are still frames.
+    assert body["periods"] == ["2020-Q1", "2020-Q2", "2020-Q3", "2020-Q4"]
+    cells = {
+        (body["label"][p], body["periods"][t], n, w)
+        for p, t, n, w in zip(
+            body["place"], body["period"], body["notices"], body["workers"], strict=True
+        )
+    }
+    # Feb + Mar at one point merge into one Q1 cell; Non-WARN and superseded
+    # notices are left out.
+    assert cells == {("Los Angeles, CA", "2020-Q1", 2, 100), ("CA", "2020-Q4", 1, 100)}
+
+    months = api_client.get("/api/map-places/timeline?bucket=month").json()
+    assert months["periods"][0] == "2020-02" and months["periods"][-1] == "2020-11"
+    assert len(months["periods"]) == 10
+    assert len(months["notices"]) == 3
+    assert api_client.get("/api/map-places/timeline?bucket=year").json()["periods"] == ["2020"]
+    # Non-WARN only when asked for.
+    nw = api_client.get("/api/map-places/timeline?closure_category=Non-WARN").json()
+    assert nw["notices"] == [1]
+    assert api_client.get("/api/map-places/timeline?bucket=week").status_code == 422
+
+
+def test_map_places_timeline_filters(api_client, db):
+    mfg = _company(db, "Mfg", naics_code="311999")
+    ret = _company(db, "Ret", naics_code="445110")
+    _geocoded_notice(db, mfg, "Mfg Co", lat=34.0, lon=-118.0)
+    _geocoded_notice(db, ret, "Ret Co", lat=40.7, lon=-74.0)
+    _geocoded_notice(db, None, "Unknown Co", lat=41.8, lon=-87.6)
+    db.commit()
+
+    body = api_client.get("/api/map-places/timeline?industry=31-33").json()
+    assert (body["lat"], body["notices"]) == ([34.0], [1])
+    assert api_client.get("/api/map-places/timeline?after=2027-01-01").json() == {
+        "lat": [], "lon": [], "label": [], "periods": [],
+        "place": [], "period": [], "notices": [], "workers": [],
+    }
+
+
+def test_industries_timeline_includes_unclassified(api_client, db):
+    mfg = _company(db, "Mfg", naics_code="311999")
+    junk = _company(db, "Junk", naics_code="99")  # in no sector
+    bare = _company(db, "Bare")  # enriched without a NAICS code
+    _notice(db, company=mfg, employer="Mfg A", notice_date=date(2024, 1, 5), layoff_count=40)
+    _notice(db, company=mfg, employer="Mfg B", notice_date=date(2024, 12, 5), layoff_count=60)
+    _notice(db, company=junk, employer="Junk Co", notice_date=date(2024, 2, 1), layoff_count=7)
+    _notice(db, company=bare, employer="Bare Co", notice_date=date(2024, 2, 2), layoff_count=None)
+    _notice(db, employer="Nobody", notice_date=date(2024, 3, 1), layoff_count=3)
+    _notice(db, employer="Rapid", notice_date=date(2024, 3, 2), closure_category="Non-WARN")
+    gone = _notice(db, company=mfg, employer="Mfg Old", notice_date=date(2024, 6, 1))
+    gone.is_superseded = True
+    db.commit()
+
+    body = api_client.get("/api/stats/industries/timeline").json()
+    assert body["periods"] == ["2024-Q1", "2024-Q2", "2024-Q3", "2024-Q4"]
+    rows = {r["sector"]: r for r in body["sectors"]}
+    assert list(rows) == ["31-33", "unclassified"]  # NAICS order, unclassified last
+    assert rows["31-33"]["name"] == "Manufacturing"
+    assert rows["31-33"]["notices"] == [1, 0, 0, 1]
+    assert rows["31-33"]["workers"] == [40, 0, 0, 60]
+    assert rows["unclassified"]["name"] == "Unclassified"
+    assert rows["unclassified"]["notices"] == [3, 0, 0, 0]
+    assert rows["unclassified"]["workers"] == [10, 0, 0, 0]
+
+    year = api_client.get("/api/stats/industries/timeline?bucket=year&state=TX").json()
+    assert year == {"periods": [], "sectors": []}
+    month = api_client.get("/api/stats/industries/timeline?bucket=month&before=2024-01-31").json()
+    assert month["periods"] == ["2024-01"]
+    assert [r["sector"] for r in month["sectors"]] == ["31-33"]
 
 
 def test_notices_bbox_filter(api_client, db):

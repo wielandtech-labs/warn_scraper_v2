@@ -116,6 +116,17 @@ export const CHOROPLETH: Record<ResolvedTheme, Record<"workers" | "notices", Cho
   },
 };
 
+/* Heatmap density -> color, shared by the MapLibre heat layer and the legends
+   drawn outside it. One ramp for both themes: it sits on the basemap, not the
+   page surface. */
+export const HEAT_STOPS: [number, string][] = [
+  [0, "rgba(218,47,37,0)"],
+  [0.2, "rgba(244,163,97,0.55)"],
+  [0.5, "rgba(230,103,103,0.8)"],
+  [0.8, "rgba(218,47,37,0.9)"],
+  [1, "rgba(130,20,15,0.95)"],
+];
+
 export const TILE_LAYERS: Record<
   ResolvedTheme,
   { url: string; attribution: string }
