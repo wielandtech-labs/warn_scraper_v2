@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { IndustryStat } from "../api/types";
+import { ALL_TIME } from "../lib/filters";
 import { daysAgoIso, fmtDate, stateName, US_STATES } from "../lib/format";
 
 export interface FilterValues {
@@ -53,9 +54,6 @@ export interface FilterBarProps {
    *  distinguishable from the default. Resolve with `resolveAfter()` (lib/filters). */
   defaultDays?: number;
 }
-
-/** `after` value meaning "no cutoff" on pages with a `defaultDays` window. */
-export const ALL_TIME = "all";
 
 const PRESETS = [
   { label: "30d", days: 30 },

@@ -166,10 +166,10 @@ export function MapPage() {
   // which re-renders this component via useSearch — without the memo, React
   // re-reconciles up to 10k <Marker> elements (and the fresh position arrays
   // make react-leaflet call setLatLng on every one) on every pan, even when
-  // nothing refetched. React Query keeps `points` referentially stable
-  // between refetches (placeholderData included); `points` itself is a fresh
-  // `[]` while loading, so it can't be the dep, so this bails out of the
-  // whole marker subtree unless the data actually changed.
+  // nothing refetched. React Query keeps `query.data` referentially stable
+  // between refetches (placeholderData included), so this bails out of the
+  // whole marker subtree unless the data actually changed. (Not `points`:
+  // its `?? []` is a fresh array on every render while loading.)
   const markers = useMemo(
     () =>
       (query.data ?? []).map((n) => (
