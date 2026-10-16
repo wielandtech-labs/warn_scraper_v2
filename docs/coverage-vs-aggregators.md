@@ -1,4 +1,69 @@
-# Coverage cross-check vs. external aggregators — 2026-07-07
+# Coverage cross-check vs. external aggregators
+
+## 2026-10-16: per-year benchmark vs. LaborCurrent
+
+LaborCurrent (`laborcurrent.com/layoffs`) claims **92,437 notices / 10.0M
+workers**. We serve **85,948** (non-superseded, Non-WARN excluded). Its state
+pages chart notices per quarter or month back to each state's floor, so unlike
+layoffdata's "since" floors below it supports a **per-year** comparison. That
+is now scripted:
+
+```
+python -m warn_v2.scripts.aggregator_benchmark            # ~2 min (robots.txt crawl delay)
+python -m warn_v2.scripts.aggregator_benchmark --json
+```
+
+First run: **277 state-years short, 20,254 notices.** The same policy as
+below applies: LaborCurrent's rows are never ingested. A shortfall is a lead to
+chase at the state's own source. Every cell below is ours/theirs.
+
+**Tier 1: holes in recent or live data.**
+
+| State | Shortfall | Verdict |
+|---|---|---|
+| OH | 2025: 0/97 | We hold **nothing** dated 2025 (Dec 2024 → Jan 2026). Scraper bug or unfetched year page. |
+| PA | 2023: 0/73 | Nothing from Jan 2023 to ~Mar 2024. |
+| KS | ~25/yr every year 1999–2020 vs 37–143 (+1,133) | The JobLink per-search cap. The capped-year re-backfill Job queued after #241 never ran. Same cap on ME 2017–21 (2–7/yr vs 37–52), VT 2015–18, AZ, DE. KS's newest notice is 2026-05. |
+
+**Tier 2: count differences to classify before building anything.** Each could
+be counting convention or real loss.
+
+| State | Shortfall | Hypothesis to test |
+|---|---|---|
+| CA | 2021–25: +157/+368/+965/+971/+497 | EDD prints one row per worksite, and LaborCurrent may keep them all. |
+| MN | 2018–26, about +900 (2019: 51/275) | DEED's report pages also list non-WARN plant closings / mass layoffs. |
+| NE | 2014–19, about +525 (2018: 7/115) | Partial ingest of the frozen `WARNReportData` endpoint. APProjects' CC-BY set also holds 845 NE rows to our 149. |
+| IL | 2020: 439/810 | COVID-era amendments/duplicates on their side, or rows we superseded. |
+| OK, HI, NV, CO, MI, NJ | +10–40/yr | Mixed; check one month each. |
+| MS | +20–50/yr | Expected: our Non-WARN exclusion (#279). No action. |
+
+**Tier 3: history we mark ✉/⛔ that LaborCurrent shows.** Records exist
+somewhere. Whether a *public* primary copy survives is what a probe sweep has
+to settle.
+
+| State | Shortfall |
+|---|---|
+| CA | 2009–14: 425/1,582, 96/904, 522/752, 102/641, 351/793, 525/849 (light Wayback detail-PDF captures) |
+| GA | 2001–2022: zero vs 58–536/yr (+2,850). Also see the GA count anomaly below. |
+| TX | 1999–2003: zero vs 165–390/yr (+1,409) |
+| TN | 2011–16: zero vs 53–166/yr. APProjects reaches TN 2012 from the live reports page. |
+| MO 2006–11, DC 2006–13, FL 2012, NC 2012 | zero years: +256, +169, +165, +87 |
+| KY 2010–14, AZ 2008–09, DE 2008–15 | +250, +137, +54 |
+
+Other datasets surfaced by the same Google Dataset Search query:
+
+- **APProjects `warn-act-notices`** (GitHub `APVentureEngine/warn-act-notices`,
+  CC BY 4.0, 61k rows, built on Big Local News' warn-scraper). Its
+  `COVERAGE.md` gives per-state floors and is a second yardstick. Smaller
+  than ours overall, but deeper on TN (2012) and NE.
+- **openICPSR 155161** (Krolikowski & Lunsford, Cleveland Fed): monthly
+  *workers affected* per state, updated twice a month, not notice-level. It is
+  an independent completeness benchmark for worker totals. It needs a free
+  login and is behind Cloudflare, so download it by hand.
+
+---
+
+## 2026-07-07: floors vs. layoffdata.com
 
 Comparison of warnindex.com coverage against the two big public WARN
 aggregators, per the project policy in [historical-sources.md](historical-sources.md):

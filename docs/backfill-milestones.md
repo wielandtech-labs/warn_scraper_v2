@@ -21,6 +21,14 @@ STATE_AUDIT.md table is stale for CA (2006, 20,077 rows), NY (2006, 8,708),
 MN (2012, 482), WA (2004, ~1,480), MI (2000, 2,168); those use the post-run
 numbers recorded in historical-sources.md Progress.
 
+**2026-10-16 benchmark contests several ✉/⛔ verdicts below.** LaborCurrent
+shows notices for GA 2001–2022, TX 1999–2003, TN 2011–2016, MO 2006–2011,
+DC 2006–2013, FL 2012, NC 2012 and CA 2009–2014 at volumes we lack. It also
+exposes live holes: OH 2025 and PA 2023 are empty, and the KS/ME/VT JobLink
+caps were never re-run. The table and the re-runnable script are in
+[coverage-vs-aggregators.md](coverage-vs-aggregators.md). Verdicts below
+stay as they are until a re-probe confirms or overturns them.
+
 **Route legend:** ✅ done · 🔨 build item (route verified, code/Job pending) ·
 🔍 sweep verdict 2026-07-10 (recoverable, needs a parser build) ·
 ✉ FOIA/records request only · ⛔ source floor (state confirms nothing older
