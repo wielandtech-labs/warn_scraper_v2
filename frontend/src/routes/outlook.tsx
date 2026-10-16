@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { ApiError, api } from "../api/client";
@@ -30,14 +30,46 @@ const HORIZON_LABEL: Record<OutlookClaim["horizon"], string> = {
   long: "Scenario input",
 };
 
-function Section({ title, intro, children }: { title: string; intro?: ReactNode; children: ReactNode }) {
+/* A collapsible card. The heading wraps a disclosure button (rather than a
+   <details>/<summary>, which flattens the heading for some screen readers),
+   so heading navigation still works. A closed body stays mounted but hidden,
+   keeping each chart's own state (e.g. an open "Show table"). */
+function Section({
+  title,
+  intro,
+  defaultOpen = true,
+  children,
+}: {
+  title: string;
+  intro?: ReactNode;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const bodyId = useId();
   return (
-    <section className="card space-y-3">
-      <div>
-        <h2 className="text-lg font-semibold">{title}</h2>
-        {intro && <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{intro}</p>}
+    <section className="card">
+      <h2 className="text-lg font-semibold">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          onClick={() => setOpen((v) => !v)}
+          className="flex w-full items-center justify-between gap-3 text-left"
+        >
+          {title}
+          <span
+            aria-hidden
+            className={`text-xl leading-none text-slate-400 transition-transform ${open ? "rotate-90" : ""}`}
+          >
+            ›
+          </span>
+        </button>
+      </h2>
+      <div id={bodyId} hidden={!open} className="mt-3 space-y-3">
+        {intro && <p className="text-sm text-slate-600 dark:text-slate-400">{intro}</p>}
+        {children}
       </div>
-      {children}
     </section>
   );
 }
@@ -407,7 +439,7 @@ export function OutlookPage() {
         </Section>
       )}
 
-      <Section title="Method">
+      <Section title="Method" defaultOpen={false}>
         <ul className="list-disc space-y-1 pl-5 text-xs text-slate-600 dark:text-slate-400">
           {Object.entries(o.method).map(([k, v]) => (
             <li key={k}>
