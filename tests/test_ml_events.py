@@ -5,6 +5,7 @@ import math
 from datetime import date, timedelta
 
 import pandas as pd
+import pytest
 
 from tests.ml_synthetic import background, notices_frame, population
 from warn_v2.db.models import Company, Notice
@@ -76,6 +77,7 @@ def test_exclusions_and_count_sanity():
     assert big.loc[0, "day_layoffs_log"] == 0  # treated as "no count given"
 
 
+@pytest.mark.slow
 def test_features_never_read_the_future():
     """Truncating the data at T must not change any feature of an event that
     opened on or before T — only labels may differ."""
@@ -90,6 +92,7 @@ def test_features_never_read_the_future():
         pd.testing.assert_frame_equal(a[FEATURES], b[FEATURES])
 
 
+@pytest.mark.slow
 def test_km_matches_labelled_rate_without_censoring():
     ev = build_events(population(n_companies=600, end=date(2015, 12, 31)), as_of=date(2023, 1, 1))
     km = km_repeat_curve(ev, [365], as_of=date(2023, 1, 1))

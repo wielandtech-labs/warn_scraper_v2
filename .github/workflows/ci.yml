@@ -10,11 +10,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Tests are split by the `slow` marker (pyproject.toml) into two parallel
+  # jobs: `test` is the quick signal, `test-slow` trains the ML models. Both
+  # must be green before merging. Each runs 2 xdist workers to match the
+  # runner pod's 2-CPU limit, so OpenMP/BLAS are pinned to one thread per
+  # worker (they size their pools from the node's cores, not the pod's limit).
   test:
     runs-on: homelab-warn-v2
-    # OpenMP/BLAS size their thread pools from the node's core count, not the
-    # runner pod's 2-CPU limit, so sklearn's HistGradientBoosting oversubscribes
-    # and the ML tests spend most of their time CFS-throttled.
     env:
       OMP_NUM_THREADS: "1"
       OPENBLAS_NUM_THREADS: "1"
@@ -46,7 +48,25 @@ jobs:
             exit 1
           fi
       - name: Test
-        run: uv run python -m pytest -v --durations=15
+        run: uv run python -m pytest -n 2 --dist loadfile -m "not slow" --durations=10
+
+  test-slow:
+    runs-on: homelab-warn-v2
+    env:
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+      - name: Sync deps
+        run: uv sync --extra dev
+      - name: Test (slow)
+        run: uv run python -m pytest -n 2 --dist loadfile -m slow --durations=10
 
   frontend:
     runs-on: homelab-warn-v2

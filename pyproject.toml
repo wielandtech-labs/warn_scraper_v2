@@ -43,6 +43,7 @@ dependencies = [
 dev = [
     "pytest>=8.2",
     "pytest-cov>=5.0",
+    "pytest-xdist>=3.6",
     # Pinned exactly: CI lints with whatever it resolves, so an unpinned ruff
     # means new releases fail CI in untouched files. Upgrade = bump this pin,
     # run `uv lock`, and fix any new findings in the same PR.
@@ -74,6 +75,9 @@ ignore = ["B008"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra -q"
+markers = [
+    "slow: ML training / large-fixture tests; CI runs them in the parallel test-slow job",
+]
 
 [tool.mypy]
 python_version = "3.12"

@@ -26,6 +26,9 @@ from warn_v2.ml.survival import (
     uno_c,
 )
 
+# Trains models on a synthetic population: tens of seconds each in CI.
+pytestmark = pytest.mark.slow
+
 AS_OF = date(2023, 6, 1)
 D0 = date(2015, 3, 2)
 
