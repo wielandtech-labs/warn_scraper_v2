@@ -12,8 +12,8 @@ concurrency:
 jobs:
   # Tests are split by the `slow` marker (pyproject.toml) into two parallel
   # jobs: `test` is the quick signal, `test-slow` trains the ML models. Both
-  # must be green before merging. Each runs 2 xdist workers to match the
-  # runner pod's 2-CPU limit, so OpenMP/BLAS are pinned to one thread per
+  # must be green before merging. Each runs 4 xdist workers to match the
+  # runner pod's 4-CPU limit, so OpenMP/BLAS are pinned to one thread per
   # worker (they size their pools from the node's cores, not the pod's limit).
   test:
     runs-on: homelab-warn-v2
@@ -48,7 +48,7 @@ jobs:
             exit 1
           fi
       - name: Test
-        run: uv run python -m pytest -n 2 --dist loadfile -m "not slow" --durations=10
+        run: uv run python -m pytest -n 4 --dist loadfile -m "not slow" --durations=10
 
   test-slow:
     runs-on: homelab-warn-v2
@@ -66,7 +66,8 @@ jobs:
       - name: Sync deps
         run: uv sync --extra dev
       - name: Test (slow)
-        run: uv run python -m pytest -n 2 --dist loadfile -m slow --durations=10
+        # `load`, not `loadfile`: test_ml_train.py alone would pin one worker.
+        run: uv run python -m pytest -n 4 --dist load -m slow --durations=10
 
   frontend:
     runs-on: homelab-warn-v2
