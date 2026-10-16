@@ -20,8 +20,10 @@ spec:
             app.kubernetes.io/component: alert-digest
         spec:
           restartPolicy: Never
+          {{- include "warn-v2.podSecurityContext" . | nindent 10 }}
           containers:
             - name: alert-digest
+              {{- include "warn-v2.containerSecurityContext" . | nindent 14 }}
               image: {{ include "warn-v2.image" . }}
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               args: ["send-alert-digest"]

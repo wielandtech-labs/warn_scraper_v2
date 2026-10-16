@@ -28,12 +28,14 @@ spec:
             app.kubernetes.io/component: enricher
         spec:
           restartPolicy: Never
+          {{- include "warn-v2.podSecurityContext" . | nindent 10 }}
           {{- with .Values.enricher.imagePullSecrets }}
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           containers:
             - name: enricher
+              {{- include "warn-v2.containerSecurityContext" . | nindent 14 }}
               image: {{ include "warn-v2.enricherImage" . }}
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               args:

@@ -28,8 +28,10 @@ spec:
         {{- include "warn-v2.labels" . | nindent 8 }}
         app.kubernetes.io/component: api
     spec:
+      {{- include "warn-v2.podSecurityContext" . | nindent 6 }}
       containers:
         - name: api
+          {{- include "warn-v2.containerSecurityContext" . | nindent 10 }}
           image: {{ include "warn-v2.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args: ["serve"]

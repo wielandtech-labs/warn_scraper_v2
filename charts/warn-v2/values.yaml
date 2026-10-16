@@ -6,6 +6,20 @@ image:
   tag: ""  # defaults to .Chart.AppVersion
   pullPolicy: IfNotPresent
 
+# Pod-level security context. Enforces non-root execution and consistent volume ownership.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+# Container-level security context. Drops Linux capabilities and prevents privilege escalation.
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
 # Postgres connection. The cluster itself is the shared CNPG postgres-cluster
 # in the database namespace (see w_homelab/clusters/prod/databases/).
 database:
