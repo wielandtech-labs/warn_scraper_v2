@@ -28,7 +28,11 @@ HTML structure:
 
 notice_date is taken from the CMS repo:modifyDate field (the date the entry was
 published / last updated -- the closest proxy for the WARN filing date available
-on this page).
+on this page).  Exception: the Jan-2023 - mid-Sep-2024 entries were bulk-loaded
+when DLI moved to pa.gov, so their modifyDate is the migration day
+(2024-09-16..19), not a filing date.  Those entries are skipped here; the
+historical backfill ingests them from the archived dli.pa.gov month pages
+(see _AEM_MIGRATION_END and _HIST_LAST_MONTH).
 effective_date is parsed from the EFFECTIVE DATE: label; ranges like
 "beginning M/D/YYYY; ending M/D/YYYY" use the start date.
 """
@@ -65,6 +69,13 @@ _DATE_RE = re.compile(r"(\d{1,2}/\d{1,2}/\d{2,4})")
 _CITY_ZIP_RE = re.compile(r"^(.+),\s*PA\s+\d", re.I)
 # Invisible Unicode characters injected by the CMS editor
 _INVISIBLE_RE = re.compile(r"[​‌‍﻿]")
+
+# Entries whose modifyDate falls before this date were bulk-copied from the
+# retired dli.pa.gov SharePoint site on 2024-09-16..19 (133 of them on the
+# 2026-10 page, back to Jan-2023). Stamping them with the migration day piled
+# all of Jan-2023 - Sep-2024 into one month; the archived month pages carry
+# their real filing month instead. First genuine post-migration entry: 9/23.
+_AEM_MIGRATION_END = date(2024, 9, 20)
 
 _LABEL_PREFIXES = ("COUNTY:", "# AFFECTED:", "EFFECTIVE DATE:", "CLOSURE OR LAYOFF:")
 
@@ -201,7 +212,7 @@ def _parse_panel(
 
     rows: list[NoticeRow] = []
     for addr, lbl in locations:
-        if notice_date is None:
+        if notice_date is None or notice_date < _AEM_MIGRATION_END:
             continue
         # Join multi-line address lines into a single mailing address string.
         address = as_str(", ".join(addr)) if addr else None
@@ -286,7 +297,7 @@ register(PAScraper())
 #   portal.state.pa.us  /portal/server.pt/community/{yr}/10542/
 #                       {month}_{year}_warn_notices/{id}     2001-2015
 #   www.dli.pa.gov      /Individuals/Workforce-Development/warn/notices/
-#                       Pages/{Month}-{Year}.aspx            2011-2024
+#                       Pages/{Month}-{Year}.aspx            2011-Sep 2024
 #
 # Discovery for 2001+ is CDX-driven (both hosts are dead/redirected live);
 # overlapping years prefer the SharePoint capture. The 1998-2000 pages predate
@@ -295,13 +306,17 @@ register(PAScraper())
 # was never archived — a real gap). Month pages carry no per-notice filing
 # date, so notice_date is the page month (first-of-month) — the same
 # best-available-proxy tradeoff the live scraper makes with repo:modifyDate.
-# Hard-capped at 2022: the live AEM era (2023+) stamps notice_date from its
-# publish date, so re-parsing those months here would mint duplicate
-# notice_ids for rows the regular scraper already stores.
+# Capped at Sep-2024 (_HIST_LAST_MONTH): the 2024-09-17 capture is the last
+# SharePoint snapshot before the pa.gov cutover. Every notice up to then
+# reached the live AEM page only through the bulk migration, which the
+# regular scraper skips (_AEM_MIGRATION_END); later notices carry a real
+# publish date there, so archiving past the cutover would mint duplicates.
 
 _HIST_YEAR_START = 1998
-_HIST_YEAR_END = 2022
+_HIST_LAST_MONTH = (2024, 9)
+_HIST_YEAR_END = _HIST_LAST_MONTH[0]
 _CDX_API = "https://web.archive.org/cdx/search/cdx"
+_CDX_LIMIT = 20_000
 _WAYBACK_REPLAY = "https://web.archive.org/web/{ts}id_/{url}"
 _WAYBACK_DELAY = 3.0
 _WAYBACK_BACKOFF = 30.0
@@ -352,6 +367,22 @@ _NOT_A_CITY_RE = re.compile(r"\b(?:various|locations?|stores?|sites?)\b", re.I)
 _HIST_ANNOTATION_RE = re.compile(
     r"^[(\s]*(?:update[ds]?(?:\s+to\s+\S+)?(?:\s+warn)?|contract\s+cancell?ed"
     r"|not\s+specified|#)[)\s]*$",
+    re.I,
+)
+
+# Continuation lines of a multi-line EFFECTIVE DATE schedule (2023+):
+#   EFFECTIVE DATE:
+#        February 1, 2023 - 82 Employees
+#        March 1, 2023 - 1 Employee
+#   EFFECTIVE DATE:
+#        1st Phase:  1/9/2023 (49 Employees)
+#        2nd Phase:  7/31/2023 (15 Employees)
+# The first line is the label's value (via the pending mechanism); the rest
+# would otherwise each start a bogus notice. Only consulted right after an
+# EFFECTIVE DATE value, so an employer like "84 Lumber" can't match.
+_SCHEDULE_LINE_RE = re.compile(
+    rf"^(?:(?:\d+(?:st|nd|rd|th)\s+)?phase\b|\d{{1,2}}/\d{{1,2}}/\d{{2,4}}"
+    rf"|(?:{_MONTH_ALT})\s+\d{{1,2}}\b)",
     re.I,
 )
 
@@ -408,8 +439,12 @@ def _cdx_snapshots(url_pattern: str, month_re: re.Pattern) -> dict[tuple[int, in
                     # exactly 5000, verified 2026-07-06) and would silently
                     # truncate.
                     "filter": ["statuscode:200", "original:.*warn.*"],
-                    "collapse": "urlkey",
-                    "limit": "5000",
+                    # No collapse=urlkey: it keeps each page's EARLIEST
+                    # capture (Jan-2023 -> a 2023-01-05 snapshot holding
+                    # only that week's notices). Every capture comes back
+                    # (~2,900 SharePoint + ~350 portal rows, 2026-10-16) and
+                    # the loop below keeps the latest per month.
+                    "limit": str(_CDX_LIMIT),
                 },
                 headers=_UA,
                 timeout=120,
@@ -425,6 +460,8 @@ def _cdx_snapshots(url_pattern: str, month_re: re.Pattern) -> dict[tuple[int, in
     best: dict[tuple[int, int], tuple[str, str]] = {}
     if not isinstance(captures, list):
         return {}
+    if len(captures) > _CDX_LIMIT:  # header + limit rows = truncated
+        raise ScrapeFailed(f"PA: CDX query {url_pattern} hit the {_CDX_LIMIT}-row limit")
     for cap in captures[1:]:  # row 0 is the field-name header
         if not (isinstance(cap, list) and len(cap) == 2):
             continue
@@ -546,7 +583,7 @@ def _fetch_pa_year(year: int) -> list[bytes] | None:
         month_urls = [
             (month, snaps[(year, month)])
             for month in range(1, 13)
-            if (year, month) in snaps
+            if (year, month) in snaps and (year, month) <= _HIST_LAST_MONTH
         ]
     chunks: list[bytes] = []
     for month, url in month_urls:
@@ -580,6 +617,7 @@ def _parse_month_cell(lines: list[str], year: int, month: int) -> list[NoticeRow
     labels: dict[str, str] = {}
     employer: str | None = None
     pending: str | None = None  # label whose value is on the next line
+    last_key: str | None = None  # label that received the latest value
 
     def _flush() -> None:
         if not employer or not labels:
@@ -607,14 +645,16 @@ def _parse_month_cell(lines: list[str], year: int, month: int) -> list[NoticeRow
             key, val = matched
             if val:
                 labels[key] = val
-                pending = None
+                pending, last_key = None, key
             else:
                 pending = key
         elif pending is not None:
             # Strip the colon a "<b>COUNTY</b>: Wayne" split leaves on the
             # value line.
             labels[pending] = line.lstrip(":").strip()
-            pending = None
+            pending, last_key = None, pending
+        elif last_key == "EFFECTIVE DATE" and _SCHEDULE_LINE_RE.match(line):
+            continue  # later phases of a multi-line schedule
         elif line.startswith("*") or _HIST_ANNOTATION_RE.match(line):
             # "*UPDATE TO M/D/YY WARN*" markers precede the employer name in
             # the same bold block; "*All employees will ..." footnotes trail
@@ -627,7 +667,7 @@ def _parse_month_cell(lines: list[str], year: int, month: int) -> list[NoticeRow
         elif labels:
             # Non-label content after a completed block -> next notice.
             _flush()
-            employer, addr_lines, labels = line, [], {}
+            employer, addr_lines, labels, last_key = line, [], {}, None
         elif employer is None:
             employer = line
         else:

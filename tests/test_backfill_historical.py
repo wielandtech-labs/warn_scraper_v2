@@ -1690,11 +1690,11 @@ def test_parse_pa_month_sharepoint_late_era():
 
 
 def test_pa_fetch_year_hard_caps_at_live_era():
-    """2023+ months are the AEM live scraper's territory — never backfilled."""
+    """Post-cutover months (Oct-2024+) are the AEM live scraper's territory —
+    never backfilled. 2023 - Sep-2024: see test_pa_backfill.py."""
     from warn_v2.scrapers.states.pa import _fetch_pa_year
 
-    assert _fetch_pa_year(2023) is None
-    assert _fetch_pa_year(2024) is None
+    assert _fetch_pa_year(2025) is None
 
 
 def test_oh_own_year_rows_drops_cross_year():
