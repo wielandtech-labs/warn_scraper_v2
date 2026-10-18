@@ -57,3 +57,24 @@ def test_find_gaps_threshold_and_zero_years():
         Gap("OH", 2026, 0, 4),  # zero year: listed despite the small shortfall
     ]
     assert gaps[0].shortfall == 216
+
+
+def test_get_waits_out_429(monkeypatch):
+    import httpx
+
+    from warn_v2.scripts import aggregator_benchmark as ab
+
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        if len(calls) == 1:
+            return httpx.Response(429, headers={"Retry-After": "3"})
+        return httpx.Response(200, json=[])
+
+    slept = []
+    monkeypatch.setattr(ab.time, "sleep", slept.append)
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        assert ab._get(client, "https://example.test/x").status_code == 200
+    assert slept == [3.0]
+    assert len(calls) == 2
