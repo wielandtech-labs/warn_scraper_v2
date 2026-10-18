@@ -491,7 +491,7 @@ GDOL `public/es/warn/searchwarns/list` captures are empty forms), TX
 | # | Build | Kind | Est. rows |
 |---|---|---|---|
 | 1 | **CA**: CDX discovery picks the latest `application/pdf` capture per file (drop `collapse=urlkey`; filter `mimetype`/length so 5–8 KB soft-404 "200" captures lose), then re-run `backfill-historical --state CA` for 2006–2014 | bug fix + re-run | +3,000–3,800 |
-| 2 | ✅ **built 2026-10-18** (run pending) — **GA** CICS WarnID listings: parse WR01A–D, union by program year (latest capture wins), PY1988 → Oct-2006. CDX holds 68 WR01 captures 2004-08 → 2006-10 (32 distinct digests), not 189; the 2006-10-09 captures already contain every WARN ID seen earlier, so only those are bundled | Wayback HTML | 2,474 rows |
+| 2 | ✅ **done 2026-10-18** (+2,434, w_homelab #1196) — **GA** CICS WarnID listings: parse WR01A–D, union by program year (latest capture wins), PY1988 → Oct-2006. CDX holds 68 WR01 captures 2004-08 → 2006-10 (32 distinct digests), not 189; the 2006-10-09 captures already contain every WARN ID seen earlier, so only those are bundled | Wayback HTML | 2,474 rows |
 | 3 | **MO** rapidresponse PY2001–PY2011 PDFs (10 files) | Wayback PDF | ~450–600 |
 | 4 | **TN** 2012 shtml + 2013–15 archive table (memo PDFs as cross-check), then 2016–17 letters via OCR | Wayback HTML (+OCR) | ~350–400 |
 | 5 | **AZ** 2003–2007 annual/monthly PDFs (keep W, decide A/P) | Wayback PDF | ~350–450 |
