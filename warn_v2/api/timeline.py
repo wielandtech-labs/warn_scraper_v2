@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import threading
 import time
+import typing
 from collections import OrderedDict
 from collections.abc import Callable, Hashable
 from typing import Any, Literal
@@ -102,7 +103,7 @@ class TTLCache[T]:
         return value  # type: ignore[return-value]
 
     def _size(self) -> int:
-        return sum(len(v) for _, v in self._data.values())  # type: ignore[arg-type]
+        return sum(len(typing.cast(bytes, v)) for _, v in self._data.values())
 
     def clear(self) -> None:
         with self._lock:
