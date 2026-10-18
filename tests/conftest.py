@@ -30,6 +30,18 @@ def _rate_limiting_off(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture(autouse=True)
+def _fresh_timeline_cache(monkeypatch: pytest.MonkeyPatch):
+    """The /timelapse caches are module-level, so a body cached by one test
+    would answer the next test's identical query from a different DB. Also
+    keep the app's lifespan from starting the background warmer."""
+    from warn_v2.api.routes import map_places, stats
+
+    monkeypatch.setenv("TIMELINE_WARMUP", "0")
+    map_places.clear_timeline_cache()
+    stats.clear_industries_timeline_cache()
+
+
+@pytest.fixture(autouse=True)
 def _no_census_county_lookup(monkeypatch: pytest.MonkeyPatch):
     """Keep the suite offline: geocode() calls the Census API twice -- the
     street-address geocoder (_census_geocode) and the reverse county lookup
