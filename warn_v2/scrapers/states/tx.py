@@ -14,8 +14,9 @@ V1 schema (columns unchanged since the 2004 files, still seen in 2026):
   LayOff_Date, WFDD_RECEIVED_DATE, CITY_NAME
 
 Backfill sources (files before 2020 were removed from twc.texas.gov):
-  2004-2018: pinned Wayback captures of the old per-year files — legacy
+  2003-2018: pinned Wayback captures of the old per-year files — legacy
              binary .xls through 2013 (parsed via xlrd), .xlsx 2014+.
+             2003 lived under /svcs/jtpa/ (warn20030101.xls), not /files/news/.
              Year files bleed slightly at the edges (e.g. the 2018 file
              heads into Jan 2019) — the content-hash notice_id dedupes
              the overlap.
@@ -42,9 +43,11 @@ URL_TEMPLATE = "https://www.twc.texas.gov/sites/default/files/oei/docs/warn-act-
 SOCRATA_URL = "https://data.texas.gov/resource/8w53-c4f6.json"
 
 # Pinned Wayback captures of the removed per-year files, all post-year (full
-# coverage). 2004-2010 come from one 2016-12-23 crawl of twc.texas.gov;
-# 2011-2018 from one 2020-09-07 crawl of the www.twc.state.tx.us mirror.
+# coverage). 2003 is the one /svcs/jtpa/ file (2013 crawl); 2004-2010 come
+# from one 2016-12-23 crawl of twc.texas.gov; 2011-2018 from one 2020-09-07
+# crawl of the www.twc.state.tx.us mirror.
 _WAYBACK_CAPTURES: dict[int, tuple[str, str]] = {
+    2003: ("20130614231245", "http://www.twc.state.tx.us/svcs/jtpa/warn20030101.xls"),
     2004: ("20161223011305", "http://twc.texas.gov/files/news/warn-act-listings-2004.xls"),
     2005: ("20161223011246", "http://twc.texas.gov/files/news/warn-act-listings-2005.xls"),
     2006: ("20161223011225", "http://twc.texas.gov/files/news/warn-act-listings-2006.xls"),
@@ -169,7 +172,7 @@ def _fetch_tx_year(scraper, year: int) -> bytes | None:
     """Fetch one year's data for backfill-historical.
 
     Files before 2020 have been removed from twc.texas.gov (verified
-    2026-06-12; the old `/files/news/` era URLs are dead too), so 2004-2018
+    2026-06-12; the old `/files/news/` era URLs are dead too), so 2003-2018
     replay pinned Wayback captures and 2019 comes from the Socrata dataset.
     Returns None when no source has the year.
     """
@@ -215,7 +218,7 @@ def _fetch_tx_socrata_year(scraper, year: int) -> bytes:
 
 
 def _read_with_header_detection(raw: bytes) -> pd.DataFrame:
-    # The 2004-2013 archive-era files are legacy OLE2 .xls — route those to
+    # The 2003-2013 archive-era files are legacy OLE2 .xls — route those to
     # xlrd, which converts float date serials to Timestamps like openpyxl.
     engine = "xlrd" if raw[:4] == b"\xd0\xcf\x11\xe0" else "openpyxl"
     buf = io.BytesIO(raw)

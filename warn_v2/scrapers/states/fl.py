@@ -132,8 +132,9 @@ class FLScraper:
 _PAGE_PARAM_RE = re.compile(r"[?&]page=(\d+)")
 
 # warn.asp era (1998-2018): latest post-year Wayback capture per year, from the
-# 2026-07 backfill sweep. The 2012 capture is a header-only table (the site
-# itself had dropped the 2012 rows by capture time) — it parses to 0 rows.
+# 2026-07 backfill sweep. 2012 is the exception: its latest capture
+# (20191120063637) is a header-only table — the site had dropped the 2012 rows
+# by then — so it pins an earlier complete capture (167 rows, 2026-10 sweep).
 _ASP_CAPTURES: dict[int, tuple[str, str]] = {
     1998: ("20160623033351", "http://floridajobs.org/REACT/warn.asp?year=1998"),
     1999: ("20160622225353", "http://floridajobs.org/REACT/warn.asp?year=1999"),
@@ -149,7 +150,7 @@ _ASP_CAPTURES: dict[int, tuple[str, str]] = {
     2009: ("20160623035546", "http://floridajobs.org/REACT/warn.asp?year=2009"),
     2010: ("20160623045834", "http://floridajobs.org/REACT/warn.asp?year=2010"),
     2011: ("20160623033348", "http://floridajobs.org/REACT/warn.asp?year=2011"),
-    2012: ("20191120063637", "http://www.floridajobs.org/react/warn.asp?year=2012"),
+    2012: ("20160622205839", "http://floridajobs.org/REACT/warn.asp?year=2012"),
     2013: ("20160623041024", "http://floridajobs.org/REACT/warn.asp?year=2013"),
     2014: ("20191120055606", "http://www.floridajobs.org:80/REACT/warn.asp?year=2014"),
     2015: ("20191120055934", "http://www.floridajobs.org:80/REACT/warn.asp?year=2015"),

@@ -34,6 +34,12 @@ def asp_1999() -> bytes:
 
 
 @pytest.fixture
+def asp_2012() -> bytes:
+    # Full (untrimmed) capture 20160622205839 — the pinned 2012 page.
+    return (FIXTURES / "warn_asp_2012.html").read_bytes()
+
+
+@pytest.fixture
 def asp_2015() -> bytes:
     return (FIXTURES / "warn_asp_2015_trimmed.html").read_bytes()
 
@@ -131,13 +137,22 @@ def test_asp_doubled_state_zip_suffix_is_stripped() -> None:
 
 
 def test_asp_header_only_table_parses_to_zero_rows() -> None:
-    # The pinned 2012 capture holds the header but no data rows — that's a
-    # legitimate empty year (the site had dropped 2012), not a parse failure.
+    # Later 2012 captures (e.g. 20191120063637) hold the header but no data
+    # rows — the site had dropped the year. That parses empty, not a failure.
     raw = (
         b"<html><table><tr><td><table border=1><tr><th>COMPANY NAME</th>"
         b"<th>NOTICE DATE</th></tr></table></td></tr></table></html>"
     )
     assert parse_fl_warn_asp(raw, 2012) == []
+
+
+def test_asp_2012_pinned_capture_has_all_rows(asp_2012: bytes) -> None:
+    assert _ASP_CAPTURES[2012][0] == "20160622205839"
+    rows = parse_fl_warn_asp(asp_2012, 2012)
+    assert len(rows) == 167
+    assert {r.notice_date.year for r in rows} == {2012}
+    assert rows[0].employer == "Evaluation Solutions, LLC"
+    assert rows[0].notice_date == date(2012, 12, 27)
 
 
 def test_asp_raises_without_data_table() -> None:
