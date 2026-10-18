@@ -61,7 +61,13 @@ from warn_v2.scrapers.states.co import _fetch_co_year, _parse_co_year
 from warn_v2.scrapers.states.ct import _discover_ct_archive_urls, parse_ct_archive
 from warn_v2.scrapers.states.dc import _fetch_dc_year
 from warn_v2.scrapers.states.fl import _fetch_fl_year, parse_fl_year
-from warn_v2.scrapers.states.ga import ga_archive_files, parse_ga_entry_page
+from warn_v2.scrapers.states.ga import (
+    GA_CICS_MEMBER,
+    ga_archive_files,
+    ga_cics_files,
+    parse_ga_cics_archive,
+    parse_ga_entry_page,
+)
 from warn_v2.scrapers.states.hi import _fetch_hi_year
 from warn_v2.scrapers.states.ia import ia_archive_files, parse_ia_archive_pdf
 from warn_v2.scrapers.states.id import id_archive_files, parse_id_2008_pdf
@@ -230,9 +236,16 @@ _BACKFILL: dict[str, BackfillSpec] = {
     # address, closure type, and the first separation date. The parser keys
     # notice_date to the bundled listing so notice_id matches the stored rows
     # — expect ~31 COALESCE fills, ~0 inserts.
+    # Plus PY1988 → Oct-2006 from GDOL's CICS-era WarnID Listing (Wayback
+    # captures bundled as ga_cics_archive.tar.gz, parsed as ONE member so the
+    # per-program-year union sees every capture and the rows reach a single
+    # upsert): 2,474 rows → ~2,434 notices (same employer/date/city notices
+    # merge with summed counts). Prod GA starts in 2023, so no overlap.
     "GA": BackfillSpec(
-        bundled_files=ga_archive_files,
-        parse_for_url=lambda u: parse_ga_entry_page,
+        bundled_files=lambda: ga_archive_files() + ga_cics_files(),
+        parse_for_url=lambda n: (
+            parse_ga_cics_archive if n == GA_CICS_MEMBER else parse_ga_entry_page
+        ),
     ),
     # IA: Iowa prunes old rows from its single cumulative log, so four archived
     # snapshots (2005-07..2023-08 union, no interior gaps) are bundled as a

@@ -480,7 +480,7 @@ disagree, this section supersedes them.
 | FL | 2012 (+165) | ✅ **verified, our pin** | `fl.py` pins 2012 to capture `20191120063637`, which is header-only. Earlier post-year captures are complete: `floridajobs.org/REACT/warn.asp?year=2012` @20160622205839 = **167 rows** (Evaluation Solutions 12/27/2012 …); also @20130329171424, @20141005035552 | **167** |
 | KY | 2010–13 (+200) | ⛔ **negative** | The only primary list for these years, `oet.ky.gov/warn/WARNNoticesReceivedin{2010..2013}forKY.pdf` (captures 2013-04/05), holds about 31 / 26 / 64 / 22 rows, **fewer** than prod's 38 / 31 / 76 / 61 from the kcc workbooks. The gap is probably counting (multi-site splits), not a missing source | 0 |
 
-Unchanged ✉: GA Jul-2006 → 2022 (the CICS app stops at 2006-10; the later
+Unchanged ✉: GA Nov-2006 → 2022 (the CICS app stops at 2006-10, and its Jul–Oct 2006 rows are in the GA build; the later
 GDOL `public/es/warn/searchwarns/list` captures are empty forms), TX
 1999–2002, TN ≤ 2011 + Jul–Dec 2015, DC Feb-2012 → 2014, AZ Jun-2008 → 2009.
 
@@ -489,7 +489,7 @@ GDOL `public/es/warn/searchwarns/list` captures are empty forms), TX
 | # | Build | Kind | Est. rows |
 |---|---|---|---|
 | 1 | **CA**: CDX discovery picks the latest `application/pdf` capture per file (drop `collapse=urlkey`; filter `mimetype`/length so 5–8 KB soft-404 "200" captures lose), then re-run `backfill-historical --state CA` for 2006–2014 | bug fix + re-run | +3,000–3,800 |
-| 2 | **GA** CICS WarnID listings: parse WR01A–D, union all 189 captures by WARN ID, PY1988–PY2005 | Wayback HTML | ~2,450 |
+| 2 | ✅ **built 2026-10-18** (run pending) — **GA** CICS WarnID listings: parse WR01A–D, union by program year (latest capture wins), PY1988 → Oct-2006. CDX holds 68 WR01 captures 2004-08 → 2006-10 (32 distinct digests), not 189; the 2006-10-09 captures already contain every WARN ID seen earlier, so only those are bundled | Wayback HTML | 2,474 rows |
 | 3 | **MO** rapidresponse PY2001–PY2011 PDFs (10 files) | Wayback PDF | ~450–600 |
 | 4 | **TN** 2012 shtml + 2013–15 archive table (memo PDFs as cross-check), then 2016–17 letters via OCR | Wayback HTML (+OCR) | ~350–400 |
 | 5 | **AZ** 2003–2007 annual/monthly PDFs (keep W, decide A/P) | Wayback PDF | ~350–450 |

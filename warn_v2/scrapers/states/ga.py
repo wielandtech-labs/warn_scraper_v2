@@ -12,11 +12,16 @@ Backfill (Mode 3b): the 31 GA2022* GravityView entry detail pages TCSG still
 served live on 2026-07-10 (ids GA202200071-103; 083 and 097 pruned at the
 source) are bundled in ``data/ga_archive.tar.gz`` together with the listing
 DataTables JSON — see ``ga_archive_files`` / ``parse_ga_entry_page``.
+
+PY1988 → Oct-2006: GDOL's CICS-era "WarnID Listing" pages, bundled from
+Wayback in ``data/ga_cics_archive.tar.gz`` — see ``parse_ga_cics_captures``.
 """
 from __future__ import annotations
 
+import io
 import json
 import re
+import tarfile
 from datetime import date
 from functools import lru_cache
 from html import unescape
@@ -286,6 +291,157 @@ def parse_ga_entry_page(raw: bytes) -> list[NoticeRow]:
             extra={"ga_warn_id": ga_warn_id},
         )
     ]
+
+
+# ---------------------------------------------------------------------------
+# GA CICS-era backfill, PY1988 → Oct-2006 (Mode 3b)
+# ---------------------------------------------------------------------------
+#
+# GDOL's mainframe "WarnID Listing" (www.dol.state.ga.us/WS4-MW5/cics.jsp,
+# TRANSID=WR01) split the log over four forms, each a sliding window of about
+# six July-June program years: WR01D = PY1988-93, C = PY1994-99, B = PY2000-05
+# (as of Oct 2006), and WR01A = the current program year. Wayback holds 68
+# WR01 captures 2004-08 → 2006-10 (32 distinct digests).
+#
+# Each capture lists whole program years, so the union keeps, per program
+# year, the rows of the LATEST capture listing it. Across all 32 digests that
+# loses nothing but one reclassification (2004034C in 2004 → 2004034S later):
+# the ID's type letter can change, and sequence numbers are reused within a
+# year for different types (2001219S and 2001219C are different notices), so
+# neither the full ID nor the 7-digit number alone is a safe per-row key.
+# Only the latest capture per program year is therefore bundled — the three
+# 2006-10-09 B/C/D captures (2,455 IDs, PY1988-PY2005) plus that day's WR01A
+# page (PY2006, Jul-Oct 2006: 19 rows). From Nov 2005 WR01A shows only the
+# type letter, no ID, so those rows carry no ga_warn_id.
+#
+# notice_date: the listing has no notice-received date — only the "Event
+# Begin Date" (first separations) and a TAA trade-certification date. GDOL
+# files each notice under the program year it was received, so notice_date is
+# the event date clamped into that program year's window (Jul 1 → Jun 30),
+# or the program year's Jul 1 when the event date is blank (3 rows). The raw
+# event date is kept as effective_date. Clamping keeps every row in the
+# program year GDOL counted it in: the per-year sums still match the
+# "Total Number Affected" line the listing prints for each program year.
+
+_GA_CICS_ARCHIVE = DATA_DIR / "ga_cics_archive.tar.gz"
+GA_CICS_MEMBER = _GA_CICS_ARCHIVE.name
+_CICS_URL = "http://www.dol.state.ga.us/WS4-MW5/cics.jsp?TRANSID=WR01&FRMNAME={form}"
+_CICS_MEMBER_RE = re.compile(r"^(WR01[A-D])_(\d{14})\.html$")
+_CICS_PY_RE = re.compile(r"07/01/(\d{2})\s*-")
+_CICS_ID_RE = re.compile(r"^(\d{4})\d{3}([CSN])$")
+_CICS_TYPES = {
+    "C": "Closure",
+    "S": "Substantial Layoff",  # >= 100 employees
+    "N": "Non-Substantial Layoff",  # < 100 employees; still a GDOL WARN ID
+}
+
+
+def ga_cics_files() -> list[tuple[str, bytes]]:
+    """The CICS bundle as a single backfill member: the per-program-year
+    union needs every capture at once, so the tar.gz is parsed as one unit."""
+    return [(GA_CICS_MEMBER, _GA_CICS_ARCHIVE.read_bytes())]
+
+
+def parse_ga_cics_archive(raw: bytes) -> list[NoticeRow]:
+    with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as tar:
+        captures = [
+            (m.name, tar.extractfile(m).read())  # type: ignore[union-attr]
+            for m in tar.getmembers()
+            if m.isfile()
+        ]
+    return parse_ga_cics_captures(captures)
+
+
+def parse_ga_cics_captures(captures: list[tuple[str, bytes]]) -> list[NoticeRow]:
+    """Union WarnID Listing captures named ``WR01X_<wayback timestamp>.html``:
+    per program year, the latest capture listing that year wins."""
+    latest: dict[int, tuple[str, list[NoticeRow]]] = {}
+    for name, raw in captures:
+        m = _CICS_MEMBER_RE.match(name)
+        if m is None:
+            raise ParseFailed(f"GA CICS capture name not WR01X_<timestamp>.html: {name}")
+        form, ts = m.groups()
+        for py, rows in _parse_cics_capture(raw, form, ts).items():
+            # A current-year page can show a just-opened year with no rows
+            # yet (WR01A @20060720); never let that blank out older rows.
+            if rows and (py not in latest or ts > latest[py][0]):
+                latest[py] = (ts, rows)
+    rows = [row for _py, (_ts, py_rows) in sorted(latest.items()) for row in py_rows]
+    if not rows:
+        raise ParseFailed("GA CICS captures: no rows parsed")
+    return rows
+
+
+def _parse_cics_capture(raw: bytes, form: str, ts: str) -> dict[int, list[NoticeRow]]:
+    """Program year → rows for one capture. Each year opens with a
+    ``blueboldheader`` row ("07/01/04 - 06/30/05"); the current-year WR01A
+    page ends its range at the capture date instead of Jun 30."""
+    soup = BeautifulSoup(raw, "html.parser")
+    source_url = f"https://web.archive.org/web/{ts}/{_CICS_URL.format(form=form)}"
+    by_py: dict[int, list[NoticeRow]] = {}
+    py: int | None = None
+    for tr in soup.find_all("tr"):
+        # recursive=False: the page is nested layout tables, and an outer
+        # <tr> contains every header and data row below it.
+        header = tr.find("td", class_="blueboldheader", recursive=False)
+        if header is not None:
+            m = _CICS_PY_RE.search(_text(header))
+            if m is None:
+                raise ParseFailed(f"GA CICS {form}@{ts}: bad year header {_text(header)!r}")
+            yy = int(m.group(1))
+            py = (1900 if yy >= 50 else 2000) + yy
+            by_py[py] = []
+            continue
+        cells = tr.find_all("td", class_="smallblacktext", recursive=False)
+        if len(cells) != 7:
+            continue
+        if py is None:
+            raise ParseFailed(f"GA CICS {form}@{ts}: data row before any year header")
+        row = _cics_row([_text(c) for c in cells], py, source_url)
+        if row is not None:
+            by_py[py].append(row)
+    return by_py
+
+
+def _cics_row(vals: list[str], py: int, source_url: str) -> NoticeRow | None:
+    warn_id, employer, city, county, count, event, trade_cert = vals
+    m = _CICS_ID_RE.match(warn_id)
+    if m is not None:
+        if int(m.group(1)) != py:
+            raise ParseFailed(f"GA CICS {warn_id} listed under program year {py}")
+        type_code, ga_warn_id = m.group(2), warn_id
+    elif warn_id in _CICS_TYPES:  # Nov-2005+ current-year page: type only
+        type_code, ga_warn_id = warn_id, None
+    else:
+        raise ParseFailed(f"GA CICS: unexpected ID cell {warn_id!r}")
+
+    name = as_str(employer)
+    if name is None:
+        return None
+    effective_date = as_date(event)
+    py_start, py_end = date(py, 7, 1), date(py + 1, 6, 30)
+    notice_date = (
+        min(max(effective_date, py_start), py_end) if effective_date else py_start
+    )
+    extra = {"program_year": str(py)}
+    if ga_warn_id:
+        extra["ga_warn_id"] = ga_warn_id
+    if trade_cert_date := as_date(trade_cert):
+        extra["trade_cert_date"] = trade_cert_date.isoformat()
+    city_name = as_str(city)
+    return NoticeRow(
+        state="GA",
+        employer=name,
+        notice_date=notice_date,
+        effective_date=effective_date,
+        layoff_count=as_int(count),
+        closure_type=_CICS_TYPES[type_code],
+        # "STATEWIDE" (e.g. the 2000 Census Bureau notice) is not a place.
+        city=None if city_name == "STATEWIDE" else city_name,
+        county=as_str(county),
+        source_url=source_url,
+        extra=extra,
+    )
 
 
 register(GAScraper())
