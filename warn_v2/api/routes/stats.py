@@ -10,14 +10,22 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, NamedTuple
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel
 from sqlalchemy import Select, String, cast, func, select
 from sqlalchemy.orm import Session, aliased
 
 from warn_v2.api.deps import get_db
 from warn_v2.api.filters import apply_stats_closure_filter as _apply_closure_filter
-from warn_v2.api.timeline import Bucket, TTLCache, month_col, period_of, period_range
+from warn_v2.api.timeline import (
+    Body,
+    Bucket,
+    TTLCache,
+    body_response,
+    month_col,
+    period_of,
+    period_range,
+)
 from warn_v2.companies.naics import (
     NAICS_SECTORS,
     SECTOR_NAME,
@@ -602,7 +610,7 @@ class IndustryFilters(NamedTuple):
 
 # (sector, "YYYY-MM", notices, workers): a few thousand rows at most.
 _industry_rows_cache: TTLCache[list[tuple[str, str, int, int]]] = TTLCache(max_entries=16)
-_industry_body_cache: TTLCache[bytes] = TTLCache(max_entries=64)
+_industry_body_cache: TTLCache[Body] = TTLCache(max_entries=64)
 
 
 def _query_industry_months(db: Session, f: IndustryFilters) -> list[tuple[str, str, int, int]]:
@@ -641,11 +649,11 @@ def industry_months(
 
 def industries_timeline_body(
     db: Session, bucket: Bucket, f: IndustryFilters, *, refresh: bool = False
-) -> bytes:
+) -> Body:
     """The serialized /stats/industries/timeline body, cached. A miss (or
     ``refresh``) rolls it up from the cached month grouping."""
 
-    def build() -> bytes:
+    def build() -> Body:
         # (sector, period) -> [notices, workers]
         cells: dict[tuple[str, str], list[int]] = {}
         for sector, month, n, lt in industry_months(db, f):
@@ -671,7 +679,9 @@ def industries_timeline_body(
         # the client ranks per frame.
         order = {sid: i for i, (sid, _, _) in enumerate(NAICS_SECTORS)}
         sectors = sorted(rows.values(), key=lambda r: order.get(r.sector, len(order)))
-        return IndustryTimeline(periods=periods, sectors=sectors).model_dump_json().encode()
+        return Body.of(
+            IndustryTimeline(periods=periods, sectors=sectors).model_dump_json().encode()
+        )
 
     return _industry_body_cache.get_or_compute((bucket, f), build, refresh=refresh)
 
@@ -683,6 +693,7 @@ def clear_industries_timeline_cache() -> None:
 
 @router.get("/industries/timeline", response_model=IndustryTimeline)
 def industries_timeline(
+    request: Request,
     bucket: Bucket = Query("quarter", description="Time bucket: year | quarter | month"),
     state: str | None = Query(None, description="Restrict to one state"),
     closure_category: str | None = Query(
@@ -704,7 +715,7 @@ def industries_timeline(
     in the window are omitted.
     """
     f = IndustryFilters(state and state.upper(), closure_category, after, before)
-    return Response(industries_timeline_body(db, bucket, f), media_type="application/json")
+    return body_response(request, industries_timeline_body(db, bucket, f))
 
 
 @router.get("/by-parent-group", response_model=list[ParentGroupStat])

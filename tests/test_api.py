@@ -1077,6 +1077,47 @@ def test_industries_timeline_cache_hit_miss_and_expiry(api_client, db, timeline_
     assert api_client.get("/api/stats/industries/timeline").json()["sectors"][0]["workers"] == [30]
 
 
+@pytest.mark.parametrize(
+    "url", ["/api/map-places/timeline", "/api/stats/industries/timeline?bucket=month"]
+)
+def test_timeline_serves_cached_gzip_or_plain_json(api_client, db, url):
+    import gzip
+
+    # Enough places and months that the gzip bytes clear GZipMiddleware's
+    # 1 KiB minimum, so a second compression would show.
+    for k in range(300):
+        n = _geocoded_notice(db, None, f"Co {k}", lat=30 + k * 0.0137, lon=-120 + k * 0.0291)
+        n.notice_date = date(2000 + k // 12, k % 12 + 1, 1)
+        n.layoff_count = k * 7 % 500
+    db.commit()
+    plain = api_client.get(url, headers={"Accept-Encoding": "identity"})
+    assert "content-encoding" not in plain.headers
+    assert plain.headers["vary"] == "Accept-Encoding"  # from GZipMiddleware
+    assert plain.json()["periods"]
+
+    with api_client.stream("GET", url, headers={"Accept-Encoding": "gzip"}) as resp:
+        raw = b"".join(resp.iter_raw())
+    assert resp.headers["content-encoding"] == "gzip"
+    assert resp.headers["vary"] == "Accept-Encoding"
+    assert len(raw) > 1024
+    # One gzip layer -- GZipMiddleware didn't compress the cached bytes again.
+    assert gzip.decompress(raw) == plain.content
+    # And they are the cached copy (mtime=0), not the middleware's (timestamped).
+    assert raw == gzip.compress(plain.content, compresslevel=6, mtime=0)
+
+
+def test_timeline_cache_byte_cap_counts_raw_and_gzip():
+    from warn_v2.api.timeline import Body, TTLCache
+
+    body = Body(b"x" * 600, b"y" * 400)
+    cache = TTLCache(max_entries=10, max_bytes=1500)
+    calls = []
+    for key in ("a", "b", "a"):
+        cache.get_or_compute(key, lambda k=key: calls.append(k) or body)
+    # 2 x 1,000 bytes > 1,500, so "b" evicted "a".
+    assert calls == ["a", "b", "a"]
+
+
 def test_timeline_cache_evicts_least_recently_used():
     from warn_v2.api.timeline import TTLCache
 
