@@ -17,7 +17,7 @@ import sys
 from datetime import date
 from typing import NamedTuple
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -25,8 +25,10 @@ from sqlalchemy.orm import Session
 from warn_v2.api.deps import get_db
 from warn_v2.api.filters import apply_notice_filters, apply_stats_closure_filter
 from warn_v2.api.timeline import (
+    Body,
     Bucket,
     TTLCache,
+    body_response,
     json_bytes,
     month_col,
     period_of,
@@ -134,9 +136,10 @@ class _PlaceMonths(NamedTuple):
 # ~12 MB for monthly since 1999 at prod scale (measured on a synthetic
 # 12k-place, 80k-cell set); the three warmed windows plus a few taps.
 _rows_cache: TTLCache[_PlaceMonths] = TTLCache(max_entries=6)
-# A body is ~1.5 MB raw at prod scale; 32 MB holds every unfiltered window x
-# bucket plus a run of linked-view taps. The pod's limit is 512 Mi.
-_body_cache: TTLCache[bytes] = TTLCache(max_entries=64, max_bytes=32 << 20)
+# A body is ~1.5 MB raw at prod scale, plus its gzip copy (both count); 32 MB
+# holds every unfiltered window x bucket plus a run of linked-view taps. The
+# pod's limit is 512 Mi.
+_body_cache: TTLCache[Body] = TTLCache(max_entries=64, max_bytes=32 << 20)
 
 
 def _query_place_months(db: Session, f: PlaceFilters) -> _PlaceMonths:
@@ -195,11 +198,11 @@ def place_months(db: Session, f: PlaceFilters, *, refresh: bool = False) -> _Pla
 
 def timeline_body(
     db: Session, bucket: Bucket, f: PlaceFilters, *, refresh: bool = False
-) -> bytes:
+) -> Body:
     """The serialized /map-places/timeline body, cached. A miss (or
     ``refresh``) rolls it up from the cached month grouping."""
 
-    def build() -> bytes:
+    def build() -> Body:
         months = place_months(db, f)
         cells: dict[tuple[str, int], list[int]] = {}
         for i, month, n, w in months.cells:
@@ -209,7 +212,7 @@ def timeline_body(
         periods = period_range({p for p, _ in cells}, bucket)
         index = {p: k for k, p in enumerate(periods)}
         ordered = sorted(cells.items(), key=lambda kv: (index[kv[0][0]], kv[0][1]))
-        return json_bytes({
+        return Body.of(json_bytes({
             "lat": months.lat,
             "lon": months.lon,
             "label": months.label,
@@ -218,7 +221,7 @@ def timeline_body(
             "period": [index[p] for (p, _), _ in ordered],
             "notices": [c[0] for _, c in ordered],
             "workers": [c[1] for _, c in ordered],
-        })
+        }))
 
     return _body_cache.get_or_compute((bucket, f), build, refresh=refresh)
 
@@ -230,6 +233,7 @@ def clear_timeline_cache() -> None:
 
 @router.get("/timeline")
 def map_places_timeline(
+    request: Request,
     bucket: Bucket = Query("quarter", description="Time bucket: year | quarter | month"),
     state: str | None = Query(None, description="Two-letter state code, e.g. CA"),
     closure_category: str | None = Query(
@@ -259,8 +263,6 @@ def map_places_timeline(
     f = PlaceFilters(
         state and state.upper(), closure_category, industry, subsector, after, before
     )
-    return Response(
-        timeline_body(db, bucket, f),
-        media_type="application/json",
-        headers={"Cache-Control": "public, max-age=300"},
+    return body_response(
+        request, timeline_body(db, bucket, f), {"Cache-Control": "public, max-age=300"}
     )
