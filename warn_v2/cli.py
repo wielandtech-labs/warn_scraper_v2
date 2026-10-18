@@ -679,7 +679,7 @@ def backfill_occupations_cmd(
 @main.command("backfill-historical")
 @click.option(
     "--state", required=True,
-    help="State to backfill: AZ, CA, DC, DE, FL, HI, IL, KS, KY, MA, MD, ME, "
+    help="State to backfill: AZ, CA, DC, DE, FL, GA, HI, IL, KS, KY, MA, MD, ME, "
          "MN, MS, NC, NM, NY, OH, PA, TX, VT, WI (CO is already cumulative)",
 )
 @click.option("--year-start", type=int, default=None,
@@ -702,7 +702,7 @@ def backfill_historical_cmd(
     the current year.
 
     \b
-    Supported states: AZ, CA, CO, DC, DE, FL, HI, IL, KS, KY, MA, MD, ME, MN,
+    Supported states: AZ, CA, CO, DC, DE, FL, GA, HI, IL, KS, KY, MA, MD, ME, MN,
     MS, NC, NM, NY, OH, PA, TX, VT, WI.
     Per-state earliest years and the dedup protocol: docs/historical-sources.md.
     Dry runs print a duplicate preview (already_exists / near_miss counts).

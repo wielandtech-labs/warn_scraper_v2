@@ -192,7 +192,10 @@ def test_notice_id_matches_listing_derived_rows() -> None:
 # End-to-end: fills existing rows, inserts nothing
 # ---------------------------------------------------------------------------
 
-def test_backfill_fills_without_inserting(db, db_session_factory) -> None:
+def test_backfill_fills_without_inserting(db, db_session_factory, monkeypatch) -> None:
+    # The CICS-era bundle (PY1988-2006) rides the same GA spec; it has its
+    # own end-to-end test in test_ga_cics_backfill.py.
+    monkeypatch.setattr("warn_v2.scripts.backfill_historical.ga_cics_files", list)
     # Seed the DB the way prod was populated: listing-granularity rows.
     seeded = list(_listing_rows_for_bundled_entries().values())
     seen, new = upsert_notices(db, seeded)
