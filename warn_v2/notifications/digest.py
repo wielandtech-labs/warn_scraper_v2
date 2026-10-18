@@ -3,15 +3,17 @@
 Separated from the HTTP routes so the CLI (``warn-v2 send-alert-digest``) and
 tests can drive it directly. A digest contains the notices discovered
 (``scraped_at``) since the subscription's watermark that match its filters; the
-watermark is advanced to ``now`` after a successful send.
+watermark is advanced to ``now`` after a successful send. Notices dated more
+than ~6 months before the run are left out, so a historical backfill (fresh
+``scraped_at``, old ``notice_date``) doesn't email subscribers about old filings.
 """
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from html import escape
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from warn_v2.alerts import describe_scope, is_due, manage_url, notices_url, unsubscribe_url
@@ -37,14 +39,23 @@ from warn_v2.states import state_name
 log = logging.getLogger(__name__)
 
 _MAX_PER_DIGEST = 50
+_MAX_NOTICE_AGE = timedelta(days=183)
 
 
-def new_notices_for(db: Session, sub: Subscription) -> list[Notice]:
-    """Non-superseded notices discovered since the subscription's watermark."""
+def new_notices_for(db: Session, sub: Subscription, now: datetime) -> list[Notice]:
+    """Non-superseded notices discovered since the subscription's watermark.
+
+    Undated notices still count; dated ones older than ``_MAX_NOTICE_AGE`` don't.
+    """
     since = sub.last_notified_at or sub.created_at
+    cutoff = (now - _MAX_NOTICE_AGE).date()
     stmt = (
         select(Notice)
-        .where(Notice.is_superseded.is_(False), Notice.scraped_at > since)
+        .where(
+            Notice.is_superseded.is_(False),
+            Notice.scraped_at > since,
+            or_(Notice.notice_date.is_(None), Notice.notice_date >= cutoff),
+        )
         .order_by(Notice.notice_date.desc().nullslast(), Notice.scraped_at.desc())
     )
     stmt = apply_notice_filters(
@@ -161,7 +172,7 @@ def send_digest(db: Session, sub: Subscription, now: datetime) -> int:
     a later subscriber's send failing won't roll back or re-send earlier ones.
     Returns the number of notices sent (0 = nothing new, no email sent).
     """
-    notices = new_notices_for(db, sub)
+    notices = new_notices_for(db, sub, now)
     if not notices:
         return 0
     subject, text_body, html_body = render_digest(sub, notices)
