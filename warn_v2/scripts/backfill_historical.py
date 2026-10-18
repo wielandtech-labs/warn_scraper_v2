@@ -99,7 +99,13 @@ from warn_v2.scrapers.states.mo import (
 from warn_v2.scrapers.states.ms import _discover_ms_archive_urls, parse_ms_archive_pdf
 from warn_v2.scrapers.states.ms import _discover_pdf_urls as _discover_ms_pdf_urls
 from warn_v2.scrapers.states.nc import _discover_nc_pdf_urls, parse_nc_pdf
-from warn_v2.scrapers.states.ne import ne_archive_files, parse_ne_archive
+from warn_v2.scrapers.states.ne import (
+    is_ne_lc_member,
+    ne_archive_files,
+    ne_lc_files,
+    parse_ne_archive,
+    parse_ne_lc,
+)
 from warn_v2.scrapers.states.nj import ARCHIVE_XLSX_URL as _NJ_ARCHIVE_XLSX_URL
 from warn_v2.scrapers.states.nj import parse_nj_archive_xlsx
 from warn_v2.scrapers.states.nm import _discover_archive_pdf_urls as _discover_nm_pdf_urls
@@ -417,9 +423,16 @@ _BACKFILL: dict[str, BackfillSpec] = {
     # (see states/ne.py). parse_ne_archive stamps each member's per-year
     # source URL. Prod floor is 2023 — no overlap. 2021-2022 rows exist only
     # in Wayback captures of the rolling live page — follow-up, not bundled.
+    # Plus NDOL's broader Layoff and Closures report (Jul-2008 -> 2020, bundled
+    # as ne_lc_archive.tar.gz): tagged Non-WARN except source-WARN rows, with
+    # WARN-report duplicates dropped by parse_ne_lc.
     "NE": BackfillSpec(
-        bundled_files=ne_archive_files,
-        parse_for_url=lambda u: (lambda raw, _u=u: parse_ne_archive(raw, _u)),
+        bundled_files=lambda: ne_archive_files() + ne_lc_files(),
+        parse_for_url=lambda u: (
+            (lambda raw, _u=u: parse_ne_lc(raw, _u))
+            if is_ne_lc_member(u)
+            else (lambda raw, _u=u: parse_ne_archive(raw, _u))
+        ),
     ),
     # SD: the frozen "WARN Notices Received" cumulative PDF (Jul-1997 →
     # Dec-2005, 60 notices) bundled from its Wayback capture; the live scraper
