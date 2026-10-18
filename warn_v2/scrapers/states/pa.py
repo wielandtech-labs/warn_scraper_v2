@@ -377,12 +377,17 @@ _HIST_ANNOTATION_RE = re.compile(
 #   EFFECTIVE DATE:
 #        1st Phase:  1/9/2023 (49 Employees)
 #        2nd Phase:  7/31/2023 (15 Employees)
+#   EFFECTIVE DATES:
+#        04/14 - 11 Employees           (year-less, Apr-2023)
+#        05/05 - 20 Employees
+#   EFFECTIVE DATES: Beginning:  October 31, 2023 -
+#        Ending:  April 15, 2024        (Aug-2023)
 # The first line is the label's value (via the pending mechanism); the rest
 # would otherwise each start a bogus notice. Only consulted right after an
 # EFFECTIVE DATE value, so an employer like "84 Lumber" can't match.
 _SCHEDULE_LINE_RE = re.compile(
-    rf"^(?:(?:\d+(?:st|nd|rd|th)\s+)?phase\b|\d{{1,2}}/\d{{1,2}}/\d{{2,4}}"
-    rf"|(?:{_MONTH_ALT})\s+\d{{1,2}}\b)",
+    rf"^(?:(?:\d+(?:st|nd|rd|th)\s+)?phase\b|(?:beginning|ending)\b"
+    rf"|\d{{1,2}}/\d{{1,2}}\b|(?:{_MONTH_ALT})\s+\d{{1,2}}\b)",
     re.I,
 )
 

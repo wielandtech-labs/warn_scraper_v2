@@ -278,3 +278,24 @@ def test_parse_pa_month_sharepoint_2023_multiline_schedules():
     # "Phase 1:  1/11/23 (38 workers)" ... "Phase 4:  TBD (6 workers)"
     assert by["Ascent Tubular Products"].effective_date == date(2023, 1, 11)
     assert by["Ascent Tubular Products"].city == "Munhall"
+
+
+def test_parse_pa_month_sharepoint_2023_schedule_variants():
+    """Apr-2023 lists a year-less schedule ("05/05 - 20 Employees") and Aug-2023
+    splits "Beginning: ... - / Ending:  April 15, 2024" over two lines; neither
+    continuation line may become an employer."""
+    from warn_v2.scrapers.states.pa import parse_pa_month
+
+    apr = parse_pa_month(_envelope("archive_sp_2023_04.html", 4), 2023)
+    assert len(apr) == 9
+    lightning = apr[0]
+    assert lightning.employer == "Lightning Source, LLC"
+    assert lightning.layoff_count == 260
+    assert lightning.closure_type == "Layoff"
+
+    aug = parse_pa_month(_envelope("archive_sp_2023_08.html", 8), 2023)
+    assert len(aug) == 10
+    ames = next(r for r in aug if r.employer == "The AMES Companies")
+    assert ames.effective_date == date(2023, 10, 31)
+    assert ames.closure_type == "Closure"
+    assert not any(r.employer.lower().startswith(("ending", "beginning")) for r in apr + aug)
