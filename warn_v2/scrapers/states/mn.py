@@ -257,8 +257,13 @@ def _discover_archive_pdf_urls() -> list[str]:
             "fl": "original,timestamp",
             # Server-side regex filter — without it the 5000-entry limit
             # truncates the /deed/assets/ prefix scan before our PDFs.
+            # mimetype: some PDF URLs' earliest 200 is an ~83 KB text/html
+            # error page (warn-report-2024, 2025-03-27). collapse=urlkey (the
+            # earliest capture) is safe here, unlike CA/PA: each month is its
+            # own immutable file, later captures differ by a few bytes.
             "filter": [
                 "statuscode:200",
+                "mimetype:application/pdf",
                 r"original:.*(plant-closing|mass-layoff).*\.pdf",
             ],
             "collapse": "urlkey",

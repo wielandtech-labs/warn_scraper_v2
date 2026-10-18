@@ -113,16 +113,17 @@ def test_ca_discover_historical_urls_keeps_detailed_latest_capture():
     the simple cn/cnal/cnmz consolidations are ignored."""
     from warn_v2.scrapers.states.ca import _CDX_API, _discover_ca_historical_urls
 
+    pdf = "application/pdf"
     cdx = [
-        ["timestamp", "original"],
+        ["timestamp", "original", "mimetype"],
         # same detailed file, two captures -> keep the later timestamp
-        ["20130407160403", "http://www.edd.ca.gov/Jobs_and_Training/warn/eddwarncndtz13.pdf"],
-        ["20161221021806", "http://edd.ca.gov/jobs_and_training/warn/eddwarncndtz13.pdf"],
+        ["20130407160403", "http://www.edd.ca.gov/Jobs_and_Training/warn/eddwarncndtz13.pdf", pdf],
+        ["20161221021806", "http://edd.ca.gov/jobs_and_training/warn/eddwarncndtz13.pdf", pdf],
         # a detailed file for another year
-        ["20140611173541", "http://www.edd.ca.gov/Jobs_and_Training/warn/eddwarncnda14.pdf"],
+        ["20140611173541", "http://www.edd.ca.gov/Jobs_and_Training/warn/eddwarncnda14.pdf", pdf],
         # simple/consolidated variants -> ignored (no notice date / address)
-        ["20130407160543", "http://www.edd.ca.gov/Jobs_and_Training/warn/eddwarncn13.pdf"],
-        ["20130407165151", "http://www.edd.ca.gov/Jobs_and_Training/warn/eddwarncnal13.pdf"],
+        ["20130407160543", "http://www.edd.ca.gov/Jobs_and_Training/warn/eddwarncn13.pdf", pdf],
+        ["20130407165151", "http://www.edd.ca.gov/Jobs_and_Training/warn/eddwarncnal13.pdf", pdf],
     ]
     respx.get(_CDX_API).mock(return_value=httpx.Response(200, json=cdx))
 
@@ -132,6 +133,44 @@ def test_ca_discover_historical_urls_keeps_detailed_latest_capture():
         "https://web.archive.org/web/20161221021806id_/"
         "http://edd.ca.gov/jobs_and_training/warn/eddwarncndtz13.pdf",
     ]
+
+
+@respx.mock
+def test_ca_discover_historical_urls_latest_pdf_not_earliest_capture():
+    """Regression (2026-10 sweep): collapse=urlkey returned each file's EARLIEST
+    capture, a partial year-to-date snapshot (prod CA 2010 held 96 notices vs
+    ~879 in the latest capture). Discovery must ask for every capture and keep
+    the latest real PDF, never a later soft-404 archived as 200 text/html."""
+    from warn_v2.scrapers.states.ca import _CDX_API, _discover_ca_historical_urls
+
+    url = "http://www.edd.ca.gov/Jobs_and_Training/warn/eddwarncndel09.pdf"
+    cdx = [
+        ["timestamp", "original", "mimetype"],
+        ["20090411011938", url, "application/pdf"],  # early, 545 KB YTD
+        ["20130407160455", url, "application/pdf"],  # later, 1.5 MB full year
+        ["20190101000000", url, "text/html"],  # later, 6 KB soft-404
+    ]
+    route = respx.get(_CDX_API).mock(return_value=httpx.Response(200, json=cdx))
+
+    assert _discover_ca_historical_urls() == [
+        f"https://web.archive.org/web/20130407160455id_/{url}"
+    ]
+    params = route.calls.last.request.url.params
+    assert "collapse" not in params
+    assert "mimetype:application/pdf" in params.get_list("filter")
+
+
+@respx.mock
+def test_ca_discover_historical_urls_raises_on_truncated_cdx():
+    from warn_v2.scrapers.base import ScrapeFailed
+    from warn_v2.scrapers.states.ca import _CDX_API, _CDX_LIMIT, _discover_ca_historical_urls
+
+    row = ["20130407160455", "http://edd.ca.gov/jobs_and_training/warn/eddwarncndel09.pdf",
+           "application/pdf"]
+    cdx = [["timestamp", "original", "mimetype"], *([row] * _CDX_LIMIT)]
+    respx.get(_CDX_API).mock(return_value=httpx.Response(200, json=cdx))
+    with pytest.raises(ScrapeFailed, match="row limit"):
+        _discover_ca_historical_urls()
 
 
 @respx.mock
@@ -152,8 +191,12 @@ def test_ca_discover_historical_urls_retries_through_flap(monkeypatch):
 
     monkeypatch.setattr("time.sleep", lambda *a: None)
     good = [
-        ["timestamp", "original"],
-        ["20140611173541", "http://www.edd.ca.gov/Jobs_and_Training/warn/eddwarncnda14.pdf"],
+        ["timestamp", "original", "mimetype"],
+        [
+            "20140611173541",
+            "http://www.edd.ca.gov/Jobs_and_Training/warn/eddwarncnda14.pdf",
+            "application/pdf",
+        ],
     ]
     responses = [
         httpx.Response(503),

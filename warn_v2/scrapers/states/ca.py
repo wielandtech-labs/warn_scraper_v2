@@ -54,6 +54,7 @@ _WAYBACK_REPLAY = "https://web.archive.org/web/{ts}id_/{url}"
 # Escalating backoff (seconds) between CDX discovery retries; 5 attempts total
 # (the four gaps below + a final attempt) span ~110s to outlast a Wayback flap.
 _CDX_RETRY_BACKOFFS = (5, 15, 30, 60)
+_CDX_LIMIT = 5000
 # da(1-A) dbd(B-D) del(E-L) dmr(M-R) ds(S-S) dtz(T-Z); YY = 06..14.
 _CA_DETAIL_RE = re.compile(r"eddwarncn(?:da|dbd|del|dmr|ds|dtz)(\d{2})\.pdf$", re.I)
 
@@ -324,12 +325,21 @@ def _discover_ca_historical_urls() -> list[str]:
                     "url": "edd.ca.gov/jobs_and_training/warn/",
                     "matchType": "prefix",
                     "output": "json",
-                    "fl": "timestamp,original",
+                    "fl": "timestamp,original,mimetype",
                     # Server-side filters keep the response under the row cap and
                     # spare us the simple/local variants we don't ingest.
-                    "filter": ["statuscode:200", r"original:.*eddwarncnd.*\.pdf"],
-                    "collapse": "urlkey",
-                    "limit": "5000",
+                    # mimetype: soft-404s are archived as 5-8 KB 200 text/html
+                    # (re-checked client-side below).
+                    "filter": [
+                        "statuscode:200",
+                        "mimetype:application/pdf",
+                        r"original:.*eddwarncnd.*\.pdf",
+                    ],
+                    # No collapse=urlkey: it keeps each file's EARLIEST capture,
+                    # a partial year-to-date snapshot (eddwarncndel09: 545 KB
+                    # in 2009-04 vs 1.5 MB in 2013). Every capture comes back
+                    # (~1,230 rows, 2026-10-18) and the loop keeps the latest.
+                    "limit": str(_CDX_LIMIT),
                 },
                 headers=_UA,
                 timeout=120,
@@ -344,13 +354,17 @@ def _discover_ca_historical_urls() -> list[str]:
 
     if not isinstance(captures, list):
         return []
+    if len(captures) > _CDX_LIMIT:  # header + limit rows = truncated
+        raise ScrapeFailed(f"CA: CDX query hit the {_CDX_LIMIT}-row limit")
     # filename -> (latest_ts, original_url); the ".pdf" match is on the filename
     # so scheme/host variants collapse together.
     best: dict[str, tuple[str, str]] = {}
     for cap in captures[1:]:  # row 0 is the field-name header
-        if not (isinstance(cap, list) and len(cap) == 2):
+        if not (isinstance(cap, list) and len(cap) == 3):
             continue
-        ts, original = str(cap[0]), str(cap[1])
+        ts, original, mimetype = (str(c) for c in cap)
+        if mimetype != "application/pdf":
+            continue
         m = _CA_DETAIL_RE.search(original)
         if m is None:
             continue
