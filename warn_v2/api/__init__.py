@@ -12,7 +12,7 @@ from prometheus_client import REGISTRY
 from prometheus_client.exposition import choose_encoder
 from starlette.responses import Response
 
-from warn_v2.api import ratelimit
+from warn_v2.api import ratelimit, timeline_warm
 from warn_v2.api.canonical import CanonicalHostMiddleware, redirect_hosts
 from warn_v2.api.routes import (
     admin,
@@ -49,7 +49,10 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
         log.info("WarnCollector registered with Prometheus REGISTRY")
     except Exception:
         log.warning("could not register WarnCollector at startup", exc_info=True)
+    stop_warmer = timeline_warm.start()
     yield
+    if stop_warmer is not None:
+        stop_warmer.set()
 
 
 def create_app(static_dir: Path | None = None) -> FastAPI:

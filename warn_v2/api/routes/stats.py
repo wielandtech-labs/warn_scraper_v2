@@ -8,16 +8,16 @@ from __future__ import annotations
 import calendar
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, NamedTuple
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 from sqlalchemy import Select, String, cast, func, select
 from sqlalchemy.orm import Session, aliased
 
 from warn_v2.api.deps import get_db
 from warn_v2.api.filters import apply_stats_closure_filter as _apply_closure_filter
-from warn_v2.api.timeline import Bucket, month_col, period_of, period_range
+from warn_v2.api.timeline import Bucket, TTLCache, month_col, period_of, period_range
 from warn_v2.companies.naics import (
     NAICS_SECTORS,
     SECTOR_NAME,
@@ -590,28 +590,22 @@ def industries(
 UNCLASSIFIED = "unclassified"
 
 
-@router.get("/industries/timeline", response_model=IndustryTimeline)
-def industries_timeline(
-    bucket: Bucket = Query("quarter", description="Time bucket: year | quarter | month"),
-    state: str | None = Query(None, description="Restrict to one state"),
-    closure_category: str | None = Query(
-        None, description="Closure | Layoff | Non-WARN (default: all but Non-WARN)"
-    ),
-    after: date | None = Query(None, description="Only notices on or after this date"),
-    before: date | None = Query(None, description="Only notices on or before this date"),
-    db: Session = Depends(get_db),
-) -> IndustryTimeline:
-    """Notices and workers per NAICS sector per period, for the /timelapse
-    industry chart.
+class IndustryFilters(NamedTuple):
+    """The industry timeline's filter set: the rows-cache key (the body cache
+    adds the bucket)."""
 
-    Unlike /industries, notices whose industry is unknown (no linked company,
-    no NAICS code, or a code in no known sector) are counted, as one
-    ``unclassified`` row — around 40% of notices, so leaving them out would
-    overstate how much of each period the sectors explain. ``periods`` is the
-    contiguous range from the first to the last period with a notice; each
-    row's ``notices``/``workers`` are aligned with it. Sectors with no notices
-    in the window are omitted.
-    """
+    state: str | None = None
+    closure_category: str | None = None
+    after: date | None = None
+    before: date | None = None
+
+
+# (sector, "YYYY-MM", notices, workers): a few thousand rows at most.
+_industry_rows_cache: TTLCache[list[tuple[str, str, int, int]]] = TTLCache(max_entries=16)
+_industry_body_cache: TTLCache[bytes] = TTLCache(max_entries=64)
+
+
+def _query_industry_months(db: Session, f: IndustryFilters) -> list[tuple[str, str, int, int]]:
     prefix = func.substr(Company.naics_code, 1, 2)
     stmt = (
         select(
@@ -626,38 +620,91 @@ def industries_timeline(
         .group_by(prefix, month_col)
     )
     stmt = _not_superseded(stmt)
-    stmt = _apply_date_filters(stmt, after, before)
-    stmt = _apply_closure_filter(stmt, closure_category)
-    if state:
-        stmt = stmt.where(Notice.state == state.upper())
+    stmt = _apply_date_filters(stmt, f.after, f.before)
+    stmt = _apply_closure_filter(stmt, f.closure_category)
+    if f.state:
+        stmt = stmt.where(Notice.state == f.state.upper())
+    return [
+        (sector_for_code(code) or UNCLASSIFIED, month, _coerce_int(n), _coerce_int(lt))
+        for code, month, n, lt in db.execute(stmt).all()
+    ]
 
-    # (sector, period) -> [notices, workers]
-    cells: dict[tuple[str, str], list[int]] = {}
-    for code, month, n, lt in db.execute(stmt).all():
-        sector = sector_for_code(code) or UNCLASSIFIED
-        cell = cells.setdefault((sector, period_of(month, bucket)), [0, 0])
-        cell[0] += _coerce_int(n)
-        cell[1] += _coerce_int(lt)
 
-    periods = period_range({p for _, p in cells}, bucket)
-    index = {p: i for i, p in enumerate(periods)}
-    rows: dict[str, IndustryTimelineRow] = {}
-    for (sector, period), (n, lt) in cells.items():
-        row = rows.get(sector)
-        if row is None:
-            row = rows[sector] = IndustryTimelineRow(
-                sector=sector,
-                name=SECTOR_NAME.get(sector, "Unclassified"),
-                notices=[0] * len(periods),
-                workers=[0] * len(periods),
-            )
-        row.notices[index[period]] = n
-        row.workers[index[period]] = lt
-    # Sector order (as in /industries' NAICS table) keeps the payload stable;
-    # the client ranks per frame.
-    order = {sid: i for i, (sid, _, _) in enumerate(NAICS_SECTORS)}
-    sectors = sorted(rows.values(), key=lambda r: order.get(r.sector, len(order)))
-    return IndustryTimeline(periods=periods, sectors=sectors)
+def industry_months(
+    db: Session, f: IndustryFilters, *, refresh: bool = False
+) -> list[tuple[str, str, int, int]]:
+    """The (sector, month) grouping for ``f``, cached."""
+    return _industry_rows_cache.get_or_compute(
+        f, lambda: _query_industry_months(db, f), refresh=refresh
+    )
+
+
+def industries_timeline_body(
+    db: Session, bucket: Bucket, f: IndustryFilters, *, refresh: bool = False
+) -> bytes:
+    """The serialized /stats/industries/timeline body, cached. A miss (or
+    ``refresh``) rolls it up from the cached month grouping."""
+
+    def build() -> bytes:
+        # (sector, period) -> [notices, workers]
+        cells: dict[tuple[str, str], list[int]] = {}
+        for sector, month, n, lt in industry_months(db, f):
+            cell = cells.setdefault((sector, period_of(month, bucket)), [0, 0])
+            cell[0] += n
+            cell[1] += lt
+
+        periods = period_range({p for _, p in cells}, bucket)
+        index = {p: i for i, p in enumerate(periods)}
+        rows: dict[str, IndustryTimelineRow] = {}
+        for (sector, period), (n, lt) in cells.items():
+            row = rows.get(sector)
+            if row is None:
+                row = rows[sector] = IndustryTimelineRow(
+                    sector=sector,
+                    name=SECTOR_NAME.get(sector, "Unclassified"),
+                    notices=[0] * len(periods),
+                    workers=[0] * len(periods),
+                )
+            row.notices[index[period]] = n
+            row.workers[index[period]] = lt
+        # Sector order (as in /industries' NAICS table) keeps the payload stable;
+        # the client ranks per frame.
+        order = {sid: i for i, (sid, _, _) in enumerate(NAICS_SECTORS)}
+        sectors = sorted(rows.values(), key=lambda r: order.get(r.sector, len(order)))
+        return IndustryTimeline(periods=periods, sectors=sectors).model_dump_json().encode()
+
+    return _industry_body_cache.get_or_compute((bucket, f), build, refresh=refresh)
+
+
+def clear_industries_timeline_cache() -> None:
+    _industry_rows_cache.clear()
+    _industry_body_cache.clear()
+
+
+@router.get("/industries/timeline", response_model=IndustryTimeline)
+def industries_timeline(
+    bucket: Bucket = Query("quarter", description="Time bucket: year | quarter | month"),
+    state: str | None = Query(None, description="Restrict to one state"),
+    closure_category: str | None = Query(
+        None, description="Closure | Layoff | Non-WARN (default: all but Non-WARN)"
+    ),
+    after: date | None = Query(None, description="Only notices on or after this date"),
+    before: date | None = Query(None, description="Only notices on or before this date"),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Notices and workers per NAICS sector per period, for the /timelapse
+    industry chart.
+
+    Unlike /industries, notices whose industry is unknown (no linked company,
+    no NAICS code, or a code in no known sector) are counted, as one
+    ``unclassified`` row — around 40% of notices, so leaving them out would
+    overstate how much of each period the sectors explain. ``periods`` is the
+    contiguous range from the first to the last period with a notice; each
+    row's ``notices``/``workers`` are aligned with it. Sectors with no notices
+    in the window are omitted.
+    """
+    f = IndustryFilters(state and state.upper(), closure_category, after, before)
+    return Response(industries_timeline_body(db, bucket, f), media_type="application/json")
 
 
 @router.get("/by-parent-group", response_model=list[ParentGroupStat])

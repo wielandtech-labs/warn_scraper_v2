@@ -999,6 +999,121 @@ def test_industries_timeline_includes_unclassified(api_client, db):
     assert [r["sector"] for r in month["sectors"]] == ["31-33"]
 
 
+
+@pytest.fixture()
+def timeline_clock(monkeypatch):
+    """A settable clock for the timeline caches' expiry."""
+    import types
+
+    from warn_v2.api import timeline
+
+    now = [1000.0]
+    monkeypatch.setattr(timeline, "time", types.SimpleNamespace(monotonic=lambda: now[0]))
+    return now
+
+
+def test_map_places_timeline_cache_hit_returns_identical_json(api_client, db):
+    _geocoded_notice(db, None, "Alpha Co", lat=34.0, lon=-118.0)
+    db.commit()
+    first = api_client.get("/api/map-places/timeline")
+    assert first.headers["content-type"] == "application/json"
+
+    # A notice landing inside the TTL isn't seen: the cached bytes are served.
+    _geocoded_notice(db, None, "Beta Co", lat=40.7, lon=-74.0)
+    db.commit()
+    second = api_client.get("/api/map-places/timeline")
+    assert second.content == first.content
+    assert second.json()["notices"] == [1]
+    assert second.headers["cache-control"] == "public, max-age=300"
+
+    # Other buckets roll up from the cached month grouping: no new query.
+    assert api_client.get("/api/map-places/timeline?bucket=year").json()["notices"] == [1]
+
+
+def test_map_places_timeline_cache_misses_on_a_different_filter(api_client, db):
+    mfg = _company(db, "Mfg", naics_code="311999")
+    _geocoded_notice(db, mfg, "Alpha Co", lat=34.0, lon=-118.0)
+    db.commit()
+    assert api_client.get("/api/map-places/timeline").json()["notices"] == [1]
+
+    _geocoded_notice(db, mfg, "Beta Co", lat=40.7, lon=-74.0)
+    db.commit()
+    assert api_client.get("/api/map-places/timeline?industry=31-33").json()["notices"] == [1, 1]
+    assert len(api_client.get("/api/map-places/timeline?after=2025-01-01").json()["lat"]) == 2
+    # The unfiltered entry is untouched.
+    assert api_client.get("/api/map-places/timeline").json()["notices"] == [1]
+
+
+def test_map_places_timeline_cache_expiry_refetches(api_client, db, timeline_clock):
+    from warn_v2.api.timeline import TTL_S
+
+    _geocoded_notice(db, None, "Alpha Co", lat=34.0, lon=-118.0)
+    db.commit()
+    assert api_client.get("/api/map-places/timeline").json()["notices"] == [1]
+    _geocoded_notice(db, None, "Beta Co", lat=40.7, lon=-74.0)
+    db.commit()
+
+    timeline_clock[0] += TTL_S - 1
+    assert api_client.get("/api/map-places/timeline").json()["notices"] == [1]
+    timeline_clock[0] += 2
+    assert api_client.get("/api/map-places/timeline").json()["notices"] == [1, 1]
+
+
+def test_industries_timeline_cache_hit_miss_and_expiry(api_client, db, timeline_clock):
+    from warn_v2.api.timeline import TTL_S
+
+    _notice(db, employer="Alpha", notice_date=date(2024, 1, 5), layoff_count=10)
+    db.commit()
+    first = api_client.get("/api/stats/industries/timeline")
+    assert first.json()["sectors"][0]["notices"] == [1]
+
+    _notice(db, employer="Beta", notice_date=date(2024, 1, 6), layoff_count=20)
+    db.commit()
+    assert api_client.get("/api/stats/industries/timeline").content == first.content
+    by_state = api_client.get("/api/stats/industries/timeline?state=CA").json()
+    assert by_state["sectors"][0]["notices"] == [2]
+
+    timeline_clock[0] += TTL_S + 1
+    assert api_client.get("/api/stats/industries/timeline").json()["sectors"][0]["workers"] == [30]
+
+
+def test_timeline_cache_evicts_least_recently_used():
+    from warn_v2.api.timeline import TTLCache
+
+    cache = TTLCache(max_entries=2)
+    calls = []
+
+    def get(key):
+        return cache.get_or_compute(key, lambda: calls.append(key) or key)
+
+    get("default"), get("tap1")
+    get("default")  # a hit keeps the hot entry
+    get("tap2")  # evicts tap1, not default
+    get("default")
+    get("tap1")
+    assert calls == ["default", "tap1", "tap2", "tap1"]
+
+
+def test_timeline_warmer_fills_and_refreshes_the_defaults(api_client, db, db_session_factory):
+    from warn_v2.api import timeline_warm
+
+    _geocoded_notice(db, None, "Alpha Co", lat=34.0, lon=-118.0)
+    db.commit()
+    timeline_warm.warm_once()
+    _geocoded_notice(db, None, "Beta Co", lat=40.7, lon=-74.0)
+    db.commit()
+
+    # /timelapse's default request is served from the warmed entry...
+    url = "/api/map-places/timeline?bucket=quarter&after=2015-01-01"
+    assert api_client.get(url).json()["notices"] == [1]
+    assert api_client.get(
+        "/api/stats/industries/timeline?bucket=month&after=1999-01-01"
+    ).json()["sectors"][0]["notices"] == [1]
+    # ...and the next warm-up replaces it with fresh data.
+    timeline_warm.warm_once()
+    assert api_client.get(url).json()["notices"] == [1, 1]
+
+
 def test_notices_bbox_filter(api_client, db):
     _geocoded_notice(db, None, "LA Co", lat=34.0, lon=-118.2)
     _geocoded_notice(db, None, "NYC Co", lat=40.7, lon=-74.0)
