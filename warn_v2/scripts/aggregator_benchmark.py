@@ -107,13 +107,25 @@ def find_gaps(
     return sorted(gaps, key=lambda g: (g.state, g.year))
 
 
+def _get(client: httpx.Client, url: str, **kwargs) -> httpx.Response:
+    """GET that waits out a 429 (our API rate-limits anonymous callers)."""
+    for _ in range(5):
+        r = client.get(url, **kwargs)
+        if r.status_code != 429:
+            break
+        time.sleep(float(r.headers.get("Retry-After", "10")))
+    r.raise_for_status()
+    return r
+
+
 def fetch_ours(client: httpx.Client) -> dict[str, dict[int, int]]:
     out: dict[str, dict[int, int]] = {}
     for state in STATE_NAMES:
-        r = client.get(
-            f"{OURS_BASE}/api/stats/over-time", params={"bucket": "year", "state": state}
+        r = _get(
+            client,
+            f"{OURS_BASE}/api/stats/over-time",
+            params={"bucket": "year", "state": state},
         )
-        r.raise_for_status()
         out[state] = {int(p["period"]): p["notice_count"] for p in r.json()}
     return out
 
@@ -124,8 +136,7 @@ def fetch_reference(client: httpx.Client) -> dict[str, dict[int, int]]:
         if i:
             time.sleep(CRAWL_DELAY_S)
         slug = reference_slug(state)
-        r = client.get(f"{REFERENCE_BASE}/layoffs/{slug}")
-        r.raise_for_status()
+        r = _get(client, f"{REFERENCE_BASE}/layoffs/{slug}")
         years = parse_trend_chart(r.text, slug)
         if years is not None:
             out[state] = years
