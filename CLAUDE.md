@@ -177,6 +177,17 @@ time, so merging out of order rebuilds on the stale base), then merge in the
 provider repo — its `docker.yml` rebuilds on any push to main, and a Flux
 ImagePolicy bumps the HelmRelease from there.
 
+**A failed provider build is silent, and the chart keeps moving.** warn_v2's
+`docker.yml` dispatches a provider rebuild on every merge, but nothing alerts if
+that build fails: prod keeps the last good provider image while chart changes
+still apply to it. On 2026-10-16, #382 made the base non-root (`USER warn`,
+browsers at `/ms-playwright`). Every provider build after it failed (its root-owned
+`COPY` broke `uv pip install` under `USER warn`). The chart's new `runAsUser: 1000`
+then ran the old root-base image, Playwright looked for browsers in
+`/.cache/ms-playwright`, and the enricher enriched 0 for two days. After any
+Dockerfile, user or securityContext change, check that the provider build
+succeeded (`gh run list -R <provider repo> -w docker.yml`).
+
 ## Production gate
 
 Merging to main is a production deploy (the image-tag chain above runs
