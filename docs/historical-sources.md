@@ -25,8 +25,8 @@ sources only).
     (2019-07) · NE +102 (2010-02) · SD +60 (1997-07) · ID +16 (2008-02) ·
     GA +0 (31 COALESCE fills of county/address/closure_type/separation-date
     onto existing GA2022 rows; ids 001–070 not publicly recoverable → FOIA).
-  - **Wayback batch**: TX +3,192 (2004-01) · FL +3,003 (1998-01; 2012 is a
-    real hole — the site itself had dropped the year) · WI +2,693 (1996-01;
+  - **Wayback batch**: TX +3,192 (2004-01) · FL +3,003 (1998-01; 2012 was
+    missing until 2026-10-18, see below) · WI +2,693 (1996-01;
     the 13-row 2016 PCML file DWD abandoned in Feb-2016 excluded) · CT +1,210
     (1998-01; complete 1998–2008 monthly + 2010–2018 yearly) · SC +1,153
     (2009-01; the 2022 Apr–Dec hole closed via the still-live 12-15-2022
@@ -75,7 +75,7 @@ sources only).
   pages), SD 1997–2005, ID 2008, MA FY2020 + Jul–Aug 2020. Confirmed
   FOIA-only (nothing was ever published/archived): HI pre-2019, NV pre-2017,
   NM pre-2016, CO/ND/MT pre-2015, DC pre-2005, RI pre-2009, GA 2013–2021,
-  TX pre-2004, MS Jul-2007–Jun-2010, MO pre-Jul-2012, VA PY2000–01 +
+  TX pre-2003, MS Jul-2007–Jun-2010, MO pre-Jul-2012, VA PY2000–01 +
   Jul-2005–Dec-2009, MA Sep-2020–Mar-2021 + pre-FY2020.
 - **2026-07-10 — MI 2000-2024 backfilled in prod** (parsers #247; dry-run
   w_homelab #695, real run merged via #696): **+2,063 rows, MI 105 → 2,168,
@@ -365,8 +365,8 @@ delete Jobs after.
 | KS | ~~2026~~ **1999 ✅** | `kansasworks.com/search/warn_lookups?q[notice_on_gteq]=YYYY-01-01` (JobLink date-range search) | **1999** | **done 2026-06-12** (+542) |
 | ME | ~~2026~~ **2012 ✅** | `joblink.maine.gov/search/warn_lookups` (JobLink) | **2012** | **done 2026-06-12** (+76) |
 | VT | ~~2026~~ **2003 ✅** | `vermontjoblink.com/search/warn_lookups` (JobLink) | **2003** | **done 2026-06-12** (+91) |
-| FL | ~~2026~~ ~~2020~~ **1998 ✅** | `reactwarn.floridajobs.org/WarnList/Records?year=Y` — paginated (e.g. 2020 = 1,337 records); page links followed | **1998** (Wayback `warn.asp` year pages 1998–2018 + reactwarn 2019) | **done 2026-06-12** (+2,167, 2020+); **pre-2020 done 2026-07-10** (+3,003, floor 1998-01); **2012 is a real hole** — the site itself had dropped the year (sole capture header-only) → request |
-| TX | ~~2026~~ ~~2020~~ **2004 ✅** | `warn-act-listings-{year}-twc.xlsx` — **only 2020+ still resolve** (pre-2020 files removed from twc.texas.gov; the old `/files/news/` era is dead; Socrata `data.texas.gov/dataset/8w53-c4f6` starts 2019-01, 2,363 rows — verified 2026-06-12) | **2004** (Wayback XLS/XLSX 2004–2018, two hosts) | **done 2026-06-12** (+2,166, 2020+); **pre-2020 done 2026-07-10** (+3,192, floor 2004-01: Wayback 2004–2018 + Socrata 2019); pre-2004 → request |
+| FL | ~~2026~~ ~~2020~~ **1998 ✅** | `reactwarn.floridajobs.org/WarnList/Records?year=Y` — paginated (e.g. 2020 = 1,337 records); page links followed | **1998** (Wayback `warn.asp` year pages 1998–2018 + reactwarn 2019) | **done 2026-06-12** (+2,167, 2020+); **pre-2020 done 2026-07-10** (+3,003, floor 1998-01); **2012 done 2026-10-18** (+165, #396 — an earlier complete capture, @20160622205839) |
+| TX | ~~2026~~ ~~2020~~ ~~2004~~ **2003 ✅** | `warn-act-listings-{year}-twc.xlsx` — **only 2020+ still resolve** (pre-2020 files removed from twc.texas.gov; the old `/files/news/` era is dead; Socrata `data.texas.gov/dataset/8w53-c4f6` starts 2019-01, 2,363 rows — verified 2026-06-12) | **2003** (Wayback XLS 2003 `/svcs/jtpa/warn20030101.xls` + XLS/XLSX 2004–2018, two hosts) | **done 2026-06-12** (+2,166, 2020+); **pre-2020 done 2026-07-10** (+3,192, floor 2004-01: Wayback 2004–2018 + Socrata 2019); **2003 done 2026-10-18** (+315, #396); pre-2003 → request |
 | NC | ~~2026~~ ~~2014~~ **2013 ✅** | archive hub `commerce.nc.gov/...warn-summary-report-archives` → per-year **PDF** documents with irregular slugs (`warn-report-2019/open` etc.); three layout eras — summary-count text 2013–~2017, SSRS grid ~2018–2021, live-schema grid 2022+; 2013 = pinned Wayback capture appended by `_discover_nc_pdf_urls` | **2013** | **done 2026-07-07** (+864, floor 2026→2014; three-era `parse_nc_pdf`); see Progress for the ZIP-poisoning fix; **2013 done 2026-07-10** (+89, floor 2013-01: 82 from Warn-2013.pdf + 7 hub-drift amendment dupes pending mark-superseded); Q4-2012 unrecoverable — no rolling `Warn.pdf` capture for Dec-2012 in CDX |
 | NJ | ~~2026~~ **2004 ✅** | cumulative `nj.gov/labor/assets/PDFs/WARN/WARN_Notice_Archive.xlsx` — one sheet per year, same 5 columns as the live PDF (23 sheets 2004–2026, 2,349 rows) | **2004** | **done 2026-07-07** (+2,203, near_miss=0; see Progress) |
 | NM | ~~2025~~ **2016 ✅** | per-year PDFs on `dws.nm.gov/Rapid-Response` (filenames vary 2016–2018 → discovered from the hub's anchors) | **2016** | **done 2026-06-12** (+109); pre-2016 → request |
@@ -448,7 +448,7 @@ in [coverage-vs-aggregators.md](coverage-vs-aggregators.md).
 | AZ | pre-2010 (probe done 2026-07-09: JobLink search reaches 2010, ingested via backfill after PR #241; 2009 and older are empty at source) | GovQA `desaz.govqa.us` / PublicRecordsRequest@azdes.gov | portal or email — **must declare non-commercial purpose** | A.R.S. §39-121 et seq. |
 | CT | ~~pre-2019~~ **2013 + Jan–Jul/Oct–Dec 2009 only** (1998–2018 otherwise in Wayback — sweep 2026-07-10) | CT DOL Records Center | **GovQA portal** (`dolct.govqa.us`) | CT FOIA |
 | DE | pre-2007 (probe done 2026-07-09: JobLink search reaches 2007, ingested via backfill after PR #241; 2006 and older are empty at source) | dol.foia@delaware.gov (FOIA Coordinator) | email (state web form alt.) — "any citizen" caveat | 29 Del. C. ch. 100 |
-| FL | ~~pre-2020~~ **2012 only** (1998–2019 backfilled 2026-07-10; 2012 is a real hole — the site itself had dropped the year, its sole capture is header-only) | PRRequest@commerce.fl.gov | email (JustFOIA portal alt.) | Ch. 119, F.S. |
+| FL | ~~pre-2020~~ ~~2012 only~~ **none** (1998–2019 backfilled 2026-07-10; 2012 recovered from an earlier Wayback capture 2026-10-18) | PRRequest@commerce.fl.gov | email (JustFOIA portal alt.) | Ch. 119, F.S. |
 | GA | ~~pre-2023~~ **2013–2021 + 2022 ids GA202200001–070** (GDOL search app archived only empty forms; the 2022 entry-page route — run 2026-07-10 — recovered only ids 071–103, 31 field fills: the single-entry route renders an empty shell outside the server-side-filtered view) | GDOL via `dol.georgia.gov/email-us` | **web form** (no records email published) | O.C.G.A. §50-18-70 |
 | HI | pre-2019 (confirmed never published online — sweep 2026-07-10) | dlir.director@hawaii.gov | email | UIPA (HRS ch. 92F) |
 | IA | ~~pre-2021~~ **pre-2005** (2005–2021 via Wayback log snapshots — sweep 2026-07-10; pre-2005 never published) | RecordsRequest@IWD.Iowa.gov | email | Iowa Code ch. 22 |
@@ -467,7 +467,7 @@ in [coverage-vs-aggregators.md](coverage-vs-aggregators.md).
 | OR | ~~pre-2020~~ **the ~389 date-less 1990s rows (+ pre-1989)** (dated list history 1989–2026 backfilled 2026-07-10; the 1990s rows' dates live only in scanned per-notice upload PDFs) | HECC Office of Workforce Investments | email | ORS 192 |
 | SC | ~~pre-2026~~ **pre-2009 + Dec 16–31 2022, Dec 2023, Dec tails of 2016/17/19** (2009–2025 backfilled 2026-07-10; the Dec residuals are edition-cutoff holes; sces.org era has nothing) | FOIA@dew.sc.gov | email | S.C. Code §30-4-10 et seq. |
 | TN | pre-2018 only (re-probed 2026-07-09: the live reports page holds 2025+; 2024 sits in Wayback captures of the same page as the live-schema table, and 2018–2023 exist as **534 archived per-notice WARN letter PDFs** — pruned from live tn.gov — so 2018–2024 is a scraper backfill, not a request) | TDLWD.PublicRecords@tn.gov, cc Sabra.Bledsoe@tn.gov | email — ⚠ **TPRA is TN-citizens-only**; framed as voluntary release, TN co-requester as fallback | T.C.A. §10-7-503 |
-| TX | ~~pre-2020~~ **pre-2004** (2004–2018 Wayback XLS/XLSX + Socrata 2019 — sweep 2026-07-10) | warn.list@twc.texas.gov (published for older notices); formal: twc.govqa.us / open.records@twc.texas.gov | email, PIA portal fallback | Gov't Code ch. 552 |
+| TX | ~~pre-2020~~ ~~pre-2004~~ **pre-2003** (2003 `/svcs/jtpa/` XLS 2026-10-18; 2004–2018 Wayback XLS/XLSX + Socrata 2019 — sweep 2026-07-10) | warn.list@twc.texas.gov (published for older notices); formal: twc.govqa.us / open.records@twc.texas.gov | email, PIA portal fallback | Gov't Code ch. 552 |
 | UT | ~~pre-2026~~ **pre-2009** (live page is already cumulative 2009+ — scraper fix; pre-2009 never published — sweep 2026-07-10) | infodisclosure@utah.gov (GRAMA office, *not* the rapid-response box) | email (openrecords.utah.gov alt.) | GRAMA |
 | WV | ~~pre-2021~~ **pre-2011** (2011–2021 cumulative PDF in Wayback — sweep 2026-07-10; pre-2011 never captured) | ⚠ wfwvbsr@wv.gov (general box; no FOIA email published — ask to route) | email | W. Va. Code §29B-1 |
 

@@ -43,8 +43,8 @@ exists) · 🚫 blocked by state law.
 | Milestone | After the 2026-07-10 wave, what still blocks it |
 |---|---|
 | **Global 2020** | Only ✉ items: **GA 2013–2022-partial** (✉ — the old GDOL search app was never archived, and the 2022 entry-page route recovers only ids 071–103: ids 001–070 render an empty shell) and **MA Sep 2020–Mar 2021** (✉ — weekly files not crawled; agency invites email). Small never-published tails: LA Sep–Dec 2024, SC Dec 16–31 2022 + Dec 2023. Pre-wave 🔨 queue: TN 2018–2024; UT lands with the next daily scrape (#260). Everything else ✅: SC→2009, LA→2007, IA→2005, WV→2011, NE→2010, MI→2000 (all done 2026-07-10). |
-| **Global 2010** | Adds ✉-only: **HI, NV, NM, CO, ND, MT** (probes confirm those states never published pre-floor lists) + partial holes: MO pre-Jul-2012, MS Jul-2007–Jun-2010, NC pre-2013 (Q4-2012 unrecoverable in CDX), CT 2013 + 2009-except-Aug/Sep, FL 2012, WV pre-2011, VA Jul-2006–Dec-2009. ⛔ source floors: ME (2012), MN (2012). AZ reaches 2010 ✅ (JobLink Job ran 2026-07-12). OR no longer blocks — it reaches **1989** ✅. |
-| **Global 2000** | The wave got the big sweep wins to ~2000 or beyond ✅: FL/CT/KY→1998, WI→1996, PA→1998-07, MD→2000, IN→2000-11, SD→1997, OR→**1989**, MI→2000, plus existing OH/AL/IL/KS. Still 🔨: CA→2000. Rest are ✉ (TX pre-2004, NY pre-2006, NJ pre-2004, DC, RI, OK pre-2001, VA PY2000–01…) or ⛔ (VT, WA, AK, DE, AZ). |
+| **Global 2010** | Adds ✉-only: **HI, NV, NM, CO, ND, MT** (probes confirm those states never published pre-floor lists) + partial holes: MO pre-Jul-2012, MS Jul-2007–Jun-2010, NC pre-2013 (Q4-2012 unrecoverable in CDX), CT 2013 + 2009-except-Aug/Sep, WV pre-2011, VA Jul-2006–Dec-2009. ⛔ source floors: ME (2012), MN (2012). AZ reaches 2010 ✅ (JobLink Job ran 2026-07-12). OR no longer blocks — it reaches **1989** ✅. |
+| **Global 2000** | The wave got the big sweep wins to ~2000 or beyond ✅: FL/CT/KY→1998, WI→1996, PA→1998-07, MD→2000, IN→2000-11, SD→1997, OR→**1989**, MI→2000, plus existing OH/AL/IL/KS. Still 🔨: CA→2000. Rest are ✉ (TX pre-2003, NY pre-2006, NJ pre-2004, DC, RI, OK pre-2001, VA PY2000–01…) or ⛔ (VT, WA, AK, DE, AZ). |
 
 The sweep estimated **~15–20k recoverable rows, no FOIA needed** — the run
 delivered **+17,714** (mid-range), on a prod base of ~38k.
@@ -64,7 +64,7 @@ Reachable floor = floor after running every verified route (no FOIA).
 | CT | 1,496 | 1998–2026 | ✅ | ✉ | ✉ | 1998 ✅ | **done 2026-07-10** (+1,210, floor 2019→1998-01): monthly pages 1998–2008 + yearly 2010–2018 complete; **holes: all of 2013, 2009 except Aug/Sep** → ✉ |
 | DC | 141 | 2005–2026 | ✅ | ✅ | ✉ | 2005 | Sweep: nothing pre-2005 in any archive (legacy domains checked) |
 | DE | 80 | 2007–2026 | ✅ | ✅ | ⛔ | 2007 | **done 2026-10-17** (+36, w_homelab #1174/#1176); 2006- empty at source |
-| FL | 5,337 | 1998–2026 | ✅ | ✉ | ✉ | 1998 ✅ | **done 2026-07-10** (+3,003, floor 2020→1998-01): `react/warn.asp?year=Y` HTML 1998–2018 + reactwarn 2019; **2012 is a real hole** — the site itself had dropped the year (its only capture is a header-only table) → ✉ |
+| FL | 5,337 | 1998–2026 | ✅ | ✉ | ✉ | 1998 ✅ | **done 2026-07-10** (+3,003, floor 2020→1998-01): `react/warn.asp?year=Y` HTML 1998–2018 + reactwarn 2019; ~~2012 is a real hole~~ — **2012 recovered 2026-10-18** (+165, #396: re-pinned to the complete @20160622205839 capture) |
 | GA | 264 | 2023–2026 | ✉ | ✉ | ✉ | 2022 (partial) | 2022 entry-page route **run 2026-07-10**: only **31 entries recoverable** (ids 071–103 minus pruned 083/097) → +0 inserts, 31 COALESCE field fills onto existing GA2022 rows; **ids 001–070 are NOT publicly recoverable** (the single-entry route renders an empty shell outside the server-side-filtered view) → ✉ with 2013–2021 (GDOL session app never archived) |
 | HI | 418 | 2019–2026 | ✅ | ✉ | ✉ | 2019 | Sweep: DLIR never published a list before 2019 (guides only) |
 | IA | 1,294 | 2005–2026 | ✅ | ✅ | ✉ | 2005 ✅ | **done 2026-07-10** (+804, floor 2021→2005-07; snapshot-union bundle; mark-superseded real run marked 2 zip-variance pairs); pre-2005 never published → ✉ |
@@ -98,7 +98,7 @@ Reachable floor = floor after running every verified route (no FOIA).
 | SC | 1,178 | 2009–2026 | ✅ | ✅ | ✉ | 2009 ✅ | **done 2026-07-10** (+1,153, floor 2026→2009-01): Wayback 2009–2019 + still-live unlinked 2020–2025 PDFs; the 2022 Apr–Dec hole closed via the live 12-15-2022 edition; residual holes only Dec 16–31 2022, Dec 2023, Dec tails of 2016/17/19; 2013–2021 editions print no notice dates → Jan-1-of-year proxy dates |
 | SD | 139 | 1997–2026 | ✅ | ✅ | ✅ | 1997 ✅ | **done 2026-07-10** (+60, floor 2007→1997-07): frozen cumulative PDF Jul-1997–Dec-2005; gap 2006→Apr-2007 (≈0–5 notices) |
 | TN | 90 | 2025–2026 | 🔨 | ✉ | ✉ | 2018 | 2018–2024 verified in Wayback (reports-page captures + 534 letter PDFs); pre-2018 ✉ (TPRA citizens-only caveat) |
-| TX | 5,430 | 2004–2026 | ✅ | ✅ | ✉ | 2004 ✅ | **done 2026-07-10** (+3,192, floor 2020→2004-01): Wayback XLS/XLSX 2004–2018 (two hosts) + Socrata 2019; pre-2004 → ✉ |
+| TX | 5,430 | 2003–2026 | ✅ | ✅ | ✉ | 2003 ✅ | **done 2026-07-10** (+3,192, floor 2020→2004-01): Wayback XLS/XLSX 2004–2018 (two hosts) + Socrata 2019; **2003 added 2026-10-18** (+315, #396: `/svcs/jtpa/warn20030101.xls`); pre-2003 → ✉ |
 | UT | 280 | 2009–2026 | ✅ | ✅ | ✉ | 2009 ✅ | **done 2026-07-11** (fix #260, parse all year sections; first full daily scrape: 9→280 rows, floor 2009-01, API-verified); pre-2009 never published → ✉ |
 | VA | 1,556 | 1999–2026 | ✅ | ✅ | ✅ | 1999-07 (partial) ✅ | **done 2026-07-10** (+221: PY1999/PY2002/PY2003) **+ PY2004–06 done 2026-07-11** (#286, +218 — coverage now continuous Jul 2004–Jun 2007); **PY2000–01 and Jul-2007–Dec-2009 unrecoverable** → ✉ |
 | VT | 98 | 2003–2026 | ✅ | ✅ | ⛔ | 2003 | JobLink source floor; already complete (2026-10-16 dry run: would_insert=0) |
@@ -138,7 +138,9 @@ date often a "x thru y" range; 1997 is a soft-404 — floor is 1998.
 `warn_v2/scrapers/states/fl.py`; `backfill-historical --state FL`): +3,003 in
 prod, floor 1998-01, city/ZIP on every row. One hole: **2012 is a real hole —
 the site itself had dropped the year** (its only capture, Nov 2019, is a
-header-only table); recovering 2012 needs a records request.
+header-only table); recovering 2012 needs a records request. **Superseded
+2026-10-18:** an earlier capture (@20160622205839) is complete — re-pinned in
+#396, +165 in prod (167 parsed; worksite rows merged).
 
 ### SC — Wayback 2009–2019 + still-live unlinked PDFs 2020–2025 — ✅ +1,153 in prod (2026-07-10)
 2009–2018: `scworks.org/docs/librariesprovider6/layoff-notification-reports/{Y}_layoff_notifications*.pdf`
@@ -394,12 +396,12 @@ pre-2008 may simply not exist.
 | RI | pre-2009 | earliest archived listing is the 2009 table (warn3.htm); dlt.state.ri.us negative |
 | GA | 2013–2021 + 2022 ids 001–070 | GDOL session-app captures render empty search forms; CICS-era logs never crawled; the TCSG single-entry route renders an empty shell for ids outside the server-side-filtered view (only ids 071–103 recovered — run 2026-07-10) |
 | CT | 2013 + most of 2009 | year page never captured (2013); only Aug/Sep monthlies exist (2009) |
-| TX | pre-2004 | no earlier files on either TWC host (domain + /news/ sweeps) |
+| TX | pre-2003 | no earlier files on either TWC host (domain + /news/ sweeps); 2003 found under `/svcs/jtpa/` in the 2026-10 sweep, ✅ in prod |
 | MS | Jul 2007–Jun 2010 | quarterlies exist in CDX only as 404 captures from 2013 |
 | VA | PY2000–01, Jul 2007–Dec 2009 | never captured (PY2004–06 recovered 2026-07-11 after the cache-bug refetch — the hole shrank by a year) |
 | MO | pre-Jul-2012 + Sep 2015–Jun 2016, May–Jun 2017, Jan–Jun 2018 | ded.mo.gov, dolir.mo.gov, missourieconomy.org all negative; the mid-PY capture gaps have no Wayback coverage (found on the 2026-07-10 run) |
 | MA | Sep 2020–Mar 2021, pre-FY2020 | zero WARN doc captures 2020-08-28→2021-11-30; weekly docs never crawled |
-| FL | 2012 | a real hole — the site itself had dropped the year (its only capture is a header-only table) |
+| FL | ~~2012~~ | ~~a real hole~~ — wrong: an earlier capture is complete; ✅ recovered 2026-10-18 (+165) |
 | IN | Jan–Oct 2000 | the archived 2000.html starts Nov 3 (found on the 2026-07-10 run) |
 | LA | Sep–Dec 2024 | latest 2024 capture is 2024-08-12; the Sep–Dec tail was published nowhere |
 | PA | Dec 2000 | the one month page never captured — permanent gap |
@@ -414,7 +416,7 @@ Actual prod inserts vs the sweep estimates ("est." column kept for the record):
 | # | Build | Recovers | Est. rows | Actual (2026-07-10) |
 |---|---|---|---|---|
 | 1 | ✅ TX Wayback XLS/XLSX + Socrata 2019 | 2004–2019 | ~2,700–3,700 | **+3,192**, floor 2004-01 |
-| 2 | ✅ FL warn.asp HTML | 1998–2019 | ~2,200–3,000 | **+3,003**, floor 1998-01; 2012 is a real hole → ✉ |
+| 2 | ✅ FL warn.asp HTML | 1998–2019 | ~2,200–3,000 | **+3,003**, floor 1998-01; 2012 recovered 2026-10-18 (+165) |
 | 3 | ✅ SC year PDFs (Wayback + live-unlinked) | 2009–2025 | ~1,500–3,000 | **+1,153**, floor 2009-01; 2022 Apr–Dec closed via live 12-15-2022 edition |
 | 4 | ✅ WI PCML XLS logs | 1996–2015 | ~1,500–2,500 | **+2,693**, floor 1996-01; abandoned 13-row 2016 file excluded |
 | 5 | ✅ LA WarnNotices PDFs | 2007–2024 | ~~1,200–1,800~~ ~576 (headers double-counted) | **+572**, floor 2007-01; Sep–Dec 2024 published nowhere |
@@ -474,10 +476,10 @@ disagree, this section supersedes them.
 | MO | 2006–2011 (+256) | ✅ **verified, PY2001–PY2011** | July probed `ded.mo.gov` but missed the **`rapidresponse.ded.mo.gov`** subdomain: `upload/warnnotices{2001..2004}.pdf` + `upload/warn_notices_2005_pdf_format.pdf` (captures 2006-09), `documents/{06,07,08,09}WARN+NOTICES.pdf` + `WARN2010.pdf` (2012-03-16), `WARNcurrent.pdf` (20120522203548, PY2011 to May 2012). Text PDFs, one program year (Jul–Jun) each: date received / company / location / county / WIA region / type / layoff date / # affected. Verified: `08WARN+NOTICES.pdf` (Chrysler North Plant, Fenton, 7/1/08, 1,816) | **~450–600** |
 | AZ | 2008–09 (+137) | ⚠ **partial: 2008 is alerts only, 2009 negative** | `www.azdes.gov/wia/layoff/warn_5_30_08.pdf` (20081014223804) holds 44 rows for Jan–May 2008, all type **A** (local-area alerts), with no type-W WARN notices. Nothing for Jun-2008 → 2009. **Bonus, an older era:** `uploadedFiles/.../Employment_Administration/warn_{2006,2007}.pdf` (20101229) and monthly `wia/warn/{month}{yr}.pdf` Jul-2003 → May-2005. Each row is typed A (alert), W (WARN), or P (closure): 2006 ≈ 117 W, 2007 ≈ 216 W | ~350–450 W-type 2003–07 (+ ~300 A/P to tag or skip) |
 | TN | 2011–2017 (+470) | ✅ **verified, 2012 → mid-2015** (+ 2016–17 scans) | `tn.gov/labor-wfd/warn/warnnotices.shtml` @20121011153614: monthly tables Jan–Oct 2012, **116 rows**. `tn.gov/workforce/article/warn-report-archive` @20150713005337: **189 rows** 2013 → Jun-2015 (company/county/count/notice date/LO-CL date/notice type). Text memo PDFs per notice `labor-wfd/warn/{2012,2013,2014}/*.pdf` (82/94/54 files) cross-check these and fill Nov–Dec 2012. 2016–17: about 50 `assets/entities/labor/attachments/WARN_2016_*`/`WARN_2017_*` letters, **image-only**, so they need OCR. 2011 and earlier: nothing | ~350–400 |
-| TX | 1999–2003 (+1,400) | ✅ **2003 verified**; 1999–2002 ✉ | `www.twc.state.tx.us/svcs/jtpa/warn20030101.xls` @20130614231245: **316 rows**, calendar 2003, columns like the later TWC files (received/notice/layoff dates, job site, county, WDA, count, city). July said "nothing pre-2004"; it had looked under `/files/news/` only. The `svcs/jtpa/warn.html` index reads "WARN Notices since 2003", and the 1999–2003 `/svcs/` captures carry no list, so 1999–2002 stays ✉ | **316** |
+| TX | 1999–2003 (+1,400) | ✅ **2003 verified**; 1999–2002 ✉ | `www.twc.state.tx.us/svcs/jtpa/warn20030101.xls` @20130614231245: **316 rows**, calendar 2003, columns like the later TWC files (received/notice/layoff dates, job site, county, WDA, count, city). July said "nothing pre-2004"; it had looked under `/files/news/` only. The `svcs/jtpa/warn.html` index reads "WARN Notices since 2003", and the 1999–2003 `/svcs/` captures carry no list, so 1999–2002 stays ✉ | **316** → ✅ **+315 in prod 2026-10-18** (#396) |
 | NC | 2012 (+87) | ✅ **verified, full 2012** + PY2009 + late 2011 | July looked only at `Portals/11/WARN/Warn.pdf`. The other path, `www.nccommerce.com/Portals/11/Documents/Reports/WARN/Warn.pdf` @20121228074019, has a date range of **1/1/2012 – 12/27/2012** (15 pp, summary-count layout like `Warn-2013.pdf`). The same layout is on host `intranet.nccommerce.com/warn/data/warn.pdf`: @20100704223347 = PY2009 (7/1/2009–6/29/2010, 11 pp), @20111125051935 = Oct–Nov 2011, @20090117092954 = 1–15 Jan 2009 | ~110–130 (2012) + ~100 (PY2009) + ~30 |
 | DC | 2006–2013 (+180) | ✅ **verified, 2002 → Jan-2012** | "Monthly WARN Notification Log" `does.dc.gov/does/cwp/view,a,1232,q,572897.asp`: 220 captures 2004 → 2012-05 (the old CWP URLs are opaque ids, which is how July missed it; found via the "View current WARN notices" link on `…q,643926.asp`). It is a growing log, so take the union across captures. One capture per quarter gives **172 distinct rows**, 2002–Jan 2012 (2009 = 44). Feb-2012 → 2014: the 2014 Drupal page has no table, so ✉ | **~170** |
-| FL | 2012 (+165) | ✅ **verified, our pin** | `fl.py` pins 2012 to capture `20191120063637`, which is header-only. Earlier post-year captures are complete: `floridajobs.org/REACT/warn.asp?year=2012` @20160622205839 = **167 rows** (Evaluation Solutions 12/27/2012 …); also @20130329171424, @20141005035552 | **167** |
+| FL | 2012 (+165) | ✅ **verified, our pin** | `fl.py` pins 2012 to capture `20191120063637`, which is header-only. Earlier post-year captures are complete: `floridajobs.org/REACT/warn.asp?year=2012` @20160622205839 = **167 rows** (Evaluation Solutions 12/27/2012 …); also @20130329171424, @20141005035552 | **167** → ✅ **+165 in prod 2026-10-18** (#396) |
 | KY | 2010–13 (+200) | ⛔ **negative** | The only primary list for these years, `oet.ky.gov/warn/WARNNoticesReceivedin{2010..2013}forKY.pdf` (captures 2013-04/05), holds about 31 / 26 / 64 / 22 rows, **fewer** than prod's 38 / 31 / 76 / 61 from the kcc workbooks. The gap is probably counting (multi-site splits), not a missing source | 0 |
 
 Unchanged ✉: GA Nov-2006 → 2022 (the CICS app stops at 2006-10, and its Jul–Oct 2006 rows are in the GA build; the later
@@ -493,10 +495,10 @@ GDOL `public/es/warn/searchwarns/list` captures are empty forms), TX
 | 3 | **MO** rapidresponse PY2001–PY2011 PDFs (10 files) | Wayback PDF | ~450–600 |
 | 4 | **TN** 2012 shtml + 2013–15 archive table (memo PDFs as cross-check), then 2016–17 letters via OCR | Wayback HTML (+OCR) | ~350–400 |
 | 5 | **AZ** 2003–2007 annual/monthly PDFs (keep W, decide A/P) | Wayback PDF | ~350–450 |
-| 6 | **TX** 2003 XLS (reuse the 2004–2013 XLS parser) | Wayback XLS | 316 |
+| 6 | ✅ **done 2026-10-18** — **TX** 2003 XLS (reuse the 2004–2013 XLS parser); #396 + w_homelab #1193 | Wayback XLS | **+315** |
 | 7 | **NC** 2012 + PY2009 + Oct–Nov 2011 + Jan 2009 rolling-PDF editions (existing summary-count parser era) | Wayback PDF | ~240–260 |
 | 8 | **DC** monthly log, union of all 220 captures | Wayback HTML | ~170 |
-| 9 | **FL** 2012: re-pin to @20160622205839 (one-line change, same parser) | re-pin | 167 |
+| 9 | ✅ **done 2026-10-18** — **FL** 2012: re-pin to @20160622205839 (one-line change, same parser); #396 + w_homelab #1193 | re-pin | **+165** |
 | — | **NE** Layoff and Closures report 2008–2020: **needs a scope decision first** (ingest as tagged Non-WARN, or skip) | live + Wayback HTML | ~900–1,050 Non-WARN |
 
 WARN-scope total ≈ **+7,500–8,600** (Non-WARN NE excluded), against the
