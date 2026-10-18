@@ -28,7 +28,8 @@ numbers recorded in historical-sources.md Progress.
 shows notices for GA 2001–2022, TX 1999–2003, TN 2011–2016, MO 2006–2011,
 DC 2006–2013, FL 2012, NC 2012 and CA 2009–2014 at volumes we lack. It also
 exposes live holes: OH 2025 and PA 2023 are empty, and the KS/ME/VT JobLink
-caps were never re-run. The table and the re-runnable script are in
+caps were never re-run (re-run **done 2026-10-17**, see the KS row; KS's
+remaining gap to LaborCurrent is not on the source). The table and the re-runnable script are in
 [coverage-vs-aggregators.md](coverage-vs-aggregators.md). Verdicts below
 stay as they are until a re-probe confirms or overturns them.
 
@@ -42,7 +43,7 @@ exists) · 🚫 blocked by state law.
 | Milestone | After the 2026-07-10 wave, what still blocks it |
 |---|---|
 | **Global 2020** | Only ✉ items: **GA 2013–2022-partial** (✉ — the old GDOL search app was never archived, and the 2022 entry-page route recovers only ids 071–103: ids 001–070 render an empty shell) and **MA Sep 2020–Mar 2021** (✉ — weekly files not crawled; agency invites email). Small never-published tails: LA Sep–Dec 2024, SC Dec 16–31 2022 + Dec 2023. Pre-wave 🔨 queue: TN 2018–2024; UT lands with the next daily scrape (#260). Everything else ✅: SC→2009, LA→2007, IA→2005, WV→2011, NE→2010, MI→2000 (all done 2026-07-10). |
-| **Global 2010** | Adds ✉-only: **HI, NV, NM, CO, ND, MT** (probes confirm those states never published pre-floor lists) + partial holes: MO pre-Jul-2012, MS Jul-2007–Jun-2010, NC pre-2013 (Q4-2012 unrecoverable in CDX), CT 2013 + 2009-except-Aug/Sep, FL 2012, WV pre-2011, VA Jul-2006–Dec-2009. ⛔ source floors: ME (2012), MN (2012). AZ reaches 2010 once the JobLink Job runs. OR no longer blocks — it reaches **1989** ✅. |
+| **Global 2010** | Adds ✉-only: **HI, NV, NM, CO, ND, MT** (probes confirm those states never published pre-floor lists) + partial holes: MO pre-Jul-2012, MS Jul-2007–Jun-2010, NC pre-2013 (Q4-2012 unrecoverable in CDX), CT 2013 + 2009-except-Aug/Sep, FL 2012, WV pre-2011, VA Jul-2006–Dec-2009. ⛔ source floors: ME (2012), MN (2012). AZ reaches 2010 ✅ (JobLink Job ran 2026-07-12). OR no longer blocks — it reaches **1989** ✅. |
 | **Global 2000** | The wave got the big sweep wins to ~2000 or beyond ✅: FL/CT/KY→1998, WI→1996, PA→1998-07, MD→2000, IN→2000-11, SD→1997, OR→**1989**, MI→2000, plus existing OH/AL/IL/KS. Still 🔨: CA→2000. Rest are ✉ (TX pre-2004, NY pre-2006, NJ pre-2004, DC, RI, OK pre-2001, VA PY2000–01…) or ⛔ (VT, WA, AK, DE, AZ). |
 
 The sweep estimated **~15–20k recoverable rows, no FOIA needed** — the run
@@ -57,12 +58,12 @@ Reachable floor = floor after running every verified route (no FOIA).
 | AK | 64 | 2006–2025 | ✅ | ✅ | ⛔ | 2006 | Source (cumulative page) starts 2006; gaps 2009/11/14 verified real |
 | AL | 1,035 | 1998–2026 | ✅ | ✅ | ✅ | 1998 | Cumulative source since 1998 |
 | AR | — | — | 🚫 | 🚫 | 🚫 | — | WARN data confidential by state law |
-| AZ | 248 | 2016–2026 | ✅ | 🔨 | ⛔ | 2010 | JobLink reaches 2010 (PR #241); re-backfill Job pending (+508); 2009- empty at source |
+| AZ | 747 | 2010–2026 | ✅ | ✅ | ⛔ | 2010 | **done 2026-07-12** (+499, w_homelab #728/#731/#735); 2009- empty at source |
 | CA | 20,077 | 2006–2026 | ✅ | ✅ | 🔨 | 2000 | Wayback `cn00`–`cn08` HTML slices (verified 2026-07-09) |
 | CO | 811 | 2015–2026 | ✅ | ✉ | ✉ | 2015 | Sweep: 2015 was CO's first published year — nothing older anywhere |
 | CT | 1,496 | 1998–2026 | ✅ | ✉ | ✉ | 1998 ✅ | **done 2026-07-10** (+1,210, floor 2019→1998-01): monthly pages 1998–2008 + yearly 2010–2018 complete; **holes: all of 2013, 2009 except Aug/Sep** → ✉ |
 | DC | 141 | 2005–2026 | ✅ | ✅ | ✉ | 2005 | Sweep: nothing pre-2005 in any archive (legacy domains checked) |
-| DE | 42 | 2016–2026 | ✅ | 🔨 | ⛔ | 2007 | JobLink reaches 2007 (PR #241); Job pending (+37); 2006- empty at source |
+| DE | 80 | 2007–2026 | ✅ | ✅ | ⛔ | 2007 | **done 2026-10-17** (+36, w_homelab #1174/#1176); 2006- empty at source |
 | FL | 5,337 | 1998–2026 | ✅ | ✉ | ✉ | 1998 ✅ | **done 2026-07-10** (+3,003, floor 2020→1998-01): `react/warn.asp?year=Y` HTML 1998–2018 + reactwarn 2019; **2012 is a real hole** — the site itself had dropped the year (its only capture is a header-only table) → ✉ |
 | GA | 264 | 2023–2026 | ✉ | ✉ | ✉ | 2022 (partial) | 2022 entry-page route **run 2026-07-10**: only **31 entries recoverable** (ids 071–103 minus pruned 083/097) → +0 inserts, 31 COALESCE field fills onto existing GA2022 rows; **ids 001–070 are NOT publicly recoverable** (the single-entry route renders an empty shell outside the server-side-filtered view) → ✉ with 2013–2021 (GDOL session app never archived) |
 | HI | 418 | 2019–2026 | ✅ | ✉ | ✉ | 2019 | Sweep: DLIR never published a list before 2019 (guides only) |
@@ -70,12 +71,12 @@ Reachable floor = floor after running every verified route (no FOIA).
 | ID | 210 | 2008–2026 | ✅ | ✅ | ⛔ | 2008 ✅ | **done 2026-07-10** (+16, floor 2009→2008-02); the log itself begins 2008-02 — older likely nonexistent |
 | IL | 3,742 | 1999–2026 | ✅ | ✅ | ✅ | 1999 | Complete (XLSX era + PDF era + Jan-2019 hand transcription) |
 | IN | 1,508 | 2000–2026 | ✅ | ✅ | ✉ | 2000-11 ✅ | **done 2026-07-10** (+496, floor 2008→2000-11); gaps Jan–Oct 2000 (the archived 2000.html starts Nov 3), Nov–Dec 2004, Oct–Dec 2007 → ✉ |
-| KS | 549 | 1999–2026 | ✅ | ✅ | ✅ | 1999 | Depth done; capped-year re-backfill Job pending (+344, PR #241) |
+| KS | 878 | 1998–2026 | ✅ | ✅ | ✅ | 1998 | **done 2026-10-17** (+329, w_homelab #1174/#1176/#1190): matches every unique source notice (909 rows, 31 same-`notice_id` repeats). Source ceiling, so LaborCurrent's higher counts must come from elsewhere. No notices after 2026-05-01 at source. |
 | KY | 1,183 | 1998–2026 | ✅ | ✅ | ✅ | 1998 ✅ | **done 2026-07-10** (+756, floor 2017→1998-10): kcc.ky.gov year-per-sheet XLSX workbooks 1998–2016 |
 | LA | 606 | 2007–2026 | ✅ | ✅ | ✉ | 2007 ✅ | **done 2026-07-10** (+572, floor 2025→2007-01): `WarnNotices{2007..2024}.pdf`; only 2024 is a partial year (captured 2024-08-12; Sep–Dec 2024 published nowhere); pre-2007 never published → ✉ |
 | MA | 577 | 2019–2026 | ✉ | ✉ | ✉ | 2019-07 ✅ | **done 2026-07-10** (+204, floor 2021-04→2019-07): FY2020 XLS + FY2021-through-Aug-2020 XLSX; **Sep 2020–Mar 2021 + pre-FY2020 → email** (eolwdpress@mass.gov) |
 | MD | 1,881 | 2000–2026 | ✅ | ✅ | ✅ | 2000 ✅ | **done 2026-07-10** (+548, floor 2010→2000-01): `warn{2000..2009}.shtml` — same page family the scraper already parses. The old "no archive pre-2010" note was wrong |
-| ME | 80 | 2012–2026 | ✅ | ⛔ | ⛔ | 2012 | JobLink source floor; capped-year Job pending (+12) |
+| ME | 92 | 2012–2026 | ✅ | ⛔ | ⛔ | 2012 | JobLink source floor; capped-year Job **done 2026-10-17** (+10) |
 | MI | 2,168 | 2000–2026 | ✅ | ✅ | ✅ | 2000 | milmi.org via Wayback — **done 2026-07-10** (+2,063, floor 2024-11→2000; parsers #247) |
 | MN | 482 | 2012–2026 | ✅ | ⛔ | ⛔ | 2012 | Wayback backfill done 2026-07-10; 2012 = earliest filing in DEED annuals |
 | MO | 557 | 2012–2026 | ✅ | ✉ | ✉ | 2012-07 ✅ | **done 2026-07-10** (+235, floor 2019→2012-07 — real recoverable was ~235, not 550–650): consolidated log PDF + PY pages; mid-PY capture gaps (Sep 2015–Jun 2016, May–Jun 2017, Jan–Jun 2018) have no Wayback coverage; those + pre-Jul-2012 → ✉ |
@@ -100,7 +101,7 @@ Reachable floor = floor after running every verified route (no FOIA).
 | TX | 5,430 | 2004–2026 | ✅ | ✅ | ✉ | 2004 ✅ | **done 2026-07-10** (+3,192, floor 2020→2004-01): Wayback XLS/XLSX 2004–2018 (two hosts) + Socrata 2019; pre-2004 → ✉ |
 | UT | 280 | 2009–2026 | ✅ | ✅ | ✉ | 2009 ✅ | **done 2026-07-11** (fix #260, parse all year sections; first full daily scrape: 9→280 rows, floor 2009-01, API-verified); pre-2009 never published → ✉ |
 | VA | 1,556 | 1999–2026 | ✅ | ✅ | ✅ | 1999-07 (partial) ✅ | **done 2026-07-10** (+221: PY1999/PY2002/PY2003) **+ PY2004–06 done 2026-07-11** (#286, +218 — coverage now continuous Jul 2004–Jun 2007); **PY2000–01 and Jul-2007–Dec-2009 unrecoverable** → ✉ |
-| VT | 97 | 2003–2026 | ✅ | ✅ | ⛔ | 2003 | JobLink source floor; capped-year Job pending (+3) |
+| VT | 98 | 2003–2026 | ✅ | ✅ | ⛔ | 2003 | JobLink source floor; already complete (2026-10-16 dry run: would_insert=0) |
 | WA | 1,480 | 2004–2026 | ✅ | ✅ | ⛔ | 2004 | Pagination reaches source floor 2004-01 |
 | WI | 3,637 | 1996–2026 | ✅ | ✅ | ✅ | 1996 ✅ | **done 2026-07-10** (+2,693, floor 2016→1996-01: PCML XLS logs 1996–2015); the 2016 file was abandoned by DWD in Feb-2016 (13 rows, all already in prod) — excluded |
 | WV | 415 | 2011–2026 | ✅ | ✉ | ✉ | 2011 ✅ | **done 2026-07-10** (+366, floor 2021→2011-03; 2 live employer-variant rows superseded — Mylan 2021-05-24 and Monongalia County Coal Resources 2021-06-04, the state log's revised rows kept); pre-2011 never captured → ✉ |
@@ -443,8 +444,7 @@ HECC-master-vs-Socrata duplicates (which never key-match) were superseded
 2026-07-11 via a track-computed notice-id list (w_homelab #719: 73 marked,
 866→793).
 
-Still queued (pre-sweep items): JobLink re-backfill Jobs AZ/KS/DE/ME/VT
-(~900), TN 2018–2024 (~500+), CA 2000–2005 (Wayback HTML slices), OH gap-year
+Still queued (pre-sweep items): TN 2018–2024 (~500+), CA 2000–2005 (Wayback HTML slices), OH gap-year
 re-run 2007–2024. MI 2000–2024 shipped mid-sweep (**done 2026-07-10**, +2,063).
 
 ## 2026-10 sweep — coverage-gap probes (benchmark vs LaborCurrent)

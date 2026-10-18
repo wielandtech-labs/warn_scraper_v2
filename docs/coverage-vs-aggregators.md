@@ -23,7 +23,7 @@ chase at the state's own source. Every cell below is ours/theirs.
 |---|---|---|
 | OH | 2025: 0/97 | We hold **nothing** dated 2025 (Dec 2024 → Jan 2026). Scraper bug or unfetched year page. |
 | PA | 2023: 0/73 | Nothing from Jan 2023 to ~Mar 2024. |
-| KS | ~25/yr every year 1999–2020 vs 37–143 (+1,133) | The JobLink per-search cap. The capped-year re-backfill Job queued after #241 never ran. Same cap on ME 2017–21 (2–7/yr vs 37–52), VT 2015–18, AZ, DE. KS's newest notice is 2026-05. |
+| KS | ~25/yr every year 1999–2020 vs 37–143 (+1,133) | **Partly fixed 2026-10-17:** the JobLink cap re-run took KS 549 → 878, which is every unique notice on KANSASWORKS (910 rows in the unfiltered listing, 1998-08 → 2026-05). The rest of LaborCurrent's excess is not on the source. ME/VT were never capped (<10/yr at source except ME 2020); ME +10, DE +36. KS's newest notice, 2026-05-01, is a source gap: third-party trackers show nothing later. |
 
 **Tier 2: count differences to classify before building anything.** Each could
 be counting convention or real loss.

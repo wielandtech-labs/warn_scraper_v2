@@ -225,7 +225,9 @@ Ordered by recoverable rows:
 
 ### Wave 3 — opened by the 2026-07-09 probe sweep
 
-- [ ] **JobLink truncation backfill (AZ/KS/DE/ME/VT, ~900 rows)** — fix merged
+- [x] **JobLink truncation backfill (AZ/KS/DE/ME/VT, ~900 rows)** — **done**
+  (AZ +499 2026-07-12; KS +329 / DE +36 / ME +10 / VT 0 on 2026-10-17;
+  dry-run `would_insert` overcounts same-`notice_id` repeats). Fix merged
   as #241 (`fetch()` was page-1-only, 25-row cap; AZ floor 2016→2010, DE
   2016→2007). Remaining: the gated prod Jobs per the runbook, one state per
   Job, after the image deploys. Verify per-year against the source totals in

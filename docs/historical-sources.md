@@ -98,8 +98,15 @@ sources only).
   was wrong, the source reaches 2010), **KS 344** (2002–2014 + 2020 capped),
   **DE 37** (source reaches 2007, never exceeds a page), **ME 12** (2020:
   34 vs 25), **VT 3**. `fetch()` now walks the `next_page` links; AZ
-  `year_start` 2016→2010, DE 2016→2007. **Pending: gated backfill Jobs for
-  AZ/KS/DE/ME/VT** after the fix deploys (~900 rows). Lesson: when a source
+  `year_start` 2016→2010, DE 2016→2007. **Backfill Jobs done:** AZ +499
+  (2026-07-12), KS +329 / DE +36 / ME +10 / VT 0 (2026-10-17, w_homelab
+  #1174 dry → #1176 real → #1190 re-run → #1197 prune; KS run with
+  `--year-start 1998`, since the source starts 1998-08). The real runs came
+  in below the dry run's `would_insert` (KS 329 vs 346). That is not
+  flakiness: dry runs count source rows that repeat a `notice_id` within the
+  batch as separate inserts, while the upsert collapses them (KS 1998: 16
+  rows, 10 unique ids). Check a short real run against unique ids before
+  re-running. Lesson: when a source
   paginates, "prod = exactly the page size" for multiple years is the
   truncation fingerprint — compare paginated source totals, not page-1 counts.
 - **2026-07-07 — NC 2014+ backfilled in prod** (parser #213; Jobs w_homelab
