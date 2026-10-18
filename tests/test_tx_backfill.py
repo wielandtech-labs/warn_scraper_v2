@@ -1,10 +1,13 @@
-"""TX historical backfill (2004-2019).
+"""TX historical backfill (2003-2019).
 
 Three real fixtures cover the three source eras:
   * sample_2006.xls          — legacy OLE2 .xls era (2004-2013 Wayback
     captures), float date serials, underscore headers. The 2012 capture is the
     lone header variant (spaces: "JOB SITE NAME") — covered by the alias
     tuples in tx.py and verified offline against the cached file.
+  * warn20030101.xls         — the lone /svcs/jtpa/ 2003 file (full capture);
+    same columns and parser as the 2004-2013 files, one sheet named
+    qry_Public_Information_Report_W.
   * sample_2014.xlsx         — .xlsx era (2014-2018 Wayback captures); same
     columns, a stray all-None trailing row.
   * sample_socrata_2019.json — data.texas.gov 8w53-c4f6 rows (2019 only);
@@ -41,6 +44,11 @@ def xls_2006() -> bytes:
 
 
 @pytest.fixture
+def xls_2003() -> bytes:
+    return (FIXTURES / "warn20030101.xls").read_bytes()
+
+
+@pytest.fixture
 def xlsx_2014() -> bytes:
     return (FIXTURES / "sample_2014.xlsx").read_bytes()
 
@@ -73,6 +81,19 @@ def test_xls_era_field_values(xls_2006: bytes) -> None:
     assert duke.layoff_count == 64
     assert duke.city == "Houston"
     assert duke.county == "Harris"
+
+
+def test_xls_2003_parses(xls_2003: bytes) -> None:
+    rows = _scraper().parse(xls_2003)
+    assert len(rows) == 316
+    assert {r.notice_date.year for r in rows} == {2003}
+    eds = rows[0]
+    assert eds.employer == "Electronic Data Systems Corporation - Austin"
+    assert eds.notice_date == date(2003, 12, 22)
+    assert eds.effective_date == date(2004, 1, 15)
+    assert eds.layoff_count == 242
+    assert eds.city == "Austin"
+    assert eds.county == "Travis"
 
 
 def test_xlsx_era_parses(xlsx_2014: bytes) -> None:
@@ -152,11 +173,11 @@ def test_fetch_year_socrata_2019(socrata_2019: bytes) -> None:
     assert len(s.parse(raw)) == 6
 
 
-def test_registry_covers_2004() -> None:
+def test_registry_covers_2003() -> None:
     from warn_v2.scripts.backfill_historical import _BACKFILL
 
     spec = _BACKFILL["TX"]
-    assert spec.year_start == 2004
+    assert spec.year_start == 2003
     assert spec.fetch_year is _fetch_tx_year
-    # Every backfill year 2004-2019 has a pinned capture or the Socrata path.
-    assert sorted(_WAYBACK_CAPTURES) == list(range(2004, 2019))
+    # Every backfill year 2003-2019 has a pinned capture or the Socrata path.
+    assert sorted(_WAYBACK_CAPTURES) == list(range(2003, 2019))

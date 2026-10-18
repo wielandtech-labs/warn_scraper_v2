@@ -213,11 +213,10 @@ _BACKFILL: dict[str, BackfillSpec] = {
         bundled_files=tn_archive_files,
         parse_for_url=lambda u: parse_tn_archive,
     ),
-    "TX": BackfillSpec(year_start=2004, fetch_year=_fetch_tx_year),
+    "TX": BackfillSpec(year_start=2003, fetch_year=_fetch_tx_year),
     # FL: live reactwarn pages 2020+, pinned Wayback captures for the two
     # 2019 reactwarn result pages and the warn.asp era (1998-2018, one
-    # cumulative page per year); parse_fl_year dispatches per era. The 2012
-    # capture is header-only — that year parses to 0 rows.
+    # cumulative page per year); parse_fl_year dispatches per era.
     "FL": BackfillSpec(
         year_start=1998,
         fetch_year=_fetch_fl_year,
