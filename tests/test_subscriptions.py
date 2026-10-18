@@ -156,6 +156,34 @@ def test_digest_advances_watermark_no_resend(db, sent):
     assert len(sent) == 1
 
 
+def test_digest_skips_backfilled_historical_notices(db, sent):
+    # A backfill scrapes old filings now: fresh scraped_at, old notice_date.
+    now = EPOCH + timedelta(days=2)
+    _sub(db, email="me@example.com")
+    _notice(db, employer="Recent Co", scraped_at=EPOCH + timedelta(days=1),
+            notice_date=(now - timedelta(days=30)).date())
+    _notice(db, employer="Ancient Co", scraped_at=EPOCH + timedelta(days=1),
+            notice_date=(now - timedelta(days=730)).date())
+    db.commit()
+
+    summary = run_digest(db, now)
+    assert summary["notices"] == 1
+    assert "Recent Co" in sent[0]["text"]
+    assert "Ancient Co" not in sent[0]["text"]
+
+
+def test_digest_sends_nothing_when_only_historical_notices(db, sent):
+    now = EPOCH + timedelta(days=2)
+    _sub(db, email="me@example.com")
+    _notice(db, employer="Ancient Co", scraped_at=EPOCH + timedelta(days=1),
+            notice_date=(now - timedelta(days=200)).date())
+    db.commit()
+
+    summary = run_digest(db, now)
+    assert summary["emailed"] == 0
+    assert sent == []
+
+
 def test_digest_skips_unconfirmed_and_superseded(db, sent):
     _sub(db, email="unconfirmed@example.com", confirmed=False, suffix="unconf")
     _sub(db, email="confirmed@example.com", confirmed=True, suffix="conf")
