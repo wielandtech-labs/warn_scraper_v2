@@ -494,7 +494,7 @@ GDOL `public/es/warn/searchwarns/list` captures are empty forms), TX
 | 2 | ✅ **done 2026-10-18** (+2,434, w_homelab #1196) — **GA** CICS WarnID listings: parse WR01A–D, union by program year (latest capture wins), PY1988 → Oct-2006. CDX holds 68 WR01 captures 2004-08 → 2006-10 (32 distinct digests), not 189; the 2006-10-09 captures already contain every WARN ID seen earlier, so only those are bundled | Wayback HTML | 2,474 rows |
 | 3 | **MO** rapidresponse PY2001–PY2011 PDFs (10 files) | Wayback PDF | ~450–600 |
 | 4 | **TN** 2012 shtml + 2013–15 archive table (memo PDFs as cross-check), then 2016–17 letters via OCR | Wayback HTML (+OCR) | ~350–400 |
-| 5 | **AZ** 2003–2007 annual/monthly PDFs (keep W, decide A/P) | Wayback PDF | ~350–450 |
+| 5 | ✅ **built 2026-10-26** (run pending) — **AZ** DES monthly report PDFs Jul-2003 → May-2005 + 2006/2007 annuals (25 pinned captures). W rows only: A/P rows are local-area alerts or closure flags, and an A row often repeats a W row, so it would collide on notice_id. Notice date = report month's first day (the date column is the layoff date). The 2006–07 annuals re-list ongoing events monthly, so each repeat keeps only its first month (159 → 99 in 2007). Not recoverable: Jun–Dec 2005 (not archived), 2008 (lists carry no notice dates) | Wayback PDF | **256** |
 | 6 | ✅ **done 2026-10-18** — **TX** 2003 XLS (reuse the 2004–2013 XLS parser); #396 + w_homelab #1193 | Wayback XLS | **+315** |
 | 7 | **NC** 2012 + PY2009 + Oct–Nov 2011 + Jan 2009 rolling-PDF editions (existing summary-count parser era) | Wayback PDF | ~240–260 |
 | 8 | **DC** monthly log, union of all 220 captures | Wayback HTML | ~170 |

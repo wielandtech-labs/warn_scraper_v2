@@ -45,6 +45,13 @@ from warn_v2.pipeline.dedup import _norm, notice_id
 from warn_v2.pipeline.storage import upsert_notices
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.registry import get_scraper
+from warn_v2.scrapers.states.az import (
+    ARCHIVE_LAST_YEAR as _AZ_ARCHIVE_LAST_YEAR,
+)
+from warn_v2.scrapers.states.az import (
+    fetch_az_archive_year,
+    parse_az_archive_pdf,
+)
 from warn_v2.scrapers.states.ca import (
     _CA_DETAIL_RE,
     _CA_HTML_DETAIL_RE,
@@ -208,7 +215,18 @@ _BACKFILL: dict[str, BackfillSpec] = {
     # JobLink platforms verified searchable to these years (2026-06-12 probes;
     # AZ/DE floors re-probed 2026-07-09 — pre-2016 data exists after all; see
     # docs/historical-sources.md).
-    "AZ": BackfillSpec(year_start=2010, fetch_year=_joblink_fetch),
+    # AZ: Jul 2003 - 2007 from pinned Wayback captures of the DES monthly
+    # report PDFs (WARN-typed rows only, see az.parse_az_archive_pdf); JobLink
+    # from 2010 (2008-09 are empty on both).
+    "AZ": BackfillSpec(
+        year_start=2003,
+        fetch_year=lambda s, y: (
+            fetch_az_archive_year(y) if y <= _AZ_ARCHIVE_LAST_YEAR else _joblink_fetch(s, y)
+        ),
+        parse_year=lambda b, y: (
+            parse_az_archive_pdf(b, y) if y <= _AZ_ARCHIVE_LAST_YEAR else get_scraper("AZ").parse(b)
+        ),
+    ),
     "DE": BackfillSpec(year_start=2007, fetch_year=_joblink_fetch),
     "KS": BackfillSpec(year_start=1999, fetch_year=_joblink_fetch),
     "ME": BackfillSpec(year_start=2012, fetch_year=_joblink_fetch),
