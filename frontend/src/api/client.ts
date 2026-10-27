@@ -222,10 +222,12 @@ export const api = {
   /** Every geocoded notice matching the filters, aggregated per place — the /map payload. */
   listMapPlaces: (q: MapPlacesQuery = {}) =>
     get<MapPlaces>("/api/map-places" + qs(q as Record<string, string | number | undefined>)),
-  /** Per-place counts for every period — the /timelapse map, in one payload. */
-  mapPlacesTimeline: (
-    q: { bucket: TimelineBucket; industry?: string; after?: string },
-  ) => get<MapPlacesTimeline>("/api/map-places/timeline" + qs(q)),
+  /** Per-place counts for every period — /map's timeline, in one payload. */
+  mapPlacesTimeline: ({ bucket, ...q }: MapPlacesQuery & { bucket: TimelineBucket }) =>
+    get<MapPlacesTimeline>(
+      "/api/map-places/timeline" +
+        qs({ bucket, ...(q as Record<string, string | number | undefined>) }),
+    ),
 
   // ---------- Companies ----------
   listCompanies: (q: {
@@ -367,8 +369,13 @@ export const api = {
       before?: string;
     } = {},
   ) => get<IndustryStat[]>("/api/stats/industries" + qs(q)),
-  statsIndustriesTimeline: (q: { bucket: TimelineBucket; after?: string }) =>
-    get<IndustryTimeline>("/api/stats/industries/timeline" + qs(q)),
+  statsIndustriesTimeline: (q: {
+    bucket: TimelineBucket;
+    state?: string;
+    closure_category?: string;
+    after?: string;
+    before?: string;
+  }) => get<IndustryTimeline>("/api/stats/industries/timeline" + qs(q)),
 
   // ---------- Sentiment reports ----------
   /** One state's latest sentiment report as raw markdown (404 if none).

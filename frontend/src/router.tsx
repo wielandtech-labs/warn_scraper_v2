@@ -4,11 +4,13 @@ import {
   createRouter,
   lazyRouteComponent,
   Outlet,
+  redirect,
 } from "@tanstack/react-router";
 
 import { Layout } from "./components/Layout";
 import { NotFound } from "./components/NotFound";
 import type { TimeRange } from "./components/TimeRangeToggle";
+import { DEFAULT_SINCE, windowFor } from "./lib/timelapse";
 import { NoticesPage } from "./routes/notices";
 import { NoticeDetail } from "./routes/notice-detail";
 import { RadarPage } from "./routes/radar";
@@ -167,28 +169,39 @@ const numParam = (v: unknown): number | undefined => {
   return Number.isFinite(n) ? n : undefined;
 };
 
+// Search ids that look numeric ("11" sectors, "2020" periods) arrive
+// JSON-parsed as numbers; keep them strings so they compare equal to ours.
+const strParam = (v: unknown): string | undefined =>
+  v != null && v !== "" ? String(v) : undefined;
+
+export type MapSearch = {
+  state?: string;
+  closure_category?: string;
+  industry?: string;
+  subsector?: string;
+  min_layoffs?: number;
+  after?: string;
+  before?: string;
+  lat?: number;
+  lon?: number;
+  zoom?: number;
+  mode?: "heat";
+  // Timeline. Quarterly since 2015 is the default and stays out of the URL.
+  bucket?: "year" | "month";
+  since?: number;
+  /** The period on the map ("2020", "2020-Q2", "2020-04"), or "all" for
+   *  every date. Absent: see MapPage. */
+  at?: string;
+};
+
 const mapRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/map",
-  validateSearch: (
-    search: Record<string, unknown>,
-  ): {
-    state?: string;
-    closure_category?: string;
-    industry?: string;
-    subsector?: string;
-    min_layoffs?: number;
-    after?: string;
-    before?: string;
-    lat?: number;
-    lon?: number;
-    zoom?: number;
-    mode?: "heat";
-  } => ({
+  validateSearch: (search: Record<string, unknown>): MapSearch => ({
     state: (search.state as string) || undefined,
     closure_category: (search.closure_category as string) || undefined,
-    industry: (search.industry as string) || undefined,
-    subsector: (search.subsector as string) || undefined,
+    industry: strParam(search.industry),
+    subsector: strParam(search.subsector),
     min_layoffs: numParam(search.min_layoffs),
     after: (search.after as string) || undefined,
     before: (search.before as string) || undefined,
@@ -198,26 +211,54 @@ const mapRoute = createRoute({
     zoom: numParam(search.zoom),
     // Bubbles is the default and stays out of the URL.
     mode: search.mode === "heat" ? "heat" : undefined,
+    bucket: search.bucket === "year" || search.bucket === "month" ? search.bucket : undefined,
+    since: numParam(search.since),
+    at: strParam(search.at),
   }),
+  // Links from before the timeline used a one-year date filter for the old
+  // year slider; that view is now the year's frame.
+  beforeLoad: ({ search }) => {
+    const y = search.after?.match(/^(\d{4})-01-01$/)?.[1];
+    if (search.at || !y || search.before !== `${y}-12-31`) return;
+    const since = windowFor(Number(y));
+    throw redirect({
+      to: "/map",
+      search: {
+        ...search,
+        after: undefined,
+        before: undefined,
+        bucket: "year",
+        since: since === DEFAULT_SINCE ? undefined : since,
+        at: y,
+      },
+      replace: true,
+    });
+  },
   component: lazyRouteComponent(() => import("./routes/map"), "MapPage"),
 });
 
+// The time-lapse is /map's timeline now; old links land on the same view,
+// as a heatmap like the page they came from.
 const timelapseRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/timelapse",
   validateSearch: (
     search: Record<string, unknown>,
   ): { bucket?: "year" | "month"; since?: number; at?: string; industry?: string } => ({
-    // Quarterly from 2015 is the default and stays out of the URL.
     bucket: search.bucket === "year" || search.bucket === "month" ? search.bucket : undefined,
     since: numParam(search.since),
-    // A year key ("2020") arrives JSON-parsed as a number.
-    at: search.at != null && search.at !== "" ? String(search.at) : undefined,
-    // Sector ids like "11" arrive as numbers too.
-    industry: search.industry != null && search.industry !== "" ? String(search.industry) : undefined,
+    at: strParam(search.at),
+    industry: strParam(search.industry),
   }),
-  // MapLibre + the race: code-split like /map.
-  component: lazyRouteComponent(() => import("./routes/timelapse"), "TimelapsePage"),
+  beforeLoad: ({ search }) => {
+    throw redirect({
+      to: "/map",
+      // `since` is always set: a /map URL with filters and neither a period
+      // nor a window is an old all-dates link (see MapPage).
+      search: { ...search, since: search.since ?? DEFAULT_SINCE, mode: "heat" },
+      replace: true,
+    });
+  },
 });
 
 const statsRoute = createRoute({

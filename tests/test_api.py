@@ -961,6 +961,9 @@ def test_map_places_timeline_filters(api_client, db):
 
     body = api_client.get("/api/map-places/timeline?industry=31-33").json()
     assert (body["lat"], body["notices"]) == ([34.0], [1])
+    # min_layoffs as on /api/map-places: _geocoded_notice reports 100 workers.
+    assert len(api_client.get("/api/map-places/timeline?min_layoffs=100").json()["lat"]) == 3
+    assert api_client.get("/api/map-places/timeline?min_layoffs=101").json()["lat"] == []
     assert api_client.get("/api/map-places/timeline?after=2027-01-01").json() == {
         "lat": [], "lon": [], "label": [], "periods": [],
         "place": [], "period": [], "notices": [], "workers": [],

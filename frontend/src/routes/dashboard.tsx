@@ -238,7 +238,7 @@ export function Dashboard() {
       <div className="card">
         <div className="mb-1 flex items-baseline justify-between gap-3">
           <h2 className="text-lg font-semibold">Workers affected by industry</h2>
-          <Link to="/timelapse" className="shrink-0 text-sm font-medium text-sky-700 hover:underline dark:text-sky-400">
+          <Link to="/map" className="shrink-0 text-sm font-medium text-sky-700 hover:underline dark:text-sky-400">
             Watch over time →
           </Link>
         </div>
