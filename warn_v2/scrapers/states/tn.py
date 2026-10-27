@@ -24,6 +24,7 @@ from __future__ import annotations
 import re
 import time
 from datetime import date
+from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 from curl_cffi import requests as cffi_requests
@@ -241,7 +242,7 @@ def parse_tn_archive(raw: bytes) -> list[NoticeRow]:
                     "count": int(m.group().replace(",", "")) if m else None,
                     "county": as_str(fields.get("county")),
                     "notice_number": as_str(fields.get("notice_type")),
-                    "href": href,
+                    "notice_url": _archive_notice_url(href),
                 }
             )
     if not entries:
@@ -251,7 +252,9 @@ def parse_tn_archive(raw: bytes) -> list[NoticeRow]:
 
 def _parse_archive_effective(value: str) -> date | None:
     """Effective date from free text; ranges/phased lists keep the first
-    dated token (one entry's value is a stray worker count — stays None)."""
+    dated token (one entry's value is a stray worker count — stays None).
+    A day range ("08/23-31/2016") keeps its first day."""
+    value = re.sub(r"\b(\d{1,2}/\d{1,2})-\d{1,2}(/\d{2,4})\b", r"\1\2", value)
     d = as_date(value)
     if d is not None:
         return d
@@ -262,7 +265,9 @@ def _parse_archive_effective(value: str) -> date | None:
     return None
 
 
-def _merge_archive_collisions(entries: list[dict]) -> list[NoticeRow]:
+def _merge_archive_collisions(
+    entries: list[dict], source_url: str = SOURCE_URL
+) -> list[NoticeRow]:
     groups: dict[tuple[str, date], list[dict]] = {}
     for e in entries:
         groups.setdefault((" ".join(e["employer"].lower().split()), e["posted"]), []).append(e)
@@ -273,7 +278,8 @@ def _merge_archive_collisions(entries: list[dict]) -> list[NoticeRow]:
         effectives = [e["effective"] for e in group if e["effective"] is not None]
         counties = list(dict.fromkeys(e["county"] for e in group if e["county"]))
         numbers = [e["notice_number"] for e in group if e["notice_number"]]
-        href = next((e["href"] for e in group if e["href"]), None)
+        notice_url = next((e["notice_url"] for e in group if e["notice_url"]), None)
+        closure = next((e["closure_type"] for e in group if e.get("closure_type")), None)
         rows.append(
             NoticeRow(
                 state="TN",
@@ -281,9 +287,10 @@ def _merge_archive_collisions(entries: list[dict]) -> list[NoticeRow]:
                 notice_date=group[0]["posted"],
                 effective_date=min(effectives) if effectives else None,
                 layoff_count=sum(counts) if counts else None,
+                closure_type=closure,
                 county="; ".join(counties) or None,
-                source_url=SOURCE_URL,
-                raw_notice_url=_archive_notice_url(href),
+                source_url=source_url,
+                raw_notice_url=notice_url,
                 extra={"notice_number": "; ".join(numbers)},
             )
         )
@@ -298,3 +305,99 @@ def _archive_notice_url(href: str | None) -> str | None:
 
 
 register(TNScraper())
+
+
+# ---------------------------------------------------------------------------
+# Historical backfill (2012 - Jun 2016) — two older page generations
+# ---------------------------------------------------------------------------
+# Before the reports page, TN listed notices as HTML tables on two pages, now
+# bundled from Wayback as tn_archive_2012.tar.gz (member = <page>_<ts>.html):
+#
+# * warnnotices.shtml @20140915080834: one table per month, Jan 2012 →
+#   Jul 2014 (Company | County | Affected Workers | Notice Date | LO/CL Date |
+#   Industry Code | Notice Type CL/LO). Used for 2012 only.
+# * warn-report-archive @20160713151608: one table, Jan 2013 → Jun 2016, with
+#   WARN numbers (Date Notice Posted | Company | County | Affected Workers |
+#   Closure/Layoff Date | Notice Type). Used for 2013 on.
+#
+# The pages overlap in 2013-2014 with different spellings, so each member
+# keeps only its own window. Later captures of either page hold no rows, so
+# Jul 2016 - 2016 stays a gap (2017+ comes from tn_archive.tar.gz).
+_PRE2017_PATH = DATA_DIR / "tn_archive_2012.tar.gz"
+_PRE2017_PAGES = {
+    # member prefix: (original page URL, first and last notice date kept)
+    "warnnotices": (
+        "http://www.tn.gov/labor-wfd/warn/warnnotices.shtml",
+        date(2012, 1, 1),
+        date(2012, 12, 31),
+    ),
+    "warn-report-archive": (
+        "http://www.tn.gov/workforce/article/warn-report-archive",
+        date(2013, 1, 1),
+        date(2016, 12, 31),
+    ),
+}
+_PRE2017_TYPES = {"CL": "Closure", "LO": "Layoff"}
+
+
+def tn_pre2017_files() -> list[tuple[str, bytes]]:
+    return load_archive(_PRE2017_PATH)
+
+
+def parse_tn_pre2017(raw: bytes, member: str) -> list[NoticeRow]:
+    """Parse one bundled pre-2017 page (see the block comment above).
+
+    Rows go through ``_merge_archive_collisions`` like the 2017-2024 archive,
+    because same-day filings of one employer would collide on notice_id.
+    """
+    prefix, ts = member.removesuffix(".html").rsplit("_", 1)
+    page_url, lo, hi = _PRE2017_PAGES[prefix]
+    replay = f"https://web.archive.org/web/{ts}id_/{page_url}"
+    soup = BeautifulSoup(raw, "html.parser")
+    entries: list[dict] = []
+    for table in soup.find_all("table"):
+        trs = table.find_all("tr")
+        if not trs:
+            continue
+        col = {_text(c).lower(): i for i, c in enumerate(trs[0].find_all(["td", "th"]))}
+        date_i = col.get("notice date", col.get("date notice posted"))
+        if date_i is None or "company" not in col:
+            continue
+        eff_i = col.get("lo/cl date", col.get("closure/layoff date"))
+        for tr in trs[1:]:
+            cells = tr.find_all(["td", "th"])
+            if len(cells) < len(col):
+                continue
+            notice_date = as_date(_text(cells[date_i]))
+            company = cells[col["company"]]
+            employer = as_str(_text(company))
+            if not employer or notice_date is None or not lo <= notice_date <= hi:
+                continue
+            anchor = company.find("a", href=True)
+            m = _COUNT_RE.search(_text(cells[col["affected workers"]]))
+            notice_type = _text(cells[col["notice type"]]) if "notice type" in col else ""
+            entries.append(
+                {
+                    "employer": employer,
+                    "posted": notice_date,
+                    "effective": (
+                        _parse_archive_effective(_text(cells[eff_i])) if eff_i is not None else None
+                    ),
+                    "count": int(m.group().replace(",", "")) if m else None,
+                    "county": as_str(_text(cells[col["county"]])),
+                    "closure_type": _PRE2017_TYPES.get(notice_type),
+                    "notice_number": (
+                        notice_type.removeprefix("WARN #").strip()
+                        if notice_type.startswith("WARN")
+                        else None
+                    ),
+                    "notice_url": (
+                        f"https://web.archive.org/web/{ts}/{urljoin(page_url, anchor['href'])}"
+                        if anchor
+                        else None
+                    ),
+                }
+            )
+    if not entries:
+        raise ParseFailed(f"TN {member}: no notice rows in its window")
+    return _merge_archive_collisions(entries, source_url=replay)

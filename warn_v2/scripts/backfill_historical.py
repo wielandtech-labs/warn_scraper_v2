@@ -121,7 +121,12 @@ from warn_v2.scrapers.states.or_ import (
 from warn_v2.scrapers.states.pa import _fetch_pa_year, parse_pa_month
 from warn_v2.scrapers.states.sc import _discover_sc_archive_urls, parse_sc_archive_pdf
 from warn_v2.scrapers.states.sd import parse_sd_archive_pdf, sd_archive_files
-from warn_v2.scrapers.states.tn import parse_tn_archive, tn_archive_files
+from warn_v2.scrapers.states.tn import (
+    parse_tn_archive,
+    parse_tn_pre2017,
+    tn_archive_files,
+    tn_pre2017_files,
+)
 from warn_v2.scrapers.states.tx import _fetch_tx_year
 from warn_v2.scrapers.states.va import parse_va_archive_member, va_archive_files
 from warn_v2.scrapers.states.wi import _discover_wi_pcml_urls, parse_wi_pcml_xls
@@ -220,10 +225,15 @@ _BACKFILL: dict[str, BackfillSpec] = {
     # 2025-01-16 Wayback capture carries the full 2017-2024 archive as labeled
     # text entries (514 → 507 rows after parse_tn_archive merges same-day
     # multi-county filings that would collide on notice_id). No overlap with
-    # the live scraper's rows (prod floor 2025-01).
+    # the live scraper's rows (prod floor 2025-01). Plus 2012 - Jun 2016 from
+    # two older page generations (tn_archive_2012.tar.gz → parse_tn_pre2017).
     "TN": BackfillSpec(
-        bundled_files=tn_archive_files,
-        parse_for_url=lambda u: parse_tn_archive,
+        bundled_files=lambda: tn_archive_files() + tn_pre2017_files(),
+        parse_for_url=lambda u: (
+            parse_tn_archive
+            if u.startswith("reports_")
+            else (lambda raw, _u=u: parse_tn_pre2017(raw, _u))
+        ),
     ),
     "TX": BackfillSpec(year_start=2003, fetch_year=_fetch_tx_year),
     # FL: live reactwarn pages 2020+, pinned Wayback captures for the two
