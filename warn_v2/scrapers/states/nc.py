@@ -230,14 +230,26 @@ _INTRANET_PDFS: tuple[tuple[str, str, date, date], ...] = (
 _INTRANET_WINDOWS = {replay_url(ts, u): (lo, hi) for ts, u, lo, hi in _INTRANET_PDFS}
 
 
+def _intranet_window(source_url: str) -> tuple[date, date]:
+    """Keep-window for a capture, matched by its timestamp so a reformatted
+    replay URL still clips (the 2013-03 edition must never leak 2013 rows)."""
+    for ts, _u, lo, hi in _INTRANET_PDFS:
+        if f"/{ts}" in source_url:
+            return lo, hi
+    return date.min, date.max
+
+
 def _discover_nc_pdf_urls() -> list[str]:
     """Return one absolute PDF URL per archive year, newest first: the hub's
-    /open links (2014+) plus the pinned Wayback 2013 capture."""
+    /open links (2014+), then the pinned Wayback captures (2013 and the
+    pre-2013 intranet editions). The pins don't depend on the hub, so a hub
+    outage still returns them."""
+    pinned = [_WARN_2013_PDF_URL, *_INTRANET_WINDOWS]
     try:
         r = httpx.get(_ARCHIVE_HUB, headers=_UA, timeout=60, follow_redirects=True)
         r.raise_for_status()
     except httpx.HTTPError:
-        return []
+        return pinned
     soup = BeautifulSoup(r.content, "html.parser")
     by_year: dict[int, str] = {}
     for a in soup.find_all("a", href=True):
@@ -248,10 +260,7 @@ def _discover_nc_pdf_urls() -> list[str]:
         year = int(m.group(1))
         url = href if href.startswith("http") else _BASE_URL + href
         by_year.setdefault(year, url)  # first (page lists newest first)
-    return [by_year[y] for y in sorted(by_year, reverse=True)] + [
-        _WARN_2013_PDF_URL,
-        *_INTRANET_WINDOWS,
-    ]
+    return [by_year[y] for y in sorted(by_year, reverse=True)] + pinned
 
 
 def parse_nc_pdf(raw: bytes, source_url: str) -> list[NoticeRow]:
@@ -605,7 +614,7 @@ def _parse_nc_intranet_summary(pdf, source_url: str) -> list[NoticeRow]:
     notice_id hash, which has no county, so they are merged here with their
     counts summed; the county is kept only when they all agree.
     """
-    lo, hi = _INTRANET_WINDOWS.get(source_url, (date.min, date.max))
+    lo, hi = _intranet_window(source_url)
     recs: list[dict] = []
     anchors: list[float] | None = None
     open_rec = False

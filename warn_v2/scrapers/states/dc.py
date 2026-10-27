@@ -193,7 +193,14 @@ def parse_dc_log(raw: bytes, source_url: str) -> list[NoticeRow]:
     while i + 4 < len(cells):
         date_raw, org, count_raw, eff_raw, code = cells[i : i + 5]
         notice_date = _log_date(date_raw) if _LOG_DATE_RE.match(date_raw) else None
-        if notice_date is None or not org or _LOG_DATE_RE.match(org):
+        # A date in the code slot means a cell is missing: realign on the next
+        # cell rather than swallowing the following notice.
+        if (
+            notice_date is None
+            or not org
+            or _LOG_DATE_RE.match(org)
+            or _LOG_DATE_RE.match(code)
+        ):
             i += 1
             continue
         m = _LEADING_INT_RE.match(count_raw)
@@ -204,7 +211,8 @@ def parse_dc_log(raw: bytes, source_url: str) -> list[NoticeRow]:
                 notice_date=notice_date,
                 effective_date=_log_date(eff_raw) if _LOG_DATE_RE.match(eff_raw) else None,
                 layoff_count=as_int(m.group(1)) if m else None,
-                closure_type=_CODE_TYPE.get(code.strip(), as_str(code)),
+                # "2 BRAC" / "2**" carry a footnote mark after the code digit.
+                closure_type=_CODE_TYPE.get(code.strip()[:1], as_str(code)),
                 source_url=source_url,
             )
         )

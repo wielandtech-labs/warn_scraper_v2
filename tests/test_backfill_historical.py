@@ -1975,11 +1975,17 @@ def test_nc_discover_pdf_urls_dedupes_years_and_absolutizes():
 
 
 @respx.mock
-def test_nc_discover_pdf_urls_empty_on_http_error():
-    from warn_v2.scrapers.states.nc import _ARCHIVE_HUB, _discover_nc_pdf_urls
+def test_nc_discover_pdf_urls_keeps_wayback_pins_on_http_error():
+    from warn_v2.scrapers.states.nc import (
+        _ARCHIVE_HUB,
+        _INTRANET_WINDOWS,
+        _WARN_2013_PDF_URL,
+        _discover_nc_pdf_urls,
+    )
 
     respx.get(_ARCHIVE_HUB).mock(return_value=httpx.Response(500))
-    assert _discover_nc_pdf_urls() == []
+    # The pinned captures don't depend on the hub.
+    assert _discover_nc_pdf_urls() == [_WARN_2013_PDF_URL, *_INTRANET_WINDOWS]
 
 
 def test_nc_parse_pdf_summary_count_era():

@@ -161,6 +161,10 @@ def test_rapidresponse_py2011_row_above_first_rule() -> None:
         ("M a r io n", "Marion"),
         ("Douglas S t . L o u is CO Laclede B u t l e r", "Douglas St. Louis CO Laclede Butler"),
         ("Heritage American Homes A Division", "Heritage American Homes A Division"),
+        (
+            "St. Louis & St. Charles & Jefferson & Franklin",
+            "St. Louis & St. Charles & Jefferson & Franklin",
+        ),
     ],
 )
 def test_despace(raw: str, want: str) -> None:

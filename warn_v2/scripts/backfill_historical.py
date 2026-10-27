@@ -25,7 +25,7 @@ misses become duplicates on a real run; review them and plan a
 Usage::
 
     warn-v2 backfill-historical --state CA
-    warn-v2 backfill-historical --state DC --year-start 2013
+    warn-v2 backfill-historical --state DC --dry-run
     warn-v2 backfill-historical --state VT --dry-run
 """
 from __future__ import annotations

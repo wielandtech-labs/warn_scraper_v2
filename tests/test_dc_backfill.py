@@ -82,3 +82,17 @@ def test_backfill_spec_routes_to_log_parser() -> None:
 def test_parse_failed_without_rows() -> None:
     with pytest.raises(ParseFailed):
         parse_dc_log(b"<html><table><tr><td>nothing</td></tr></table></html>", "u")
+
+
+def test_footnoted_type_codes_map_by_digit() -> None:
+    rows = parse_dc_log(_read("log_2012-05.html"), "u")
+    assert {r.closure_type for r in rows} == {"Layoff", "Permanent Closures"}
+
+
+def test_missing_cell_realigns_instead_of_eating_the_next_notice() -> None:
+    # Record 1 lacks its effective-date cell; record 2 must still parse.
+    cells = ["01/05/10", "Acme", "50", "1", "02/01/10", "Beta Corp", "60", "03/01/10", "2"]
+    html = "<table><tr>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr></table>"
+    rows = parse_dc_log(html.encode(), "u")
+    assert [r.employer for r in rows] == ["Beta Corp"]
+    assert rows[0].closure_type == "Permanent Closures"

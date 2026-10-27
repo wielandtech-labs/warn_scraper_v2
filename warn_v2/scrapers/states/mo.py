@@ -311,13 +311,17 @@ def _despace(text: str) -> str:
     real "Homes A Division" survives.
     """
     tokens = text.split()
-    if sum(len(t) == 1 for t in tokens) < 3:
+
+    def glyph(t: str) -> bool:  # "&" in "St. Louis & Kirkwood" is a real word
+        return len(t) == 1 and t != "&"
+
+    if sum(glyph(t) for t in tokens) < 3:
         return text
     words: list[str] = []
     prev = ""
     chaining = False
     for tok in tokens:
-        if words and (len(prev) == 1 or (chaining and len(tok) == 1)):
+        if words and tok != "&" and (glyph(prev) or (chaining and glyph(tok))):
             words[-1] += tok
             chaining = True
         else:

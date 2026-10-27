@@ -191,3 +191,12 @@ def test_nc_intranet_2009_wide_county_offset():
 def test_nc_intranet_windows_cover_four_captures():
     assert len(_INTRANET_WINDOWS) == 4
     assert all(u.startswith("https://web.archive.org/web/") for u in _INTRANET_WINDOWS)
+
+
+def test_nc_intranet_window_matched_by_timestamp():
+    from warn_v2.scrapers.states.nc import _intranet_window
+
+    # A differently formatted replay URL for the 2013-03 capture still clips.
+    url = "https://web.archive.org/web/20130311205029/https://www.nccommerce.com/x/Warn.pdf"
+    assert _intranet_window(url) == (date(2012, 1, 1), date(2012, 12, 31))
+    assert _intranet_window("https://example.test/other.pdf") == (date.min, date.max)
