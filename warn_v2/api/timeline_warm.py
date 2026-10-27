@@ -7,12 +7,20 @@ unfiltered window x bucket the /timelapse page offers at startup, then every
 expire. Filtered views (a linked-view industry tap, a state) are cached on
 first request only.
 
+Each cycle queries only the widest window and rolls the narrower ones up from
+its rows, so one set of rows is cached rather than one per window. It then
+hands freed heap back to the OS: the API's RSS crept to its 512 Mi limit and
+was OOM-killed (118 times in the week after the cache shipped), and the cycle's
+large short-lived allocations are what glibc otherwise holds on to.
+
 The cache is per process: this helps because the API runs one uvicorn worker
 (``warn-v2 serve``) and one replica.
 """
 from __future__ import annotations
 
+import ctypes
 import logging
+import mmap
 import os
 import threading
 import time
@@ -24,27 +32,48 @@ from warn_v2.db.session import get_session_factory
 
 log = logging.getLogger(__name__)
 
-# The window starts /timelapse offers (frontend/src/routes/timelapse.tsx WINDOWS).
+# The window starts /timelapse offers (frontend/src/routes/timelapse.tsx
+# WINDOWS). All are Jan 1, so each is a whole-month floor on the widest.
 WINDOWS = (date(2015, 1, 1), date(2010, 1, 1), date(1999, 1, 1))
 BUCKETS: tuple[Bucket, ...] = ("quarter", "year", "month")
 REFRESH_S = TTL_S - 5 * 60
 
 
 def warm_once() -> None:
-    """Rebuild every default timeline body, querying each window once."""
+    """Rebuild every default timeline body from one query per endpoint."""
+    widest = min(WINDOWS)
     db = get_session_factory()()
     try:
+        places = map_places.place_months(db, map_places.PlaceFilters(after=widest), refresh=True)
+        industries = stats.industry_months(db, stats.IndustryFilters(after=widest), refresh=True)
         for after in WINDOWS:
-            places = map_places.PlaceFilters(after=after)
-            industries = stats.IndustryFilters(after=after)
-            map_places.place_months(db, places, refresh=True)
-            stats.industry_months(db, industries, refresh=True)
-            # Rolled up from the rows just refreshed; no further SQL.
             for bucket in BUCKETS:
-                map_places.timeline_body(db, bucket, places, refresh=True)
-                stats.industries_timeline_body(db, bucket, industries, refresh=True)
+                map_places.timeline_body(
+                    db, bucket, map_places.PlaceFilters(after=after), refresh=True, rows=places
+                )
+                stats.industries_timeline_body(
+                    db, bucket, stats.IndustryFilters(after=after), refresh=True, rows=industries
+                )
     finally:
         db.close()
+
+
+def _release_freed_memory() -> None:
+    """Return free heap pages to the OS (glibc's malloc_trim; a no-op on other
+    platforms). Python frees the cycle's garbage, but glibc keeps the pages
+    mapped in fragmented arenas, so RSS ratchets up cycle after cycle."""
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except (OSError, AttributeError):
+        pass
+
+
+def _rss_mb() -> float | None:
+    try:
+        with open("/proc/self/statm") as f:
+            return int(f.read().split()[1]) * mmap.PAGESIZE / 1e6
+    except (OSError, ValueError):
+        return None
 
 
 def _run(stop: threading.Event) -> None:
@@ -52,7 +81,12 @@ def _run(stop: threading.Event) -> None:
         started = time.monotonic()
         try:
             warm_once()
-            log.info("timeline cache warmed in %.1fs", time.monotonic() - started)
+            _release_freed_memory()
+            log.info(
+                "timeline cache warmed in %.1fs; rss %s MB",
+                time.monotonic() - started,
+                f"{rss:.0f}" if (rss := _rss_mb()) is not None else "?",
+            )
         except Exception:
             log.warning("timeline cache warm-up failed", exc_info=True)
         if stop.wait(REFRESH_S):

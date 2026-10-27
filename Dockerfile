@@ -17,8 +17,12 @@ RUN npm run build
 # --- stage 2: python app ---
 FROM python:3.12-slim AS base
 
+# MALLOC_ARENA_MAX: glibc gives each thread its own heap arena by default,
+# and the API's threadpool fragments them until RSS reaches the pod limit
+# (see warn_v2/api/timeline_warm.py); two arenas cap that.
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    MALLOC_ARENA_MAX=2 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
