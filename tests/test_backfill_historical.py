@@ -350,6 +350,19 @@ def test_joblink_fetch_uses_year_param():
 # backfill_historical — DC end-to-end (mocked fetch)
 # ---------------------------------------------------------------------------
 
+@pytest.fixture
+def dc_year_loop():
+    """The DC live-year-page loop (the spec before the 2002-2012 log route).
+
+    These tests exercise the generic year loop with DC's simple HTML."""
+    from warn_v2.scripts import backfill_historical as bf
+
+    spec = bf.BackfillSpec(year_start=2013, fetch_year=lambda s, y: bf._fetch_dc_year(y))
+    with patch.dict(bf._BACKFILL, {"DC": spec}):
+        yield
+
+
+@pytest.mark.usefixtures("dc_year_loop")
 def test_backfill_historical_dc_loops_years_and_upserts(db) -> None:
     html_2020 = _minimal_dc_html("Agency Alpha", "January 15, 2020")
     html_2021 = _minimal_dc_html("Agency Beta", "March 10, 2021")
@@ -374,6 +387,7 @@ def test_backfill_historical_dc_loops_years_and_upserts(db) -> None:
     assert {r.status for r in db.query(ScraperRun).filter_by(state="DC")} == {"backfill_ok"}
 
 
+@pytest.mark.usefixtures("dc_year_loop")
 def test_backfill_historical_dc_dry_run_no_writes(db) -> None:
     html = _minimal_dc_html()
 
@@ -385,6 +399,7 @@ def test_backfill_historical_dc_dry_run_no_writes(db) -> None:
     assert db.query(Notice).count() == 0
 
 
+@pytest.mark.usefixtures("dc_year_loop")
 def test_backfill_historical_dc_skips_missing_year() -> None:
     with patch("warn_v2.scripts.backfill_historical._fetch_dc_year", return_value=None):
         stats = backfill_historical("DC", year_start=2050, year_end=2050, dry_run=True)
@@ -647,6 +662,7 @@ def test_backfill_historical_vt_joblink_year(db) -> None:
 # Year loop — paginated sources (list[bytes] from fetch_year)
 # ---------------------------------------------------------------------------
 
+@pytest.mark.usefixtures("dc_year_loop")
 def test_backfill_historical_paginated_year_ingests_all_chunks(db) -> None:
     html_p1 = _minimal_dc_html("Agency Alpha", "January 15, 2020")
     html_p2 = _minimal_dc_html("Agency Beta", "February 20, 2020")
@@ -670,6 +686,7 @@ def test_backfill_historical_paginated_year_ingests_all_chunks(db) -> None:
 # Dry run — duplicate preview (near misses)
 # ---------------------------------------------------------------------------
 
+@pytest.mark.usefixtures("dc_year_loop")
 def test_dry_run_reports_near_miss(db, caplog) -> None:
     """A row matching an existing notice on (state, employer, date) but hashing
     differently (city drift) is flagged as a near miss, and nothing is written."""
@@ -1944,7 +1961,7 @@ def test_nc_discover_pdf_urls_dedupes_years_and_absolutizes():
     )
     respx.get(_ARCHIVE_HUB).mock(return_value=httpx.Response(200, content=html))
 
-    from warn_v2.scrapers.states.nc import _WARN_2013_PDF_URL
+    from warn_v2.scrapers.states.nc import _INTRANET_WINDOWS, _WARN_2013_PDF_URL
 
     urls = _discover_nc_pdf_urls()
     assert urls == [
@@ -1953,6 +1970,7 @@ def test_nc_discover_pdf_urls_dedupes_years_and_absolutizes():
         "https://www.commerce.nc.gov/warn-report-2019/open",
         "https://www.commerce.nc.gov/warn-report-2014-0/open",
         _WARN_2013_PDF_URL,  # pinned Wayback capture, appended after hub years
+        *_INTRANET_WINDOWS,  # pre-2013 rolling-report captures
     ]
 
 

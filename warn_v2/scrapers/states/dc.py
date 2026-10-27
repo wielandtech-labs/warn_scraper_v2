@@ -11,6 +11,7 @@ DC does not publish city or ZIP in the WARN table (all notices are in DC).
 """
 from __future__ import annotations
 
+import re
 from datetime import date
 
 import httpx
@@ -19,6 +20,7 @@ from bs4 import BeautifulSoup
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.registry import register
+from warn_v2.scrapers.wayback import replay_url
 
 _URL = "https://does.dc.gov/page/industry-closings-and-layoffs-warn-notifications-{year}"
 
@@ -142,3 +144,71 @@ def _text(cell) -> str:
 
 
 register(DCScraper())
+
+
+# ---------------------------------------------------------------------------
+# Historical backfill: the 2002 - Jan 2012 "Monthly WARN Notification Log"
+# ---------------------------------------------------------------------------
+
+# The old CWP site kept one growing log at an opaque URL. CDX has 50 distinct
+# versions (2004-03 → 2012-05), compared offline 2026-10-26. The latest holds
+# 147 notices from 2005-01 on. Only the two 2005 versions add notices it
+# dropped (17, 2002-11 → 2005-12). The 2007 and 2009 versions add nothing
+# but respellings of rows the latest keeps ("D.C Department of Health" vs
+# "DC Department of Health", "HellerEhrman" vs "Heller Ehrman"), which would
+# duplicate under the notice_id hash, so they are left out. Nothing is
+# captured for Feb 2012 - 2014.
+_LOG_URL = "http://does.dc.gov/does/cwp/view,a,1232,q,572897.asp"
+_LOG_CAPTURES: tuple[str, ...] = ("20120514073024", "20051208073424", "20050408160035")
+
+_LOG_DATE_RE = re.compile(r"^\d{1,2}/(?:\d{1,2}/)?\d{2,4}$")
+_LEADING_INT_RE = re.compile(r"^\s*([\d,]+)")
+
+
+def dc_log_urls() -> list[str]:
+    return [replay_url(ts, _LOG_URL) for ts in _LOG_CAPTURES]
+
+
+def _log_date(raw: str) -> date | None:
+    """MM/DD/YY(YY), or month-only MM/YYYY (some 2008 rows) → 1st of month."""
+    m = re.fullmatch(r"(\d{1,2})/(\d{4})", raw)
+    return date(int(m.group(2)), int(m.group(1)), 1) if m else as_date(raw)
+
+
+def parse_dc_log(raw: bytes, source_url: str) -> list[NoticeRow]:
+    """Parse one capture of the monthly log.
+
+    The markup nests tables and drops ``<tr>`` tags, so rows are read off the
+    innermost ``<td>`` cells in document order: a record is five cells
+    (notice date | organization | # affected | effective date | type code)
+    starting at a date cell; month-name divider runs are skipped. Pre-2005
+    organization cells end in a "WARN" link label, which is stripped. Counts
+    keep their leading number ("8 ALPA Employees" → 8; "Unspecified
+    Number" → None).
+    """
+    soup = BeautifulSoup(raw, "html.parser")
+    cells = [_text(td) for td in soup.find_all("td") if not td.find("td")]
+    rows: list[NoticeRow] = []
+    i = 0
+    while i + 4 < len(cells):
+        date_raw, org, count_raw, eff_raw, code = cells[i : i + 5]
+        notice_date = _log_date(date_raw) if _LOG_DATE_RE.match(date_raw) else None
+        if notice_date is None or not org or _LOG_DATE_RE.match(org):
+            i += 1
+            continue
+        m = _LEADING_INT_RE.match(count_raw)
+        rows.append(
+            NoticeRow(
+                state="DC",
+                employer=re.sub(r"\s+WARN$", "", org),
+                notice_date=notice_date,
+                effective_date=_log_date(eff_raw) if _LOG_DATE_RE.match(eff_raw) else None,
+                layoff_count=as_int(m.group(1)) if m else None,
+                closure_type=_CODE_TYPE.get(code.strip(), as_str(code)),
+                source_url=source_url,
+            )
+        )
+        i += 5
+    if not rows:
+        raise ParseFailed("DC WARN log: no notice rows parsed")
+    return rows

@@ -22,6 +22,7 @@ import respx
 
 from warn_v2.scrapers.states.nc import (
     _ARCHIVE_HUB,
+    _INTRANET_WINDOWS,
     _WARN_2013_PDF_URL,
     _discover_nc_pdf_urls,
     _join_city,
@@ -57,6 +58,7 @@ def test_nc_discovery_appends_pinned_2013_capture_after_hub_years():
         "https://www.commerce.nc.gov/warn-report-2019/open",
         "https://www.commerce.nc.gov/warn-report-2014-0/open",
         _WARN_2013_PDF_URL,
+        *_INTRANET_WINDOWS,
     ]
 
 
@@ -139,3 +141,53 @@ def test_nc_join_city_uses_glyph_gaps():
     assert _join_city([(335.0, 373.0, "Winston"), (335.0, 355.0, "Salem")]) == "Winston Salem"
     assert _join_city([(319.0, 338.7, "Cary")]) == "Cary"
     assert _join_city([]) == ""
+
+
+# ---------------------------------------------------------------------------
+# Pre-2013 "Summary Count(Intranet)" rolling-report captures
+# ---------------------------------------------------------------------------
+
+def _intranet_url(ts: str) -> str:
+    return next(u for u in _INTRANET_WINDOWS if f"/{ts}id_/" in u)
+
+
+def test_nc_intranet_2012_clipped_to_calendar_2012_and_merged():
+    url = _intranet_url("20130311205029")
+    rows = parse_nc_pdf(_nc_fixture("intranet_2012_to_2013-03.pdf"), url)
+    # 109 printed 2012 lines; same-day rows of one employer merge, because
+    # the notice_id hash has no county.
+    assert len(rows) == 62
+    assert {r.notice_date.year for r in rows} == {2012}  # 2013 rows clipped
+    # Jan-Dec 2012 monthly "Sum of # Employees Affected" subtotals.
+    assert sum(r.layoff_count or 0 for r in rows) == 7_527
+    pnc = next(r for r in rows if r.employer == "PNC Financial Services Group")
+    assert pnc.notice_date == date(2012, 1, 5)
+    assert pnc.layoff_count == 621  # Nash 56 + 50 + 212 + Wake ... summed
+    assert pnc.county is None  # counties disagree
+    acs = rows[0]
+    assert (acs.employer, acs.county, acs.layoff_count, acs.closure_type) == (
+        "ACS Financial Solutions Group",  # wrapped onto a second line
+        "Mecklenburg",
+        96,
+        "Closure Permanent",
+    )
+    assert acs.effective_date == date(2012, 3, 2)
+    assert all(r.source_url == url for r in rows)
+
+
+def test_nc_intranet_2009_wide_county_offset():
+    # This edition's county values sit ~30pt left of the County header.
+    rows = parse_nc_pdf(_nc_fixture("intranet_2009-01.pdf"), _intranet_url("20090117092954"))
+    assert len(rows) == 7
+    assert sum(r.layoff_count or 0 for r in rows) == 1_142  # printed Sum
+    first = rows[0]
+    assert (first.employer, first.county, first.layoff_count) == (
+        "R L Stowe Mills, Inc",
+        "Gaston",
+        232,
+    )
+
+
+def test_nc_intranet_windows_cover_four_captures():
+    assert len(_INTRANET_WINDOWS) == 4
+    assert all(u.startswith("https://web.archive.org/web/") for u in _INTRANET_WINDOWS)
