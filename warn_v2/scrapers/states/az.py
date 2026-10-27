@@ -141,10 +141,10 @@ def parse_az_archive_pdf(raw: bytes, year: int) -> list[NoticeRow]:
                 head = [" ".join((c or "").upper().split()) for c in table[0]]
                 firm_i = next((i for i, h in enumerate(head) if "FIRM" in h), None)
                 type_i = next((i for i, h in enumerate(head) if h == "TYPE"), None)
-                if firm_i is None or type_i is None:
+                date_i = next((i for i, h in enumerate(head) if "DAT" in h), None)
+                count_i = next((i for i, h in enumerate(head) if "WORKERS" in h), None)
+                if None in (firm_i, type_i, date_i, count_i):
                     continue
-                date_i = next(i for i, h in enumerate(head) if "DAT" in h)
-                count_i = next(i for i, h in enumerate(head) if "WORKERS" in h)
                 prior_i = next((i for i, h in enumerate(head) if h.startswith("PRIOR")), None)
                 for r in table[1:]:
                     lines = [ln.strip() for ln in (r[firm_i] or "").split("\n") if ln.strip()]
