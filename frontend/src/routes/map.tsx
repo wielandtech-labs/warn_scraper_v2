@@ -204,16 +204,29 @@ export function MapPage() {
     if (at === null && frames.length > 0) setAt(frames[lastComplete]);
   }, [at, frames, lastComplete]);
 
-  // Playback: one timer per frame, so a pause or a scrub cancels cleanly.
+  // A URL change from outside (a link to /map, back/forward) moves the
+  // frame; the frame's own URL writes below come back equal and are skipped.
+  const urlAt = useRef(search.at);
   useEffect(() => {
-    if (!playing || frames.length === 0) return;
+    if (search.at === urlAt.current) return;
+    urlAt.current = search.at;
+    if (search.at === at) return;
+    setPlaying(false);
+    setAt(initialAt(search));
+  }, [search, at]);
+
+  // Playback: one timer per frame, so a pause or a scrub cancels cleanly.
+  // It waits for the places (loaded on demand when leaving all dates)
+  // rather than playing frames over an empty map.
+  useEffect(() => {
+    if (!playing || frames.length === 0 || !placeTimeline) return;
     if (idx >= last) {
       setPlaying(false);
       return;
     }
     const t = setTimeout(() => setAt(frames[idx + 1]), FRAME_MS[bucket] / speed);
     return () => clearTimeout(t);
-  }, [playing, idx, last, frames, bucket, speed]);
+  }, [playing, idx, last, frames, bucket, speed, placeTimeline]);
 
   // The URL follows the frame only while paused: a navigate per tick would
   // re-render the route and flood history-replace calls.
@@ -516,7 +529,9 @@ export function MapPage() {
           )}
           {!allDates && mode === "heat" && <HeatLegend max={heatMax} />}
           {fetching && (
-            <div className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-white/90 px-2.5 py-1 text-xs text-slate-600 shadow dark:bg-slate-900/90 dark:text-slate-300">
+            <div className={`pointer-events-none absolute left-3 rounded-full ${
+              !allDates && mode === "heat" ? "bottom-28" : "bottom-3"
+            } bg-white/90 px-2.5 py-1 text-xs text-slate-600 shadow dark:bg-slate-900/90 dark:text-slate-300`}>
               Loading…
             </div>
           )}

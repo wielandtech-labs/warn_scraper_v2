@@ -2,7 +2,7 @@
 
 The timeline caches (warn_v2.api.timeline) would otherwise make the first
 visitor after each expiry wait 1.6-3 s. A daemon thread rebuilds every
-unfiltered window x bucket the /timelapse page offers at startup, then every
+unfiltered window /map's timeline offers at startup, then every
 ``REFRESH_S`` -- inside the TTL, so those entries are replaced before they can
 expire. Filtered views (a linked-view industry tap, a state) are cached on
 first request only.
@@ -32,10 +32,12 @@ from warn_v2.db.session import get_session_factory
 
 log = logging.getLogger(__name__)
 
-# The window starts /timelapse offers (frontend/src/routes/timelapse.tsx
+# The window starts /map's timeline offers (frontend/src/lib/timelapse.ts
 # WINDOWS). All are Jan 1, so each is a whole-month floor on the widest.
 WINDOWS = (date(2015, 1, 1), date(2010, 1, 1), date(1999, 1, 1))
-BUCKETS: tuple[Bucket, ...] = ("quarter", "year", "month")
+# /map loads months and rolls them up in the browser, so only monthly
+# bodies are requested; other buckets are built on demand.
+BUCKETS: tuple[Bucket, ...] = ("month",)
 REFRESH_S = TTL_S - 5 * 60
 
 

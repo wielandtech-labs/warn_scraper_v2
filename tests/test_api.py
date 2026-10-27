@@ -1148,7 +1148,7 @@ def test_timeline_warmer_fills_and_refreshes_the_defaults(api_client, db, db_ses
     db.commit()
 
     # /timelapse's default request is served from the warmed entry...
-    url = "/api/map-places/timeline?bucket=quarter&after=2015-01-01"
+    url = "/api/map-places/timeline?bucket=month&after=2015-01-01"
     assert api_client.get(url).json()["notices"] == [1]
     assert api_client.get(
         "/api/stats/industries/timeline?bucket=month&after=1999-01-01"
