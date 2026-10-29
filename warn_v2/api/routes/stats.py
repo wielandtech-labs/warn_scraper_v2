@@ -648,26 +648,36 @@ def industry_months(
 
 
 def industries_timeline_body(
-    db: Session, bucket: Bucket, f: IndustryFilters, *, refresh: bool = False
+    db: Session,
+    bucket: Bucket,
+    f: IndustryFilters,
+    *,
+    refresh: bool = False,
+    rows: list[tuple[str, str, int, int]] | None = None,
 ) -> Body:
     """The serialized /stats/industries/timeline body, cached. A miss (or
-    ``refresh``) rolls it up from the cached month grouping."""
+    ``refresh``) rolls it up from the cached month grouping; ``rows`` rolls up
+    a wider window's grouping instead, as in map_places.timeline_body."""
 
     def build() -> Body:
         # (sector, period) -> [notices, workers]
         cells: dict[tuple[str, str], list[int]] = {}
-        for sector, month, n, lt in industry_months(db, f):
+        months = rows if rows is not None else industry_months(db, f)
+        floor = f.after.strftime("%Y-%m") if rows is not None and f.after else ""
+        for sector, month, n, lt in months:
+            if month < floor:
+                continue
             cell = cells.setdefault((sector, period_of(month, bucket)), [0, 0])
             cell[0] += n
             cell[1] += lt
 
         periods = period_range({p for _, p in cells}, bucket)
         index = {p: i for i, p in enumerate(periods)}
-        rows: dict[str, IndustryTimelineRow] = {}
+        by_sector: dict[str, IndustryTimelineRow] = {}
         for (sector, period), (n, lt) in cells.items():
-            row = rows.get(sector)
+            row = by_sector.get(sector)
             if row is None:
-                row = rows[sector] = IndustryTimelineRow(
+                row = by_sector[sector] = IndustryTimelineRow(
                     sector=sector,
                     name=SECTOR_NAME.get(sector, "Unclassified"),
                     notices=[0] * len(periods),
@@ -678,7 +688,7 @@ def industries_timeline_body(
         # Sector order (as in /industries' NAICS table) keeps the payload stable;
         # the client ranks per frame.
         order = {sid: i for i, (sid, _, _) in enumerate(NAICS_SECTORS)}
-        sectors = sorted(rows.values(), key=lambda r: order.get(r.sector, len(order)))
+        sectors = sorted(by_sector.values(), key=lambda r: order.get(r.sector, len(order)))
         return Body.of(
             IndustryTimeline(periods=periods, sectors=sectors).model_dump_json().encode()
         )

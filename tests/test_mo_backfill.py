@@ -114,6 +114,65 @@ def test_py2015_log_pdf() -> None:
     assert liberty.layoff_count is None
 
 
+def test_rapidresponse_py2001_log() -> None:
+    rows = parse_mo_log_pdf(_read("rr_warnnotices2001.pdf"), "test")
+    assert len(rows) == 114
+    assert sum(r.layoff_count or 0 for r in rows) == 11_295  # printed Statewide Total
+    assert Counter(r.notice_date.year for r in rows) == {2001: 63, 2002: 51}
+    first = rows[0]
+    assert (first.employer, first.city, first.county) == (
+        "WorldPages.Com",
+        "St. Louis",
+        "St. Louis",
+    )
+    assert first.notice_date == date(2001, 7, 2)
+    assert first.effective_date == date(2001, 9, 14)
+
+
+def test_rapidresponse_py2009_letter_spaced_cells() -> None:
+    rows = parse_mo_log_pdf(_read("rr_py2009.pdf"), "test")
+    assert len(rows) == 43
+    assert sum(r.layoff_count or 0 for r in rows) == 5_943  # printed Total
+    kv = next(r for r in rows if r.employer == "KV Pharmaceutical")
+    assert kv.county == "St. Louis CO"  # printed "S t . L o u is CO"
+    monroe = next(r for r in rows if r.employer == "Monroe Consolidated")
+    assert monroe.county == "Marion"  # printed "M a r io n"
+
+
+def test_rapidresponse_py2011_row_above_first_rule() -> None:
+    # Page 2's first row (Ford Claycomo) has no top rule; without the explicit
+    # line it falls out of the table and the sum misses the printed Total.
+    rows = parse_mo_log_pdf(_read("rr_py2011_current.pdf"), "test")
+    assert len(rows) == 43
+    assert sum(r.layoff_count or 0 for r in rows) == 6_051  # printed Total
+    ford = next(r for r in rows if r.employer == "Ford")
+    assert (ford.notice_date, ford.layoff_count, ford.city) == (
+        date(2012, 3, 29),
+        1222,
+        "Claycomo",
+    )
+    assert {r.closure_type for r in rows} <= {"Layoff", "Closing", "Closure"}
+
+
+@pytest.mark.parametrize(
+    ("raw", "want"),
+    [
+        ("S t . L o u is CO", "St. Louis CO"),
+        ("M a r io n", "Marion"),
+        ("Douglas S t . L o u is CO Laclede B u t l e r", "Douglas St. Louis CO Laclede Butler"),
+        ("Heritage American Homes A Division", "Heritage American Homes A Division"),
+        (
+            "St. Louis & St. Charles & Jefferson & Franklin",
+            "St. Louis & St. Charles & Jefferson & Franklin",
+        ),
+    ],
+)
+def test_despace(raw: str, want: str) -> None:
+    from warn_v2.scrapers.states.mo import _despace
+
+    assert _despace(raw) == want
+
+
 def test_log_pdf_parse_failed_on_garbage() -> None:
     with pytest.raises(ParseFailed):
         parse_mo_log_pdf(_read("archive_log_2012_2015_excerpt.pdf")[:1], "x")
@@ -173,14 +232,18 @@ def test_html_parse_failed_when_no_warn_table() -> None:
 # Backfill wiring
 # ---------------------------------------------------------------------------
 
-def test_discovery_is_static_5_urls() -> None:
+def test_discovery_is_static_16_urls() -> None:
     urls = _discover_mo_archive_urls()
-    assert len(urls) == 5
+    assert len(urls) == 16
     assert all(u.startswith("https://web.archive.org/web/") and "id_/" in u for u in urls)
     pdfs = [u for u in urls if u.endswith(".pdf")]
-    assert len(pdfs) == 2
-    assert pdfs[0].endswith("warn_log_jul2012_to_present_2015-07-01.pdf")
-    assert pdfs[1].endswith("warn-log-py2015.pdf")
+    assert len(pdfs) == 13
+    # PY2001-PY2011 rapidresponse logs come first, then jobs.mo.gov
+    assert all("rapidresponse.ded.mo.gov" in u for u in pdfs[:11])
+    assert pdfs[0].endswith("warnnotices2001.pdf")
+    assert pdfs[10].endswith("WARNcurrent.pdf")
+    assert pdfs[11].endswith("warn_log_jul2012_to_present_2015-07-01.pdf")
+    assert pdfs[12].endswith("warn-log-py2015.pdf")
     # the 2015-09-12 warn-log-2016.pdf capture is a strict subset of the
     # py2015 capture and stays out of the list
     assert not [u for u in urls if "warn-log-2016" in u]

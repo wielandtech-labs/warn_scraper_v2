@@ -134,12 +134,13 @@ class _PlaceMonths(NamedTuple):
 
 
 # ~12 MB for monthly since 1999 at prod scale (measured on a synthetic
-# 12k-place, 80k-cell set); the three warmed windows plus a few taps.
-_rows_cache: TTLCache[_PlaceMonths] = TTLCache(max_entries=6)
-# A body is ~1.5 MB raw at prod scale, plus its gzip copy (both count); 32 MB
-# holds every unfiltered window x bucket plus a run of linked-view taps. The
-# pod's limit is 512 Mi.
-_body_cache: TTLCache[Body] = TTLCache(max_entries=64, max_bytes=32 << 20)
+# 12k-place, 80k-cell set). The warmer caches only that widest window and
+# rolls the narrower ones up from it; the rest is room for a few taps.
+_rows_cache: TTLCache[_PlaceMonths] = TTLCache(max_entries=4)
+# A body is ~0.35 MB gzipped at prod scale; 16 MB holds every unfiltered
+# window x bucket plus a long run of linked-view taps. The pod's limit is
+# 512 Mi.
+_body_cache: TTLCache[Body] = TTLCache(max_entries=64, max_bytes=16 << 20)
 
 
 def _query_place_months(db: Session, f: PlaceFilters) -> _PlaceMonths:
@@ -178,7 +179,9 @@ def _query_place_months(db: Session, f: PlaceFilters) -> _PlaceMonths:
 
     places: dict[tuple[float, float], int] = {}
     out = _PlaceMonths([], [], [], [])
-    for r in db.execute(stmt).all():
+    # Streamed: materializing ~80k Row objects at once is the warm-up's
+    # biggest transient allocation, and freed heap is slow to go back to the OS.
+    for r in db.execute(stmt.execution_options(yield_per=5000)):
         key = (round(float(r.lat), 4), round(float(r.lon), 4))
         i = places.get(key)
         if i is None:
@@ -197,27 +200,47 @@ def place_months(db: Session, f: PlaceFilters, *, refresh: bool = False) -> _Pla
 
 
 def timeline_body(
-    db: Session, bucket: Bucket, f: PlaceFilters, *, refresh: bool = False
+    db: Session,
+    bucket: Bucket,
+    f: PlaceFilters,
+    *,
+    refresh: bool = False,
+    rows: _PlaceMonths | None = None,
 ) -> Body:
     """The serialized /map-places/timeline body, cached. A miss (or
-    ``refresh``) rolls it up from the cached month grouping."""
+    ``refresh``) rolls it up from the cached month grouping.
+
+    ``rows`` rolls up a wider window's grouping instead -- same filters but
+    an earlier ``after`` -- dropping its months before ``f.after``, which
+    must then be the 1st of a month. The warmer uses it so the narrower
+    windows cost neither a query nor a cached copy of their rows. A place's
+    label then comes from its earliest month in the wider window, which can
+    differ from the queried one only where one point has two city spellings.
+    """
 
     def build() -> Body:
-        months = place_months(db, f)
+        months = rows if rows is not None else place_months(db, f)
+        floor = f.after.strftime("%Y-%m") if rows is not None and f.after else ""
         cells: dict[tuple[str, int], list[int]] = {}
         for i, month, n, w in months.cells:
+            if month < floor:
+                continue
             cell = cells.setdefault((period_of(month, bucket), i), [0, 0])
             cell[0] += n
             cell[1] += w
+        # Places with a cell in the window, renumbered in their original
+        # (lat, lon) order; on the queried path that's every place.
+        used = sorted({i for _, i in cells})
+        renumber = {i: k for k, i in enumerate(used)}
         periods = period_range({p for p, _ in cells}, bucket)
         index = {p: k for k, p in enumerate(periods)}
         ordered = sorted(cells.items(), key=lambda kv: (index[kv[0][0]], kv[0][1]))
         return Body.of(json_bytes({
-            "lat": months.lat,
-            "lon": months.lon,
-            "label": months.label,
+            "lat": [months.lat[i] for i in used],
+            "lon": [months.lon[i] for i in used],
+            "label": [months.label[i] for i in used],
             "periods": periods,
-            "place": [i for (_, i), _ in ordered],
+            "place": [renumber[i] for (_, i), _ in ordered],
             "period": [index[p] for (p, _), _ in ordered],
             "notices": [c[0] for _, c in ordered],
             "workers": [c[1] for _, c in ordered],

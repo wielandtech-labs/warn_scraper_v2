@@ -50,20 +50,25 @@ def json_bytes(body: Any) -> bytes:
 
 
 class Body(NamedTuple):
-    """A cached JSON body, kept raw for identity clients and gzipped once."""
+    """A cached JSON body, gzipped once. Only the gzip bytes are kept (a
+    quarter of the raw size): nearly every client accepts gzip, and the rare
+    one that doesn't gets a copy decompressed per request."""
 
-    raw: bytes
     gz: bytes
 
     @classmethod
     def of(cls, raw: bytes) -> Body:
         # Level 6 and mtime=0 as GZipMiddleware would produce (minus its
         # timestamp), so the bytes are stable across refills.
-        return cls(raw, gzip.compress(raw, compresslevel=6, mtime=0))
+        return cls(gzip.compress(raw, compresslevel=6, mtime=0))
+
+    @property
+    def raw(self) -> bytes:
+        return gzip.decompress(self.gz)
 
     @property
     def nbytes(self) -> int:
-        return len(self.raw) + len(self.gz)
+        return len(self.gz)
 
 
 def body_response(
@@ -87,7 +92,7 @@ def body_response(
 class TTLCache[T]:
     """Thread-safe in-process LRU with per-entry expiry (after logo_fetch's
     _TTLCache). Past ``max_entries`` -- or ``max_bytes``, counting the size
-    of ``Body`` (raw + gzip) or bytes values -- the least recently used
+    of ``Body`` (its gzip bytes) or bytes values -- the least recently used
     entries are dropped first, so the defaults everyone opens outlast one-off
     filter combinations.
 

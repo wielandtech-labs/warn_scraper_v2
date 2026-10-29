@@ -9,10 +9,12 @@ Schema (confirmed from live site, May 2026):
   Received | Title | Industry | Location(s) | County | Region |
   Type | Layoff date(s) | # affected | Notes
 
-Historical backfill (Jul 2012 - Dec 2018): jobs.mo.gov purged its pre-2019
+Historical backfill (Jul 2001 - Dec 2018): jobs.mo.gov purged its pre-2019
 program-year pages (MO publishes by Program Year, July-June), but the Wayback
 Machine holds a consolidated Jul-2012→Jun-2015 log PDF, the PY2015 log PDF,
-and the PY2016-PY2018 HTML pages. Static pinned captures — no runtime CDX.
+and the PY2016-PY2018 HTML pages. The older rapidresponse.ded.mo.gov site
+holds one log PDF per program year PY2001-PY2011 (same 8-column layout).
+Static pinned captures — no runtime CDX.
 See ``_discover_mo_archive_urls`` / ``parse_mo_log_pdf`` /
 ``parse_mo_archive_html``.
 """
@@ -208,6 +210,25 @@ register(MOScraper())
 # Sep 2015-Jun 2016 (the PY2015 log stopped updating), May-Jun 2017 (PY2016
 # page captured 2017-04) and Jan-Jun 2018 (PY2017 page captured 2017-12).
 _ARCHIVE_CAPTURES: tuple[tuple[str, str], ...] = (
+    # rapidresponse.ded.mo.gov per-program-year logs, PY2001-PY2011. PY2006-PY2009
+    # use the 2012-03 re-issues, not the 2010-05 captures, because the re-issues
+    # carry revised counts (May Department Stores PY2006: 6 -> 1,254). PY2011
+    # (WARNcurrent.pdf, captured 2012-05-22) runs to 2012-05-17, so it meets
+    # the consolidated log below; nothing is captured for 2012-05-18..06-30.
+    ("20060929172727", "http://rapidresponse.ded.mo.gov/upload/warnnotices2001.pdf"),
+    ("20060929172810", "http://rapidresponse.ded.mo.gov/upload/warnnotices2002.pdf"),
+    ("20060929172716", "http://rapidresponse.ded.mo.gov/upload/warnnotices2003.pdf"),
+    ("20060929172720", "http://rapidresponse.ded.mo.gov/upload/warnnotices2004.pdf"),
+    (
+        "20060929172658",
+        "http://rapidresponse.ded.mo.gov/upload/warn_notices_2005_pdf_format.pdf",
+    ),
+    ("20120316160326", "http://rapidresponse.ded.mo.gov:80/documents/06WARN+NOTICES.pdf"),
+    ("20120316160332", "http://rapidresponse.ded.mo.gov:80/documents/07WARN+NOTICES.pdf"),
+    ("20120316160337", "http://rapidresponse.ded.mo.gov:80/documents/08WARN+NOTICES.pdf"),
+    ("20120316160341", "http://rapidresponse.ded.mo.gov:80/documents/09WARN+NOTICES.pdf"),
+    ("20120316160355", "http://rapidresponse.ded.mo.gov:80/documents/WARN2010.pdf"),
+    ("20120522203548", "http://rapidresponse.ded.mo.gov:80/documents/WARNcurrent.pdf"),
     # Consolidated log, Jul 2012 - Jun 2015 (PY2012-PY2014), 17-page PDF.
     (
         "20151018024542",
@@ -238,6 +259,15 @@ def _discover_mo_archive_urls() -> list[str]:
     return [replay_url(ts, url) for ts, url in _ARCHIVE_CAPTURES]
 
 
+_TYPE_WORDS = {"layoff", "closing", "closure"}
+
+
+def _type_word(cell: str) -> str:
+    """Undo a stray glyph space in a one-word type cell ("L ayoff" -> "Layoff")."""
+    joined = cell.replace(" ", "")
+    return joined if joined.lower() in _TYPE_WORDS else cell
+
+
 def _mo_archive_row(
     date_raw: str,
     employer_raw: str,
@@ -264,16 +294,46 @@ def _mo_archive_row(
         notice_date=notice_date,
         effective_date=effective_date,
         layoff_count=as_int(count_raw),
-        closure_type=as_str(closure_type or ""),
+        closure_type=as_str(_type_word(closure_type or "")),
         city=as_str(location or ""),
         county=as_str(county or ""),
         source_url=source_url,
     )
 
 
+def _despace(text: str) -> str:
+    """Rejoin letter-spaced words ("S t . L o u is CO" -> "St. Louis CO").
+
+    Some PY2009/PY2010 cells were typeset with a space after every glyph. A
+    token joins the previous one when either is a single character, and while
+    a join chain is running a following single character continues it. A
+    cell with fewer than three single-character tokens is left alone, so a
+    real "Homes A Division" survives.
+    """
+    tokens = text.split()
+
+    def glyph(t: str) -> bool:  # "&" in "St. Louis & Kirkwood" is a real word
+        return len(t) == 1 and t != "&"
+
+    if sum(glyph(t) for t in tokens) < 3:
+        return text
+    words: list[str] = []
+    prev = ""
+    chaining = False
+    for tok in tokens:
+        if words and tok != "&" and (glyph(prev) or (chaining and glyph(tok))):
+            words[-1] += tok
+            chaining = True
+        else:
+            words.append(tok)
+            chaining = False
+        prev = tok
+    return re.sub(r"\bSt\.(?=[A-Z])", "St. ", " ".join(words))
+
+
 def _clean_cell(cell) -> str:
     """Collapse a pdfplumber cell (may be None / hold wrap newlines) to one line."""
-    return " ".join(str(cell).split()) if cell else ""
+    return _despace(" ".join(str(cell).split())) if cell else ""
 
 
 def parse_mo_log_pdf(raw: bytes, source_url: str) -> list[NoticeRow]:
@@ -288,6 +348,10 @@ def parse_mo_log_pdf(raw: bytes, source_url: str) -> list[NoticeRow]:
     the first is the original filing); dateless rows are headers, PY totals,
     or the location-list overflow of a row split across a page break (its
     filing is already captured on the previous page).
+
+    Some pages draw their first row's cell boxes without a top rule, which
+    hides that row from lattice extraction (PY2011: Ford Claycomo, 1,222), so
+    each page also gets an explicit horizontal line at its topmost rect edge.
     """
     rows: list[NoticeRow] = []
     try:
@@ -296,7 +360,12 @@ def parse_mo_log_pdf(raw: bytes, source_url: str) -> list[NoticeRow]:
         raise ParseFailed(f"MO log PDF: not a readable PDF: {exc}") from exc
     with pdf:
         for page in pdf.pages:
-            for tbl in page.extract_tables():
+            settings = (
+                {"explicit_horizontal_lines": [min(r["top"] for r in page.rects)]}
+                if page.rects
+                else {}
+            )
+            for tbl in page.extract_tables(settings):
                 for r in tbl:
                     if not r or len(r) % 8:
                         continue
