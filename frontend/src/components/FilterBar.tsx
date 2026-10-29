@@ -246,15 +246,25 @@ function activePreset(
 
 /* The date range as one toolbar button: its label is the range in force, and
    it opens the quick presets plus the After/Before inputs. Closes on an
-   outside click or Escape. */
-function DateMenu({
+   outside click or Escape. /map's timeline reuses it as its "Custom" range,
+   with its own trigger look and no "All" preset (its other ranges cover
+   that). */
+export function DateMenu({
   values,
   update,
   defaultDays,
+  triggerClassName,
+  idleLabel,
+  showAllPreset = true,
 }: {
   values: FilterValues;
   update: (patch: Partial<FilterValues>) => void;
   defaultDays?: number;
+  /** Replaces the toolbar-field look of the trigger button. */
+  triggerClassName?: string;
+  /** The trigger's label while no dates are set. */
+  idleLabel?: string;
+  showAllPreset?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -280,7 +290,9 @@ function DateMenu({
 
   const preset = activePreset(values, defaultDays);
   const after = values.after === ALL_TIME ? undefined : values.after;
-  const label = preset
+  const label = idleLabel && !after && !values.before
+    ? idleLabel
+    : preset
     ? preset.days === null
       ? "All time"
       : `Last ${preset.label}`
@@ -308,13 +320,13 @@ function DateMenu({
         aria-expanded={open}
         aria-label={`Date range: ${label}`}
         onClick={() => setOpen((v) => !v)}
-        className={`${FIELD} inline-flex items-center gap-1.5 whitespace-nowrap`}
+        className={triggerClassName ?? `${FIELD} inline-flex items-center gap-1.5 whitespace-nowrap`}
       >
-        <svg aria-hidden viewBox="0 0 20 20" className="h-4 w-4 fill-slate-400">
+        <svg aria-hidden viewBox="0 0 20 20" className={`h-4 w-4 ${triggerClassName ? "fill-current opacity-60" : "fill-slate-400"}`}>
           <path d="M6 2.75a.75.75 0 0 1 1.5 0V4h5V2.75a.75.75 0 0 1 1.5 0V4h.75A2.25 2.25 0 0 1 17 6.25v8.5A2.25 2.25 0 0 1 14.75 17h-9.5A2.25 2.25 0 0 1 3 14.75v-8.5A2.25 2.25 0 0 1 5.25 4H6V2.75ZM4.5 8.5v6.25c0 .41.34.75.75.75h9.5c.41 0 .75-.34.75-.75V8.5h-11Z" />
         </svg>
         {label}
-        <svg aria-hidden viewBox="0 0 20 20" className="h-4 w-4 fill-slate-400">
+        <svg aria-hidden viewBox="0 0 20 20" className={`h-4 w-4 ${triggerClassName ? "fill-current opacity-60" : "fill-slate-400"}`}>
           <path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" />
         </svg>
       </button>
@@ -326,7 +338,7 @@ function DateMenu({
           className="absolute right-0 top-full z-30 mt-1.5 w-72 space-y-3 rounded-xl border border-slate-200 bg-white p-3 shadow-xl dark:border-slate-700 dark:bg-slate-900"
         >
           <div className="flex flex-wrap gap-1.5">
-            {PRESETS.map((p) => (
+            {PRESETS.filter((p) => showAllPreset || p.days !== null).map((p) => (
               <button
                 key={p.label}
                 type="button"

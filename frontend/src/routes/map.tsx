@@ -37,6 +37,7 @@ import {
   rollupPlaces,
   statesReporting,
   wholeWindow,
+  WINDOWS,
 } from "../lib/timelapse";
 import type { MapSearch } from "../router";
 
@@ -136,9 +137,10 @@ export function MapPage() {
     filters.after ?? filters.before,
   ].filter((v) => v != null).length;
 
-  // The timeline covers the window, narrowed by any date filter.
-  const windowStart = `${since}-01-01`;
-  const windowAfter = filters.after && filters.after > windowStart ? filters.after : windowStart;
+  // The timeline covers the Range: a window ("Since 2015"), or a custom date
+  // range, which replaces the window (an open start reaches back to 1999).
+  const custom = filters.after != null || filters.before != null;
+  const windowAfter = filters.after ?? `${custom ? WINDOWS[WINDOWS.length - 1][0] : since}-01-01`;
 
   const placesQuery = useQuery({
     queryKey: ["map-places", filters],
@@ -389,23 +391,18 @@ export function MapPage() {
     setPlaying(false);
     setAt(all ? "all" : (lastPeriod.current ?? frames[lastComplete] ?? null));
   };
-  const clearDates = () =>
-    navigate({
-      search: (prev) => ({ ...prev, after: undefined, before: undefined }),
-      resetScroll: false,
-    });
-  const dateLimit =
-    filters.after || filters.before
-      ? {
-          text:
-            filters.after && filters.before
-              ? `${fmtDate(filters.after)} – ${fmtDate(filters.before)}`
-              : filters.after
-                ? `from ${fmtDate(filters.after)}`
-                : `until ${fmtDate(filters.before!)}`,
-          onClear: clearDates,
-        }
-      : null;
+  const dates = custom
+    ? {
+        after: filters.after,
+        before: filters.before,
+        text:
+          filters.after && filters.before
+            ? `${fmtDate(filters.after)} – ${fmtDate(filters.before)}`
+            : filters.after
+              ? `Since ${fmtDate(filters.after)}`
+              : `Until ${fmtDate(filters.before!)}`,
+      }
+    : null;
   const setBucket = (b: TimelineBucket) => {
     const next = period ? periodOf(periodStartMonth(period), b) : at;
     setAt(next);
@@ -415,10 +412,23 @@ export function MapPage() {
       resetScroll: false,
     });
   };
+  // Picking a window drops any custom range; picking a custom range keeps
+  // the window for when it's cleared.
   const setSince = (y: number) =>
     navigate({
-      search: (prev) => ({ ...prev, since: y === DEFAULT_SINCE ? undefined : y }),
+      search: (prev) => ({
+        ...prev,
+        since: y === DEFAULT_SINCE ? undefined : y,
+        after: undefined,
+        before: undefined,
+      }),
       replace: true,
+      resetScroll: false,
+    });
+  const setDates = (patch: Partial<FilterValues>) =>
+    navigate({
+      // A key in the patch wins even when undefined: a cleared date input.
+      search: (prev) => ({ ...prev, ...patch }),
       resetScroll: false,
     });
   const setIndustry = (sector: string | null) =>
@@ -465,7 +475,7 @@ export function MapPage() {
   const raceTimeline = allTime
     ? allTimeIndustryQuery.data && wholeWindow(allTimeIndustryQuery.data)
     : timeline;
-  const raceWhen = allTime ? "all time" : label;
+  const raceWhen = allTime ? (dates ? dates.text : "all time") : label;
 
   return (
     <div className="space-y-4">
@@ -496,7 +506,8 @@ export function MapPage() {
         onTogglePlay={togglePlay}
         onScrub={scrub}
         onShowAllTime={showAllTime}
-        dateLimit={dateLimit}
+        dates={dates}
+        onDates={setDates}
         bucket={bucket}
         onBucket={setBucket}
         since={since}

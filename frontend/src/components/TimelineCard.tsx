@@ -1,4 +1,7 @@
+import type { ReactNode } from "react";
+
 import type { TimelineBucket } from "../api/client";
+import { DateMenu, type FilterValues } from "./FilterBar";
 import type { ResolvedTheme } from "../hooks/useTheme";
 import { fmtDate, fmtNum } from "../lib/format";
 import { periodLabel, WINDOWS } from "../lib/timelapse";
@@ -35,7 +38,8 @@ export function TimelineCard({
   onTogglePlay,
   onScrub,
   onShowAllTime,
-  dateLimit,
+  dates,
+  onDates,
   bucket,
   onBucket,
   since,
@@ -57,9 +61,10 @@ export function TimelineCard({
   onTogglePlay: () => void;
   onScrub: (i: number) => void;
   onShowAllTime: (allTime: boolean) => void;
-  /** A date filter narrowing the timeline (from an older link), shown with
-   *  a way to remove it. */
-  dateLimit: { text: string; onClear: () => void } | null;
+  /** A custom date range ("Custom" in Range), if one is set: its after/before
+   *  and how it reads ("Mar 1, 2021 – Jun 30, 2022"). */
+  dates: { after?: string; before?: string; text: string } | null;
+  onDates: (patch: Partial<FilterValues>) => void;
   bucket: TimelineBucket;
   onBucket: (b: TimelineBucket) => void;
   since: number;
@@ -73,8 +78,12 @@ export function TimelineCard({
   const total = allTime ? undefined : totals[idx];
   const label = period ? periodLabel(period) : "";
   const isPartial = partial && idx === last;
+  // With a custom range, "all" is that range, not all time.
+  const allLabel = dates ? "Whole range" : "All time";
   const valueText = allTime
-    ? "All time"
+    ? dates
+      ? `${dates.text}, combined`
+      : "All time"
     : period && total
       ? `${label}${isPartial ? " (partial)" : ""}: ${fmtNum(total.notices)} notices, ${fmtNum(
           total.workers,
@@ -107,7 +116,7 @@ export function TimelineCard({
         </button>
         <div className="min-w-0">
           <p className="text-xl font-semibold tabular-nums leading-tight text-slate-900 dark:text-slate-50">
-            {allTime ? "All time" : label || "…"}
+            {allTime ? (dates ? dates.text : "All time") : label || "…"}
             {isPartial && (
               <span className="ml-2 align-middle text-xs font-medium text-slate-500 dark:text-slate-400">
                 partial, through {fmtDate(new Date().toISOString().slice(0, 10))}
@@ -116,7 +125,7 @@ export function TimelineCard({
           </p>
           <p className="text-sm tabular-nums text-slate-600 dark:text-slate-400">
             {allTime
-              ? "Every notice on record, combined. Press play or drag the timeline to see one period at a time."
+              ? `Every notice ${dates ? "in this range" : "on record"}, combined. Press play or drag the timeline to see one period at a time.`
               : total
                 ? `${fmtNum(total.workers)} workers · ${fmtNum(total.notices)} notices`
                 : "Loading…"}
@@ -162,7 +171,7 @@ export function TimelineCard({
           label="Show"
           options={[
             [false, "One period"],
-            [true, "All time"],
+            [true, allLabel],
           ]}
           value={allTime}
           onChange={onShowAllTime}
@@ -171,8 +180,18 @@ export function TimelineCard({
         <Segmented
           label="Range"
           options={WINDOWS.map(([y, l]) => [y, l] as [number, string])}
-          value={since}
+          // A custom range presses "Custom" instead of a window.
+          value={dates ? -1 : since}
           onChange={onSince}
+          extra={
+            <DateMenu
+              values={{ after: dates?.after, before: dates?.before }}
+              update={onDates}
+              showAllPreset={false}
+              idleLabel="Custom"
+              triggerClassName={`${PILL} inline-flex items-center gap-1 ${dates ? PILL_ON : PILL_OFF}`}
+            />
+          }
         />
         <Segmented
           label="Speed"
@@ -181,18 +200,6 @@ export function TimelineCard({
           onChange={onSpeed}
         />
       </div>
-      {dateLimit && (
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          Dates limited to {dateLimit.text}.{" "}
-          <button
-            type="button"
-            onClick={dateLimit.onClear}
-            className="font-medium text-sky-700 hover:underline dark:text-sky-400"
-          >
-            Remove limit
-          </button>
-        </p>
-      )}
       {/* Spoken once the frame settles; silent while playing. */}
       <p className="sr-only" aria-live={playing ? "off" : "polite"}>
         {valueText}
@@ -201,16 +208,24 @@ export function TimelineCard({
   );
 }
 
+const PILL = "rounded-full px-2.5 py-0.5 font-medium transition-colors";
+const PILL_ON = "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900";
+const PILL_OFF =
+  "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100";
+
 function Segmented<T extends string | number | boolean>({
   label,
   options,
   value,
   onChange,
+  extra,
 }: {
   label: string;
   options: [T, string][];
   value: T;
   onChange: (v: T) => void;
+  /** One more control at the end of the group. */
+  extra?: ReactNode;
 }) {
   return (
     <div className="flex items-center gap-2">
@@ -226,15 +241,12 @@ function Segmented<T extends string | number | boolean>({
             type="button"
             aria-pressed={value === v}
             onClick={() => onChange(v)}
-            className={`rounded-full px-2.5 py-0.5 font-medium transition-colors ${
-              value === v
-                ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-            }`}
+            className={`${PILL} ${value === v ? PILL_ON : PILL_OFF}`}
           >
             {l}
           </button>
         ))}
+        {extra}
       </div>
     </div>
   );
