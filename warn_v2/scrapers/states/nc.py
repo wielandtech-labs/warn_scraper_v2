@@ -16,6 +16,9 @@ Three PDF layout eras exist (probed 2026-07-07); ``parse_nc_pdf`` dispatches on
 detected content, not the year, so an unseen middle year still lands in the
 right sub-parser:
 
+* **2009-2012** — the same report's rolling "Summary Count(Intranet)"
+  edition, with County instead of City; four Wayback captures survive
+  (``_INTRANET_PDFS``) → ``_parse_nc_intranet_summary``.
 * **2013-~2017** — "WARN Notice - Summary Count": flowing text with monthly
   subtotal lines, no table grid. Word-position parsing like ``nv.py``.
   (2013 survives only as a Wayback capture of the old nccommerce.com PDF.)
@@ -192,15 +195,61 @@ _WARN_2013_PDF_URL = replay_url(
     "20150327025758", "http://www.nccommerce.com/Portals/11/WARN/Warn-2013.pdf"
 )
 
+# Before 2013 the same report was a rolling "Summary Count(Intranet)" PDF whose
+# date range moved with each edition. These captures are the only ones left
+# (a 2026-10 CDX sweep): (timestamp, url, first and last notice date to keep).
+# The 2013-03-11 edition spans 1/1/2012-3/8/2013; its 2013 rows belong to
+# Warn-2013.pdf above, so it is clipped to calendar 2012. The others are
+# partial windows: PY2009 (7/1/2009-6/29/2010), 1-15 Jan 2009, Oct-17 Nov 2011.
+_INTRANET_PDFS: tuple[tuple[str, str, date, date], ...] = (
+    (
+        "20130311205029",
+        "http://www.nccommerce.com/Portals/11/Documents/Reports/WARN/Warn.pdf",
+        date(2012, 1, 1),
+        date(2012, 12, 31),
+    ),
+    (
+        "20111125051935",
+        "http://intranet.nccommerce.com:80/warn/data/warn.pdf",
+        date(2011, 10, 1),
+        date(2011, 11, 17),
+    ),
+    (
+        "20100704223347",
+        "http://intranet.nccommerce.com:80/warn/data/warn.pdf",
+        date(2009, 7, 1),
+        date(2010, 6, 29),
+    ),
+    (
+        "20090117092954",
+        "http://intranet.nccommerce.com:80/warn/data/warn.pdf",
+        date(2009, 1, 1),
+        date(2009, 1, 15),
+    ),
+)
+_INTRANET_WINDOWS = {replay_url(ts, u): (lo, hi) for ts, u, lo, hi in _INTRANET_PDFS}
+
+
+def _intranet_window(source_url: str) -> tuple[date, date]:
+    """Keep-window for a capture, matched by its timestamp so a reformatted
+    replay URL still clips (the 2013-03 edition must never leak 2013 rows)."""
+    for ts, _u, lo, hi in _INTRANET_PDFS:
+        if f"/{ts}" in source_url:
+            return lo, hi
+    return date.min, date.max
+
 
 def _discover_nc_pdf_urls() -> list[str]:
     """Return one absolute PDF URL per archive year, newest first: the hub's
-    /open links (2014+) plus the pinned Wayback 2013 capture."""
+    /open links (2014+), then the pinned Wayback captures (2013 and the
+    pre-2013 intranet editions). The pins don't depend on the hub, so a hub
+    outage still returns them."""
+    pinned = [_WARN_2013_PDF_URL, *_INTRANET_WINDOWS]
     try:
         r = httpx.get(_ARCHIVE_HUB, headers=_UA, timeout=60, follow_redirects=True)
         r.raise_for_status()
     except httpx.HTTPError:
-        return []
+        return pinned
     soup = BeautifulSoup(r.content, "html.parser")
     by_year: dict[int, str] = {}
     for a in soup.find_all("a", href=True):
@@ -211,7 +260,7 @@ def _discover_nc_pdf_urls() -> list[str]:
         year = int(m.group(1))
         url = href if href.startswith("http") else _BASE_URL + href
         by_year.setdefault(year, url)  # first (page lists newest first)
-    return [by_year[y] for y in sorted(by_year, reverse=True)] + [_WARN_2013_PDF_URL]
+    return [by_year[y] for y in sorted(by_year, reverse=True)] + pinned
 
 
 def parse_nc_pdf(raw: bytes, source_url: str) -> list[NoticeRow]:
@@ -234,6 +283,8 @@ def parse_nc_pdf(raw: bytes, source_url: str) -> list[NoticeRow]:
             rows = _parse_nc_current_grid(pdf, source_url)
         elif "county/parish" in joined and "employees" in joined:
             rows = _parse_nc_ssrs_grid(pdf, source_url)
+        elif "summary count(intranet)" in header_txt:
+            rows = _parse_nc_intranet_summary(pdf, source_url)
         elif table is None or "summary count" in header_txt:
             rows = _parse_nc_summary_count(pdf, source_url)
         else:
@@ -491,6 +542,153 @@ def _parse_nc_summary_count(pdf, source_url: str) -> list[NoticeRow]:
                 flush()
     flush()
     return rows
+
+
+_INTRANET_COLS = ("notice", "eff", "mid", "count", "ctype")
+# Gap (pt) between the last company word and the county. Words inside a name
+# sit 3-5pt apart; the narrowest company-to-county gap seen is ~27pt.
+_COUNTY_GAP = 12
+
+
+def _intranet_anchors(words: list[dict]) -> list[float] | None:
+    """Left edges of the Effective / Company / # / Layoff header words.
+
+    Column positions differ between editions, so they are read off each
+    page's header rather than hard-coded. County is not an anchor: its values
+    sit up to 30pt left of the header (2010 edition), so company and county
+    are told apart by the gap between them instead (``_split_mid``).
+    """
+    by_text: dict[str, list[float]] = defaultdict(list)
+    for w in words:
+        by_text[w["text"]].append(w["x0"])
+    try:
+        emp_x = min(by_text["#"])
+        return [
+            min(by_text["Effective"]),
+            min(by_text["Company"]),
+            emp_x,
+            min(x for x in by_text["Layoff"] if x > emp_x),
+        ]
+    except ValueError:
+        return None
+
+
+def _split_mid(words: list[dict], company_x: float) -> tuple[list[str], list[str]]:
+    """Split Company+County words at the first wide gap.
+
+    A line whose first word starts away from the Company column (a wrapped
+    county list) is all county.
+    """
+    if not words:
+        return [], []
+    if words[0]["x0"] > company_x + 5:
+        return [], [w["text"] for w in words]
+    for i in range(1, len(words)):
+        if words[i]["x0"] - words[i - 1]["x1"] > _COUNTY_GAP:
+            return [w["text"] for w in words[:i]], [w["text"] for w in words[i:]]
+    return [w["text"] for w in words], []
+
+
+def _lines(words: list[dict], tol: float = 4) -> list[list[dict]]:
+    """Group words into visual lines. Cells on one line drift ~2pt in ``top``,
+    which straddles fixed buckets, so a line runs while ``top`` stays within
+    ``tol`` of its first word."""
+    out: list[list[dict]] = []
+    for w in sorted(words, key=lambda w: w["top"]):
+        if out and w["top"] - out[-1][0]["top"] <= tol:
+            out[-1].append(w)
+        else:
+            out.append([w])
+    return [sorted(line, key=lambda w: w["x0"]) for line in out]
+
+
+def _parse_nc_intranet_summary(pdf, source_url: str) -> list[NoticeRow]:
+    """Pre-2013 "Summary Count(Intranet)" edition of the rolling report.
+
+    Same flowing-text shape as ``_parse_nc_summary_count``, but with a County
+    column instead of City and column positions that move per edition, so
+    words are bucketed by the header anchors (5pt slack: data starts a few pt
+    left of its header). Rows outside the pinned capture's window are dropped
+    (see ``_INTRANET_PDFS``). Same-day rows of one employer (PNC 1/5/2012:
+    Nash 56, Nash 50, Nash 212, Wake 60...) would collapse under the
+    notice_id hash, which has no county, so they are merged here with their
+    counts summed; the county is kept only when they all agree.
+    """
+    lo, hi = _intranet_window(source_url)
+    recs: list[dict] = []
+    anchors: list[float] | None = None
+    open_rec = False
+
+    def col(x: float) -> str:
+        assert anchors is not None
+        i = sum(x >= a - 5 for a in anchors)
+        return _INTRANET_COLS[i]
+
+    for page in pdf.pages:
+        page_words = page.extract_words()
+        # The header wraps over several lines, so read the anchors from every
+        # word above the page's first dated row (a date at the left margin;
+        # the "Date Range:" banner's dates sit mid-page).
+        dated = [
+            w["top"] for w in page_words if w["x0"] < 100 and _SUM_DATE_RE.match(w["text"])
+        ]
+        if dated:
+            head = [w for w in page_words if w["top"] < min(dated)]
+            anchors = _intranet_anchors(head) or anchors
+        if anchors is None:
+            continue
+        for words in _lines(page_words):
+            first = words[0]
+            mid = [w for w in words if col(w["x0"]) == "mid"]
+            if _SUM_DATE_RE.match(first["text"]) and col(first["x0"]) == "notice":
+                rec: dict[str, list[str]] = {c: [] for c in (*_INTRANET_COLS, "emp", "county")}
+                for w in words:
+                    if col(w["x0"]) != "mid":
+                        rec[col(w["x0"])].append(w["text"])
+                emp, county = _split_mid(mid, anchors[1])
+                rec["emp"], rec["county"] = emp, county
+                recs.append(rec)
+                open_rec = True
+            elif open_rec and col(first["x0"]) == "mid" and len(mid) == len(words):
+                # A wrapped company/county line. Subtotal and header lines
+                # either start at the left margin or carry a count, and they
+                # close the record.
+                emp, county = _split_mid(mid, anchors[1])
+                recs[-1]["emp"] += emp
+                recs[-1]["county"] += county
+            else:
+                open_rec = False
+
+    merged: dict[tuple[str, date], NoticeRow] = {}
+    counties: dict[tuple[str, date], set[str]] = defaultdict(set)
+    for rec in recs:
+        employer = as_str(" ".join(rec["emp"]))
+        notice_date = as_date(" ".join(rec["notice"]))
+        if not employer or notice_date is None or not lo <= notice_date <= hi:
+            continue
+        key = (employer, notice_date)
+        count = as_int(" ".join(rec["count"]))
+        county = as_str(" ".join(rec["county"]))
+        if county:
+            counties[key].add(county)
+        if key in merged:
+            prev = merged[key]
+            if count is not None:
+                prev.layoff_count = (prev.layoff_count or 0) + count
+            continue
+        merged[key] = NoticeRow(
+            state="NC",
+            employer=employer,
+            notice_date=notice_date,
+            effective_date=as_date(" ".join(rec["eff"])),
+            layoff_count=count,
+            closure_type=as_str(" ".join(rec["ctype"])),
+            source_url=source_url,
+        )
+    for key, row in merged.items():
+        if len(counties[key]) == 1:
+            row.county = next(iter(counties[key]))
+    return list(merged.values())
 
 
 register(NCScraper())

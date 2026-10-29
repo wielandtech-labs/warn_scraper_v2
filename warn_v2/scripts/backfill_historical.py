@@ -25,7 +25,7 @@ misses become duplicates on a real run; review them and plan a
 Usage::
 
     warn-v2 backfill-historical --state CA
-    warn-v2 backfill-historical --state DC --year-start 2013
+    warn-v2 backfill-historical --state DC --dry-run
     warn-v2 backfill-historical --state VT --dry-run
 """
 from __future__ import annotations
@@ -59,7 +59,11 @@ from warn_v2.scrapers.states.ca import (
 )
 from warn_v2.scrapers.states.co import _fetch_co_year, _parse_co_year
 from warn_v2.scrapers.states.ct import _discover_ct_archive_urls, parse_ct_archive
-from warn_v2.scrapers.states.dc import _fetch_dc_year
+from warn_v2.scrapers.states.dc import (
+    _fetch_dc_year,  # noqa: F401 - the DC year-loop spec (commented below); tests patch it
+    dc_log_urls,
+    parse_dc_log,
+)
 from warn_v2.scrapers.states.fl import _fetch_fl_year, parse_fl_year
 from warn_v2.scrapers.states.ga import (
     GA_CICS_MEMBER,
@@ -197,7 +201,15 @@ _BACKFILL: dict[str, BackfillSpec] = {
         discover_urls=lambda: _discover_ct_archive_urls(),
         parse_for_url=lambda u: (lambda raw, _u=u: parse_ct_archive(raw, _u)),
     ),
-    "DC": BackfillSpec(year_start=2013, fetch_year=lambda s, y: _fetch_dc_year(y)),
+    # DC: the 2002 - Jan 2012 "Monthly WARN Notification Log" from three pinned
+    # Wayback captures (dc._LOG_CAPTURES). The live year pages 2013+ were the
+    # route before 2026-10-26 and are already in prod; restore this to re-run
+    # them:
+    #   BackfillSpec(year_start=2013, fetch_year=lambda s, y: _fetch_dc_year(y))
+    "DC": BackfillSpec(
+        discover_urls=lambda: dc_log_urls(),
+        parse_for_url=lambda u: (lambda raw, _u=u: parse_dc_log(raw, _u)),
+    ),
     # CO: one Google Sheet per year, 2015+; the regular scraper reads only the
     # two newest. _parse_co_year skips the scraper's staleness guard.
     "CO": BackfillSpec(
@@ -362,9 +374,10 @@ _BACKFILL: dict[str, BackfillSpec] = {
         parse_for_url=lambda u: (lambda raw, _u=u: _parse_mn_archive_pdf(raw, _u)),
     ),
     # MO: jobs.mo.gov purged its pre-2019 program-year pages (MO publishes by
-    # Program Year, Jul-Jun); five static pinned Wayback captures hold a
-    # consolidated Jul2012-Jun2015 log PDF, the PY2015 log PDF, and the
-    # PY2016-PY2018 HTML pages — no runtime CDX. The regular scraper crawls
+    # Program Year, Jul-Jun); static pinned Wayback captures hold eleven
+    # rapidresponse.ded.mo.gov PY2001-PY2011 log PDFs, a consolidated
+    # Jul2012-Jun2015 log PDF, the PY2015 log PDF, and the PY2016-PY2018 HTML
+    # pages — no runtime CDX. Every PDF goes through parse_mo_log_pdf. The regular scraper crawls
     # 2019-present every run and that data is complete, and the PY2018 page
     # runs into early 2019, so both archive parsers drop rows dated >= 2019-01-01.
     # Mid-PY captures leave gaps (Sep 2015-Jun 2016, May-Jun 2017,
