@@ -961,6 +961,9 @@ def test_map_places_timeline_filters(api_client, db):
 
     body = api_client.get("/api/map-places/timeline?industry=31-33").json()
     assert (body["lat"], body["notices"]) == ([34.0], [1])
+    # min_layoffs as on /api/map-places: _geocoded_notice reports 100 workers.
+    assert len(api_client.get("/api/map-places/timeline?min_layoffs=100").json()["lat"]) == 3
+    assert api_client.get("/api/map-places/timeline?min_layoffs=101").json()["lat"] == []
     assert api_client.get("/api/map-places/timeline?after=2027-01-01").json() == {
         "lat": [], "lon": [], "label": [], "periods": [],
         "place": [], "period": [], "notices": [], "workers": [],
@@ -1145,7 +1148,7 @@ def test_timeline_warmer_fills_and_refreshes_the_defaults(api_client, db, db_ses
     db.commit()
 
     # /timelapse's default request is served from the warmed entry...
-    url = "/api/map-places/timeline?bucket=quarter&after=2015-01-01"
+    url = "/api/map-places/timeline?bucket=month&after=2015-01-01"
     assert api_client.get(url).json()["notices"] == [1]
     assert api_client.get(
         "/api/stats/industries/timeline?bucket=month&after=1999-01-01"

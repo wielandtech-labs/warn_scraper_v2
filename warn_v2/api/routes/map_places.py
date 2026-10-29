@@ -123,6 +123,7 @@ class PlaceFilters(NamedTuple):
     subsector: str | None = None
     after: date | None = None
     before: date | None = None
+    min_layoffs: int | None = None
 
 
 class _PlaceMonths(NamedTuple):
@@ -172,6 +173,7 @@ def _query_place_months(db: Session, f: PlaceFilters) -> _PlaceMonths:
         state=f.state,
         industry=f.industry,
         subsector=f.subsector,
+        min_layoffs=f.min_layoffs,
         after=f.after,
         before=f.before,
         location_joined=True,
@@ -268,11 +270,17 @@ def map_places_timeline(
     subsector: str | None = Query(
         None, description="3-digit NAICS subsector (e.g. 311); narrows within a sector"
     ),
+    min_layoffs: int | None = Query(
+        None,
+        ge=1,
+        description="Only notices reporting at least this many affected workers "
+        "(notices with no reported count are excluded)",
+    ),
     after: date | None = Query(None, description="Only notices on or after this date"),
     before: date | None = Query(None, description="Only notices on or before this date"),
     db: Session = Depends(get_db),
 ) -> Response:
-    """Per-place counts for every period, for the /timelapse map: one payload
+    """Per-place counts for every period, for /map's timeline: one payload
     the client scrubs through without a request per frame.
 
     ``periods`` is the contiguous range of bucket keys ("2020", "2020-Q2" or
@@ -284,7 +292,8 @@ def map_places_timeline(
     ``closure_category`` asks for them, as on every stats chart.
     """
     f = PlaceFilters(
-        state and state.upper(), closure_category, industry, subsector, after, before
+        state and state.upper(), closure_category, industry, subsector, after, before,
+        min_layoffs,
     )
     return body_response(
         request, timeline_body(db, bucket, f), {"Cache-Control": "public, max-age=300"}
