@@ -20,7 +20,8 @@ import { SPEEDS, TimelineCard, type Speed } from "../components/TimelineCard";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useReducedMotion } from "../hooks/useReducedMotion";
 import { useTheme } from "../hooks/useTheme";
-import { fmtNum } from "../lib/format";
+import { ALL_TIME } from "../lib/filters";
+import { fmtDate, fmtNum } from "../lib/format";
 import { EMPTY_PLACES, placesBounds, stateOf, toGeoJSON } from "../lib/mapPlaces";
 import {
   currentPeriod,
@@ -41,7 +42,8 @@ import type { MapSearch } from "../router";
 
 /* /map — every geocoded notice, period by period. The timeline card steps
    the map (bubbles or heat), the notice list and the industry ranking
-   through periods; "All dates" is the aggregate view.
+   through periods; "All time" is the aggregate view. Time is set only in
+   the card: the filter bar's date picker is hidden here.
 
    Both timeline payloads load by month, once per filter set and window, and
    roll up here to the step on screen: a step change costs no request, and a
@@ -63,7 +65,7 @@ const FILTER_KEYS = [
 /** The period a URL opens on. A bare /map opens on the last complete period
  *  (null: resolved once the frames load). A URL with filters but no
  *  timeline params predates the timeline -- an old shared link -- and keeps
- *  the all-dates view it showed then. */
+ *  the all-time view it showed then. */
 function initialAt(search: MapSearch): string | null {
   if (search.at) return search.at;
   const legacy =
@@ -98,7 +100,7 @@ export function MapPage() {
   // The frame is a period key, not an index, so it survives a step or
   // window change (re-keyed to the period holding the same month).
   const [at, setAt] = useState<string | null>(() => initialAt(search));
-  const allDates = at === "all";
+  const allTime = at === "all";
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<Speed>(SPEEDS[1]);
 
@@ -109,7 +111,8 @@ export function MapPage() {
       industry: search.industry,
       subsector: search.subsector,
       min_layoffs: search.min_layoffs,
-      after: search.after,
+      // The notice pages' "All" date preset; no limit here.
+      after: search.after === ALL_TIME ? undefined : search.after,
       before: search.before,
     }),
     [
@@ -140,13 +143,13 @@ export function MapPage() {
   const placesQuery = useQuery({
     queryKey: ["map-places", filters],
     queryFn: () => api.listMapPlaces(filters),
-    enabled: allDates,
+    enabled: allTime,
     placeholderData: keepPreviousData, // old places stay up while filters change
   });
   const placeTimelineQuery = useQuery({
     queryKey: ["map-timeline", "places", filters, windowAfter],
     queryFn: () => api.mapPlacesTimeline({ ...filters, after: windowAfter, bucket: "month" }),
-    enabled: !allDates,
+    enabled: !allTime,
     placeholderData: keepPreviousData,
   });
   // The ranking and the per-frame totals: every notice in the window, with
@@ -166,6 +169,20 @@ export function MapPage() {
   const statusQuery = useQuery({
     queryKey: ["scraper-runs", "status"],
     queryFn: () => api.listScraperStatus(),
+  });
+  // The ranking beside the all-time map covers every year on record, not
+  // just the timeline's range.
+  const allTimeIndustryQuery = useQuery({
+    queryKey: ["map-timeline", "industries", filters.state, filters.closure_category, filters.after, filters.before, "all"],
+    queryFn: () =>
+      api.statsIndustriesTimeline({
+        bucket: "year",
+        state: filters.state,
+        closure_category: filters.closure_category,
+        after: filters.after,
+        before: filters.before,
+      }),
+    enabled: allTime && tab === "industries",
   });
   const industriesQuery = useQuery({
     queryKey: ["stats", "industries"],
@@ -190,7 +207,7 @@ export function MapPage() {
   const last = frames.length - 1;
   const partial = frames[last] === now;
   const lastComplete = partial && last > 0 ? last - 1 : last;
-  const idx = allDates
+  const idx = allTime
     ? -1
     : at !== null && frames.includes(at)
       ? frames.indexOf(at)
@@ -198,6 +215,9 @@ export function MapPage() {
         ? 0
         : lastComplete;
   const period = idx >= 0 ? frames[idx] : undefined;
+  // Where "One period" returns to from all time.
+  const lastPeriod = useRef<string | undefined>(undefined);
+  if (period) lastPeriod.current = period;
 
   // A bare /map opens paused on the last complete period.
   useEffect(() => {
@@ -216,7 +236,7 @@ export function MapPage() {
   }, [search, at]);
 
   // Playback: one timer per frame, so a pause or a scrub cancels cleanly.
-  // It waits for the places (loaded on demand when leaving all dates)
+  // It waits for the places (loaded on demand when leaving all time)
   // rather than playing frames over an empty map.
   useEffect(() => {
     if (!playing || frames.length === 0 || !placeTimeline) return;
@@ -248,11 +268,11 @@ export function MapPage() {
     () => (aggregate ? toGeoJSON(aggregate) : EMPTY_PLACES),
     [aggregate],
   );
-  const data = allDates ? aggregateGeo : (mapFrames?.[idx] ?? EMPTY_PLACES);
+  const data = allTime ? aggregateGeo : (mapFrames?.[idx] ?? EMPTY_PLACES);
   // What place search ranks and jumps to: the places on the map's data.
   const searchPlaces = useMemo(
-    () => (allDates ? aggregate : placeTimeline ? placesOfTimeline(placeTimeline) : undefined),
-    [allDates, aggregate, placeTimeline],
+    () => (allTime ? aggregate : placeTimeline ? placesOfTimeline(placeTimeline) : undefined),
+    [allTime, aggregate, placeTimeline],
   );
 
   // National totals per frame, from the ranking's payload.
@@ -305,7 +325,7 @@ export function MapPage() {
     if (!playing) setListPeriod(period);
   }, [playing, period]);
   const listFilters = useMemo(() => {
-    if (allDates || !listPeriod) return filters;
+    if (allTime || !listPeriod) return filters;
     const start = `${periodStartMonth(listPeriod)}-01`;
     const end = periodEnd(listPeriod);
     return {
@@ -313,7 +333,7 @@ export function MapPage() {
       after: filters.after && filters.after > start ? filters.after : start,
       before: filters.before && filters.before < end ? filters.before : end,
     };
-  }, [allDates, listPeriod, filters]);
+  }, [allTime, listPeriod, filters]);
 
   // Mirror the viewport into the URL (replace: panning must not spam history)
   // so back/refresh/share land on the same view.
@@ -358,17 +378,34 @@ export function MapPage() {
     if (playing) return setPlaying(false);
     // From the default frame (or past it) there's nothing left to play but
     // the partial current period, so play the whole window from the start.
-    if (allDates || idx >= lastComplete) setAt(frames[0]);
+    if (allTime || idx >= lastComplete) setAt(frames[0]);
     setPlaying(true);
   };
   const scrub = (i: number) => {
     setPlaying(false);
     setAt(frames[i]);
   };
-  const showAllDates = () => {
+  const showAllTime = (all: boolean) => {
     setPlaying(false);
-    setAt("all");
+    setAt(all ? "all" : (lastPeriod.current ?? frames[lastComplete] ?? null));
   };
+  const clearDates = () =>
+    navigate({
+      search: (prev) => ({ ...prev, after: undefined, before: undefined }),
+      resetScroll: false,
+    });
+  const dateLimit =
+    filters.after || filters.before
+      ? {
+          text:
+            filters.after && filters.before
+              ? `${fmtDate(filters.after)} – ${fmtDate(filters.before)}`
+              : filters.after
+                ? `from ${fmtDate(filters.after)}`
+                : `until ${fmtDate(filters.before!)}`,
+          onClear: clearDates,
+        }
+      : null;
   const setBucket = (b: TimelineBucket) => {
     const next = period ? periodOf(periodStartMonth(period), b) : at;
     setAt(next);
@@ -424,9 +461,11 @@ export function MapPage() {
   const chipStats = selectedHere ? { notices: selectedHere.n, workers: selectedHere.w } : summary;
   const label = period ? periodLabel(period) : "";
   const isPartial = partial && idx === last;
-  const fetching = allDates ? placesQuery.isFetching : placeTimelineQuery.isFetching;
-  const raceTimeline = allDates ? (timeline ? wholeWindow(timeline) : undefined) : timeline;
-  const raceWhen = allDates ? `since ${since}` : label;
+  const fetching = allTime ? placesQuery.isFetching : placeTimelineQuery.isFetching;
+  const raceTimeline = allTime
+    ? allTimeIndustryQuery.data && wholeWindow(allTimeIndustryQuery.data)
+    : timeline;
+  const raceWhen = allTime ? "all time" : label;
 
   return (
     <div className="space-y-4">
@@ -440,6 +479,7 @@ export function MapPage() {
           values={search}
           onChange={handleFilterChange}
           showEmployer={false}
+          showDates={false}
           industries={industriesQuery.data}
         />
       </div>
@@ -455,7 +495,8 @@ export function MapPage() {
         playing={playing}
         onTogglePlay={togglePlay}
         onScrub={scrub}
-        onAllDates={showAllDates}
+        onShowAllTime={showAllTime}
+        dateLimit={dateLimit}
         bucket={bucket}
         onBucket={setBucket}
         since={since}
@@ -513,7 +554,7 @@ export function MapPage() {
             initial={initial}
             stateBubbles
             selected={selectedHere}
-            heatMax={allDates ? undefined : heatMax}
+            heatMax={allTime ? undefined : heatMax}
             onViewChange={handleViewChange}
             onSelect={setSelected}
             className="h-[60svh] w-full bg-slate-100 md:h-[75vh] dark:bg-slate-900"
@@ -527,10 +568,10 @@ export function MapPage() {
               {isPartial && <span className="ml-1 text-xs font-medium text-slate-500">partial</span>}
             </div>
           )}
-          {!allDates && mode === "heat" && <HeatLegend max={heatMax} />}
+          {!allTime && mode === "heat" && <HeatLegend max={heatMax} />}
           {fetching && (
             <div className={`pointer-events-none absolute left-3 rounded-full ${
-              !allDates && mode === "heat" ? "bottom-28" : "bottom-3"
+              !allTime && mode === "heat" ? "bottom-28" : "bottom-3"
             } bg-white/90 px-2.5 py-1 text-xs text-slate-600 shadow dark:bg-slate-900/90 dark:text-slate-300`}>
               Loading…
             </div>
@@ -611,10 +652,10 @@ export function MapPage() {
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">
                 Workers affected by industry, {raceWhen}
               </h2>
-              {raceTimeline && (allDates || period) ? (
+              {raceTimeline && (allTime || period) ? (
                 <IndustryRace
                   timeline={raceTimeline}
-                  frame={allDates ? 0 : idx}
+                  frame={allTime ? 0 : idx}
                   theme={resolved}
                   selected={filters.industry ?? null}
                   onSelect={setIndustry}
@@ -629,7 +670,7 @@ export function MapPage() {
       </div>
 
       <p className="text-xs text-slate-500 dark:text-slate-400">
-        {allDates
+        {allTime
           ? aggregate
             ? `${fmtNum(aggregate.notices.reduce((a, b) => a + b, 0))} geocoded notices at ${fmtNum(aggregate.lat.length)} places match these filters. Most are placed at their city's center.`
             : placesQuery.isError

@@ -101,7 +101,7 @@ export function rollupIndustries(t: IndustryTimeline, bucket: TimelineBucket): I
 }
 
 /** The whole timeline as a single frame (every period summed), for the
- *  industry ranking while the map shows all dates. */
+ *  industry ranking while the map shows all time. */
 export function wholeWindow(t: IndustryTimeline): IndustryTimeline {
   const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
   return {

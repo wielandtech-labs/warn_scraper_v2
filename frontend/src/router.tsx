@@ -254,7 +254,7 @@ const timelapseRoute = createRoute({
     throw redirect({
       to: "/map",
       // `since` is always set: a /map URL with filters and neither a period
-      // nor a window is an old all-dates link (see MapPage).
+      // nor a window is an old all-time link (see MapPage).
       search: { ...search, since: search.since ?? DEFAULT_SINCE, mode: "heat" },
       replace: true,
     });

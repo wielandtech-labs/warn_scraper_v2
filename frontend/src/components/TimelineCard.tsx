@@ -5,10 +5,11 @@ import { periodLabel, WINDOWS } from "../lib/timelapse";
 import { CHART_COLORS, US_MAP } from "../lib/themeColors";
 import { US_MAP_VIEWBOX, US_STATE_PATHS } from "../lib/usStatePaths";
 
-/* /map's time control: play/pause, a scrubber over the periods with each
-   period's workers drawn above it, and the step/window/speed choices. "All
-   dates" is the aggregate map; picking a period (scrubbing, playing) shows
-   that period alone.
+/* /map's one time control: play/pause, a scrubber over the periods with
+   each period's workers drawn above it, and the step/range/speed choices.
+   "Show" switches between one period at a time and all time combined (the
+   aggregate map); scrubbing or playing also picks a period. The page hides
+   the filter bar's date picker, so time is only ever set here.
 
    Coverage is the trap: states' archives start in different years, so an
    early frame looks quiet partly because fewer states report. The card counts
@@ -33,7 +34,8 @@ export function TimelineCard({
   playing,
   onTogglePlay,
   onScrub,
-  onAllDates,
+  onShowAllTime,
+  dateLimit,
   bucket,
   onBucket,
   since,
@@ -42,7 +44,7 @@ export function TimelineCard({
   onSpeed,
 }: {
   frames: string[];
-  /** Index into frames; -1 while the map shows all dates. */
+  /** Index into frames; -1 while the map shows all time. */
   idx: number;
   /** The last frame is the period today falls in. */
   partial: boolean;
@@ -54,7 +56,10 @@ export function TimelineCard({
   playing: boolean;
   onTogglePlay: () => void;
   onScrub: (i: number) => void;
-  onAllDates: () => void;
+  onShowAllTime: (allTime: boolean) => void;
+  /** A date filter narrowing the timeline (from an older link), shown with
+   *  a way to remove it. */
+  dateLimit: { text: string; onClear: () => void } | null;
   bucket: TimelineBucket;
   onBucket: (b: TimelineBucket) => void;
   since: number;
@@ -62,14 +67,14 @@ export function TimelineCard({
   speed: Speed;
   onSpeed: (s: Speed) => void;
 }) {
-  const allDates = idx < 0;
+  const allTime = idx < 0;
   const last = frames.length - 1;
-  const period = allDates ? undefined : frames[idx];
-  const total = allDates ? undefined : totals[idx];
+  const period = allTime ? undefined : frames[idx];
+  const total = allTime ? undefined : totals[idx];
   const label = period ? periodLabel(period) : "";
   const isPartial = partial && idx === last;
-  const valueText = allDates
-    ? "All dates"
+  const valueText = allTime
+    ? "All time"
     : period && total
       ? `${label}${isPartial ? " (partial)" : ""}: ${fmtNum(total.notices)} notices, ${fmtNum(
           total.workers,
@@ -102,7 +107,7 @@ export function TimelineCard({
         </button>
         <div className="min-w-0">
           <p className="text-xl font-semibold tabular-nums leading-tight text-slate-900 dark:text-slate-50">
-            {allDates ? "All dates" : label || "…"}
+            {allTime ? "All time" : label || "…"}
             {isPartial && (
               <span className="ml-2 align-middle text-xs font-medium text-slate-500 dark:text-slate-400">
                 partial, through {fmtDate(new Date().toISOString().slice(0, 10))}
@@ -110,14 +115,14 @@ export function TimelineCard({
             )}
           </p>
           <p className="text-sm tabular-nums text-slate-600 dark:text-slate-400">
-            {allDates
-              ? "Press play or drag the timeline to step through periods."
+            {allTime
+              ? "Every notice on record, combined. Press play or drag the timeline to see one period at a time."
               : total
                 ? `${fmtNum(total.workers)} workers · ${fmtNum(total.notices)} notices`
                 : "Loading…"}
           </p>
         </div>
-        {!allDates && reporting && (
+        {!allTime && reporting && (
           <div className="ml-auto flex items-center gap-2">
             <CoverageInset reporting={reporting} theme={theme} />
             <p className="text-sm leading-tight text-slate-700 dark:text-slate-300">
@@ -139,12 +144,12 @@ export function TimelineCard({
           min={0}
           max={Math.max(0, last)}
           step={1}
-          value={allDates ? Math.max(0, last) : idx}
+          value={allTime ? Math.max(0, last) : idx}
           disabled={frames.length === 0}
           onChange={(e) => onScrub(Number(e.target.value))}
           aria-label="Period"
           aria-valuetext={valueText}
-          className={`block w-full accent-brand ${allDates ? "opacity-50" : ""}`}
+          className={`block w-full accent-brand ${allTime ? "opacity-50" : ""}`}
         />
         <div className="flex justify-between text-xs tabular-nums text-slate-500 dark:text-slate-400">
           <span>{frames[0] ? periodLabel(frames[0]) : ""}</span>
@@ -153,21 +158,18 @@ export function TimelineCard({
       </div>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-        <button
-          type="button"
-          aria-pressed={allDates}
-          onClick={onAllDates}
-          className={`rounded-full border px-3 py-0.5 font-medium transition-colors ${
-            allDates
-              ? "border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
-              : "border-slate-200 text-slate-600 hover:text-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
-          }`}
-        >
-          All dates
-        </button>
-        <Segmented label="Time step" options={BUCKETS} value={bucket} onChange={onBucket} />
         <Segmented
-          label="Window"
+          label="Show"
+          options={[
+            [false, "One period"],
+            [true, "All time"],
+          ]}
+          value={allTime}
+          onChange={onShowAllTime}
+        />
+        <Segmented label="Step" options={BUCKETS} value={bucket} onChange={onBucket} />
+        <Segmented
+          label="Range"
           options={WINDOWS.map(([y, l]) => [y, l] as [number, string])}
           value={since}
           onChange={onSince}
@@ -179,6 +181,18 @@ export function TimelineCard({
           onChange={onSpeed}
         />
       </div>
+      {dateLimit && (
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Dates limited to {dateLimit.text}.{" "}
+          <button
+            type="button"
+            onClick={dateLimit.onClear}
+            className="font-medium text-sky-700 hover:underline dark:text-sky-400"
+          >
+            Remove limit
+          </button>
+        </p>
+      )}
       {/* Spoken once the frame settles; silent while playing. */}
       <p className="sr-only" aria-live={playing ? "off" : "polite"}>
         {valueText}
@@ -187,7 +201,7 @@ export function TimelineCard({
   );
 }
 
-function Segmented<T extends string | number>({
+function Segmented<T extends string | number | boolean>({
   label,
   options,
   value,
