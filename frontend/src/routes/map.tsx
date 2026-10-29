@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 
-import { api } from "../api/client";
+import { api, type TimelineBucket } from "../api/client";
 import { FilterBar, type FilterValues } from "../components/FilterBar";
+import { HeatLegend } from "../components/HeatLegend";
+import { IndustryRace } from "../components/IndustryRace";
 import { MapNoticePanel, type PanelSort } from "../components/MapNoticePanel";
 import { MapPlaceSearch, type PlacePick } from "../components/MapPlaceSearch";
 import {
@@ -14,24 +16,65 @@ import {
   type View,
 } from "../components/PlacesMap";
 import { PageHeader } from "../components/PageHeader";
+import { SPEEDS, TimelineCard, type Speed } from "../components/TimelineCard";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useReducedMotion } from "../hooks/useReducedMotion";
 import { useTheme } from "../hooks/useTheme";
-import { fmtNum } from "../lib/format";
+import { ALL_TIME } from "../lib/filters";
+import { fmtDate, fmtNum } from "../lib/format";
 import { EMPTY_PLACES, placesBounds, stateOf, toGeoJSON } from "../lib/mapPlaces";
+import {
+  currentPeriod,
+  DEFAULT_SINCE,
+  framesGeoJSON,
+  heatScaleMax,
+  periodEnd,
+  periodLabel,
+  periodOf,
+  periodStartMonth,
+  placesOfTimeline,
+  rollupIndustries,
+  rollupPlaces,
+  statesReporting,
+  wholeWindow,
+  WINDOWS,
+} from "../lib/timelapse";
+import type { MapSearch } from "../router";
 
-// The earliest year any state's backfill reaches (IL, 1999).
-const FIRST_YEAR = 1999;
-const THIS_YEAR = new Date().getFullYear();
-// The slider's last notch, past the current year, means "any year": resting
-// the thumb on THIS_YEAR would make the current year unselectable (moving to
-// the value it already shows fires no change).
-const ANY_YEAR = THIS_YEAR + 1;
+/* /map — every geocoded notice, period by period. The timeline card steps
+   the map (bubbles or heat), the notice list and the industry ranking
+   through periods; "All time" is the aggregate view. Time is set only in
+   the card: the filter bar's date picker is hidden here.
 
-/** The calendar year the date filters select exactly, if they do. */
-function selectedYear(after?: string, before?: string): number | null {
-  const m = after?.match(/^(\d{4})-01-01$/);
-  return m && before === `${m[1]}-12-31` ? Number(m[1]) : null;
+   Both timeline payloads load by month, once per filter set and window, and
+   roll up here to the step on screen: a step change costs no request, and a
+   window change keeps the current frame up while the wider one loads. */
+
+// Base time per frame at 1x; finer buckets have more frames, so move faster.
+const FRAME_MS: Record<TimelineBucket, number> = { year: 1400, quarter: 800, month: 300 };
+
+const FILTER_KEYS = [
+  "state",
+  "closure_category",
+  "industry",
+  "subsector",
+  "min_layoffs",
+  "after",
+  "before",
+] as const;
+
+/** The period a URL opens on. A bare /map opens on the last complete period
+ *  (null: resolved once the frames load). A URL with filters but no
+ *  timeline params predates the timeline -- an old shared link -- and keeps
+ *  the all-time view it showed then. */
+function initialAt(search: MapSearch): string | null {
+  if (search.at) return search.at;
+  const legacy =
+    search.bucket == null && search.since == null && FILTER_KEYS.some((k) => search[k] != null);
+  return legacy ? "all" : null;
 }
+
+type Tab = "notices" | "industries";
 
 export function MapPage() {
   useDocumentTitle("Layoff map — WARN Index");
@@ -39,17 +82,28 @@ export function MapPage() {
   const navigate = useNavigate({ from: "/map" });
   const search = useSearch({ from: "/map" });
   const mode: MapMode = search.mode === "heat" ? "heat" : "bubbles";
+  const bucket: TimelineBucket = search.bucket ?? "quarter";
+  const since = search.since ?? DEFAULT_SINCE;
+  const reducedMotion = useReducedMotion();
   const mapRef = useRef<PlacesMapHandle>(null);
-  const panelRef = useRef<HTMLElement>(null);
+  const columnRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<View | null>(null);
   const [selected, setSelected] = useState<SelectedPlace | null>(null);
   const [sort, setSort] = useState<PanelSort>("notice_date");
+  const [tab, setTab] = useState<Tab>("notices");
   // Seeded once: later URL changes come *from* the map, not to it.
   const [initial] = useState(() =>
     search.lat != null && search.lon != null
       ? { lat: search.lat, lon: search.lon, zoom: search.zoom ?? 4 }
       : null,
   );
+
+  // The frame is a period key, not an index, so it survives a step or
+  // window change (re-keyed to the period holding the same month).
+  const [at, setAt] = useState<string | null>(() => initialAt(search));
+  const allTime = at === "all";
+  const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState<Speed>(SPEEDS[1]);
 
   const filters = useMemo(
     () => ({
@@ -58,7 +112,8 @@ export function MapPage() {
       industry: search.industry,
       subsector: search.subsector,
       min_layoffs: search.min_layoffs,
-      after: search.after,
+      // The notice pages' "All" date preset; no limit here.
+      after: search.after === ALL_TIME ? undefined : search.after,
       before: search.before,
     }),
     [
@@ -82,51 +137,205 @@ export function MapPage() {
     filters.after ?? filters.before,
   ].filter((v) => v != null).length;
 
+  // The timeline covers the Range: a window ("Since 2015"), or a custom date
+  // range, which replaces the window (an open start reaches back to 1999).
+  const custom = filters.after != null || filters.before != null;
+  const windowAfter = filters.after ?? `${custom ? WINDOWS[WINDOWS.length - 1][0] : since}-01-01`;
+
   const placesQuery = useQuery({
     queryKey: ["map-places", filters],
     queryFn: () => api.listMapPlaces(filters),
+    enabled: allTime,
     placeholderData: keepPreviousData, // old places stay up while filters change
   });
-  const places = placesQuery.data;
-  const geojson = useMemo(
-    () => (places ? toGeoJSON(places) : EMPTY_PLACES),
-    [places],
-  );
-
+  const placeTimelineQuery = useQuery({
+    queryKey: ["map-timeline", "places", filters, windowAfter],
+    queryFn: () => api.mapPlacesTimeline({ ...filters, after: windowAfter, bucket: "month" }),
+    enabled: !allTime,
+    placeholderData: keepPreviousData,
+  });
+  // The ranking and the per-frame totals: every notice in the window, with
+  // or without an industry or a geocode, so not narrowed by industry.
+  const industryQuery = useQuery({
+    queryKey: ["map-timeline", "industries", filters.state, filters.closure_category, windowAfter, filters.before],
+    queryFn: () =>
+      api.statsIndustriesTimeline({
+        bucket: "month",
+        state: filters.state,
+        closure_category: filters.closure_category,
+        after: windowAfter,
+        before: filters.before,
+      }),
+    placeholderData: keepPreviousData,
+  });
+  const statusQuery = useQuery({
+    queryKey: ["scraper-runs", "status"],
+    queryFn: () => api.listScraperStatus(),
+  });
+  // The ranking beside the all-time map covers every year on record, not
+  // just the timeline's range.
+  const allTimeIndustryQuery = useQuery({
+    queryKey: ["map-timeline", "industries", filters.state, filters.closure_category, filters.after, filters.before, "all"],
+    queryFn: () =>
+      api.statsIndustriesTimeline({
+        bucket: "year",
+        state: filters.state,
+        closure_category: filters.closure_category,
+        after: filters.after,
+        before: filters.before,
+      }),
+    enabled: allTime && tab === "industries",
+  });
   const industriesQuery = useQuery({
     queryKey: ["stats", "industries"],
     queryFn: () => api.statsIndustries(),
   });
 
-  // New filters change every place's counts: carry the selection over with
-  // fresh numbers, or drop it if the place no longer has matching notices.
-  useEffect(() => {
-    setSelected((sel) => {
-      if (!sel || !places) return sel;
-      const i = places.lat.findIndex((lat, j) => lat === sel.lat && places.lon[j] === sel.lon);
-      return i < 0
-        ? null
-        : { ...sel, n: places.notices[i], w: places.workers[i], label: places.label[i] };
-    });
-  }, [places]);
+  const timeline = useMemo(
+    () => (industryQuery.data ? rollupIndustries(industryQuery.data, bucket) : undefined),
+    [industryQuery.data, bucket],
+  );
+  const placeTimeline = useMemo(
+    () => (placeTimelineQuery.data ? rollupPlaces(placeTimelineQuery.data, bucket) : undefined),
+    [placeTimelineQuery.data, bucket],
+  );
 
-  // Totals for the visible area, from the loaded places — no request needed.
+  // A stray future-dated notice would add empty frames past today.
+  const now = currentPeriod(bucket);
+  const frames = useMemo(
+    () => (timeline ? timeline.periods.filter((p) => p <= now) : []),
+    [timeline, now],
+  );
+  const last = frames.length - 1;
+  const partial = frames[last] === now;
+  const lastComplete = partial && last > 0 ? last - 1 : last;
+  const idx = allTime
+    ? -1
+    : at !== null && frames.includes(at)
+      ? frames.indexOf(at)
+      : at !== null && frames.length > 0 && at < frames[0]
+        ? 0
+        : lastComplete;
+  const period = idx >= 0 ? frames[idx] : undefined;
+  // Where "One period" returns to from all time.
+  const lastPeriod = useRef<string | undefined>(undefined);
+  if (period) lastPeriod.current = period;
+
+  // A bare /map opens paused on the last complete period.
+  useEffect(() => {
+    if (at === null && frames.length > 0) setAt(frames[lastComplete]);
+  }, [at, frames, lastComplete]);
+
+  // A URL change from outside (a link to /map, back/forward) moves the
+  // frame; the frame's own URL writes below come back equal and are skipped.
+  const urlAt = useRef(search.at);
+  useEffect(() => {
+    if (search.at === urlAt.current) return;
+    urlAt.current = search.at;
+    if (search.at === at) return;
+    setPlaying(false);
+    setAt(initialAt(search));
+  }, [search, at]);
+
+  // Playback: one timer per frame, so a pause or a scrub cancels cleanly.
+  // It waits for the places (loaded on demand when leaving all time)
+  // rather than playing frames over an empty map.
+  useEffect(() => {
+    if (!playing || frames.length === 0 || !placeTimeline) return;
+    if (idx >= last) {
+      setPlaying(false);
+      return;
+    }
+    const t = setTimeout(() => setAt(frames[idx + 1]), FRAME_MS[bucket] / speed);
+    return () => clearTimeout(t);
+  }, [playing, idx, last, frames, bucket, speed, placeTimeline]);
+
+  // The URL follows the frame only while paused: a navigate per tick would
+  // re-render the route and flood history-replace calls.
+  useEffect(() => {
+    if (playing || at === null || at === search.at) return;
+    navigate({ search: (prev) => ({ ...prev, at }), replace: true, resetScroll: false });
+  }, [playing, at, search.at, navigate]);
+
+  const mapFrames = useMemo(
+    () => (placeTimeline ? framesGeoJSON(placeTimeline, frames) : null),
+    [placeTimeline, frames],
+  );
+  const heatMax = useMemo(
+    () => (placeTimeline ? heatScaleMax(placeTimeline) : undefined),
+    [placeTimeline],
+  );
+  const aggregate = placesQuery.data;
+  const aggregateGeo = useMemo(
+    () => (aggregate ? toGeoJSON(aggregate) : EMPTY_PLACES),
+    [aggregate],
+  );
+  const data = allTime ? aggregateGeo : (mapFrames?.[idx] ?? EMPTY_PLACES);
+  // What place search ranks and jumps to: the places on the map's data.
+  const searchPlaces = useMemo(
+    () => (allTime ? aggregate : placeTimeline ? placesOfTimeline(placeTimeline) : undefined),
+    [allTime, aggregate, placeTimeline],
+  );
+
+  // National totals per frame, from the ranking's payload.
+  const totals = useMemo(
+    () =>
+      frames.map((_, i) =>
+        (timeline?.sectors ?? []).reduce(
+          (acc, s) => ({ notices: acc.notices + s.notices[i], workers: acc.workers + s.workers[i] }),
+          { notices: 0, workers: 0 },
+        ),
+      ),
+    [frames, timeline],
+  );
+  const reporting = useMemo(
+    () => (statusQuery.data && period ? statesReporting(statusQuery.data, period) : null),
+    [statusQuery.data, period],
+  );
+
+  // The selected place's counts in what the map shows (zero if none there).
+  const selectedHere = useMemo(
+    () =>
+      selected
+        ? (data.features.find(
+            (f) => f.properties.lat === selected.lat && f.properties.lon === selected.lon,
+          )?.properties ?? { ...selected, n: 0, w: 0 })
+        : null,
+    [selected, data],
+  );
+
+  // Totals for the visible area, from what the map shows — no request needed.
   const summary = useMemo(() => {
     let notices = 0;
     let workers = 0;
-    if (places && view) {
+    if (view) {
       const b = view.bounds;
-      for (let i = 0; i < places.lat.length; i++) {
-        const lat = places.lat[i];
-        const lon = places.lon[i];
-        if (lat >= b.min_lat && lat <= b.max_lat && lon >= b.min_lon && lon <= b.max_lon) {
-          notices += places.notices[i];
-          workers += places.workers[i];
+      for (const { properties: p } of data.features) {
+        if (p.lat >= b.min_lat && p.lat <= b.max_lat && p.lon >= b.min_lon && p.lon <= b.max_lon) {
+          notices += p.n;
+          workers += p.w;
         }
       }
     }
     return { notices, workers };
-  }, [places, view]);
+  }, [data, view]);
+
+  // The notice list follows the frame once it settles: while playing it
+  // keeps the last paused period instead of a request per frame.
+  const [listPeriod, setListPeriod] = useState(period);
+  useEffect(() => {
+    if (!playing) setListPeriod(period);
+  }, [playing, period]);
+  const listFilters = useMemo(() => {
+    if (allTime || !listPeriod) return filters;
+    const start = `${periodStartMonth(listPeriod)}-01`;
+    const end = periodEnd(listPeriod);
+    return {
+      ...filters,
+      after: filters.after && filters.after > start ? filters.after : start,
+      before: filters.before && filters.before < end ? filters.before : end,
+    };
+  }, [allTime, listPeriod, filters]);
 
   // Mirror the viewport into the URL (replace: panning must not spam history)
   // so back/refresh/share land on the same view.
@@ -143,7 +352,8 @@ export function MapPage() {
   );
 
   const handleFilterChange = (next: FilterValues) => {
-    // Keep the viewport and mode — changing a filter shouldn't move the map.
+    // Keep the viewport, mode and timeline: a filter shouldn't move the map
+    // or the frame.
     navigate({
       search: (prev) => ({
         ...next,
@@ -152,6 +362,9 @@ export function MapPage() {
         lon: prev.lon,
         zoom: prev.zoom,
         mode: prev.mode,
+        bucket: prev.bucket,
+        since: prev.since,
+        at: prev.at,
       }),
     });
   };
@@ -163,38 +376,78 @@ export function MapPage() {
       resetScroll: false,
     });
 
-  // Year slider: the URL only changes once the thumb rests, so dragging
-  // across 25 years doesn't fire 25 fetches. Back on "Any" it clears the
-  // year — only when a year was set, so other date filters are left alone.
-  const urlYear = selectedYear(search.after, search.before);
-  const [draftYear, setDraftYear] = useState<number | null>(urlYear);
-  useEffect(() => setDraftYear(urlYear), [urlYear]);
-  useEffect(() => {
-    if (draftYear === urlYear) return;
-    const t = setTimeout(
-      () =>
-        navigate({
-          search: (prev) =>
-            draftYear === null
-              ? { ...prev, after: undefined, before: undefined }
-              : { ...prev, after: `${draftYear}-01-01`, before: `${draftYear}-12-31` },
-          resetScroll: false,
-        }),
-      300,
-    );
-    return () => clearTimeout(t);
-  }, [draftYear, urlYear, navigate]);
+  const togglePlay = () => {
+    if (playing) return setPlaying(false);
+    // From the default frame (or past it) there's nothing left to play but
+    // the partial current period, so play the whole window from the start.
+    if (allTime || idx >= lastComplete) setAt(frames[0]);
+    setPlaying(true);
+  };
+  const scrub = (i: number) => {
+    setPlaying(false);
+    setAt(frames[i]);
+  };
+  const showAllTime = (all: boolean) => {
+    setPlaying(false);
+    setAt(all ? "all" : (lastPeriod.current ?? frames[lastComplete] ?? null));
+  };
+  const dates = custom
+    ? {
+        after: filters.after,
+        before: filters.before,
+        text:
+          filters.after && filters.before
+            ? `${fmtDate(filters.after)} – ${fmtDate(filters.before)}`
+            : filters.after
+              ? `Since ${fmtDate(filters.after)}`
+              : `Until ${fmtDate(filters.before!)}`,
+      }
+    : null;
+  const setBucket = (b: TimelineBucket) => {
+    const next = period ? periodOf(periodStartMonth(period), b) : at;
+    setAt(next);
+    navigate({
+      search: (prev) => ({ ...prev, bucket: b === "quarter" ? undefined : b, at: next ?? undefined }),
+      replace: true,
+      resetScroll: false,
+    });
+  };
+  // Picking a window drops any custom range; picking a custom range keeps
+  // the window for when it's cleared.
+  const setSince = (y: number) =>
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        since: y === DEFAULT_SINCE ? undefined : y,
+        after: undefined,
+        before: undefined,
+      }),
+      replace: true,
+      resetScroll: false,
+    });
+  const setDates = (patch: Partial<FilterValues>) =>
+    navigate({
+      // A key in the patch wins even when undefined: a cleared date input.
+      search: (prev) => ({ ...prev, ...patch }),
+      resetScroll: false,
+    });
+  const setIndustry = (sector: string | null) =>
+    navigate({
+      search: (prev) => ({ ...prev, industry: sector ?? undefined, subsector: undefined }),
+      replace: true,
+      resetScroll: false,
+    });
 
   const handlePick = (pick: PlacePick) => {
-    if (!places) return;
+    if (!searchPlaces) return;
     if (pick.kind === "place") {
       const i = pick.index;
       const place = {
-        lat: places.lat[i],
-        lon: places.lon[i],
-        n: places.notices[i],
-        w: places.workers[i],
-        label: places.label[i],
+        lat: searchPlaces.lat[i],
+        lon: searchPlaces.lon[i],
+        n: searchPlaces.notices[i],
+        w: searchPlaces.workers[i],
+        label: searchPlaces.label[i],
       };
       setSelected(place);
       // Past the clustering cutoff (zoom 11), so the place shows as its own
@@ -203,37 +456,69 @@ export function MapPage() {
       return;
     }
     // A state: frame the places it has notices at.
-    const b = placesBounds(places, (i) => stateOf(places.label[i]) === pick.code);
+    const b = placesBounds(searchPlaces, (i) => stateOf(searchPlaces.label[i]) === pick.code);
     setSelected(null);
     if (b) mapRef.current?.fitBounds(b);
   };
 
-  const chipStats = selected ? { notices: selected.n, workers: selected.w } : summary;
+  const onTabKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    const next: Tab = tab === "notices" ? "industries" : "notices";
+    setTab(next);
+    document.getElementById(`map-tab-${next}`)?.focus();
+  };
+
+  const chipStats = selectedHere ? { notices: selectedHere.n, workers: selectedHere.w } : summary;
+  const label = period ? periodLabel(period) : "";
+  const isPartial = partial && idx === last;
+  const fetching = allTime ? placesQuery.isFetching : placeTimelineQuery.isFetching;
+  const raceTimeline = allTime
+    ? allTimeIndustryQuery.data && wholeWindow(allTimeIndustryQuery.data)
+    : timeline;
+  const raceWhen = allTime ? (dates ? dates.text : "all time") : label;
 
   return (
     <div className="space-y-4">
       <PageHeader
         kicker="Explore"
         title="Layoff map"
-        lede="Every geocoded WARN notice, grouped by place. Bubbles grow with the workers affected; tap one to list its notices."
-        aside={
-          <Link to="/timelapse" className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400">
-            Watch it over time →
-          </Link>
-        }
+        lede="Every geocoded WARN notice, period by period. Press play or drag the timeline; tap a place to list its notices."
       />
       <div id="map-filters" className={filtersOpen ? "" : "hidden md:block"}>
         <FilterBar
           values={search}
           onChange={handleFilterChange}
           showEmployer={false}
+          showDates={false}
           industries={industriesQuery.data}
         />
       </div>
 
+      <TimelineCard
+        frames={frames}
+        idx={idx}
+        partial={partial}
+        totals={totals}
+        reporting={reporting}
+        covered={statusQuery.data?.length ?? 0}
+        theme={resolved}
+        playing={playing}
+        onTogglePlay={togglePlay}
+        onScrub={scrub}
+        onShowAllTime={showAllTime}
+        dates={dates}
+        onDates={setDates}
+        bucket={bucket}
+        onBucket={setBucket}
+        since={since}
+        onSince={setSince}
+        speed={speed}
+        onSpeed={setSpeed}
+      />
+
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="flex w-full gap-2 sm:w-auto">
-          <MapPlaceSearch places={places} onPick={handlePick} />
+          <MapPlaceSearch places={searchPlaces} onPick={handlePick} />
           <button
             type="button"
             aria-expanded={filtersOpen}
@@ -250,7 +535,7 @@ export function MapPage() {
               ["bubbles", "Bubbles"],
               ["heat", "Heatmap"],
             ] as const
-          ).map(([m, label]) => (
+          ).map(([m, text]) => (
             <button
               key={m}
               type="button"
@@ -262,29 +547,10 @@ export function MapPage() {
                   : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
               }`}
             >
-              {label}
+              {text}
             </button>
           ))}
         </div>
-        <label className="flex min-w-0 flex-1 items-center gap-2 text-sm sm:max-w-sm">
-          <span className="shrink-0 text-slate-500 dark:text-slate-400">Year</span>
-          <input
-            type="range"
-            min={FIRST_YEAR}
-            max={ANY_YEAR}
-            step={1}
-            value={draftYear ?? ANY_YEAR}
-            onChange={(e) => {
-              const y = Number(e.target.value);
-              setDraftYear(y === ANY_YEAR ? null : y);
-            }}
-            aria-valuetext={draftYear === null ? "Any year" : String(draftYear)}
-            className={`min-w-0 flex-1 accent-brand ${draftYear === null ? "opacity-50" : ""}`}
-          />
-          <output className="w-16 shrink-0 tabular-nums text-slate-700 dark:text-slate-300">
-            {draftYear ?? "Any"}
-          </output>
-        </label>
       </div>
 
       {/* grid-cols-1 = minmax(0, 1fr): an auto track would size to the map
@@ -293,18 +559,31 @@ export function MapPage() {
         <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
           <PlacesMap
             ref={mapRef}
-            data={geojson}
+            data={data}
             mode={mode}
             theme={resolved}
             initial={initial}
             stateBubbles
-            selected={selected}
+            selected={selectedHere}
+            heatMax={allTime ? undefined : heatMax}
             onViewChange={handleViewChange}
             onSelect={setSelected}
             className="h-[60svh] w-full bg-slate-100 md:h-[75vh] dark:bg-slate-900"
           />
-          {placesQuery.isFetching && (
-            <div className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-white/90 px-2.5 py-1 text-xs text-slate-600 shadow dark:bg-slate-900/90 dark:text-slate-300">
+          {period && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-3 hidden rounded-lg bg-white/90 px-2.5 py-1 text-base font-semibold tabular-nums text-slate-900 shadow md:block dark:bg-slate-900/90 dark:text-slate-50"
+            >
+              {label}
+              {isPartial && <span className="ml-1 text-xs font-medium text-slate-500">partial</span>}
+            </div>
+          )}
+          {!allTime && mode === "heat" && <HeatLegend max={heatMax} />}
+          {fetching && (
+            <div className={`pointer-events-none absolute left-3 rounded-full ${
+              !allTime && mode === "heat" ? "bottom-28" : "bottom-3"
+            } bg-white/90 px-2.5 py-1 text-xs text-slate-600 shadow dark:bg-slate-900/90 dark:text-slate-300`}>
               Loading…
             </div>
           )}
@@ -313,33 +592,106 @@ export function MapPage() {
               the top-right the controls. */}
           <button
             type="button"
-            onClick={() => panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            onClick={() => {
+              setTab("notices");
+              columnRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
             className="absolute left-3 top-3 max-w-[calc(100%-4.5rem)] truncate rounded-full bg-slate-900/90 px-4 py-2 text-sm font-medium text-white shadow-lg md:hidden dark:bg-slate-100/90 dark:text-slate-900"
           >
-            {selected ? `${selected.label}: ` : ""}
+            {selectedHere ? `${selectedHere.label}: ` : period ? `${label}: ` : ""}
             {fmtNum(chipStats.notices)} notices · {fmtNum(chipStats.workers)} workers ↓
           </button>
         </div>
 
-        <MapNoticePanel
-          ref={panelRef}
-          filters={filters}
-          bounds={view?.bounds ?? null}
-          selected={selected}
-          summary={summary}
-          sort={sort}
-          onSortChange={setSort}
-          onClearSelection={() => setSelected(null)}
-          className="max-h-[80svh] scroll-mt-4 md:h-[75vh] md:max-h-none"
-        />
+        <div ref={columnRef} className="flex min-w-0 scroll-mt-4 flex-col gap-2 md:h-[75vh]">
+          <div
+            role="tablist"
+            aria-label="Beside the map"
+            onKeyDown={onTabKey}
+            className="inline-flex self-start rounded-full border border-slate-200 bg-white p-0.5 dark:border-slate-800 dark:bg-slate-900"
+          >
+            {(
+              [
+                ["notices", "Notices"],
+                ["industries", "Industries"],
+              ] as const
+            ).map(([t, text]) => (
+              <button
+                key={t}
+                id={`map-tab-${t}`}
+                type="button"
+                role="tab"
+                aria-selected={tab === t}
+                aria-controls={`map-tabpanel-${t}`}
+                tabIndex={tab === t ? 0 : -1}
+                onClick={() => setTab(t)}
+                className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                  tab === t
+                    ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                }`}
+              >
+                {text}
+              </button>
+            ))}
+          </div>
+          {tab === "notices" ? (
+            <div
+              id="map-tabpanel-notices"
+              role="tabpanel"
+              aria-labelledby="map-tab-notices"
+              className="flex min-h-0 flex-1 flex-col"
+            >
+              <MapNoticePanel
+                filters={listFilters}
+                bounds={view?.bounds ?? null}
+                selected={selectedHere}
+                summary={summary}
+                sort={sort}
+                onSortChange={setSort}
+                onClearSelection={() => setSelected(null)}
+                className="max-h-[80svh] md:max-h-none md:min-h-0 md:flex-1"
+              />
+            </div>
+          ) : (
+            <section
+              id="map-tabpanel-industries"
+              role="tabpanel"
+              aria-labelledby="map-tab-industries"
+              className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 sm:p-4 dark:border-slate-800 dark:bg-slate-900"
+            >
+              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">
+                Workers affected by industry, {raceWhen}
+              </h2>
+              {raceTimeline && (allTime || period) ? (
+                <IndustryRace
+                  timeline={raceTimeline}
+                  frame={allTime ? 0 : idx}
+                  theme={resolved}
+                  selected={filters.industry ?? null}
+                  onSelect={setIndustry}
+                  transitionMs={reducedMotion ? 0 : Math.min(500, (FRAME_MS[bucket] / speed) * 0.8)}
+                />
+              ) : (
+                <p className="mt-2 text-sm text-slate-500">Loading…</p>
+              )}
+            </section>
+          )}
+        </div>
       </div>
 
       <p className="text-xs text-slate-500 dark:text-slate-400">
-        {places
-          ? `${fmtNum(places.notices.reduce((a, b) => a + b, 0))} geocoded notices at ${fmtNum(places.lat.length)} places match these filters. Most are placed at their city's center.`
-          : placesQuery.isError
-            ? "Couldn't load the map data."
-            : "Loading map data…"}
+        {allTime
+          ? aggregate
+            ? `${fmtNum(aggregate.notices.reduce((a, b) => a + b, 0))} geocoded notices at ${fmtNum(aggregate.lat.length)} places match these filters. Most are placed at their city's center.`
+            : placesQuery.isError
+              ? "Couldn't load the map data."
+              : "Loading map data…"
+          : placeTimelineQuery.isError || industryQuery.isError
+            ? "Couldn't load the timeline."
+            : `Geocoded notices by filing date${
+                filters.closure_category ? "" : ", leaving out Non-WARN events as the stats charts do"
+              }. Most are placed at their city's center; the totals above the timeline count every notice.`}
       </p>
     </div>
   );

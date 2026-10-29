@@ -3,7 +3,7 @@ import type { ResolvedTheme } from "../hooks/useTheme";
 import { fmtNum } from "../lib/format";
 import { CHART_COLORS } from "../lib/themeColors";
 
-/* Ranked-bar time-lapse of NAICS sectors for /timelapse: the TOP sectors by
+/* Ranked-bar time-lapse of NAICS sectors for /map's timeline: the TOP sectors by
    workers in the current frame, re-ranked every frame. Rows are absolutely
    positioned and slide with a CSS transform, keyed by sector, so a frame
    change is a style update rather than a chart re-layout (Recharts'

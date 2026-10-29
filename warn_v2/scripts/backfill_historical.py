@@ -25,7 +25,7 @@ misses become duplicates on a real run; review them and plan a
 Usage::
 
     warn-v2 backfill-historical --state CA
-    warn-v2 backfill-historical --state DC --year-start 2013
+    warn-v2 backfill-historical --state DC --dry-run
     warn-v2 backfill-historical --state VT --dry-run
 """
 from __future__ import annotations
@@ -66,7 +66,11 @@ from warn_v2.scrapers.states.ca import (
 )
 from warn_v2.scrapers.states.co import _fetch_co_year, _parse_co_year
 from warn_v2.scrapers.states.ct import _discover_ct_archive_urls, parse_ct_archive
-from warn_v2.scrapers.states.dc import _fetch_dc_year
+from warn_v2.scrapers.states.dc import (
+    _fetch_dc_year,  # noqa: F401 - the DC year-loop spec (commented below); tests patch it
+    dc_log_urls,
+    parse_dc_log,
+)
 from warn_v2.scrapers.states.fl import _fetch_fl_year, parse_fl_year
 from warn_v2.scrapers.states.ga import (
     GA_CICS_MEMBER,
@@ -128,7 +132,12 @@ from warn_v2.scrapers.states.or_ import (
 from warn_v2.scrapers.states.pa import _fetch_pa_year, parse_pa_month
 from warn_v2.scrapers.states.sc import _discover_sc_archive_urls, parse_sc_archive_pdf
 from warn_v2.scrapers.states.sd import parse_sd_archive_pdf, sd_archive_files
-from warn_v2.scrapers.states.tn import parse_tn_archive, tn_archive_files
+from warn_v2.scrapers.states.tn import (
+    parse_tn_archive,
+    parse_tn_pre2017,
+    tn_archive_files,
+    tn_pre2017_files,
+)
 from warn_v2.scrapers.states.tx import _fetch_tx_year
 from warn_v2.scrapers.states.va import parse_va_archive_member, va_archive_files
 from warn_v2.scrapers.states.wi import _discover_wi_pcml_urls, parse_wi_pcml_xls
@@ -204,7 +213,15 @@ _BACKFILL: dict[str, BackfillSpec] = {
         discover_urls=lambda: _discover_ct_archive_urls(),
         parse_for_url=lambda u: (lambda raw, _u=u: parse_ct_archive(raw, _u)),
     ),
-    "DC": BackfillSpec(year_start=2013, fetch_year=lambda s, y: _fetch_dc_year(y)),
+    # DC: the 2002 - Jan 2012 "Monthly WARN Notification Log" from three pinned
+    # Wayback captures (dc._LOG_CAPTURES). The live year pages 2013+ were the
+    # route before 2026-10-26 and are already in prod; restore this to re-run
+    # them:
+    #   BackfillSpec(year_start=2013, fetch_year=lambda s, y: _fetch_dc_year(y))
+    "DC": BackfillSpec(
+        discover_urls=lambda: dc_log_urls(),
+        parse_for_url=lambda u: (lambda raw, _u=u: parse_dc_log(raw, _u)),
+    ),
     # CO: one Google Sheet per year, 2015+; the regular scraper reads only the
     # two newest. _parse_co_year skips the scraper's staleness guard.
     "CO": BackfillSpec(
@@ -238,10 +255,15 @@ _BACKFILL: dict[str, BackfillSpec] = {
     # 2025-01-16 Wayback capture carries the full 2017-2024 archive as labeled
     # text entries (514 → 507 rows after parse_tn_archive merges same-day
     # multi-county filings that would collide on notice_id). No overlap with
-    # the live scraper's rows (prod floor 2025-01).
+    # the live scraper's rows (prod floor 2025-01). Plus 2012 - Jun 2016 from
+    # two older page generations (tn_archive_2012.tar.gz → parse_tn_pre2017).
     "TN": BackfillSpec(
-        bundled_files=tn_archive_files,
-        parse_for_url=lambda u: parse_tn_archive,
+        bundled_files=lambda: tn_archive_files() + tn_pre2017_files(),
+        parse_for_url=lambda u: (
+            parse_tn_archive
+            if u.startswith("reports_")
+            else (lambda raw, _u=u: parse_tn_pre2017(raw, _u))
+        ),
     ),
     "TX": BackfillSpec(year_start=2003, fetch_year=_fetch_tx_year),
     # FL: live reactwarn pages 2020+, pinned Wayback captures for the two
@@ -380,9 +402,10 @@ _BACKFILL: dict[str, BackfillSpec] = {
         parse_for_url=lambda u: (lambda raw, _u=u: _parse_mn_archive_pdf(raw, _u)),
     ),
     # MO: jobs.mo.gov purged its pre-2019 program-year pages (MO publishes by
-    # Program Year, Jul-Jun); five static pinned Wayback captures hold a
-    # consolidated Jul2012-Jun2015 log PDF, the PY2015 log PDF, and the
-    # PY2016-PY2018 HTML pages — no runtime CDX. The regular scraper crawls
+    # Program Year, Jul-Jun); static pinned Wayback captures hold eleven
+    # rapidresponse.ded.mo.gov PY2001-PY2011 log PDFs, a consolidated
+    # Jul2012-Jun2015 log PDF, the PY2015 log PDF, and the PY2016-PY2018 HTML
+    # pages — no runtime CDX. Every PDF goes through parse_mo_log_pdf. The regular scraper crawls
     # 2019-present every run and that data is complete, and the PY2018 page
     # runs into early 2019, so both archive parsers drop rows dated >= 2019-01-01.
     # Mid-PY captures leave gaps (Sep 2015-Jun 2016, May-Jun 2017,

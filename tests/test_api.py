@@ -961,6 +961,9 @@ def test_map_places_timeline_filters(api_client, db):
 
     body = api_client.get("/api/map-places/timeline?industry=31-33").json()
     assert (body["lat"], body["notices"]) == ([34.0], [1])
+    # min_layoffs as on /api/map-places: _geocoded_notice reports 100 workers.
+    assert len(api_client.get("/api/map-places/timeline?min_layoffs=100").json()["lat"]) == 3
+    assert api_client.get("/api/map-places/timeline?min_layoffs=101").json()["lat"] == []
     assert api_client.get("/api/map-places/timeline?after=2027-01-01").json() == {
         "lat": [], "lon": [], "label": [], "periods": [],
         "place": [], "period": [], "notices": [], "workers": [],
@@ -1106,10 +1109,10 @@ def test_timeline_serves_cached_gzip_or_plain_json(api_client, db, url):
     assert raw == gzip.compress(plain.content, compresslevel=6, mtime=0)
 
 
-def test_timeline_cache_byte_cap_counts_raw_and_gzip():
+def test_timeline_cache_byte_cap_counts_gzip_bytes():
     from warn_v2.api.timeline import Body, TTLCache
 
-    body = Body(b"x" * 600, b"y" * 400)
+    body = Body(b"y" * 1000)
     cache = TTLCache(max_entries=10, max_bytes=1500)
     calls = []
     for key in ("a", "b", "a"):
@@ -1145,7 +1148,7 @@ def test_timeline_warmer_fills_and_refreshes_the_defaults(api_client, db, db_ses
     db.commit()
 
     # /timelapse's default request is served from the warmed entry...
-    url = "/api/map-places/timeline?bucket=quarter&after=2015-01-01"
+    url = "/api/map-places/timeline?bucket=month&after=2015-01-01"
     assert api_client.get(url).json()["notices"] == [1]
     assert api_client.get(
         "/api/stats/industries/timeline?bucket=month&after=1999-01-01"
@@ -1153,6 +1156,39 @@ def test_timeline_warmer_fills_and_refreshes_the_defaults(api_client, db, db_ses
     # ...and the next warm-up replaces it with fresh data.
     timeline_warm.warm_once()
     assert api_client.get(url).json()["notices"] == [1, 1]
+
+
+def test_timeline_warmer_derives_narrow_windows_like_a_query(api_client, db):
+    """The warmer rolls 2010/2015 up from the since-1999 rows; the result must
+    match what querying those windows directly returns, including dropping
+    places with no notice in the window and renumbering the rest."""
+    from warn_v2.api import timeline_warm
+    from warn_v2.api.routes import map_places, stats
+
+    mfg = _company(db, "Mfg", naics_code="311999")
+    for employer, day, lat, company in [
+        ("Old Co", date(2003, 5, 2), 30.0, None),  # only before 2010: dropped there
+        ("Mid Co", date(2012, 7, 9), 35.0, mfg),
+        ("New Co", date(2016, 2, 1), 40.0, None),
+        ("New Co 2", date(2019, 11, 30), 30.0, mfg),
+    ]:
+        n = _geocoded_notice(db, company, employer, lat=lat, lon=-100.0)
+        n.notice_date = day
+    db.commit()
+
+    paths = [
+        f"/api/{p}?bucket={b}&after={y}-01-01"
+        for p in ("map-places/timeline", "stats/industries/timeline")
+        for b in timeline_warm.BUCKETS
+        for y in (1999, 2010, 2015)
+    ]
+    timeline_warm.warm_once()
+    warmed = {p: api_client.get(p).content for p in paths}
+    map_places.clear_timeline_cache()
+    stats.clear_industries_timeline_cache()
+    for p in paths:
+        assert api_client.get(p).content == warmed[p], p
+    assert len(api_client.get(paths[1]).json()["lat"]) == 3  # 2010 window: Old Co gone
 
 
 def test_notices_bbox_filter(api_client, db):
