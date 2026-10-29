@@ -13,7 +13,12 @@ from sqlalchemy import func, select
 
 from warn_v2.db.models import Notice
 from warn_v2.pipeline.dedup import notice_id
-from warn_v2.scrapers.states.tn import parse_tn_archive, tn_archive_files
+from warn_v2.scrapers.states.tn import (
+    parse_tn_archive,
+    parse_tn_pre2017,
+    tn_archive_files,
+    tn_pre2017_files,
+)
 from warn_v2.scripts.backfill_historical import backfill_historical
 
 
@@ -134,12 +139,60 @@ def test_out_of_state_worksite_kept(rows):
 def test_backfill_tn_ingests_bundle(db):
     stats = backfill_historical("TN")
 
-    assert stats["years_attempted"] == 1
-    assert stats["years_ok"] == 1
-    assert stats["rows_seen"] == 507
-    assert stats["rows_new"] == 507
-    assert db.execute(select(func.count(Notice.notice_id))).scalar_one() == 507
+    # reports_20250116 (507) + warn-report-archive 2013-16 (245) + the
+    # warnnotices.shtml 2012 tables (145); the windows don't overlap.
+    assert stats["years_attempted"] == 3
+    assert stats["years_ok"] == 3
+    assert stats["rows_seen"] == 897
+    assert stats["rows_new"] == 897
+    assert db.execute(select(func.count(Notice.notice_id))).scalar_one() == 897
 
     # Idempotent re-run: nothing new.
     stats2 = backfill_historical("TN")
     assert stats2["rows_new"] == 0
+
+
+# ---------------------------------------------------------------------------
+# 2012 - Jun 2016: tn_archive_2012.tar.gz (two older page generations)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def pre2017() -> dict[str, list]:
+    return {name: parse_tn_pre2017(raw, name) for name, raw in tn_pre2017_files()}
+
+
+def test_pre2017_members_and_windows(pre2017):
+    shtml = pre2017["warnnotices_20140915080834.html"]
+    arch = pre2017["warn-report-archive_20160713151608.html"]
+    assert len(shtml) == 145
+    assert {r.notice_date.year for r in shtml} == {2012}  # 2013-14 tables skipped
+    assert len(arch) == 245
+    assert min(r.notice_date for r in arch) >= date(2013, 1, 1)
+    assert max(r.notice_date for r in arch) <= date(2016, 6, 30)
+
+
+def test_pre2017_shtml_row(pre2017):
+    rows = pre2017["warnnotices_20140915080834.html"]
+    hostess = next(r for r in rows if r.employer == "Wonder Hostess Bakery Outlet")
+    assert hostess.notice_date == date(2012, 12, 3)
+    assert hostess.effective_date == date(2012, 12, 7)
+    assert hostess.layoff_count == 19
+    assert (hostess.county, hostess.closure_type) == ("Madison", "Closure")
+    assert hostess.source_url.startswith("https://web.archive.org/web/20140915080834id_/")
+    assert hostess.raw_notice_url.endswith(
+        "/http://www.tn.gov/labor-wfd/warn/2012/WonderHostessBakeryOutlet_LWIA11.pdf"
+    )
+
+
+def test_pre2017_archive_row_keeps_warn_number(pre2017):
+    rows = pre2017["warn-report-archive_20160713151608.html"]
+    green = next(r for r in rows if r.employer == "Green Tree Servicing")
+    assert green.notice_date == date(2015, 8, 21)
+    assert green.layoff_count == 32  # printed "032"
+    assert green.extra == {"notice_number": "20150050"}
+
+
+def test_pre2017_ranged_effective_date(pre2017):
+    rows = pre2017["warn-report-archive_20160713151608.html"]
+    geneco = next(r for r in rows if r.employer == "Geneco")
+    assert geneco.effective_date == date(2016, 8, 23)  # printed "08/23-31/2016"
