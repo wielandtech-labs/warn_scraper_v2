@@ -192,13 +192,16 @@ def create_app(static_dir: Path | None = None) -> FastAPI:
                     if db is not None:
                         db.close()
 
-                resp = HTMLResponse(render_index(self._index_html, meta))
+                resp = HTMLResponse(
+                    render_index(self._index_html, meta), status_code=meta.status
+                )
                 # Deploys must be picked up on the next navigation; no-cache
                 # still allows conditional revalidation, just not blind reuse.
                 resp.headers["Cache-Control"] = "no-cache"
                 return resp
 
             async def get_response(self, path: str, scope: Any) -> Response:
+                from starlette.concurrency import run_in_threadpool
                 from starlette.exceptions import HTTPException as _StarletteHTTPException
 
                 req_path = scope.get("path", "/")
@@ -206,12 +209,13 @@ def create_app(static_dir: Path | None = None) -> FastAPI:
                     resp = await super().get_response(path, scope)
                 except _StarletteHTTPException as exc:
                     if exc.status_code == 404:
-                        return self._render_index(scope)
+                        # Sync DB lookup (detail-page meta): off the event loop.
+                        return await run_in_threadpool(self._render_index, scope)
                     raise
                 # The root request resolves to index.html on disk; re-render it
                 # with the homepage metadata so "/" gets canonical/OG tags too.
                 if req_path == "/":
-                    return self._render_index(scope)
+                    return await run_in_threadpool(self._render_index, scope)
                 # Vite content-hashes every filename under /assets/, so those
                 # responses can never go stale — cache them for a year.
                 if req_path.startswith("/assets/"):
