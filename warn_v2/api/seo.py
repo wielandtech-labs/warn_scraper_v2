@@ -16,6 +16,7 @@ import json
 import os
 import re
 from dataclasses import dataclass
+from datetime import date
 from html import escape
 from typing import TYPE_CHECKING, Any
 
@@ -50,6 +51,8 @@ class PageMeta:
     image: str = DEFAULT_IMAGE  # 1200x630 og:image path, no host
     json_ld: dict[str, Any] | list[dict[str, Any]] | None = None
     fallback_html: str | None = None
+    status: int = 200  # HTTP status the SPA shell is served with
+    noindex: bool = False
 
     @property
     def canonical(self) -> str:
@@ -139,6 +142,27 @@ _APP_PAGES_META: dict[str, tuple[str, str]] = {
 }
 
 
+# Every other page the client router (frontend/src/router.tsx) serves. Paths
+# outside these and the parametrised routes get the SPA with a 404 status, so
+# crawlers don't index an unlimited space of soft-404s.
+_OTHER_SPA_ROUTES = frozenset({
+    "/", "/states", "/status", "/radar", "/timelapse", "/terms",
+})
+# Account/admin views: real pages, but nothing a search engine should index.
+_PRIVATE_ROUTES = frozenset({"/login", "/signup", "/alerts", "/account"})
+
+
+def _not_found(path: str) -> PageMeta:
+    return PageMeta(
+        "Page not found — WARN Index",
+        "This page doesn't exist. Search WARN layoff notices by state, employer, "
+        "or date on WARN Index.",
+        path,
+        status=404,
+        noindex=True,
+    )
+
+
 def content_page_paths() -> list[str]:
     """Paths of the static content pages — for sitemap + footer generation."""
     return sorted(_CONTENT_PAGES)
@@ -178,6 +202,7 @@ def _dataset_json_ld() -> dict[str, Any]:
                 "contentUrl": f"{base}/api/notices/export?format=json",
             },
         ],
+        "isAccessibleForFree": True,
         "spatialCoverage": {
             "@type": "Place",
             "name": "United States",
@@ -454,98 +479,48 @@ def page_meta_for_path(path: str, db: Session | None = None) -> PageMeta:
     if m:
         code = m.group(1).upper()
         name = state_name(code)
-        if name:
-            return PageMeta(
-                f"{name} WARN Layoffs & Notices — WARN Index Tracker",
-                f"Worker Adjustment and Retraining Notification (WARN) layoffs "
-                f"and plant-closure notices in {name}: latest filings, affected-worker "
-                f"totals, top employers, and trends.",
-                f"/states/{code}",
-                image=f"/og/states/{code}.png",
-                json_ld=_breadcrumb_json_ld([
-                    ("Home", "/"),
-                    ("States", "/states"),
-                    (name, f"/states/{code}"),
-                ]),
-            )
+        if not name:
+            return _not_found(path)
+        return PageMeta(
+            f"{name} WARN Layoffs & Notices — WARN Index Tracker",
+            f"Worker Adjustment and Retraining Notification (WARN) layoffs "
+            f"and plant-closure notices in {name}: latest filings, affected-worker "
+            f"totals, top employers, and trends.",
+            f"/states/{code}",
+            image=f"/og/states/{code}.png",
+            json_ld=_breadcrumb_json_ld([
+                ("Home", "/"),
+                ("States", "/states"),
+                (name, f"/states/{code}"),
+            ]),
+        )
 
-    # Companies detail
+    m = re.fullmatch(r"/reports/industry/([^/]+)", path)
+    if m:
+        from warn_v2.companies.naics import SECTOR_NAME
+
+        sector = m.group(1)
+        if sector not in SECTOR_NAME:
+            return _not_found(path)
+        return PageMeta(
+            f"{SECTOR_NAME[sector]} Layoffs — Weekly Industry Report — WARN Index",
+            f"Weekly WARN layoff scorecard for {SECTOR_NAME[sector]} (NAICS {sector}): "
+            f"notice and affected-worker trends, top states, and recent filings.",
+            path,
+            json_ld=_breadcrumb_json_ld([
+                ("Home", "/"),
+                ("Reports", "/reports"),
+                (SECTOR_NAME[sector], path),
+            ]),
+        )
+
     m = re.fullmatch(r"/companies/(\d+)", path)
     if m:
-        cid = int(m.group(1))
-        company_name = None
-        if db is not None:
-            try:
-                from warn_v2.db.models import Company
+        return _company_meta(int(m.group(1)), db)
 
-                comp = db.get(Company, cid)
-                if comp and comp.name:
-                    company_name = comp.name
-            except Exception:
-                pass
-        name_display = company_name or f"Company #{cid}"
-        title = f"{name_display} Layoffs & WARN Notices — WARN Index"
-        desc = (
-            f"Worker Adjustment and Retraining Notification (WARN) filings, plant "
-            f"closures, and layoff history for {name_display}."
-        )
-        return PageMeta(
-            title,
-            desc,
-            f"/companies/{cid}",
-            json_ld=_breadcrumb_json_ld([
-                ("Home", "/"),
-                ("Companies", "/companies"),
-                (name_display, f"/companies/{cid}"),
-            ]),
-        )
-
-    # Notices detail
-    m = re.fullmatch(r"/notices/([^/?#]+)", path)
-    if m and not path.startswith("/notices/export"):
-        nid = m.group(1)
-        employer = None
-        st = None
-        affected = None
-        image = DEFAULT_IMAGE
-        if db is not None:
-            try:
-                from warn_v2.db.models import Notice
-
-                notc = db.get(Notice, nid)
-                if notc:
-                    employer = notc.employer
-                    st = notc.state
-                    affected = notc.layoff_count
-                    image = f"/og/notices/{nid}.png"
-            except Exception:
-                pass
-        if employer and st:
-            title = f"{employer} ({st}) WARN Notice — Layoff Database — WARN Index"
-            aff_str = f" ({affected:,} workers affected)" if affected else ""
-            desc = (
-                f"WARN Act advance layoff notice filed by {employer} in {st}{aff_str}. "
-                f"Track workforce reductions in the WARN Index layoff database."
-            )
-            item_name = f"{employer} ({st})"
-        else:
-            title = "WARN Layoff Notice Filing — WARN Index"
-            desc = (
-                "Worker Adjustment and Retraining Notification (WARN) advance notice "
-                "filing details from official state labor records."
-            )
-            item_name = f"Notice {nid}"
-        return PageMeta(
-            title,
-            desc,
-            f"/notices/{nid}",
-            image=image,
-            json_ld=_breadcrumb_json_ld([
-                ("Home", "/"),
-                ("Notices", "/notices"),
-                (item_name, f"/notices/{nid}"),
-            ]),
-        )
+    m = re.fullmatch(r"/notices/([^/]+)", path)
+    if m:
+        return _notice_meta(m.group(1), db)
 
     matched_content = _CONTENT_PAGES.get(path) or _APP_PAGES_META.get(path)
     if matched_content:
@@ -559,8 +534,148 @@ def page_meta_for_path(path: str, db: Session | None = None) -> PageMeta:
             json_ld=_breadcrumb_json_ld(crumbs),
         )
 
-    # Unknown SPA route: site defaults, but canonicalise to the requested path.
-    return PageMeta(DEFAULT_TITLE, DEFAULT_DESCRIPTION, path)
+    if path in _PRIVATE_ROUTES or path == "/admin" or path.startswith("/admin/"):
+        return PageMeta(DEFAULT_TITLE, DEFAULT_DESCRIPTION, path, noindex=True)
+    if path in _OTHER_SPA_ROUTES:
+        return PageMeta(DEFAULT_TITLE, DEFAULT_DESCRIPTION, path)
+    return _not_found(path)
+
+
+def _fmt_day(d: date) -> str:
+    return f"{d:%B} {d.day}, {d.year}"
+
+
+def _company_meta(cid: int, db: Session | None) -> PageMeta:
+    """Company detail. A merged duplicate canonicalises to the company it was
+    merged into, and its copy describes that company's whole history, which
+    is what the page shows. Without a DB (or on a DB error) the page is
+    served with a generic title rather than a false 404."""
+    from sqlalchemy import distinct, func, or_, select
+
+    from warn_v2.db.models import Company, Notice
+
+    comp = canon = None
+    stats = None
+    if db is not None:
+        try:
+            comp = db.get(Company, cid)
+            if comp is not None:
+                canon_id = comp.canonical_company_id or comp.id
+                canon = comp if canon_id == comp.id else db.get(Company, canon_id)
+                members = select(Company.id).where(
+                    or_(Company.id == canon_id, Company.canonical_company_id == canon_id)
+                )
+                stats = db.execute(
+                    select(
+                        func.count(),
+                        func.sum(Notice.layoff_count),
+                        func.count(distinct(Notice.state)),
+                        func.min(Notice.notice_date),
+                        func.max(Notice.notice_date),
+                    ).where(Notice.company_id.in_(members), Notice.is_superseded.is_(False))
+                ).one()
+        except Exception:
+            comp = canon = stats = None
+        else:
+            if comp is None:
+                return _not_found(f"/companies/{cid}")
+
+    if canon is None or stats is None:
+        name = f"Company #{cid}"
+        return PageMeta(
+            f"{name} Layoffs & WARN Notices — WARN Index",
+            f"Worker Adjustment and Retraining Notification (WARN) filings, plant "
+            f"closures, and layoff history for {name}.",
+            f"/companies/{cid}",
+        )
+
+    # The page's own name (as the client titles it too), with the history and
+    # canonical URL of the company it was merged into.
+    name = comp.name if comp is not None else canon.name
+    path = f"/companies/{canon.id}"
+    n, workers, n_states, first, last = stats
+    if n:
+        parts = [f"{name}: {n:,} WARN layoff notice{'s' if n != 1 else ''}"]
+        if first:
+            parts.append(f" since {first.year}")
+        if workers:
+            parts.append(f", affecting {workers:,} workers")
+        parts.append(f" in {n_states} state{'s' if n_states != 1 else ''}.")
+        if last:
+            parts.append(f" Latest filing {_fmt_day(last)}.")
+        desc = "".join(parts)
+    else:
+        desc = f"WARN layoff notice history for {name}."
+    return PageMeta(
+        f"{name} Layoffs & WARN Notices — WARN Index",
+        desc,
+        path,
+        json_ld=_breadcrumb_json_ld([
+            ("Home", "/"),
+            ("Companies", "/companies"),
+            (name, path),
+        ]),
+        # A company whose every notice was superseded has nothing to show.
+        noindex=not n,
+    )
+
+
+def _notice_meta(nid: str, db: Session | None) -> PageMeta:
+    """Notice detail: employer, place, date and size in the title and
+    description, so each of ~100k pages reads as its own document. A
+    superseded notice (a duplicate of a later filing) is noindexed."""
+    from warn_v2.db.models import Notice
+
+    path = f"/notices/{nid}"
+    notc = None
+    if db is not None:
+        try:
+            notc = db.get(Notice, nid)
+            city = notc.location.city if notc is not None and notc.location else None
+        except Exception:
+            db = notc = None
+        else:
+            if notc is None:
+                return _not_found(path)
+
+    if notc is None:
+        return PageMeta(
+            "WARN Layoff Notice Filing — WARN Index",
+            "Worker Adjustment and Retraining Notification (WARN) advance notice "
+            "filing details from official state labor records.",
+            path,
+        )
+
+    st = notc.state
+    place = f"{city}, {st}" if city else (state_name(st) or st)
+    when = f" ({notc.notice_date:%b %Y})" if notc.notice_date else ""
+    if notc.layoff_count:
+        title = f"{notc.employer} Layoffs: {notc.layoff_count:,} Workers in {place}{when}"
+    else:
+        title = f"{notc.employer} WARN Notice in {place}{when}"
+    desc = f"{notc.employer} filed a WARN notice in {place}"
+    if notc.notice_date:
+        desc += f" on {_fmt_day(notc.notice_date)}"
+    details = []
+    if notc.layoff_count:
+        details.append(f"{notc.layoff_count:,} workers affected")
+    if notc.closure_type:
+        details.append(notc.closure_type.strip().lower())
+    if notc.effective_date:
+        details.append(f"effective {_fmt_day(notc.effective_date)}")
+    desc += (": " + ", ".join(details) + ".") if details else "."
+    return PageMeta(
+        f"{title} — WARN Index",
+        desc,
+        path,
+        image=f"/og/notices/{nid}.png",
+        json_ld=_breadcrumb_json_ld([
+            ("Home", "/"),
+            ("Notices", "/notices"),
+            (f"{notc.employer} ({st})", path),
+        ]),
+        noindex=notc.is_superseded,
+    )
 
 
 def _head_tags(meta: PageMeta) -> str:
@@ -572,7 +687,10 @@ def _head_tags(meta: PageMeta) -> str:
     feed = base + "/feed.rss"
     image = base + escape(meta.image, quote=True)
     tags = [
-        f'    <link rel="canonical" href="{url}" />',
+        # A noindexed page shouldn't also nominate itself as canonical.
+        '    <meta name="robots" content="noindex" />'
+        if meta.noindex
+        else f'    <link rel="canonical" href="{url}" />',
         '    <meta property="og:site_name" content="WARN Index" />',
         '    <meta property="og:type" content="website" />',
         f'    <meta property="og:title" content="{t}" />',

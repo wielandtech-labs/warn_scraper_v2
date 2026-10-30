@@ -11,12 +11,13 @@ from xml.etree.ElementTree import Element, SubElement, tostring
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import PlainTextResponse, Response
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from warn_v2.api.deps import get_db
 from warn_v2.api.filters import apply_notice_filters
 from warn_v2.api.seo import content_page_paths, site_base_url
+from warn_v2.companies.naics import SECTOR_NAME
 from warn_v2.db.models import Company, Notice
 from warn_v2.states import STATE_NAMES, is_valid_state, state_name
 
@@ -31,10 +32,13 @@ _APP_PAGES = [
     "/stats",
     "/states",
     "/reports",
+    "/outlook",
     "/status",
 ]
 
 _RSS_LIMIT = 50
+_SITEMAP_NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
+_SITEMAP_CHUNK = 20_000  # URLs per child sitemap (the protocol allows 50,000)
 _HTTP_DATE = "%a, %d %b %Y %H:%M:%S GMT"
 
 
@@ -43,66 +47,105 @@ def robots_txt() -> str:
     return f"User-agent: *\nAllow: /\nSitemap: {site_base_url()}/sitemap.xml\n"
 
 
+def _xml(root: Element) -> Response:
+    xml = b'<?xml version="1.0" encoding="UTF-8"?>\n' + tostring(root, encoding="utf-8")
+    return Response(content=xml, media_type="application/xml")
+
+
+def _company_rows():
+    """Canonical companies with at least one visible notice, and the date of
+    their latest one (a new filing is what changes the page). Merged
+    duplicates roll up into their canonical, which is the URL listed."""
+    canon = func.coalesce(Company.canonical_company_id, Company.id)
+    return (
+        select(canon.label("cid"), func.max(Notice.notice_date).label("last"))
+        .join(Notice, Notice.company_id == Company.id)
+        .where(Notice.is_superseded.is_(False))
+        .group_by(canon)
+    )
+
+
+def _notice_ids():
+    return select(Notice.notice_id).where(Notice.is_superseded.is_(False))
+
+
+def _chunks(db: Session, stmt) -> int:
+    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    return -(-total // _SITEMAP_CHUNK)
+
+
 @router.get("/sitemap.xml")
 def sitemap_xml(db: Session = Depends(get_db)) -> Response:
+    """Sitemap index. Children are chunked under the protocol's 50,000-URL
+    limit, so every company and notice page is listed, not just the newest."""
     base = site_base_url()
-    urlset = Element("urlset", xmlns="http://www.sitemaps.org/schemas/sitemap/0.9")
+    index = Element("sitemapindex", xmlns=_SITEMAP_NS)
+    names = ["pages"]
+    names += [f"companies-{i}" for i in range(_chunks(db, _company_rows()))]
+    names += [f"notices-{i}" for i in range(_chunks(db, _notice_ids()))]
+    for name in names:
+        SubElement(SubElement(index, "sitemap"), "loc").text = f"{base}/sitemaps/{name}.xml"
+    return _xml(index)
 
-    # 1. Main app routes (daily, high priority)
+
+@router.get("/sitemaps/pages.xml")
+def sitemap_pages() -> Response:
+    base = site_base_url()
+    urlset = Element("urlset", xmlns=_SITEMAP_NS)
+
+    def add(path: str, changefreq: str, priority: str) -> None:
+        url = SubElement(urlset, "url")
+        SubElement(url, "loc").text = base + path
+        SubElement(url, "changefreq").text = changefreq
+        SubElement(url, "priority").text = priority
+
     for path in _APP_PAGES:
-        url = SubElement(urlset, "url")
-        SubElement(url, "loc").text = base + path
-        SubElement(url, "changefreq").text = "daily"
-        SubElement(url, "priority").text = "1.0" if path == "/" else "0.9"
-
-    # 2. Static content pages (monthly)
+        add(path, "daily", "1.0" if path == "/" else "0.9")
     for path in content_page_paths():
-        url = SubElement(urlset, "url")
-        SubElement(url, "loc").text = base + path
-        SubElement(url, "changefreq").text = "monthly"
-        SubElement(url, "priority").text = "0.7"
-
-    # 3. 50 states + DC (daily)
+        add(path, "monthly", "0.7")
     for code in sorted(STATE_NAMES):
+        add(f"/states/{code}", "daily", "0.8")
+    for sector in sorted(SECTOR_NAME):
+        add(f"/reports/industry/{sector}", "weekly", "0.6")
+    return _xml(urlset)
+
+
+@router.get("/sitemaps/companies-{chunk:int}.xml")
+def sitemap_companies(chunk: int, db: Session = Depends(get_db)) -> Response:
+    rows = _company_rows().subquery()
+    page = db.execute(
+        select(rows.c.cid, rows.c.last)
+        .order_by(rows.c.cid)
+        .offset(chunk * _SITEMAP_CHUNK)
+        .limit(_SITEMAP_CHUNK)
+    ).all()
+    if not page:
+        raise HTTPException(status_code=404, detail="No such sitemap")
+    base = site_base_url()
+    urlset = Element("urlset", xmlns=_SITEMAP_NS)
+    for cid, last in page:
         url = SubElement(urlset, "url")
-        SubElement(url, "loc").text = f"{base}/states/{code}"
-        SubElement(url, "changefreq").text = "daily"
-        SubElement(url, "priority").text = "0.8"
+        SubElement(url, "loc").text = f"{base}/companies/{cid}"
+        if last is not None:
+            SubElement(url, "lastmod").text = last.isoformat()
+    return _xml(urlset)
 
-    # 4. Canonical companies (weekly)
-    try:
-        canonical_companies = db.scalars(
-            select(Company.id)
-            .where(Company.canonical_company_id.is_(None))
-            .order_by(Company.id.desc())
-            .limit(10000)
-        ).all()
-        for cid in canonical_companies:
-            url = SubElement(urlset, "url")
-            SubElement(url, "loc").text = f"{base}/companies/{cid}"
-            SubElement(url, "changefreq").text = "weekly"
-            SubElement(url, "priority").text = "0.6"
-    except Exception:
-        pass
 
-    # 5. Recent non-superseded notices (monthly)
-    try:
-        recent_notices = db.scalars(
-            select(Notice.notice_id)
-            .where(Notice.is_superseded.is_(False))
-            .order_by(Notice.notice_date.desc().nullslast(), Notice.scraped_at.desc())
-            .limit(5000)
-        ).all()
-        for nid in recent_notices:
-            url = SubElement(urlset, "url")
-            SubElement(url, "loc").text = f"{base}/notices/{nid}"
-            SubElement(url, "changefreq").text = "monthly"
-            SubElement(url, "priority").text = "0.5"
-    except Exception:
-        pass
-
-    xml = b'<?xml version="1.0" encoding="UTF-8"?>\n' + tostring(urlset, encoding="utf-8")
-    return Response(content=xml, media_type="application/xml")
+@router.get("/sitemaps/notices-{chunk:int}.xml")
+def sitemap_notices(chunk: int, db: Session = Depends(get_db)) -> Response:
+    ids = db.scalars(
+        _notice_ids()
+        .order_by(Notice.notice_id)
+        .offset(chunk * _SITEMAP_CHUNK)
+        .limit(_SITEMAP_CHUNK)
+    ).all()
+    if not ids:
+        raise HTTPException(status_code=404, detail="No such sitemap")
+    base = site_base_url()
+    urlset = Element("urlset", xmlns=_SITEMAP_NS)
+    for nid in ids:
+        SubElement(SubElement(urlset, "url"), "loc").text = f"{base}/notices/{nid}"
+    return _xml(urlset)
 
 
 def _rss(title: str, description: str, path: str, notices: list[Notice]) -> Response:

@@ -212,7 +212,7 @@ class Notice(Base):
     )
 
     company_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("companies.id", ondelete="SET NULL")
+        BigInteger, ForeignKey("companies.id", ondelete="SET NULL"), index=True
     )
     location_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("locations.id", ondelete="SET NULL")

@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 
 import { api, ApiError } from "../api/client";
+import type { NoticeOut } from "../api/types";
 import { ClosureBadge } from "../components/ClosureBadge";
 import { CompanyLogo } from "../components/CompanyLogo";
 import { EmbedButton } from "../components/EmbedDialog";
@@ -18,6 +19,21 @@ import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { fmtDate, fmtNum, fmtRelativeDays, stateName } from "../lib/format";
 
 const OTHER_FILINGS = 5;
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** Mirrors _notice_meta in warn_v2/api/seo.py. Googlebot renders JS, so this
+ *  title (not the server-injected one) is what gets indexed: keep them equal. */
+function noticeTitle(n: NoticeOut): string {
+  const city = n.location?.city;
+  const place = city ? `${city}, ${n.state}` : stateName(n.state);
+  const d = n.notice_date;
+  const when = d ? ` (${MONTHS[Number(d.slice(5, 7)) - 1]} ${d.slice(0, 4)})` : "";
+  const head = n.layoff_count
+    ? `${n.employer} Layoffs: ${n.layoff_count.toLocaleString("en-US")} Workers in ${place}${when}`
+    : `${n.employer} WARN Notice in ${place}${when}`;
+  return `${head} — WARN Index`;
+}
 
 export function NoticeDetail() {
   const { noticeId } = useParams({ from: "/notices/$noticeId" });
@@ -38,11 +54,7 @@ export function NoticeDetail() {
   });
   const [showPdf, setShowPdf] = useState(false);
 
-  useDocumentTitle(
-    query.data
-      ? `${query.data.employer} (${query.data.state}) Layoffs & WARN Notice — WARN Index`
-      : undefined,
-  );
+  useDocumentTitle(query.data ? noticeTitle(query.data) : undefined);
 
   if (query.isLoading) {
     return (

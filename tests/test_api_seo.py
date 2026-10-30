@@ -1,7 +1,9 @@
 """Tests for SEO metadata injection, sitemap, robots, and RSS feeds."""
 from __future__ import annotations
 
+import re
 from datetime import date
+from pathlib import Path
 from xml.etree.ElementTree import fromstring
 
 import pytest
@@ -75,10 +77,9 @@ def test_meta_state_trailing_slash_and_query_normalised():
     assert meta.path == "/states/TX"
 
 
-def test_meta_unknown_state_falls_back_to_default():
+def test_meta_unknown_state_is_a_404():
     meta = page_meta_for_path("/states/zz")
-    assert meta.title == DEFAULT_TITLE
-    # canonical preserves the requested (normalised) path
+    assert (meta.status, meta.noindex) == (404, True)
     assert meta.path == "/states/zz"
 
 
@@ -96,10 +97,45 @@ def test_meta_app_pages_have_bespoke_titles():
         assert meta.path == path
 
 
-def test_meta_unknown_route_keeps_canonical_path():
+def test_meta_unknown_route_is_a_404():
+    """Unknown paths used to get the homepage meta with a 200: an unlimited
+    space of indexable soft-404s."""
     meta = page_meta_for_path("/no-such-page")
-    assert meta.title == DEFAULT_TITLE
-    assert meta.path == "/no-such-page"
+    assert (meta.status, meta.noindex) == (404, True)
+    assert meta.title != DEFAULT_TITLE
+
+
+def _router_paths() -> list[str]:
+    src = (Path(__file__).parents[1] / "frontend" / "src" / "router.tsx").read_text(
+        encoding="utf-8"
+    )
+    return re.findall(r'path: "(/[^"]*)"', src)
+
+
+def test_every_static_client_route_is_served_with_200():
+    """The server's route allowlist must track frontend/src/router.tsx, or a
+    real page goes out as a 404. Parametrised routes are covered below."""
+    static = [p for p in _router_paths() if "$" not in p]
+    assert len(static) > 15  # the regex still matches the router's syntax
+    for path in static:
+        assert page_meta_for_path(path).status == 200, path
+
+
+def test_every_parametrised_client_route_is_handled():
+    dynamic = {p for p in _router_paths() if "$" in p}
+    handled = {
+        "/notices/$noticeId", "/companies/$companyId", "/states/$state",
+        "/reports/industry/$sector",
+    }
+    assert dynamic == handled, "new parametrised route: add it to page_meta_for_path"
+    assert page_meta_for_path("/reports/industry/23").status == 200
+    assert page_meta_for_path("/reports/industry/99").status == 404
+
+
+def test_private_routes_are_noindexed_not_404():
+    for path in ("/login", "/account", "/admin/companies"):
+        meta = page_meta_for_path(path)
+        assert (meta.status, meta.noindex) == (200, True), path
 
 
 # --- render_index -----------------------------------------------------------
@@ -147,7 +183,7 @@ def test_robots_txt(api_client):
 
 
 def test_sitemap_lists_all_states_and_content(api_client):
-    resp = api_client.get("/sitemap.xml")
+    resp = api_client.get("/sitemaps/pages.xml")
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("application/xml")
     root = fromstring(resp.content)
@@ -318,32 +354,99 @@ def test_meta_notice_detail_page_with_and_without_db(db):
     db.commit()
     nid = "seo_OH_2026-01-15_Clevelan"
 
-    # With DB
+    # With DB: employer, place, size and month make each page's title unique
     with_db = page_meta_for_path(f"/notices/{nid}", db=db)
-    assert "Cleveland Dynamics" in with_db.title
-    assert "(OH)" in with_db.title
-    assert "150 workers affected" in with_db.description
+    assert with_db.title.startswith("Cleveland Dynamics Layoffs: 150 Workers in Ohio (Jan 2026)")
+    assert "on January 15, 2026: 150 workers affected" in with_db.description
+    assert (with_db.status, with_db.noindex) == (200, False)
 
     # Without DB falls back gracefully
     without_db = page_meta_for_path(f"/notices/{nid}")
     assert "WARN Layoff Notice Filing" in without_db.title
 
 
-def test_sitemap_includes_companies_and_notices(api_client, db):
-    comp = Company(id=101, name="Acme Tech")
-    db.add(comp)
-    _notice(db, state="CA", employer="Acme Tech")
+def test_meta_unknown_notice_and_company_are_404s(db):
+    assert page_meta_for_path("/notices/nope", db=db).status == 404
+    assert page_meta_for_path("/companies/424242", db=db).status == 404
+    # No DB to ask: a generic 200, never a false 404
+    assert page_meta_for_path("/companies/424242").status == 200
+
+
+def test_meta_superseded_notice_is_noindexed(db):
+    n = _notice(db, employer="Dupe Co")
+    n.is_superseded = True
+    db.commit()
+    meta = page_meta_for_path(f"/notices/{n.notice_id}", db=db)
+    assert (meta.status, meta.noindex) == (200, True)
+    assert 'name="robots" content="noindex"' in render_index(_BASE_HTML, meta)
+    assert 'rel="canonical"' not in render_index(_BASE_HTML, meta)
+
+
+def test_meta_company_summarises_history_and_merged_dupe_canonicalises(db):
+    db.add_all([Company(id=7, name="Globex"), Company(id=8, name="Globex Inc",
+                                                     canonical_company_id=7)])
+    a = _notice(db, state="CA", employer="Globex", notice_date=date(2019, 3, 1),
+                layoff_count=100)
+    b = _notice(db, state="TX", employer="Globex Inc", notice_date=date(2025, 6, 2),
+                layoff_count=1200)
+    a.company_id, b.company_id = 7, 8
     db.commit()
 
-    resp = api_client.get("/sitemap.xml")
+    canon = page_meta_for_path("/companies/7", db=db)
+    assert canon.description == (
+        "Globex: 2 WARN layoff notices since 2019, affecting 1,300 workers in "
+        "2 states. Latest filing June 2, 2025."
+    )
+    dupe = page_meta_for_path("/companies/8", db=db)
+    assert dupe.path == "/companies/7"  # canonical points at the merge target
+    # titled by its own name, like the client does; history is the merged whole
+    assert dupe.title.startswith("Globex Inc Layoffs")
+    assert dupe.description.startswith("Globex Inc: 2 WARN layoff notices")
+
+
+def test_spa_serves_404_status_for_unknown_paths(tmp_path, db):
+    from warn_v2.api import create_app
+
+    (tmp_path / "index.html").write_text(_BASE_HTML, encoding="utf-8")
+    client = TestClient(create_app(static_dir=tmp_path))
+    assert client.get("/states/CA").status_code == 200
+    assert client.get("/notices").status_code == 200
+    missing = client.get("/companies/31337")
+    assert missing.status_code == 404
+    assert missing.headers["content-type"].startswith("text/html")  # still the SPA
+    assert client.get("/no-such-page").status_code == 404
+
+
+def _locs(resp) -> list[str]:
     assert resp.status_code == 200
-    root = fromstring(resp.content)
     ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
-    locs = {el.text for el in root.findall(".//sm:loc", ns)}
+    return [el.text for el in fromstring(resp.content).findall(".//sm:loc", ns)]
+
+
+def test_sitemap_index_covers_every_company_and_notice(api_client, db, monkeypatch):
+    from warn_v2.api.routes import seo as seo_routes
+
+    monkeypatch.setattr(seo_routes, "_SITEMAP_CHUNK", 2)
+    db.add_all([Company(id=c, name=f"Co {c}") for c in (1, 2, 3)])
+    db.add(Company(id=4, name="Co 4 dupe", canonical_company_id=1))
+    db.add(Company(id=5, name="No visible notices"))
+    for cid, st, day in ((1, "CA", 1), (2, "NY", 2), (3, "TX", 3), (4, "OH", 4)):
+        _notice(db, state=st, employer=f"Co {cid}", notice_date=date(2026, 1, day)).company_id = cid
+    hidden = _notice(db, state="WA", employer="Co 5")
+    hidden.company_id, hidden.is_superseded = 5, True
+    db.commit()
+
     base = site_base_url()
-    assert f"{base}/companies/101" in locs
-    assert any("/notices/seo_CA_" in loc for loc in locs)
-    # Checks priority and changefreq tags exist
-    frequencies = {el.text for el in root.findall(".//sm:changefreq", ns)}
-    assert "daily" in frequencies
-    assert "weekly" in frequencies
+    children = _locs(api_client.get("/sitemap.xml"))
+    assert children == [f"{base}/sitemaps/{n}.xml" for n in
+                        ("pages", "companies-0", "companies-1", "notices-0", "notices-1")]
+    companies = (_locs(api_client.get("/sitemaps/companies-0.xml"))
+                 + _locs(api_client.get("/sitemaps/companies-1.xml")))
+    # canonical ids only (4 rolls up into 1); 5 has no visible notice
+    assert companies == [f"{base}/companies/{c}" for c in (1, 2, 3)]
+    first = api_client.get("/sitemaps/companies-0.xml").text
+    assert "<lastmod>2026-01-04</lastmod>" in first  # company 1's latest, via its dupe
+    notices = (_locs(api_client.get("/sitemaps/notices-0.xml"))
+               + _locs(api_client.get("/sitemaps/notices-1.xml")))
+    assert len(notices) == 4 and not any("WA" in n for n in notices)
+    assert api_client.get("/sitemaps/notices-9.xml").status_code == 404
