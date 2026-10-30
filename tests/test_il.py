@@ -508,3 +508,39 @@ def test_il_discover_archive_xlsx_urls_resolves_relative_sourceurl() -> None:
         "https://www.illinoisworknet.com/DownloadPrint/June2026MonthlyWARNReport.xlsx",
         "https://www.illinoisworknet.com/DownloadPrint/May2026MonthlyWARNReport.xlsx",
     ]
+
+
+def test_il_left_shifted_row_puts_county_and_naics_back() -> None:
+    """2021-2024 archive revisions omit TYPE OF LAYOFF, shifting the tail one
+    column left: the NAICS landed in county (seen as county '335911' in prod)."""
+    cols = [c for c in _COLS if c != "CEJA RELATED"]  # the 2021-2024 layout
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(cols)
+    ws.append(["Energizer", None, "200 Corporate Dr", "Dixon, IL 61021", "No", "No",
+               "3", "1", "Storage Battery Mfg", "Twenty additional workers",
+               date(2021, 10, 4), date(2021, 12, 3), None, None,
+               20, "Consolidation", "Lee", "335911", None])
+    buf = io.BytesIO()
+    wb.save(buf)
+
+    (row,) = get_scraper("IL").parse(buf.getvalue())
+
+    assert (row.county, row.naics_code, row.layoff_count) == ("Lee", "335911", 20)
+    assert row.extra["event_causes"] == "Consolidation"
+    assert row.extra["layoff_type"] is None
+
+
+def test_il_left_shift_with_ceja_column_takes_county_from_it() -> None:
+    row_vals = list(_ROWS[1])
+    # TYPE OF LAYOFF omitted: cause, CEJA value, county, NAICS each slide left.
+    row_vals[15:20] = ["Restructuring", "No", "Peoria", "484110", None]
+    (row,) = get_scraper("IL").parse(_build_xlsx([tuple(row_vals)]))
+    assert (row.county, row.naics_code) == ("Peoria", "484110")
+
+
+def test_il_numeric_county_with_naics_present_is_left_alone() -> None:
+    row_vals = list(_ROWS[0])
+    row_vals[18] = "123"  # odd county value, but NAICS present: not a shifted row
+    (row,) = get_scraper("IL").parse(_build_xlsx([tuple(row_vals)]))
+    assert (row.county, row.naics_code) == ("123", "331110")

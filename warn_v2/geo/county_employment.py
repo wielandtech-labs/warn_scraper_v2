@@ -88,7 +88,8 @@ def canonical_name(state: str | None, county: str | None) -> str | None:
     """
     if not state or not county:
         return None
-    c = " ".join(county.split())
+    # Typographic apostrophes (U+2019, "Prince George\u2019s") must meet plain ones.
+    c = " ".join(county.replace("\u2019", "'").split())
 
     def _paren(m: re.Match) -> str:
         inner = m.group(1).strip().lower()
