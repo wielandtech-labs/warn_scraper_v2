@@ -18,6 +18,7 @@ import { QueryError } from "../components/QueryError";
 import { ReportMarkdown } from "../components/ReportMarkdown";
 import { SkeletonBlock, SkeletonChart, SkeletonRows } from "../components/Skeleton";
 import { StateSilhouette } from "../components/StateSilhouette";
+import { StateWarnLaw } from "../components/StateWarnLaw";
 import {
   TimeRangeToggle,
   type TimeRange,
@@ -129,6 +130,7 @@ export function StateDetailPage() {
           <h1 className="mt-1 text-2xl font-semibold">{name} layoffs &amp; WARN notices</h1>
         </div>
         <UnavailableNotice state={code} />
+        <StateWarnLaw code={code} name={name} />
       </div>
     );
   }
@@ -337,6 +339,8 @@ export function StateDetailPage() {
         title={`Hardest-hit counties in ${name}`}
         query={{ state: code, after, limit: 10 }}
       />
+
+      <StateWarnLaw code={code} name={name} />
 
       {!reportMissing && (
         <div className="card">

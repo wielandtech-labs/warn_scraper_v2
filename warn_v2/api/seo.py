@@ -296,7 +296,7 @@ def _mini_warn_faq_json_ld() -> dict[str, Any]:
         ),
         (
             "Which states require 90 days advance notice instead of 60 days?",
-            "New York, New Jersey, and Maine require 90 calendar days of advance notice "
+            "New York, New Jersey, Maine, and Nebraska require 90 calendar days of advance notice "
             "before a covered plant closure or mass layoff takes effect, compared to the "
             "60-day federal baseline.",
         ),
