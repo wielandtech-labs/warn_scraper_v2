@@ -1,55 +1,48 @@
 # District of Columbia (DC) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 9 | 5 | 8 | 20 | 35 |
-| Workers affected | 755 | 1,904 | 249 | 3,283 | 3,917 |
+| Notices | 5 | 5 | 7 | 18 | 37 |
+| Workers affected | 459 | 1,566 | 184 | 3,207 | 3,993 |
 
-**Job losses vs prior window: -60.3% · vs same window last year: 203.2% · trailing 12 months vs prior 12: -16.2%**
+**Job losses vs prior window: -70.7% · vs same window last year: +149.5% · trailing 12 months vs prior 12: -19.7%**
 
 ## Sentiment
 
-Job losses reported in WARN notices in the District of Columbia eased to 755 in the current 90-day window, down 60.3% from 1,904 in the prior window. The seasonal comparison points the other way: that is 203.2% above the 249 recorded in the same window last year. Recent weeks may rise as late filings arrive. Over the longer run, trailing-12-month job losses of 3,283 are 16.2% below the 3,917 of the twelve months before.
+Job losses in the District of Columbia eased 70.7% against the prior window, to 459 workers from 1,566, but worsened 149.5% from 184 in the same window last year. The comparisons point different ways: momentum shows relief, while the seasonal picture is worse. Trailing 12-month losses of 3,207 are 19.7% below the prior 12 months. Recent weeks may rise as late filings arrive.
 
-All notices fall within the District itself, so there is no county breakdown beyond the single jurisdiction.
+All activity is recorded in the District itself.
 
-By sector, Other Services (except Public Administration) recorded 318 job losses and Administrative, Support & Waste Management 205, neither with comparable activity in the prior window. Finance & Insurance reached 85 on the same basis, while Professional, Scientific & Technical Services eased to 0 from 202.
+Other Services (except Public Administration) accounts for 318 workers, with no comparable activity in the prior window. Administrative, Support & Waste Management rose 120.3% to 141.
 
-The model projects 175 job losses for 2026-10 (range 0–558) and 550 for 2027-03 (range 167–934).
+The model projects 175 job losses for 2026-10 (range 0–558) and 198 for 2026-11 (range 0–581).
 
 ## Analysis
 
-Momentum and the seasonal comparison diverge sharply. Easing from a heavy prior window still leaves current job losses well above last year's low base of 249. 2026-07 stands out in the monthly path, with 1,566 job losses against 51 a year earlier. The 12-month trend shows moderate relief.
+The prior window was dominated by 2026-07, when 1,566 workers were affected against 51 a year earlier, so the momentum decline mostly reflects that single month falling out of view. 2026-09 recorded 318 workers where no comparable activity was recorded a year earlier.
 
-The monthly path has been lumpy, as expected with a handful of notices a month. 2026-09 recorded 318 job losses where no comparable activity was recorded a year earlier, and 2026-08 recorded 141 against 202.
-
-The sector mix has turned over entirely: every sector with current-window job losses had no comparable activity in the prior window.
-
-- Whether job losses stay above last year's level into the next window.
-- Other Services (except Public Administration), now the largest sector.
-- The model's 2027-03 projection of 550, with a band of 167–934.
+- Whether the seasonal worsening continues.
+- Other Services, the largest current sector.
 
 ## Where layoffs are shifting — by county
 
 | County | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| District of Columbia | 9 | 755 | 1,904 | -1,149 | -60.3% |
+| District of Columbia | 5 | 459 | 1,566 | -1,107 | -70.7% |
 
 ## Industry pressure — NAICS sectors
 
 | Sector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
 | Other Services (except Public Administration) | 2 | 318 | 0 | +318 | new |
-| Administrative, Support & Waste Management | 3 | 205 | 0 | +205 | new |
-| Finance & Insurance | 1 | 85 | 0 | +85 | new |
-| Professional, Scientific & Technical Services | 0 | 0 | 202 | -202 | -100.0% |
-| Wholesale Trade | 0 | 0 | 125 | -125 | -100.0% |
+| Administrative, Support & Waste Management | 2 | 141 | 64 | +77 | +120.3% |
+| Finance & Insurance | 0 | 0 | 85 | -85 | -100% |
 
-_NAICS coverage: 66.7% of current-window notices have an enriched company._
+_NAICS coverage: 80% of current-window notices have an enriched company._
 
 ## Monthly trend (last 12 months)
 
@@ -78,4 +71,4 @@ _Statistical projection (ets-seasonal, fit on 67 months of history through 2026-
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

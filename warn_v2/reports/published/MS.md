@@ -1,15 +1,15 @@
 # Mississippi (MS) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 0 | 3 | 5 | 13 | 16 |
-| Workers affected | 0 | 536 | 738 | 1,718 | 1,900 |
+| Notices | 0 | 3 | 4 | 14 | 15 |
+| Workers affected | 0 | 431 | 667 | 2,056 | 1,633 |
 
-**Job losses vs prior window: -100.0% · vs same window last year: -100.0% · trailing 12 months vs prior 12: -9.6%**
+**Job losses vs prior window: -100.0% · vs same window last year: -100.0% · trailing 12 months vs prior 12: 25.9%**
 
 ## Sentiment
 
@@ -19,16 +19,16 @@ Insufficient recent WARN activity in Mississippi to support a trend narrative (0
 
 | County | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| DeSoto | 0 | 0 | 52 | -52 | -100.0% |
-| Lefore | 0 | 0 | 484 | -484 | -100.0% |
+| Chickasaw | 0 | 0 | 86 | -86 | -100.0% |
+| Jackson | 0 | 0 | 86 | -86 | -100.0% |
+| Stone | 0 | 0 | 259 | -259 | -100.0% |
 
 ## Industry pressure — NAICS sectors
 
 | Sector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Accommodation & Food Services | 0 | 0 | 59 | -59 | -100.0% |
-| Health Care & Social Assistance | 0 | 0 | 425 | -425 | -100.0% |
-| Other Services (except Public Administration) | 0 | 0 | 52 | -52 | -100.0% |
+| Accommodation & Food Services | 0 | 0 | 86 | -86 | -100.0% |
+| Manufacturing | 0 | 0 | 259 | -259 | -100.0% |
 
 _NAICS coverage: 0.0% of current-window notices have an enriched company._
 
@@ -39,23 +39,25 @@ _NAICS coverage: 0.0% of current-window notices have an enriched company._
 | 2025-11 | 1 | 0 | 0 |
 | 2025-12 | 1 | 0 | 237 |
 | 2026-01 | 2 | 413 | 252 |
-| 2026-02 | 3 | 550 | 130 |
-| 2026-03 | 3 | 219 | 113 |
+| 2026-02 | 2 | 543 | 130 |
+| 2026-03 | 2 | 133 | 113 |
 | 2026-04 | 3 | 536 | 0 |
+| 2026-05 | 1 | 86 | 50 |
+| 2026-07 | 2 | 345 | 71 |
 
 ## Outlook — next 6 months (model estimate)
 
 | Month | Notices (80% band) | Workers affected (80% band) |
 |---|---:|---:|
-| 2026-10 | 1 (0–3) | 167 (0–390) |
-| 2026-11 | 1 (0–3) | 152 (0–375) |
-| 2026-12 | 2 (1–4) | 208 (0–430) |
-| 2027-01 | 2 (0–3) | 276 (53–498) |
-| 2027-02 | 1 (0–3) | 130 (0–353) |
-| 2027-03 | 1 (0–3) | 314 (91–536) |
+| 2026-10 | 2 (0–3) | 269 (50–488) |
+| 2026-11 | 1 (0–3) | 124 (0–343) |
+| 2026-12 | 1 (0–3) | 307 (88–526) |
+| 2027-01 | 1 (0–2) | 86 (0–305) |
+| 2027-02 | 1 (0–3) | 123 (0–343) |
+| 2027-03 | 2 (1–4) | 374 (155–593) |
 
-_Statistical projection (ets-seasonal, fit on 65 months of history through 2026-04); not recorded data._
+_Statistical projection (ets-seasonal, fit on 68 months of history through 2026-07); not recorded data._
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

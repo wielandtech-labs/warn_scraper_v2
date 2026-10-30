@@ -1,25 +1,26 @@
 # West Virginia (WV) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 1 | 1 | 1 | 5 | 21 |
+| Notices | 2 | 1 | 1 | 6 | 21 |
 | Workers affected | 200 | 1 | 507 | 731 | 1,004 |
 
 **Job losses vs prior window: +19900.0% · vs same window last year: -60.6% · trailing 12 months vs prior 12: -27.2%**
 
 ## Sentiment
 
-Insufficient recent WARN activity in West Virginia to support a trend narrative (1 notices in the current window, 1 in the prior).
+Insufficient recent WARN activity in West Virginia to support a trend narrative (2 notices in the current window, 1 in the prior).
 
 ## Where layoffs are shifting — by county
 
 | County | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Harrison County | 1 | 200 | 0 | +200 | new |
+| Harrison | 1 | 200 | 0 | +200 | new |
+| Kanawha | 1 | 0 | 0 | 0 | — |
 | Unknown | 0 | 0 | 1 | -1 | -100.0% |
 
 ## Industry pressure — NAICS sectors
@@ -27,6 +28,7 @@ Insufficient recent WARN activity in West Virginia to support a trend narrative 
 | Sector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
 | Construction | 1 | 200 | 0 | +200 | new |
+| Mining, Quarrying, Oil & Gas Extraction | 1 | 0 | 0 | 0 | — |
 
 _NAICS coverage: 100.0% of current-window notices have an enriched company._
 
@@ -39,6 +41,7 @@ _NAICS coverage: 100.0% of current-window notices have an enriched company._
 | 2026-04 | 1 | 0 | 61 |
 | 2026-06 | 1 | 1 | 1 |
 | 2026-08 | 1 | 200 | 507 |
+| 2026-10 | 1 | 0 | 0 |
 
 ## Outlook — next 6 months (model estimate)
 
@@ -55,4 +58,4 @@ _Statistical projection (ets-trend, fit on 70 months of history through 2026-08)
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

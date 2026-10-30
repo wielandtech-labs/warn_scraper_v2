@@ -1,33 +1,19 @@
 # Kansas (KS) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 0 | 1 | 4 | 7 | 17 |
-| Workers affected | 0 | 151 | 348 | 617 | 2,129 |
+| Notices | 0 | 0 | 2 | 7 | 17 |
+| Workers affected | 0 | 0 | 204 | 617 | 2,129 |
 
-**Job losses vs prior window: -100.0% · vs same window last year: -100.0% · trailing 12 months vs prior 12: -71.0%**
+**Job losses vs prior window: no comparable activity was recorded · vs same window last year: -100.0% · trailing 12 months vs prior 12: -71.0%**
 
 ## Sentiment
 
-Insufficient recent WARN activity in Kansas to support a trend narrative (0 notices in the current window, 1 in the prior).
-
-## Where layoffs are shifting — by county
-
-| County | Notices | Workers affected | Prior workers | Δ workers | Δ% |
-|---|---:|---:|---:|---:|---:|
-| Unknown | 0 | 0 | 151 | -151 | -100.0% |
-
-## Industry pressure — NAICS sectors
-
-| Sector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
-|---|---:|---:|---:|---:|---:|
-| Transportation & Warehousing | 0 | 0 | 151 | -151 | -100.0% |
-
-_NAICS coverage: 0.0% of current-window notices have an enriched company._
+Insufficient recent WARN activity in Kansas to support a trend narrative (0 notices in the current window, 0 in the prior).
 
 ## Monthly trend (last 12 months)
 
@@ -42,15 +28,15 @@ _NAICS coverage: 0.0% of current-window notices have an enriched company._
 
 | Month | Notices (80% band) | Workers affected (80% band) |
 |---|---:|---:|
-| 2026-10 | 1 (0–3) | 133 (0–485) |
-| 2026-11 | 1 (0–3) | 334 (0–686) |
-| 2026-12 | 1 (0–2) | 85 (0–437) |
-| 2027-01 | 1 (0–3) | 440 (88–793) |
-| 2027-02 | 1 (0–2) | 63 (0–415) |
-| 2027-03 | 1 (0–3) | 212 (0–564) |
+| 2026-10 | 1 (0–3) | 129 (0–480) |
+| 2026-11 | 1 (0–3) | 331 (0–682) |
+| 2026-12 | 1 (0–2) | 82 (0–433) |
+| 2027-01 | 1 (0–3) | 452 (101–803) |
+| 2027-02 | 1 (0–2) | 59 (0–410) |
+| 2027-03 | 1 (0–3) | 209 (0–560) |
 
 _Statistical projection (ets-seasonal, fit on 66 months of history through 2026-05); not recorded data._
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

@@ -1,69 +1,69 @@
 # Virginia (VA) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 13 | 26 | 19 | 72 | 53 |
-| Workers affected | 1,752 | 3,300 | 1,067 | 8,720 | 6,093 |
+| Notices | 16 | 18 | 18 | 72 | 55 |
+| Workers affected | 2,017 | 1,563 | 957 | 8,683 | 6,326 |
 
-**Job losses vs prior window: -46.9% · vs same window last year: +64.2% · trailing 12 months vs prior 12: +43.1%**
+**Job losses vs prior window: +29.0% · vs same window last year: +110.8% · trailing 12 months vs prior 12: +37.3%**
 
 ## Sentiment
 
-Job losses in Virginia WARN notices eased to 1,752 in the current 90-day window, down 46.9% from 3,300 in the prior window. The seasonal comparison points the other way: losses are 64.2% above the 1,067 recorded in the same window last year. The long run confirms a worse year, with trailing-12-month job losses of 8,720, 43.1% above the 6,093 of the twelve months before.
+Virginia job losses worsened to 2,017 in the current 90-day window from 1,563 in the prior window, a 29.0% rise, and rose 110.8% from 957 in the same window last year. Both comparisons point to a worsening, and trailing-12-month job losses of 8,683 are 37.3% above the 6,326 of the prior 12 months.
 
-Richmond city (545) and James City County (419) recorded losses where no comparable activity was recorded in the prior window, and Fairfax worsened to 296 from 144. Henrico eased sharply, to 87 from 1,197.
+Geographically, Fairfax County leads at 557, up 241.7% from 163. Richmond city (545) and James City County (419) recorded losses where no comparable activity was recorded in the prior window, while Norfolk city eased 95.2% to 8 from 168.
 
-By sector, Health Care & Social Assistance leads at 545, up from 2, and Finance & Insurance climbed to 443 from 6. Administrative, Support & Waste Management eased to 0 from 909, and Manufacturing fell 89.8% to 51.
+By sector, Health Care & Social Assistance rose to 545 from 2, Professional, Scientific & Technical Services worsened 24.4% to 509, and Finance & Insurance rose to 443 from 6. Manufacturing eased 88.0% to 51 from 426.
 
-The model projects 762 job losses for 2026-10 (range 291–1,234) and 1,064 for 2027-01 (range 592–1,536).
+The model projects 817 job losses for 2026-11 (range 345–1,289) and 1,064 for 2027-01 (range 592–1,536).
 
 ## Analysis
 
-The two short-run comparisons diverge: momentum eased against a heavy prior window, while the current level is well above last year's. The 12-month comparison sides with the seasonal view. States post WARN notices with a lag, so recent weeks may rise as late filings arrive.
+Virginia is one of the few states where momentum, the seasonal comparison and the 12-month view all point the same way: job losses have risen on every measure. The current window is concentrated in Fairfax County, Richmond city and James City County.
 
-The monthly path shows 2026-09 at 1,029 job losses against 1 a year earlier, and 2026-08 at 696 against 243. The 2026-10 row is partial and covers only the first days of the month. Some localities appear under two labels (Fairfax and Fairfax County, Loudoun and Loudoun County), so county rows are best read together.
+The monthly path has run above the year-earlier month in most recent months, including 2026-09 at 1,029 against 1. The 2026-10 row is partial.
 
-Sector rows cover 100.0% of current-window notices.
+The forecast band is comparatively narrow, with lower bounds above 0 in every month.
 
-- Whether Health Care & Social Assistance and Finance & Insurance remain elevated.
-- Richmond city and James City County, which led this window with no comparable prior activity.
-- The model's 2027-01 projection of 1,064 (range 592–1,536).
+- Health Care & Social Assistance and Finance & Insurance, where losses rose most.
+- Whether Fairfax County's rise continues.
+- The 12-month total, now above the prior year.
 
 ## Where layoffs are shifting — by county
 
 | County | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
+| Fairfax | 6 | 557 | 163 | +394 | 241.7% |
 | Richmond city | 1 | 545 | 0 | +545 | new |
-| James City County | 1 | 419 | 0 | +419 | new |
-| Fairfax | 2 | 296 | 144 | +152 | 105.6% |
-| Westmoreland County | 1 | 179 | 0 | +179 | new |
-| Henrico | 2 | 87 | 1,197 | -1,110 | -92.7% |
-| Loudoun | 1 | 84 | 0 | +84 | new |
-| Fairfax County | 2 | 78 | 19 | +59 | 310.5% |
+| James City | 1 | 419 | 0 | +419 | new |
+| Westmoreland | 1 | 179 | 0 | +179 | new |
+| Loudoun | 2 | 89 | 0 | +89 | new |
+| Henrico | 2 | 87 | 211 | -124 | -58.8% |
+| Arlington | 1 | 82 | 102 | -20 | -19.6% |
 | Virginia Beach city | 1 | 51 | 0 | +51 | new |
 | Norfolk city | 1 | 8 | 168 | -160 | -95.2% |
-| Loudoun County | 1 | 5 | 0 | +5 | new |
+| Alexandria city | 0 | 0 | 2 | -2 | -100.0% |
 
 ## Industry pressure — NAICS sectors
 
 | Sector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
 | Health Care & Social Assistance | 1 | 545 | 2 | +543 | 27150.0% |
+| Professional, Scientific & Technical Services | 6 | 509 | 409 | +100 | 24.4% |
 | Finance & Insurance | 3 | 443 | 6 | +437 | 7283.3% |
-| Professional, Scientific & Technical Services | 4 | 362 | 577 | -215 | -37.3% |
 | Retail Trade | 2 | 187 | 64 | +123 | 192.2% |
 | Construction | 1 | 96 | 0 | +96 | new |
-| Manufacturing | 1 | 51 | 498 | -447 | -89.8% |
+| Manufacturing | 1 | 51 | 426 | -375 | -88.0% |
 | Accommodation & Food Services | 0 | 0 | 145 | -145 | -100.0% |
-| Administrative, Support & Waste Management | 0 | 0 | 909 | -909 | -100.0% |
 | Information | 0 | 0 | 24 | -24 | -100.0% |
 | Other Services (except Public Administration) | 0 | 0 | 187 | -187 | -100.0% |
+| Transportation & Warehousing | 0 | 0 | 144 | -144 | -100.0% |
 
-_NAICS coverage: 100.0% of current-window notices have an enriched company._
+_NAICS coverage: 93.8% of current-window notices have an enriched company._
 
 ## Monthly trend (last 12 months)
 
@@ -80,7 +80,7 @@ _NAICS coverage: 100.0% of current-window notices have an enriched company._
 | 2026-07 | 3 | 217 | 523 |
 | 2026-08 | 5 | 696 | 243 |
 | 2026-09 | 6 | 1,029 | 1 |
-| 2026-10 | 2 | 27 | 782 |
+| 2026-10 | 5 | 292 | 782 |
 
 ## Outlook — next 6 months (model estimate)
 
@@ -97,4 +97,4 @@ _Statistical projection (ets-seasonal, fit on 71 months of history through 2026-
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

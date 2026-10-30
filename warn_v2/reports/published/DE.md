@@ -1,33 +1,33 @@
 # Delaware (DE) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 1 | 2 | 0 | 3 | 2 |
-| Workers affected | 106 | 68 | 0 | 174 | 153 |
+| Notices | 2 | 1 | 0 | 4 | 2 |
+| Workers affected | 251 | 1 | 0 | 319 | 153 |
 
-**Job losses vs prior window: 55.9% · vs same window last year: new · trailing 12 months vs prior 12: 13.7%**
+**Job losses vs prior window: +25000% · vs same window last year: new · trailing 12 months vs prior 12: +108.5%**
 
 ## Sentiment
 
-Insufficient recent WARN activity in Delaware to support a trend narrative (1 notices in the current window, 2 in the prior).
+Insufficient recent WARN activity in Delaware to support a trend narrative (2 notices in the current window, 1 in the prior).
 
 ## Where layoffs are shifting — by county
 
 | County | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Unknown | 1 | 106 | 68 | +38 | 55.9% |
+| Unknown | 2 | 251 | 1 | +250 | +25000% |
 
 ## Industry pressure — NAICS sectors
 
 | Sector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Administrative, Support & Waste Management | 0 | 0 | 68 | -68 | -100.0% |
+| Administrative, Support & Waste Management | 1 | 145 | 1 | +144 | +14400% |
 
-_NAICS coverage: 0.0% of current-window notices have an enriched company._
+_NAICS coverage: 50% of current-window notices have an enriched company._
 
 ## Monthly trend (last 12 months)
 
@@ -36,6 +36,7 @@ _NAICS coverage: 0.0% of current-window notices have an enriched company._
 | 2026-04 | 1 | 67 | 0 |
 | 2026-06 | 1 | 1 | 0 |
 | 2026-08 | 1 | 106 | 0 |
+| 2026-10 | 1 | 145 | 0 |
 
 ## Outlook — next 6 months (model estimate)
 
@@ -52,4 +53,4 @@ _Statistical projection (ets-level, fit on 68 months of history through 2026-08)
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

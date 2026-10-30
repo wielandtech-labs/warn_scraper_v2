@@ -1,64 +1,64 @@
 # Iowa (IA) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 25 | 35 | 29 | 103 | 139 |
-| Workers affected | 942 | 1,075 | 931 | 4,185 | 6,339 |
+| Notices | 18 | 19 | 31 | 96 | 136 |
+| Workers affected | 578 | 1,140 | 1,042 | 3,810 | 6,060 |
 
-**Job losses vs prior window: -12.4% · vs same window last year: 1.2% · trailing 12 months vs prior 12: -34.0%**
+**Job losses vs prior window: -49.3% · vs same window last year: -44.5% · trailing 12 months vs prior 12: -37.1%**
 
 ## Sentiment
 
-Job losses reported in WARN notices across Iowa eased to 942 in the current 90-day window, down 12.4% from 1,075 in the prior window. Against the same window last year they were essentially flat, 1.2% above 931. The longer run shows clearer relief: trailing-12-month job losses of 4,185 are 34.0% below the 6,339 of the twelve months before.
+Iowa's layoff picture eased on both comparisons. Job losses in the current 90-day window fell to 578 from 1,140 in the prior window (-49.3%) and were 44.5% below the 1,042 recorded in the same window last year. The long-run picture points the same way: 3,810 workers affected over the trailing 12 months, down 37.1% from 6,060. Recent weeks may rise as late filings arrive.
 
-Polk remains the largest county at 367, down 19.5% from 456. Linn worsened 62.2% to 159, and Winnebago recorded 117 where no comparable activity was recorded in the prior window.
+Geographically, losses are spread thinly. Polk eased sharply to 118 from 590, while Winnebago (117) and Woodbury (104) recorded losses where no comparable activity was recorded in the prior window, and Linn rose to 110 from 49.
 
-By sector, Manufacturing eased 40.1% to 206 and Finance & Insurance held level at 138 against 137. Public Administration fell to 0 from 192, while Wholesale Trade recorded 94 with no comparable activity in the prior window.
+By industry, Manufacturing remains the largest source at 165, down from 385. Wholesale Trade (94) and Retail Trade (79) appeared with no comparable prior activity, while Public Administration fell to 0 from 192.
 
-The model projects 536 job losses for 2026-10 (range 164–908) and 685 for 2027-03 (range 313–1,057).
+The model projects 536 workers affected in 2026-10 (164–908) and 510 in 2026-11 (138–882).
 
 ## Analysis
 
-Momentum eased while the seasonal comparison is flat, so the current level is close to last year's for this time of year. The 12-month decline is the stronger signal and reflects lower activity through most of the past year: 2026-06 recorded 665 job losses against 1,108 a year earlier, and 2026-09 recorded 130 against 263. 2026-08 was an exception, at 448 against 364.
+Both momentum and the seasonal comparison agree that pressure has eased, and the trailing-12-month decline confirms it is not a single-window artifact. The monthly path shows 2026-09 at 130 against 263 a year earlier, one of the softer months in the series.
 
-Geography is fairly spread. Polk leads but holds well under half of current job losses, and several smaller counties, including Woodbury, Buchanan and Dubuque, worsened from very small prior-window bases.
+Concentration is low: no county accounts for more than 118 workers in the current window, which reduces the risk from any single site.
 
-- Winnebago and Woodbury, the counties where job losses rose most in absolute terms.
-- Finance & Insurance, which holds steady with 7 notices in the current window.
-- The model's 2027-03 projection of 685 (range 313–1,057).
+- Whether late filings lift the current window toward the prior level.
+- Whether Manufacturing keeps easing after falling to 165 from 385.
+- The model's 2027-03 projection of 685 (313–1,057), the highest in the outlook.
 
 ## Where layoffs are shifting — by county
 
 | County | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Polk | 8 | 367 | 456 | -89 | -19.5% |
-| Linn | 5 | 159 | 98 | +61 | 62.2% |
+| Polk | 6 | 118 | 590 | -472 | -80.0% |
 | Winnebago | 3 | 117 | 0 | +117 | new |
-| Woodbury | 2 | 104 | 1 | +103 | 10300.0% |
-| Harrision | 1 | 79 | 0 | +79 | new |
-| Buchanan | 2 | 46 | 5 | +41 | 820.0% |
-| Dubuque | 2 | 46 | 7 | +39 | 557.1% |
-| Appanoose | 1 | 19 | 0 | +19 | new |
-| Keokuk | 1 | 5 | 0 | +5 | new |
-| Allamakee | 0 | 0 | 1 | -1 | -100.0% |
+| Linn | 4 | 110 | 49 | +61 | 124.5% |
+| Woodbury | 2 | 104 | 0 | +104 | new |
+| Harrison | 1 | 79 | 0 | +79 | new |
+| Dubuque | 1 | 45 | 1 | +44 | 4400.0% |
+| Buchanan | 1 | 5 | 41 | -36 | -87.8% |
+| Appanoose | 0 | 0 | 19 | -19 | -100.0% |
+| Cedar | 0 | 0 | 77 | -77 | -100.0% |
+| Iowa | 0 | 0 | 288 | -288 | -100.0% |
 
 ## Industry pressure — NAICS sectors
 
 | Sector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Manufacturing | 7 | 206 | 344 | -138 | -40.1% |
-| Finance & Insurance | 7 | 138 | 137 | +1 | 0.7% |
+| Manufacturing | 6 | 165 | 385 | -220 | -57.1% |
+| Finance & Insurance | 6 | 118 | 122 | -4 | -3.3% |
 | Wholesale Trade | 2 | 94 | 0 | +94 | new |
 | Retail Trade | 1 | 79 | 0 | +79 | new |
 | Administrative, Support & Waste Management | 1 | 54 | 0 | +54 | new |
-| Transportation & Warehousing | 1 | 49 | 0 | +49 | new |
 | Public Administration | 0 | 0 | 192 | -192 | -100.0% |
+| Transportation & Warehousing | 0 | 0 | 49 | -49 | -100.0% |
 
-_NAICS coverage: 76.0% of current-window notices have an enriched company._
+_NAICS coverage: 88.9% of current-window notices have an enriched company._
 
 ## Monthly trend (last 12 months)
 
@@ -91,4 +91,4 @@ _Statistical projection (ets-seasonal, fit on 71 months of history through 2026-
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

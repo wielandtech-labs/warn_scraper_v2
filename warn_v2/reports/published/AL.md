@@ -1,63 +1,60 @@
 # Alabama (AL) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 9 | 3 | 5 | 34 | 27 |
-| Workers affected | 559 | 612 | 415 | 3,152 | 3,483 |
+| Notices | 11 | 3 | 10 | 31 | 34 |
+| Workers affected | 758 | 547 | 1,025 | 2,729 | 4,255 |
 
-**Job losses vs prior window: -8.7% · vs same window last year: 34.7% · trailing 12 months vs prior 12: -9.5%**
+**Job losses vs prior window: +38.6% · vs same window last year: -26% · trailing 12 months vs prior 12: -35.9%**
 
 ## Sentiment
 
-Job losses reported in WARN notices across Alabama eased slightly to 559 in the current 90-day window, down 8.7% from 612 in the prior window. The seasonal comparison points the other way: that is 34.7% above the 415 recorded in the same window last year. Over the longer run the picture is milder, with trailing-12-month job losses of 3,152 sitting 9.5% below the 3,483 of the twelve months before.
+Job losses in Alabama worsened against the prior window, rising 38.6% to 758 workers from 547, but they remain 26.0% below the 1,025 recorded in the same window last year. The two comparisons point different ways: momentum has turned up while the seasonal picture is still better than a year ago. Over the longer run, trailing 12-month losses of 2,729 are 35.9% below the prior 12 months.
 
-Geographically, current losses are spread thinly, with each listed county holding a single notice. Houston (98), Morgan County (71) and Baldwin (66) carry the largest totals, none with comparable activity recorded in the prior window. Cullman eased to 0 from 102.
+The current-window losses are spread across counties where no comparable activity was recorded in the prior window, led by Lauderdale (144), Montgomery (117) and Houston (98).
 
-By sector, Manufacturing accounts for the most job losses at 317, down 20.2% from 397. Administrative, Support & Waste Management reached 116, where no comparable activity was recorded in the prior window, while Professional, Scientific & Technical Services eased 51.3% to 55.
+Manufacturing remains the largest sector at 291 workers, though it eased 38.9% from 476. Construction (144) and Professional, Scientific & Technical Services (143) had no comparable activity in the prior window.
 
-The model projects 185 job losses for 2026-10 (range 0–477) and 348 for 2027-02 (range 51–646).
+The model projects 185 job losses for 2026-10 (range 0–477), easing to 34 in 2026-11 (range 0–327).
 
 ## Analysis
 
-Momentum and the seasonal comparison disagree. Against the prior window job losses eased modestly, but against the same window last year they worsened by roughly a third, so the current level is not low by the standard of recent history. The 12-month trend leans toward relief.
+The rise against the prior window comes from a broader spread of smaller notices rather than one large event: 11 notices this window against 3 in the prior. Monthly figures are uneven, with 357 workers in 2026-08 against 132 a year earlier and 52 in 2026-09 against 201. The 2026-10 row is partial and should not be read as a trend.
 
-The current window is unusually dispersed: 9 notices spread across as many county rows, each with a single filing, rather than a cluster in one place. One notice carries no county, and its 79 job losses compare with 397 for unassigned notices in the prior window.
-
-The monthly path is uneven. 2026-08 recorded 357 job losses against 132 in the same month a year earlier, while 2026-09 recorded 52 against 201. With such small notice counts, a single filing moves a month substantially.
-
-- Whether the year-over-year rise persists into the next window.
-- Manufacturing, which still accounts for the largest share of current job losses.
-- The model's wide bands: the 2026-10 projection of 185 spans 0–477.
+- Whether new-county activity in Lauderdale, Montgomery and Houston repeats or stays one-off.
+- Whether Manufacturing continues to ease.
+- The wide forecast band, which spans 0 to 477 for 2026-10.
 
 ## Where layoffs are shifting — by county
 
 | County | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
+| Lauderdale | 1 | 144 | 0 | +144 | new |
+| Montgomery | 2 | 117 | 0 | +117 | new |
 | Houston | 1 | 98 | 0 | +98 | new |
-| Unknown | 1 | 79 | 397 | -318 | -80.1% |
-| Morgan County | 1 | 71 | 0 | +71 | new |
+| Tuscaloosa | 1 | 88 | 0 | +88 | new |
 | Baldwin | 1 | 66 | 0 | +66 | new |
 | Madison | 1 | 55 | 0 | +55 | new |
 | Butler | 1 | 52 | 0 | +52 | new |
-| Blount County | 1 | 50 | 0 | +50 | new |
+| Blount | 1 | 50 | 0 | +50 | new |
 | Jefferson | 1 | 47 | 0 | +47 | new |
 | Mobile | 1 | 41 | 0 | +41 | new |
-| Cullman | 0 | 0 | 102 | -102 | -100.0% |
 
 ## Industry pressure — NAICS sectors
 
 | Sector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Manufacturing | 5 | 317 | 397 | -80 | -20.2% |
+| Manufacturing | 5 | 291 | 476 | -185 | -38.9% |
+| Construction | 1 | 144 | 0 | +144 | new |
+| Professional, Scientific & Technical Services | 2 | 143 | 0 | +143 | new |
 | Administrative, Support & Waste Management | 2 | 116 | 0 | +116 | new |
-| Professional, Scientific & Technical Services | 1 | 55 | 113 | -58 | -51.3% |
-| Retail Trade | 0 | 0 | 102 | -102 | -100.0% |
+| Agriculture, Forestry, Fishing & Hunting | 1 | 64 | 0 | +64 | new |
 
-_NAICS coverage: 88.9% of current-window notices have an enriched company._
+_NAICS coverage: 100% of current-window notices have an enriched company._
 
 ## Monthly trend (last 12 months)
 
@@ -73,6 +70,7 @@ _NAICS coverage: 88.9% of current-window notices have an enriched company._
 | 2026-07 | 2 | 150 | 82 |
 | 2026-08 | 6 | 357 | 132 |
 | 2026-09 | 1 | 52 | 201 |
+| 2026-10 | 4 | 349 | 772 |
 
 ## Outlook — next 6 months (model estimate)
 
@@ -89,4 +87,4 @@ _Statistical projection (ets-seasonal, fit on 71 months of history through 2026-
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

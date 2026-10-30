@@ -1,65 +1,65 @@
 # South Carolina (SC) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 10 | 10 | 6 | 44 | 38 |
-| Workers affected | 1,153 | 2,168 | 513 | 5,398 | 5,044 |
+| Notices | 9 | 10 | 3 | 44 | 38 |
+| Workers affected | 1,012 | 1,827 | 170 | 5,326 | 4,976 |
 
-**Job losses vs prior window: -46.8% · vs same window last year: +124.8% · trailing 12 months vs prior 12: +7.0%**
+**Job losses vs prior window: -44.6% · vs same window last year: +495.3% · trailing 12 months vs prior 12: +7.0%**
 
 ## Sentiment
 
-Job losses in South Carolina WARN notices eased to 1,153 in the current 90-day window, down 46.8% from 2,168 in the prior window. The seasonal comparison points the other way: current losses are 124.8% above the 513 recorded in the same window last year. Over the longer run, trailing-12-month job losses of 5,398 sit 7.0% above the 5,044 of the twelve months before, a modest worsening.
+South Carolina job losses eased 44.6% to 1,012 in the current 90-day window from 1,827 in the prior window, but they rose 495.3% from 170 in the same window last year. The two comparisons point in different directions: momentum shows relief while the seasonal comparison shows a worsening. Trailing-12-month job losses of 5,326 are 7.0% above the 4,976 of the prior 12 months. Recent weeks may rise as late filings arrive.
 
-Spartanburg carries the most losses at 400, up 91.4% from 209. Fairfield (254) and Beaufort (157) recorded losses where no comparable activity was recorded in the prior window, while Anderson eased sharply to 97 from 1,288.
+Geographically, Anderson County drove the easing, falling 93.6% to 83 from 1,302. Spartanburg County leads at 273, down 10.5% from 305, and Fairfield County recorded 254 where no comparable activity was recorded in the prior window.
 
-By sector, Health Care & Social Assistance leads at 254, with no comparable activity recorded in the prior window, and Transportation & Warehousing worsened to 205 from 110. Retail Trade eased the most, down 83.0% to 212 from 1,245.
+By sector, Health Care & Social Assistance recorded 254 job losses after no comparable activity, Transportation & Warehousing worsened 86.4% to 205 from 110, and Retail Trade eased 98.8% to 17 from 1,440.
 
-The model projects 361 job losses for 2026-10 (range 0–972) and 348 for 2027-03 (range 0–959).
+The model projects 528 job losses for 2026-11 (range 0–1,139) and 554 for 2027-01 (range 0–1,165).
 
 ## Analysis
 
-Momentum and the seasonal comparison diverge. The prior window was heavy, with 2026-05 alone recording 1,574 job losses, so the decline against it says less than the comparison with last year's quieter window, where the current level is clearly elevated. States post WARN notices with a lag, so recent weeks may rise as late filings arrive. The 2026-10 row is partial and covers only the first days of the month.
+The divergence between the two comparisons comes from a low base last year: the same window then recorded only 170 job losses across 3 notices. Against that base the current window looks elevated, while against the prior window, which held Anderson County's 1,302 and Retail Trade's 1,440, it looks calmer.
 
-The monthly path is uneven: 2026-08 recorded 732 job losses against 30 a year earlier, while 2026-07 (212 against 486) came in lower. With 10 notices in each window, a single notice can swing the totals.
+The 12-month total has edged above the prior year's, so the long-run picture is mildly worse. Losses are now spread across more counties, with Fairfield, Beaufort (157), Aiken (133) and Richland (105) all new to the table. The 2026-10 row is partial.
 
-- Whether Spartanburg's higher level persists into the next window.
-- Health Care & Social Assistance and Transportation & Warehousing, the sectors where job losses rose.
-- The wide model band for 2026-10 (0–972) as late filings arrive.
+- Whether Health Care & Social Assistance losses recur.
+- The spread of losses across newly active counties.
+- Revisions to the current window as late notices arrive.
 
 ## Where layoffs are shifting — by county
 
 | County | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Spartanburg | 2 | 400 | 209 | +191 | 91.4% |
+| Spartanburg | 2 | 273 | 305 | -32 | -10.5% |
 | Fairfield | 1 | 254 | 0 | +254 | new |
 | Beaufort | 1 | 157 | 0 | +157 | new |
 | Aiken | 1 | 133 | 0 | +133 | new |
 | Richland | 1 | 105 | 0 | +105 | new |
-| Anderson | 3 | 97 | 1,288 | -1,191 | -92.5% |
+| Anderson | 2 | 83 | 1,302 | -1,219 | -93.6% |
 | Horry | 1 | 7 | 0 | +7 | new |
 | Barnwell | 0 | 0 | 99 | -99 | -100.0% |
 | Kershaw | 0 | 0 | 93 | -93 | -100.0% |
-| Lexington | 0 | 0 | 451 | -451 | -100.0% |
+| Statewide | 0 | 0 | 28 | -28 | -100.0% |
 
 ## Industry pressure — NAICS sectors
 
 | Sector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
 | Health Care & Social Assistance | 1 | 254 | 0 | +254 | new |
-| Retail Trade | 3 | 212 | 1,245 | -1,033 | -83.0% |
 | Transportation & Warehousing | 1 | 205 | 110 | +95 | 86.4% |
 | Accommodation & Food Services | 1 | 157 | 0 | +157 | new |
-| Wholesale Trade | 1 | 133 | 627 | -494 | -78.8% |
-| Manufacturing | 2 | 119 | 142 | -23 | -16.2% |
+| Wholesale Trade | 1 | 133 | 77 | +56 | 72.7% |
+| Manufacturing | 1 | 105 | 156 | -51 | -32.7% |
 | Agriculture, Forestry, Fishing & Hunting | 1 | 73 | 0 | +73 | new |
+| Retail Trade | 2 | 17 | 1,440 | -1,423 | -98.8% |
 | Information | 0 | 0 | 28 | -28 | -100.0% |
 
-_NAICS coverage: 100.0% of current-window notices have an enriched company._
+_NAICS coverage: 88.9% of current-window notices have an enriched company._
 
 ## Monthly trend (last 12 months)
 
@@ -76,7 +76,7 @@ _NAICS coverage: 100.0% of current-window notices have an enriched company._
 | 2026-07 | 3 | 212 | 486 |
 | 2026-08 | 6 | 732 | 30 |
 | 2026-09 | 1 | 205 | 0 |
-| 2026-10 | 1 | 7 | 140 |
+| 2026-10 | 2 | 75 | 140 |
 
 ## Outlook — next 6 months (model estimate)
 
@@ -93,4 +93,4 @@ _Statistical projection (ets-seasonal, fit on 69 months of history through 2026-
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

@@ -1,64 +1,61 @@
 # Kentucky (KY) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 6 | 13 | 12 | 47 | 54 |
-| Workers affected | 219 | 2,750 | 1,794 | 6,246 | 5,368 |
+| Notices | 7 | 11 | 17 | 41 | 60 |
+| Workers affected | 513 | 805 | 2,189 | 5,793 | 5,816 |
 
-**Job losses vs prior window: -92.0% · vs same window last year: -87.8% · trailing 12 months vs prior 12: 16.4%**
+**Job losses vs prior window: -36.3% · vs same window last year: -76.6% · trailing 12 months vs prior 12: -0.4%**
 
 ## Sentiment
 
-Job losses reported in Kentucky WARN notices eased sharply to 219 in the current 90-day window, down 92.0% from 2,750 in the prior window and 87.8% below the 1,794 recorded in the same window last year. Both comparisons point the same way, but the long-run picture differs: trailing-12-month job losses of 6,246 are 16.4% above the 5,368 of the twelve months before. Recent weeks may rise as late filings arrive.
+Kentucky's job losses eased on both 90-day comparisons. The current window recorded 513 workers affected, down 36.3% from 805 in the prior window and 76.6% below the 2,189 in the same window last year. Over the trailing 12 months the picture is flat: 5,793 workers affected against 5,816 (-0.4%).
 
-Boone recorded the most job losses at 200, down 34.0% from 303. Jefferson eased 46.4% to 15, and Fayette fell to zero from 1,975 in the prior window.
+Geographically, Jefferson was steady at 228 against 226, Boone eased to 127 from 376, and Grayson recorded 145 where no comparable activity was recorded in the prior window.
 
-By sector, Agriculture, Forestry, Fishing & Hunting recorded 127 job losses and Transportation & Warehousing 73, both where no comparable activity was recorded in the prior window. Accommodation & Food Services fell to zero from 1,846.
+By industry, Manufacturing eased to 145 from 373, while Agriculture, Forestry, Fishing & Hunting recorded 127 with no comparable prior activity.
 
-The model projects 839 job losses for 2026-10 (range 322–1,356) and 300 for 2027-03 (range 0–817).
+The model projects 839 workers affected in 2026-10 (322–1,356) and 302 in 2026-11 (0–819).
 
 ## Analysis
 
-The 90-day collapse and the higher 12-month total tell different stories. The 12-month figure carries two large earlier months: 2025-12 recorded 1,730 job losses against 442 a year earlier, and 2026-04 recorded 2,207 against 263. Since then, monthly figures have run below last year, with 2026-07 at 74 against 447, 2026-08 at 128 against 425 and 2026-09 at 17 against 100.
+The steep seasonal decline reflects a heavy comparison window last year rather than a collapse in activity; the flat trailing-12-month figure shows the long-run level is broadly unchanged. Large single months, such as 1,730 in 2025-12 and 2,207 in 2026-04, dominate the annual total.
 
-The prior window was concentrated: Fayette alone accounted for 1,975 of its 2,750 job losses, and Accommodation & Food Services for 1,846. Their absence this window explains most of the decline.
+The 2026-10 row (368) is partial.
 
-Sector rows cover 83.3% of current-window notices. County labels in the source data are not fully consistent, with Jefferson and Jefferson County - Louisville recorded as separate rows.
-
-- Whether late filings revise the current window upward.
-- The model's 2026-10 projection of 839 (range 322–1,356), well above the recent monthly run.
+- Whether the model's 2026-10 projection of 839 is borne out once October is complete.
+- Jefferson's steady level of 228.
+- Any return of large single-month events like 2026-04.
 
 ## Where layoffs are shifting — by county
 
 | County | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Boone | 2 | 200 | 303 | -103 | -34.0% |
-| Jefferson | 1 | 15 | 28 | -13 | -46.4% |
-| Madison | 2 | 3 | 3 | 0 | 0.0% |
-| Out of the State County | 1 | 1 | 0 | +1 | new |
-| Fayette | 0 | 0 | 1,975 | -1,975 | -100.0% |
-| Fulton | 0 | 0 | 67 | -67 | -100.0% |
-| Jefferson County - Louisville | 0 | 0 | 304 | -304 | -100.0% |
+| Jefferson | 2 | 228 | 226 | +2 | 0.9% |
+| Grayson | 1 | 145 | 0 | +145 | new |
+| Boone | 1 | 127 | 376 | -249 | -66.2% |
+| Madison | 2 | 12 | 4 | +8 | 200.0% |
+| Out of the State | 1 | 1 | 0 | +1 | new |
+| Fayette | 0 | 0 | 129 | -129 | -100.0% |
 | Simpson | 0 | 0 | 70 | -70 | -100.0% |
 
 ## Industry pressure — NAICS sectors
 
 | Sector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
+| Manufacturing | 1 | 145 | 373 | -228 | -61.1% |
 | Agriculture, Forestry, Fishing & Hunting | 1 | 127 | 0 | +127 | new |
-| Transportation & Warehousing | 1 | 73 | 0 | +73 | new |
 | Administrative, Support & Waste Management | 1 | 15 | 52 | -37 | -71.2% |
-| Professional, Scientific & Technical Services | 1 | 2 | 0 | +2 | new |
+| Professional, Scientific & Technical Services | 2 | 12 | 0 | +12 | new |
 | Finance & Insurance | 1 | 1 | 0 | +1 | new |
-| Accommodation & Food Services | 0 | 0 | 1,846 | -1,846 | -100.0% |
-| Manufacturing | 0 | 0 | 440 | -440 | -100.0% |
 | Other Services (except Public Administration) | 0 | 0 | 32 | -32 | -100.0% |
+| Transportation & Warehousing | 0 | 0 | 73 | -73 | -100.0% |
 
-_NAICS coverage: 83.3% of current-window notices have an enriched company._
+_NAICS coverage: 85.7% of current-window notices have an enriched company._
 
 ## Monthly trend (last 12 months)
 
@@ -75,6 +72,7 @@ _NAICS coverage: 83.3% of current-window notices have an enriched company._
 | 2026-07 | 2 | 74 | 447 |
 | 2026-08 | 2 | 128 | 425 |
 | 2026-09 | 2 | 17 | 100 |
+| 2026-10 | 3 | 368 | 1,664 |
 
 ## Outlook — next 6 months (model estimate)
 
@@ -91,4 +89,4 @@ _Statistical projection (ets-seasonal, fit on 70 months of history through 2026-
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

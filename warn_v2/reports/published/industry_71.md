@@ -1,10 +1,10 @@
 # Arts, Entertainment & Recreation (NAICS 71) — Industry Scorecard
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Scorecard
 
-**Score: 70/100 — Grade B (easing)**
+**Score: 52/100 — Grade C (stable)**
 
 _How this score works: 50% 90-day layoff momentum, 30% year-over-year trend, 20% notice momentum — each measured against this sector's own recent baseline. Higher is healthier: A = layoffs easing sharply, F = surging._
 
@@ -14,37 +14,35 @@ _How this score works: 50% 90-day layoff momentum, 30% year-over-year trend, 20%
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 2 | 6 | 3 | 12 | 21 |
-| Workers affected | 111 | 704 | 428 | 2,881 | 1,916 |
+| Notices | 4 | 4 | 3 | 14 | 20 |
+| Workers affected | 289 | 598 | 428 | 3,059 | 1,769 |
 
-**Job losses vs prior window: -84.2% · vs same window last year: -74.1% · trailing 12 months vs prior 12: 50.4%**
+**Job losses vs prior window: -51.7% · vs same window last year: -32.5% · trailing 12 months vs prior 12: 72.9%**
 
 ## Sentiment
 
-Job losses in Arts, Entertainment & Recreation eased to 111 in the current 90-day window, down 84.2% from 704 in the prior window and 74.1% below the 428 recorded in the same window last year. The long-run picture points the other way: trailing-12-month job losses of 2,881 are 50.4% above the 1,916 of the twelve months before. The current window holds only 2 notices. These figures cover only NAICS-enriched notices and are directional.
+Job losses in Arts, Entertainment & Recreation eased to 289 in the current 90-day window, down 51.7% from 598 in the prior window and 32.5% below the 428 of the same window last year. The long-run picture points the other way: trailing-12-month job losses of 3,059 were 72.9% above the 1,769 of the prior twelve months.
 
-Pennsylvania accounts for all 111 current-window job losses, with no comparable activity in the prior window. Hawaii filed 1 notice that contributes 0 workers affected. Illinois (290 in the prior window), California (252) and New York (162) recorded none this time.
+Pennsylvania recorded 159 with no comparable activity in the prior window, and California eased 11.0% to 130. Illinois and New York, active in the prior window, recorded none.
 
-By subsector, Amusement, Gambling, and Recreation Industries rose 60.9% to 111 from 69, while Performing Arts, Spectator Sports & Related Industries eased to 0 from 582.
+Amusement, Gambling, and Recreation Industries rose to 289 from 69 (318.8%), while Performing Arts, Spectator Sports & Related Industries recorded none after 529.
 
-BLS reports that Leisure and hospitality payrolls, a broader category than this sector, fell in 2026-06 and 2026-07 and rose in 2026-08 and 2026-09.
+BLS reports Leisure and hospitality payrolls rose in 2026-08 and 2026-09, by 10 thousand in the latest month. These WARN figures cover only NAICS-enriched notices and are directional.
 
 ## Analysis
 
-The 12-month rise rests on one month: 2026-02 recorded 2,066 job losses against 156 a year earlier. Outside that month, recent activity has been light, which is why the 90-day comparisons show easing.
+The 90-day comparisons ease while the 12-month total is markedly worse, so the C grade reflects that split. With just 4 notices in the current window, the figures are small and swing easily. States post WARN notices with a lag, so recent weeks may rise as late filings arrive.
 
-Since the drop against the prior window drives the headline, note that recent weeks may rise as late filings arrive. With 2 notices in the current window, one filing can move the figures sharply.
-
-- Whether the 12-month trend eases once 2026-02 leaves the trailing window.
-- Amusement, Gambling, and Recreation Industries, the only subsector with current-window losses.
+- Whether the 12-month total starts to ease.
+- Amusement, Gambling, and Recreation Industries, where losses climbed.
 
 ## Where this sector is shedding jobs — by state
 
 | State | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Pennsylvania | 1 | 111 | 0 | +111 | new |
+| Pennsylvania | 2 | 159 | 0 | +159 | new |
+| California | 1 | 130 | 146 | -16 | -11.0% |
 | Hawaii | 1 | 0 | 0 | 0 | — |
-| California | 0 | 0 | 252 | -252 | -100.0% |
 | Illinois | 0 | 0 | 290 | -290 | -100.0% |
 | New York | 0 | 0 | 162 | -162 | -100.0% |
 
@@ -52,9 +50,8 @@ Since the drop against the prior window drives the headline, note that recent we
 
 | Subsector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Amusement, Gambling, and Recreation Industries | 2 | 111 | 69 | +42 | 60.9% |
-| Museums, Historical Sites, and Similar Institutions | 0 | 0 | 53 | -53 | -100.0% |
-| Performing Arts, Spectator Sports & Related Industries | 0 | 0 | 582 | -582 | -100.0% |
+| Amusement, Gambling, and Recreation Industries | 4 | 289 | 69 | +220 | 318.8% |
+| Performing Arts, Spectator Sports & Related Industries | 0 | 0 | 529 | -529 | -100.0% |
 
 ## Monthly trend (last 12 months)
 
@@ -67,7 +64,8 @@ Since the drop against the prior window drives the headline, note that recent we
 | 2026-07 | 1 | 162 | 0 |
 | 2026-08 | 1 | 0 | 183 |
 | 2026-09 | 1 | 111 | 245 |
+| 2026-10 | 2 | 178 | 0 |
 
 ---
 
-_Figures computed from non-superseded, NAICS-enriched WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded, NAICS-enriched WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

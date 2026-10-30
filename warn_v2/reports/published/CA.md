@@ -1,69 +1,65 @@
 # California (CA) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 0 | 347 | 377 | 1,149 | 1,531 |
-| Workers affected | 0 | 17,833 | 19,434 | 58,173 | 97,243 |
+| Notices | 315 | 321 | 416 | 1,375 | 1,605 |
+| Workers affected | 18,376 | 18,299 | 24,435 | 71,509 | 99,820 |
 
-**Job losses vs prior window: -100.0% · vs same window last year: -100.0% · trailing 12 months vs prior 12: -40.2%**
+**Job losses vs prior window: +0.4% · vs same window last year: -24.8% · trailing 12 months vs prior 12: -28.4%**
 
 ## Sentiment
 
-No WARN notices are recorded for California in the current 90-day window, against 347 notices and 17,833 job losses in the prior window and 19,434 in the same window last year. Both comparisons therefore read -100.0%, but this should be treated as missing recent data rather than relief: the monthly series ends at 2026-07, with only 6 notices recorded that month. Recent weeks may rise substantially as late filings arrive. On the longer view, trailing-12-month job losses of 58,173 are 40.2% below the 97,243 of the twelve months before.
+Job losses in California were essentially flat against the prior window, at 18,376 workers versus 18,299 (+0.4%), and eased 24.8% from 24,435 in the same window last year. Trailing 12-month losses of 71,509 are 28.4% below the prior 12 months, so the long-run picture is one of relief even as momentum has stalled.
 
-Geographically, the prior window was led by Los Angeles County (2,088), Alameda County (904) and Contra Costa County (480); none has recorded activity in the current window.
+Los Angeles saw the sharpest worsening, with losses rising 192.4% to 4,585. Kern climbed to 1,823 from 228. Santa Clara eased 37.3% to 2,001.
 
-By sector, the prior window's largest totals were Information (5,212), Accommodation & Food Services (927) and Health Care & Social Assistance (672). With no current-window notices, NAICS coverage stands at 0.0%, so the industry figures cover only a minority of notices and carry no current signal.
+Manufacturing is the largest sector at 3,886, up 58.1%, and Wholesale Trade rose to 3,166 from 202. Information eased 78.2% to 1,199.
 
-The model projects 6,815 job losses for 2026-10 (range 1,674–11,956) and 4,771 for 2027-03 (range 0–10,661).
+The model projects 7,938 job losses for 2026-10 (range 2,915–12,961) and 6,948 for 2026-11 (range 1,795–12,101).
 
 ## Analysis
 
-The current-window figures cannot support a trend reading. California recorded more than 100 notices in most months from 2026-01 through 2026-06, then recorded 6 in 2026-07 and none since. A drop of that shape is a data caveat, and the headline percentages should not be read as an improvement in the labour market.
+The flat headline masks a sharp rotation underneath. Losses shifted toward Los Angeles and Kern and toward Manufacturing, Wholesale Trade and Health Care & Social Assistance (2,128, up 329.9%), while Information and Santa Clara eased. Monthly figures sit below last year in 2026-08 (5,165 against 6,102) and slightly above in 2026-09 (6,763 against 6,430); the 2026-10 row is partial.
 
-The 12-month comparison is more informative but is also pulled down by the missing months. Earlier in the year the monthly path was mixed: 2026-01 recorded 10,779 job losses against 6,560 a year earlier, while 2026-05 recorded 9,223 against 22,240.
-
-The model's projections imply monthly job losses in the thousands, with wide bands.
-
-- Whether notices for 2026-07 onward appear in later payloads.
-- Los Angeles County and Information, the prior window's largest county and sector.
-- The 2026-10 projection of 6,815 (range 1,674–11,956) against recorded figures once they arrive.
+- Whether Los Angeles losses stay elevated.
+- Wholesale Trade's jump from a low base.
+- The seasonal comparison, which still shows easing.
 
 ## Where layoffs are shifting — by county
 
 | County | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Alameda County | 0 | 0 | 904 | -904 | -100.0% |
-| Butte County | 0 | 0 | 36 | -36 | -100.0% |
-| Contra Costa County | 0 | 0 | 480 | -480 | -100.0% |
-| El Dorado County | 0 | 0 | 9 | -9 | -100.0% |
-| Fresno County | 0 | 0 | 218 | -218 | -100.0% |
-| Kern County | 0 | 0 | 166 | -166 | -100.0% |
-| Kings County | 0 | 0 | 26 | -26 | -100.0% |
-| Lake County | 0 | 0 | 36 | -36 | -100.0% |
-| Los Angeles County | 0 | 0 | 2,088 | -2,088 | -100.0% |
-| Madera County | 0 | 0 | 88 | -88 | -100.0% |
+| Los Angeles | 118 | 4,585 | 1,568 | +3,017 | +192.4% |
+| San Francisco | 9 | 2,048 | 1,778 | +270 | +15.2% |
+| Santa Clara | 22 | 2,001 | 3,191 | -1,190 | -37.3% |
+| Kern | 6 | 1,823 | 228 | +1,595 | +699.6% |
+| Alameda | 36 | 1,052 | 874 | +178 | +20.4% |
+| Tulare | 5 | 1,026 | 71 | +955 | +1345.1% |
+| Riverside | 8 | 802 | 789 | +13 | +1.6% |
+| San Diego | 22 | 791 | 804 | -13 | -1.6% |
+| San Mateo | 6 | 776 | 3,504 | -2,728 | -77.9% |
+| San Bernardino | 9 | 496 | 1,613 | -1,117 | -69.2% |
 
 ## Industry pressure — NAICS sectors
 
 | Sector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Accommodation & Food Services | 0 | 0 | 927 | -927 | -100.0% |
-| Administrative, Support & Waste Management | 0 | 0 | 294 | -294 | -100.0% |
-| Agriculture, Forestry, Fishing & Hunting | 0 | 0 | 3 | -3 | -100.0% |
-| Arts, Entertainment & Recreation | 0 | 0 | 252 | -252 | -100.0% |
-| Construction | 0 | 0 | 47 | -47 | -100.0% |
-| Educational Services | 0 | 0 | 158 | -158 | -100.0% |
-| Finance & Insurance | 0 | 0 | 456 | -456 | -100.0% |
-| Health Care & Social Assistance | 0 | 0 | 672 | -672 | -100.0% |
-| Information | 0 | 0 | 5,212 | -5,212 | -100.0% |
-| Management of Companies & Enterprises | 0 | 0 | 52 | -52 | -100.0% |
+| Manufacturing | 42 | 3,886 | 2,458 | +1,428 | +58.1% |
+| Wholesale Trade | 21 | 3,166 | 202 | +2,964 | +1467.3% |
+| Administrative, Support & Waste Management | 11 | 2,205 | 356 | +1,849 | +519.4% |
+| Health Care & Social Assistance | 43 | 2,128 | 495 | +1,633 | +329.9% |
+| Information | 9 | 1,199 | 5,497 | -4,298 | -78.2% |
+| Other Services (except Public Administration) | 26 | 641 | 0 | +641 | new |
+| Retail Trade | 8 | 622 | 707 | -85 | -12% |
+| Professional, Scientific & Technical Services | 37 | 621 | 1,589 | -968 | -60.9% |
+| Accommodation & Food Services | 8 | 563 | 1,258 | -695 | -55.2% |
+| Finance & Insurance | 9 | 317 | 907 | -590 | -65% |
 
-_NAICS coverage: 0.0% of current-window notices have an enriched company._
+_NAICS coverage: 75.9% of current-window notices have an enriched company._
 
 ## Monthly trend (last 12 months)
 
@@ -76,22 +72,25 @@ _NAICS coverage: 0.0% of current-window notices have an enriched company._
 | 2026-03 | 120 | 4,367 | 5,635 |
 | 2026-04 | 165 | 5,946 | 6,567 |
 | 2026-05 | 111 | 9,223 | 22,240 |
-| 2026-06 | 134 | 4,679 | 5,974 |
-| 2026-07 | 6 | 515 | 7,710 |
+| 2026-06 | 135 | 4,730 | 5,974 |
+| 2026-07 | 83 | 4,670 | 7,710 |
+| 2026-08 | 129 | 5,165 | 6,102 |
+| 2026-09 | 125 | 6,763 | 6,430 |
+| 2026-10 | 61 | 6,448 | 13,452 |
 
 ## Outlook — next 6 months (model estimate)
 
 | Month | Notices (80% band) | Workers affected (80% band) |
 |---|---:|---:|
-| 2026-10 | 115 (59–170) | 6,815 (1,674–11,956) |
-| 2026-11 | 93 (37–149) | 3,503 (0–8,802) |
-| 2026-12 | 138 (81–195) | 6,810 (1,358–12,263) |
-| 2027-01 | 125 (68–183) | 5,820 (218–11,422) |
-| 2027-02 | 110 (51–169) | 6,281 (533–12,029) |
-| 2027-03 | 117 (57–177) | 4,771 (0–10,661) |
+| 2026-10 | 150 (97–203) | 7,938 (2,915–12,961) |
+| 2026-11 | 140 (87–193) | 6,948 (1,795–12,101) |
+| 2026-12 | 130 (76–184) | 7,409 (2,130–12,689) |
+| 2027-01 | 136 (82–191) | 5,899 (496–11,302) |
+| 2027-02 | 117 (61–172) | 4,768 (0–10,292) |
+| 2027-03 | 111 (54–167) | 3,790 (0–9,432) |
 
-_Statistical projection (ets-seasonal, fit on 69 months of history through 2026-07); not recorded data._
+_Statistical projection (ets-seasonal, fit on 71 months of history through 2026-09); not recorded data._
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

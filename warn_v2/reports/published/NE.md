@@ -1,38 +1,31 @@
 # Nebraska (NE) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 1 | 4 | 5 | 8 | 13 |
-| Workers affected | 91 | 758 | 574 | 4,494 | 5,440 |
+| Notices | 1 | 4 | 4 | 8 | 13 |
+| Workers affected | 91 | 758 | 355 | 4,494 | 5,440 |
 
-**Job losses vs prior window: -88.0% · vs same window last year: -84.1% · trailing 12 months vs prior 12: -17.4%**
+**Job losses vs prior window: -88.0% · vs same window last year: -74.4% · trailing 12 months vs prior 12: -17.4%**
 
 ## Sentiment
 
-Job losses reported in Nebraska WARN notices eased sharply to 91 in the current 90-day window, down 88.0% from 758 in the prior window and 84.1% below the 574 recorded in the same window last year. The 12-month picture also improved, with trailing job losses of 4,494 sitting 17.4% below the 5,440 of the twelve months before. The current window rests on a single notice, and recent weeks may rise as late filings arrive.
+Job losses reported in Nebraska WARN notices eased sharply to 91 in the current 90-day window, down 88.0% from 758 in the prior window and 74.4% below the 355 recorded in the same window last year. Trailing-12-month job losses declined 17.4% to 4,494 from 5,440. With only 1 current notice, recent weeks may rise as late filings arrive.
 
-That notice falls in Madison County (91), where no comparable activity was recorded in the prior window. Douglas eased to 0 from 669 and Sarpy to 0 from 87.
+The single current notice is in Madison, with 91 job losses where no comparable activity was recorded in the prior window. Douglas, which recorded 669 in the prior window, recorded none.
 
-Industry detail is thin: NAICS coverage is 0.0% of current-window notices, so the industry figures cover only a minority of notices. The sector rows reflect only the prior window, led by Manufacturing at 669.
+No current notice has an enriched industry, so sector figures cover only a minority of notices; Manufacturing recorded 669 in the prior window and none now.
 
 The model projects 107 job losses for 2026-10 (range 0–1,306) and 1,267 for 2026-12 (range 67–2,467).
-
-## Analysis
-
-The trailing-12-month total is dominated by one month: 2025-11 recorded 3,351 job losses, against no comparable activity a year earlier. Without a repeat of that month the 12-month comparison will likely keep easing, but a single large filing can reverse the reading in a state with so few notices.
-
-- Whether new notices arrive for the current window as late filings are posted.
-- The forecast for 2026-12 (1,267, range 67–2,467), the highest projected month.
 
 ## Where layoffs are shifting — by county
 
 | County | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Madison County | 1 | 91 | 0 | +91 | new |
+| Madison | 1 | 91 | 0 | +91 | new |
 | Douglas | 0 | 0 | 669 | -669 | -100.0% |
 | Lancaster | 0 | 0 | 2 | -2 | -100.0% |
 | Sarpy | 0 | 0 | 87 | -87 | -100.0% |
@@ -72,4 +65,4 @@ _Statistical projection (ets-seasonal, fit on 42 months of history through 2026-
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

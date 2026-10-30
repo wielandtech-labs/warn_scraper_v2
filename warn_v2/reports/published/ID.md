@@ -1,36 +1,19 @@
 # Idaho (ID) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 2 | 3 | 5 | 9 | 12 |
-| Workers affected | 155 | 115 | 553 | 855 | 1,248 |
+| Notices | 2 | 2 | 3 | 8 | 13 |
+| Workers affected | 155 | 54 | 356 | 813 | 1,290 |
 
-**Job losses vs prior window: 34.8% · vs same window last year: -72.0% · trailing 12 months vs prior 12: -31.5%**
+**Job losses vs prior window: +187.0% · vs same window last year: -56.5% · trailing 12 months vs prior 12: -37.0%**
 
 ## Sentiment
 
-Job losses reported in Idaho WARN notices rose to 155 in the current 90-day window from 115 in the prior window, up 34.8%. The seasonal comparison points the other way: the current figure is 72.0% below the 553 recorded in the same window last year. Over the longer run, trailing-12-month job losses of 855 are 31.5% below the 1,248 of the twelve months before. All of these figures rest on a handful of notices, 2 in the current window and 3 in the prior.
-
-Geographically, the largest current figure, 106, carries no county; it compares with 1 in the prior window. Bannock recorded 49 job losses, where no comparable activity was recorded in the prior window, while Ada and Minidoka both eased to zero from 53 and 61.
-
-By sector, Manufacturing eased to 49 from 61 (down 19.7%), and Administrative, Support & Waste Management fell to zero from 54. Sector figures cover 50.0% of current-window notices.
-
-The model projects 0 job losses for 2026-10 (range 0–3,653) and 1,764 for 2027-02 (range 0–5,481).
-
-## Analysis
-
-With so few notices, a single filing moves every comparison. The rise against the prior window and the decline against last year are both driven by individual notices, so neither should be read as a firm trend. The 12-month comparison, down 31.5%, is the steadier signal.
-
-The monthly path is sparse. Recent months were mostly below the same month last year: 2026-07 recorded 53 against 140, and 2026-09 recorded 49 against 314, while 2026-08 was close at 106 against 100.
-
-The forecast band is very wide relative to recorded activity, running up to 5,481 for 2027-02, which reflects how irregular Idaho's history of notices is rather than a firm expectation.
-
-- Whether the next notice carries a county, since the largest current figure has none.
-- Whether the 12-month easing holds as new notices arrive.
+Insufficient recent WARN activity in Idaho to support a trend narrative (2 notices in the current window, 2 in the prior).
 
 ## Where layoffs are shifting — by county
 
@@ -39,13 +22,12 @@ The forecast band is very wide relative to recorded activity, running up to 5,48
 | Unknown | 1 | 106 | 1 | +105 | 10500.0% |
 | Bannock | 1 | 49 | 0 | +49 | new |
 | Ada | 0 | 0 | 53 | -53 | -100.0% |
-| Minidoka | 0 | 0 | 61 | -61 | -100.0% |
 
 ## Industry pressure — NAICS sectors
 
 | Sector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Manufacturing | 1 | 49 | 61 | -12 | -19.7% |
+| Manufacturing | 1 | 49 | 0 | +49 | new |
 | Administrative, Support & Waste Management | 0 | 0 | 54 | -54 | -100.0% |
 
 _NAICS coverage: 50.0% of current-window notices have an enriched company._
@@ -77,4 +59,4 @@ _Statistical projection (ets-seasonal, fit on 71 months of history through 2026-
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._
