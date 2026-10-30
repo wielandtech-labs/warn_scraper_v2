@@ -27,8 +27,11 @@ export function TermsPage() {
           responses include a <code>Retry-After</code> header.
         </li>
         <li>
-          Attribution is required when publishing work based on this data:
-          link to warnindex.com (see Cited by for examples).
+          The public data (notice records and the free export&apos;s columns,
+          including geocoding and industry codes) is licensed under{" "}
+          <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.
+          Attribution is required when publishing work based on it: link to
+          warnindex.com (see Cited by for examples).
         </li>
       </ul>
 

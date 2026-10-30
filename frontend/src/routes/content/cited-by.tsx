@@ -79,7 +79,11 @@ export function CitedByPage() {
         <p className="font-semibold">Open Access & Media Attribution Policy</p>
         <p className="mt-1 leading-relaxed">
           WARN Index data is open and free to use in journalism, research papers, and market
-          commentary. We simply ask for attribution with a link back to{" "}
+          commentary under{" "}
+          <a href="https://creativecommons.org/licenses/by/4.0/" className="font-medium underline">
+            CC BY 4.0
+          </a>
+          . The license asks for attribution: please link back to{" "}
           <a href="https://warnindex.com" className="font-medium underline">
             warnindex.com
           </a>{" "}

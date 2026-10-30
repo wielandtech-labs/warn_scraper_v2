@@ -125,8 +125,9 @@ export function ApiDocsPage() {
 
       <h2>Terms</h2>
       <p>
-        The data is compiled from public state WARN filings; free to use with
-        attribution (see <a href="/cited-by">Cited by</a>). Full terms,
+        The data is compiled from public state WARN filings and licensed under{" "}
+        <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>: free
+        to use with attribution (see <a href="/cited-by">Cited by</a>). Full terms,
         including what paid tiers may and may not redistribute, are on the{" "}
         <Link to="/terms">Terms of use</Link> page.
       </p>
