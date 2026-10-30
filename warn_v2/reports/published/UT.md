@@ -1,44 +1,41 @@
 # Utah (UT) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 2 | 5 | 3 | 20 | 19 |
-| Workers affected | 898 | 424 | 234 | 2,433 | 3,233 |
+| Notices | 2 | 3 | 5 | 18 | 20 |
+| Workers affected | 898 | 314 | 355 | 2,312 | 3,026 |
 
-**Job losses vs prior window: +111.8% · vs same window last year: +283.8% · trailing 12 months vs prior 12: -24.7%**
+**Job losses vs prior window: +186.0% · vs same window last year: +153.0% · trailing 12 months vs prior 12: -23.6%**
 
 ## Sentiment
 
-Job losses in Utah WARN notices worsened to 898 in the current 90-day window, up 111.8% from 424 in the prior window and 283.8% above the 234 recorded in the same window last year. Both short-run comparisons point to deterioration, but the long-run picture is better: trailing-12-month job losses of 2,433 are 24.7% below the 3,233 of the twelve months before.
+Utah job losses worsened to 898 in the current 90-day window from 314 in the prior window, a 186.0% rise, and rose 153.0% from 355 in the same window last year. Both comparisons point to a worsening, though the 12-month view is calmer: trailing-12-month job losses of 2,312 are 23.6% below the 3,026 of the prior 12 months.
 
-The current total rests on just 2 notices. Utah recorded 723 job losses, up from 110, and Utah County 175, up from 3; the payload lists these two labels separately. No other county recorded losses this window.
+Geographically, every current-window job loss falls in Utah County, at 898 against 3 in the prior window. Notices without a reported county eased to 0 from 303.
 
-By sector, Manufacturing accounts for 723, up from 8, and Information recorded 175 where no comparable activity was recorded in the prior window. Health Care & Social Assistance eased to 0 from 303.
+By sector, Manufacturing rose to 723 from 8, and Information recorded 175 where no comparable activity was recorded in the prior window. Health Care & Social Assistance eased to 0 from 303.
 
-The model projects 320 job losses for 2026-10 (range 49–591) and 244 for 2027-03 (range 0–515).
+The model projects 406 job losses for 2026-11 (range 135–678) and 241 for 2026-12 (range 0–512).
 
 ## Analysis
 
-Momentum and the seasonal comparison agree on a worse quarter, yet the 12-month trend shows easing. That divergence reflects how thin the data are: with 2 notices in the current window, a single large notice in 2026-08 (723 job losses against 74 a year earlier) drives most of the headline.
+The current window rests on only 2 notices, both in Utah County, so the rise reflects a small number of filings rather than a broad shift. The 2026-08 month carried 723 job losses against 74 a year earlier.
 
-The monthly record is sparse, with only nine months listed, and most are small. 2026-09 recorded 175 against 160 a year earlier.
+The long-run comparison still shows relief, which suggests the recent window is a concentrated episode within an easing year. No notices appear for 2026-10 so far.
 
-The county split between Utah and Utah County is a labeling detail in the source data; read together they hold all current-window losses.
-
-- Whether further notices arrive or the 2026-08 notice remains a one-time spike.
-- Manufacturing, which carries 723 of the 898 job losses this window.
-- The model's band for 2026-11, 406 (range 135–678).
+- Whether Utah County filings continue.
+- Manufacturing, which accounts for most of the current window.
+- Whether the 12-month easing holds as the window rolls forward.
 
 ## Where layoffs are shifting — by county
 
 | County | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Utah | 1 | 723 | 110 | +613 | 557.3% |
-| Utah County | 1 | 175 | 3 | +172 | 5733.3% |
+| Utah | 2 | 898 | 3 | +895 | 29833.3% |
 | Davis | 0 | 0 | 8 | -8 | -100.0% |
 | Unknown | 0 | 0 | 303 | -303 | -100.0% |
 
@@ -48,9 +45,7 @@ The county split between Utah and Utah County is a labeling detail in the source
 |---|---:|---:|---:|---:|---:|
 | Manufacturing | 1 | 723 | 8 | +715 | 8937.5% |
 | Information | 1 | 175 | 0 | +175 | new |
-| Construction | 0 | 0 | 60 | -60 | -100.0% |
 | Health Care & Social Assistance | 0 | 0 | 303 | -303 | -100.0% |
-| Professional, Scientific & Technical Services | 0 | 0 | 50 | -50 | -100.0% |
 | Wholesale Trade | 0 | 0 | 3 | -3 | -100.0% |
 
 _NAICS coverage: 100.0% of current-window notices have an enriched company._
@@ -84,4 +79,4 @@ _Statistical projection (ets-seasonal, fit on 71 months of history through 2026-
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

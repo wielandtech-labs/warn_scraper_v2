@@ -1,40 +1,31 @@
 # Nevada (NV) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 2 | 4 | 0 | 18 | 25 |
-| Workers affected | 133 | 1,409 | 0 | 2,126 | 2,925 |
+| Notices | 1 | 5 | 0 | 18 | 25 |
+| Workers affected | 100 | 1,442 | 0 | 2,126 | 2,925 |
 
-**Job losses vs prior window: -90.6% · vs same window last year: new · trailing 12 months vs prior 12: -27.3%**
+**Job losses vs prior window: -93.1% · vs same window last year: new · trailing 12 months vs prior 12: -27.3%**
 
 ## Sentiment
 
-Job losses reported in Nevada WARN notices eased to 133 in the current 90-day window, down 90.6% from 1,409 in the prior window. For the same window last year no comparable activity was recorded, so that comparison offers no percentage. Over the longer run, trailing-12-month job losses of 2,126 are 27.3% below the 2,925 of the twelve months before. Recent weeks may rise as late filings arrive.
+Job losses reported in Nevada WARN notices fell to 100 in the current 90-day window, down 93.1% from 1,442 in the prior window. In the same window last year no comparable activity was recorded, so the seasonal comparison shows a modest worsening from zero. Trailing-12-month job losses eased 27.3% to 2,126 from 2,925. Recent weeks may rise as late filings arrive.
 
-All current-window job losses fall in Clark, at 133, down 67.2% from 405. Notices without a reported county eased to 0 from 999.
+The single current notice is in Clark, where losses eased 77.2% to 100 from 438.
 
-Health Care & Social Assistance accounts for 100 job losses and Construction for 33, neither with comparable activity in the prior window. Transportation & Warehousing eased to 0 from 999.
+It falls in Health Care & Social Assistance, which recorded 100 job losses with no comparable prior activity. Transportation & Warehousing recorded 999 in the prior window and none now.
 
 The model projects 41 job losses for 2026-10 (range 0–694) and 420 for 2027-02 (range 0–1,104).
-
-## Analysis
-
-The prior window was shaped by one large month, 2026-05, when 1,343 job losses were recorded against 288 a year earlier. The current window looks low largely because that spike has rolled out, and it rests on only 2 notices.
-
-The forecast bands all start at 0 and reach as high as 1,104, which reflects how irregular Nevada's filings are rather than a clear direction.
-
-- Whether late filings lift the current window above its 2 notices.
-- Clark, which now holds every current-window job loss.
 
 ## Where layoffs are shifting — by county
 
 | County | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Clark | 2 | 133 | 405 | -272 | -67.2% |
+| Clark | 1 | 100 | 438 | -338 | -77.2% |
 | Remote | 0 | 0 | 5 | -5 | -100.0% |
 | Unknown | 0 | 0 | 999 | -999 | -100.0% |
 
@@ -43,8 +34,8 @@ The forecast bands all start at 0 and reach as high as 1,104, which reflects how
 | Sector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
 | Health Care & Social Assistance | 1 | 100 | 0 | +100 | new |
-| Construction | 1 | 33 | 0 | +33 | new |
 | Administrative, Support & Waste Management | 0 | 0 | 5 | -5 | -100.0% |
+| Construction | 0 | 0 | 33 | -33 | -100.0% |
 | Transportation & Warehousing | 0 | 0 | 999 | -999 | -100.0% |
 
 _NAICS coverage: 100.0% of current-window notices have an enriched company._
@@ -77,4 +68,4 @@ _Statistical projection (ets-seasonal, fit on 70 months of history through 2026-
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

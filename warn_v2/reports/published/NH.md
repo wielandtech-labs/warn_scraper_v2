@@ -1,6 +1,6 @@
 # New Hampshire (NH) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
@@ -17,8 +17,9 @@ Insufficient recent WARN activity in New Hampshire to support a trend narrative 
 
 ## Monthly trend (last 12 months)
 
-_No WARN notices recorded in the last 12 months._
+| Month | Notices | Workers affected | Same month last yr |
+|---|---:|---:|---:|
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

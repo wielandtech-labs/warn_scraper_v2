@@ -1,10 +1,10 @@
 # Administrative, Support & Waste Management (NAICS 56) — Industry Scorecard
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Scorecard
 
-**Score: 78/100 — Grade B (easing)**
+**Score: 55/100 — Grade C (stable)**
 
 _How this score works: 50% 90-day layoff momentum, 30% year-over-year trend, 20% notice momentum — each measured against this sector's own recent baseline. Higher is healthier: A = layoffs easing sharply, F = surging._
 
@@ -14,71 +14,68 @@ _How this score works: 50% 90-day layoff momentum, 30% year-over-year trend, 20%
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 31 | 151 | 41 | 261 | 227 |
-| Workers affected | 2,618 | 16,342 | 5,257 | 25,545 | 24,759 |
+| Notices | 42 | 104 | 42 | 276 | 235 |
+| Workers affected | 5,351 | 5,184 | 6,830 | 27,208 | 26,731 |
 
-**Job losses vs prior window: -84.0% · vs same window last year: -50.2% · trailing 12 months vs prior 12: 3.2%**
+**Job losses vs prior window: 3.2% · vs same window last year: -21.7% · trailing 12 months vs prior 12: 1.8%**
 
 ## Sentiment
 
-Job losses in Administrative, Support & Waste Management eased sharply to 2,618 in the current 90-day window, down 84.0% from 16,342 in the prior window and 50.2% below the 5,257 recorded in the same window last year. The long-run picture points the other way: trailing-12-month job losses of 25,545 are 3.2% above the 24,759 of the twelve months before. These figures cover only NAICS-enriched notices and are directional.
+Job losses in Administrative, Support & Waste Management rose 3.2% to 5,351 in the current 90-day window from 5,184 in the prior window, but were 21.7% below the 6,830 of the same window last year. Momentum is slightly worse while the seasonal comparison is better. Trailing-12-month job losses of 27,208 were 1.8% above the 26,731 of the prior twelve months.
 
-Geographically, Washington recorded 648 job losses with no comparable activity in the prior window, New Jersey climbed to 462 from 17, and the District of Columbia recorded 205, also with no comparable activity. Georgia eased to 203 from 867, Arizona to 183 from 717 and Florida to 70 from 673.
+California led at 2,205, up from 356 (519.4%), and Michigan climbed to 464 from 49 (846.9%). Washington rose to 547 from 101 (441.6%). Illinois eased 70.7% to 466.
 
-By subsector, Administrative and Support Services drives the decline, easing 84.7% to 2,498 from 16,342. Waste Management and Remediation Services recorded 120, with no comparable activity in the prior window.
+Administrative and Support Services held nearly flat at 5,231 (0.9%), and Waste Management and Remediation Services recorded 120 with no comparable activity in the prior window.
 
-BLS reports that Professional and business services payrolls, a broader category than this sector, fell in each month from 2026-07 through 2026-09.
+BLS reports Professional and business services payrolls fell in each month from 2026-07 through 2026-09, by 9 thousand in the latest month. These WARN figures cover only NAICS-enriched notices and are directional.
 
 ## Analysis
 
-The momentum figure is dominated by a single month. The 2026-05 row recorded 13,854 job losses against 1,020 a year earlier, which inflates both the prior window and the trailing 12 months. That is why the 90-day comparisons show sharp easing while the 12-month trend shows a slight rise.
+The sector is concentrated: California alone accounts for 2,205 of the window's losses. The 2026-09 month stands out at 3,917 against 2,897 a year earlier. Notices fell to 42 from 104 even as job losses held up, pointing to fewer, larger filings.
 
-Since the drop against the prior window drives the headline, note that recent weeks may rise as late filings arrive. The 2026-10 row is partial.
-
-Outside that spike, monthly job losses have mostly run below their year-earlier levels, including 1,043 in 2026-09 against 2,897.
-
-- Washington and New Jersey, where job losses rose most this window.
-- Whether the 12-month trend turns down once the 2026-05 month leaves the trailing window.
+- California, Michigan and Washington, where losses climbed sharply.
+- Whether the heavy 2026-09 month repeats.
+- The partial 2026-10 month, which holds only the days so far.
 
 ## Where this sector is shedding jobs — by state
 
 | State | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Washington | 5 | 648 | 0 | +648 | new |
-| New Jersey | 3 | 462 | 17 | +445 | 2617.6% |
-| District of Columbia | 3 | 205 | 0 | +205 | new |
-| Georgia | 2 | 203 | 867 | -664 | -76.6% |
-| Arizona | 2 | 183 | 717 | -534 | -74.5% |
+| California | 11 | 2,205 | 356 | +1,849 | 519.4% |
+| Washington | 4 | 547 | 101 | +446 | 441.6% |
+| Illinois | 2 | 466 | 1,589 | -1,123 | -70.7% |
+| Michigan | 1 | 464 | 49 | +415 | 846.9% |
+| Oregon | 2 | 203 | 0 | +203 | new |
+| Arizona | 2 | 183 | 489 | -306 | -62.6% |
 | Pennsylvania | 2 | 180 | 83 | +97 | 116.9% |
-| Texas | 1 | 121 | 85 | +36 | 42.4% |
-| Maryland | 3 | 116 | 0 | +116 | new |
-| Alabama | 2 | 116 | 0 | +116 | new |
-| Florida | 1 | 70 | 673 | -603 | -89.6% |
+| Maryland | 4 | 155 | 0 | +155 | new |
+| Delaware | 1 | 145 | 1 | +144 | 14400.0% |
+| District of Columbia | 2 | 141 | 64 | +77 | 120.3% |
 
 ## Subsector detail — 3-digit NAICS
 
 | Subsector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Administrative and Support Services | 29 | 2,498 | 16,342 | -13,844 | -84.7% |
+| Administrative and Support Services | 40 | 5,231 | 5,184 | +47 | 0.9% |
 | Waste Management and Remediation Services | 2 | 120 | 0 | +120 | new |
 
 ## Monthly trend (last 12 months)
 
 | Month | Notices | Workers affected | Same month last yr |
 |---|---:|---:|---:|
-| 2025-11 | 4 | 190 | 1,479 |
+| 2025-11 | 5 | 430 | 1,479 |
 | 2025-12 | 13 | 1,081 | 937 |
 | 2026-01 | 14 | 1,036 | 2,125 |
-| 2026-02 | 11 | 1,341 | 3,032 |
-| 2026-03 | 10 | 338 | 1,945 |
-| 2026-04 | 59 | 1,591 | 3,960 |
-| 2026-05 | 12 | 13,854 | 1,020 |
-| 2026-06 | 80 | 1,047 | 4,124 |
-| 2026-07 | 5 | 401 | 860 |
-| 2026-08 | 14 | 1,119 | 1,255 |
-| 2026-09 | 12 | 1,043 | 2,897 |
-| 2026-10 | 1 | 108 | 2,883 |
+| 2026-02 | 11 | 1,341 | 3,087 |
+| 2026-03 | 10 | 338 | 1,949 |
+| 2026-04 | 59 | 1,591 | 4,065 |
+| 2026-05 | 13 | 13,854 | 1,020 |
+| 2026-06 | 82 | 1,098 | 4,124 |
+| 2026-07 | 10 | 582 | 860 |
+| 2026-08 | 17 | 1,425 | 1,255 |
+| 2026-09 | 23 | 3,917 | 2,897 |
+| 2026-10 | 4 | 383 | 3,058 |
 
 ---
 
-_Figures computed from non-superseded, NAICS-enriched WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded, NAICS-enriched WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

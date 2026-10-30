@@ -1,10 +1,10 @@
 # Management of Companies & Enterprises (NAICS 55) — Industry Scorecard
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Scorecard
 
-**Score: 89/100 — Grade A (easing sharply)**
+**Score: 88/100 — Grade A (easing sharply)**
 
 _How this score works: 50% 90-day layoff momentum, 30% year-over-year trend, 20% notice momentum — each measured against this sector's own recent baseline. Higher is healthier: A = layoffs easing sharply, F = surging._
 
@@ -14,28 +14,25 @@ _How this score works: 50% 90-day layoff momentum, 30% year-over-year trend, 20%
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 1 | 5 | 6 | 10 | 22 |
-| Workers affected | 59 | 461 | 505 | 1,047 | 2,587 |
+| Notices | 1 | 4 | 6 | 9 | 22 |
+| Workers affected | 59 | 397 | 378 | 1,024 | 2,497 |
 
-**Job losses vs prior window: -87.2% · vs same window last year: -88.3% · trailing 12 months vs prior 12: -59.5%**
+**Job losses vs prior window: -85.1% · vs same window last year: -84.4% · trailing 12 months vs prior 12: -59.0%**
 
 ## Sentiment
 
-Job losses in Management of Companies & Enterprises eased to 59 in the current 90-day window, down 87.2% from 461 in the prior window and 88.3% below the 505 recorded in the same window last year. The long-run picture agrees: trailing-12-month job losses of 1,047 are 59.5% below the 2,587 of the twelve months before. The current window holds only 1 notice, so the level is thin. These figures cover only NAICS-enriched notices and are directional.
+Job losses in Management of Companies & Enterprises eased to 59 in the current 90-day window, down 85.1% from 397 in the prior window and 84.4% below the 378 of the same window last year. Trailing-12-month job losses of 1,024 were 59.0% below the 2,497 of the prior twelve months.
 
-The only current-window losses are in Massachusetts (59), where no comparable activity was recorded in the prior window. Maryland (166 in the prior window), Texas (136) and New Jersey (64) recorded none this time.
+The window holds a single notice, in Massachusetts (59), which had no comparable activity in the prior window. Maryland, Texas, California and Ohio, all active in the prior window, recorded none.
 
-All of the sector's enriched notices fall in a single 3-digit subsector, so the subsector table mirrors the totals.
-
-BLS reports that Professional and business services payrolls, a broader category than this sector, fell in each month from 2026-07 through 2026-09.
+BLS reports Professional and business services payrolls fell in each month from 2026-07 through 2026-09, by 9 thousand in the latest month. These WARN figures cover only NAICS-enriched notices and are directional.
 
 ## Analysis
 
-Every comparison points to easing, which matches the Grade A reading, but with 1 notice in the current window and 5 in the prior the percentages rest on very few filings. Since the drop against the prior window drives the headline, recent weeks may rise as late filings arrive.
+All three comparisons point to sharp easing, which drives the A grade. With just 1 notice in the current window, a single new filing could move the picture materially. States post WARN notices with a lag, so recent weeks may rise as late filings arrive.
 
-The monthly record is sparse, with several months showing no enriched notices at all. The largest recent month was 2026-07 at 354 job losses, against 384 a year earlier.
-
-- Whether any new filings appear in late-reporting weeks of the current window.
+- Whether activity stays this low as late filings arrive.
+- The 2026-07 month, which recorded 354 against 384 a year earlier.
 
 ## Where this sector is shedding jobs — by state
 
@@ -44,7 +41,6 @@ The monthly record is sparse, with several months showing no enriched notices at
 | Massachusetts | 1 | 59 | 0 | +59 | new |
 | California | 0 | 0 | 52 | -52 | -100.0% |
 | Maryland | 0 | 0 | 166 | -166 | -100.0% |
-| New Jersey | 0 | 0 | 64 | -64 | -100.0% |
 | Ohio | 0 | 0 | 43 | -43 | -100.0% |
 | Texas | 0 | 0 | 136 | -136 | -100.0% |
 
@@ -52,7 +48,7 @@ The monthly record is sparse, with several months showing no enriched notices at
 
 | Subsector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Management of Companies and Enterprises | 1 | 59 | 461 | -402 | -87.2% |
+| Management of Companies and Enterprises | 1 | 59 | 397 | -338 | -85.1% |
 
 ## Monthly trend (last 12 months)
 
@@ -68,4 +64,4 @@ The monthly record is sparse, with several months showing no enriched notices at
 
 ---
 
-_Figures computed from non-superseded, NAICS-enriched WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded, NAICS-enriched WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

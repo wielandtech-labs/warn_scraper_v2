@@ -1,69 +1,67 @@
 # Washington (WA) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 60 | 30 | 57 | 159 | 105 |
-| Workers affected | 16,724 | 4,673 | 13,178 | 38,313 | 23,785 |
+| Notices | 63 | 29 | 60 | 152 | 119 |
+| Workers affected | 17,321 | 4,875 | 22,017 | 29,781 | 33,201 |
 
-**Job losses vs prior window: +257.9% · vs same window last year: +26.9% · trailing 12 months vs prior 12: +61.1%**
+**Job losses vs prior window: +255.3% · vs same window last year: -21.3% · trailing 12 months vs prior 12: -10.3%**
 
 ## Sentiment
 
-Job losses in Washington WARN notices climbed to 16,724 in the current 90-day window, up 257.9% from 4,673 in the prior window and 26.9% above the 13,178 recorded in the same window last year. All three measures point the same way: trailing-12-month job losses of 38,313 are 61.1% above the 23,785 of the twelve months before.
+Job losses in Washington worsened sharply against the prior window: 17,321 workers were affected by 63 notices in the current 90 days, up from 4,875 across 29 notices, a 255.3% increase. The seasonal comparison points the other way, with losses 21.3% below the 22,017 recorded in the same window last year, and the trailing 12 months (29,781) eased 10.3% from the prior 12 months (33,201).
 
-Notices without a reported county account for 7,551 of the total, up 205.3%. Okanogan (3,445) and Walla Walla (1,200) recorded losses where no comparable activity was recorded in the prior window, and Pierce worsened to 518 from 49.
+The largest block, 8,059 workers, sits in notices with no reported county, up 236.4%. Okanogan (3,445) and Walla Walla (1,200) recorded no comparable activity in the prior window, while King was little changed at 1,852, up 7.6%.
 
-By sector, Agriculture, Forestry, Fishing & Hunting leads at 4,041, with no comparable activity recorded in the prior window, and Professional, Scientific & Technical Services rose 198.5% to 791. Information eased the most, down 72.2% to 558 from 2,004.
+Agriculture, Forestry, Fishing & Hunting accounts for 4,261 workers, with no comparable activity in the prior window. Professional, Scientific & Technical Services climbed 365.3% to 791, while Information eased 63.8% to 745.
 
-The model projects 6,926 job losses for 2026-10 (range 3,748–10,105) and 2,129 for 2026-11 (range 0–5,321).
+The model projects 6,930 workers affected in 2026-10 (80% band 3,751–10,108), easing to 2,140 in 2026-11 (0–5,331).
 
 ## Analysis
 
-This is a broad deterioration rather than a single comparison. Notice counts rose as well, to 60 from 30 in the prior window. Most of the jump lands in one month: 2026-09 recorded 13,138 job losses against 8,372 a year earlier. The 2026-10 row is partial and covers only the first days of the month, so its 987 should not be read against the 11,996 recorded in the same month last year.
+The momentum reading is dominated by a single month: 2026-09 recorded 13,138 workers affected against 8,372 a year earlier, which drives most of the current window. The 2026-10 row is partial and should not be read as a trend.
 
-Concentration matters here. A large share of losses carries no county, which limits the geographic read, and Agriculture, Forestry, Fishing & Hunting alone accounts for 4,041 job losses. Sector rows cover 85.0% of current-window notices.
+Concentration is high. The unassigned-county bucket alone holds 8,059 workers, so the county picture is incomplete, and a single sector, agriculture, makes up 4,261 of the total. NAICS coverage is 82.5%, so the sector table is broadly representative.
 
-The forecast band is wide: the model's 2026-10 range runs from 3,748 to 10,105, and later months reach down to 0.
-
-- Whether 2026-09's level carries into 2026-10 once the month is complete.
-- Agriculture, Forestry, Fishing & Hunting and the counties tied to it, such as Okanogan.
-- King, where job losses rose to 1,751 from 1,615.
+- Whether the 2026-09 spike proves a one-off or the start of a higher run rate.
+- How the forecast band, which reaches 10,108 for 2026-10, narrows as filings arrive.
+- Whether Information losses keep easing from 2,058 in the prior window.
 
 ## Where layoffs are shifting — by county
 
 | County | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Unknown | 21 | 7,551 | 2,473 | +5,078 | 205.3% |
+| Unknown | 24 | 8,059 | 2,396 | +5,663 | +236.4% |
 | Okanogan | 1 | 3,445 | 0 | +3,445 | new |
-| King | 14 | 1,751 | 1,615 | +136 | 8.4% |
+| King | 15 | 1,852 | 1,721 | +131 | +7.6% |
 | Walla Walla | 1 | 1,200 | 0 | +1,200 | new |
-| Pierce | 6 | 518 | 49 | +469 | 957.1% |
-| Yakima | 3 | 485 | 0 | +485 | new |
-| Snohomish | 4 | 393 | 273 | +120 | 44.0% |
-| Grant | 2 | 351 | 0 | +351 | new |
+| Yakima | 4 | 575 | 0 | +575 | new |
+| Grant | 3 | 571 | 0 | +571 | new |
+| Pierce | 6 | 518 | 0 | +518 | new |
 | Franklin | 2 | 330 | 0 | +330 | new |
 | Chelan | 1 | 275 | 0 | +275 | new |
+| Kitsap | 1 | 159 | 0 | +159 | new |
 
 ## Industry pressure — NAICS sectors
 
 | Sector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Agriculture, Forestry, Fishing & Hunting | 10 | 4,041 | 0 | +4,041 | new |
-| Professional, Scientific & Technical Services | 4 | 791 | 265 | +526 | 198.5% |
-| Manufacturing | 4 | 694 | 616 | +78 | 12.7% |
-| Administrative, Support & Waste Management | 5 | 648 | 0 | +648 | new |
-| Wholesale Trade | 3 | 592 | 267 | +325 | 121.7% |
-| Information | 5 | 558 | 2,004 | -1,446 | -72.2% |
-| Retail Trade | 3 | 357 | 106 | +251 | 236.8% |
-| Health Care & Social Assistance | 3 | 291 | 36 | +255 | 708.3% |
-| Accommodation & Food Services | 3 | 263 | 590 | -327 | -55.4% |
+| Agriculture, Forestry, Fishing & Hunting | 11 | 4,261 | 0 | +4,261 | new |
+| Professional, Scientific & Technical Services | 4 | 791 | 170 | +621 | +365.3% |
+| Information | 5 | 745 | 2,058 | -1,313 | -63.8% |
+| Manufacturing | 4 | 694 | 616 | +78 | +12.7% |
+| Accommodation & Food Services | 7 | 667 | 576 | +91 | +15.8% |
+| Wholesale Trade | 3 | 592 | 267 | +325 | +121.7% |
+| Administrative, Support & Waste Management | 4 | 547 | 101 | +446 | +441.6% |
+| Health Care & Social Assistance | 3 | 291 | 0 | +291 | new |
 | Transportation & Warehousing | 1 | 259 | 452 | -193 | -42.7% |
+| Retail Trade | 1 | 121 | 293 | -172 | -58.7% |
 
-_NAICS coverage: 85.0% of current-window notices have an enriched company._
+_NAICS coverage: 82.5% of current-window notices have an enriched company._
 
 ## Monthly trend (last 12 months)
 
@@ -78,23 +76,23 @@ _NAICS coverage: 85.0% of current-window notices have an enriched company._
 | 2026-05 | 12 | 2,538 | 2,933 |
 | 2026-06 | 9 | 1,065 | 691 |
 | 2026-07 | 10 | 1,321 | 1,767 |
-| 2026-08 | 14 | 2,138 | 1,827 |
+| 2026-08 | 14 | 2,220 | 1,827 |
 | 2026-09 | 36 | 13,138 | 8,372 |
-| 2026-10 | 5 | 987 | 11,996 |
+| 2026-10 | 13 | 1,963 | 11,996 |
 
 ## Outlook — next 6 months (model estimate)
 
 | Month | Notices (80% band) | Workers affected (80% band) |
 |---|---:|---:|
-| 2026-10 | 28 (22–33) | 6,926 (3,748–10,105) |
-| 2026-11 | 26 (19–32) | 2,129 (0–5,321) |
-| 2026-12 | 23 (16–30) | 1,359 (0–4,563) |
-| 2027-01 | 25 (17–33) | 3,095 (0–6,312) |
-| 2027-02 | 25 (16–34) | 2,518 (0–5,747) |
-| 2027-03 | 26 (16–35) | 2,266 (0–5,507) |
+| 2026-10 | 28 (22–33) | 6,930 (3,751–10,108) |
+| 2026-11 | 26 (19–32) | 2,140 (0–5,331) |
+| 2026-12 | 23 (16–30) | 1,371 (0–4,575) |
+| 2027-01 | 25 (17–33) | 3,106 (0–6,322) |
+| 2027-02 | 25 (16–34) | 2,530 (0–5,759) |
+| 2027-03 | 26 (16–35) | 2,277 (0–5,519) |
 
 _Statistical projection (ets-seasonal, fit on 71 months of history through 2026-09); not recorded data._
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

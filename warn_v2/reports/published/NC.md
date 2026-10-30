@@ -1,66 +1,66 @@
 # North Carolina (NC) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 9 | 15 | 22 | 91 | 74 |
-| Workers affected | 1,119 | 1,393 | 2,186 | 8,257 | 7,300 |
+| Notices | 14 | 14 | 33 | 83 | 86 |
+| Workers affected | 1,528 | 1,219 | 2,408 | 8,001 | 8,030 |
 
-**Job losses vs prior window: -19.7% · vs same window last year: -48.8% · trailing 12 months vs prior 12: 13.1%**
+**Job losses vs prior window: 25.3% · vs same window last year: -36.5% · trailing 12 months vs prior 12: -0.4%**
 
 ## Sentiment
 
-Job losses reported in North Carolina WARN notices eased to 1,119 in the current 90-day window, down 19.7% from 1,393 in the prior window and 48.8% below the 2,186 recorded in the same window last year. The long-run picture points the other way: trailing-12-month job losses of 8,257 are 13.1% above the 7,300 of the twelve months before. Recent weeks may rise as late filings arrive.
+Job losses reported in North Carolina WARN notices rose 25.3% to 1,528 in the current 90-day window from 1,219 in the prior window. The seasonal comparison points the other way: the current figure is 36.5% below the 2,408 recorded in the same window last year. Over the long run the picture is flat, with trailing-12-month job losses of 8,001 against 8,030, a change of -0.4%.
 
-Lenoir County carries the largest single total at 391, where no comparable activity was recorded in the prior window; Halifax County (156) and Alamance County (150) are in the same position. Relief came in Cleveland County, which eased to 0 from 282, and Mecklenburg County, down to 1 from 146.
+Losses are spread across many counties, most with no comparable activity in the prior window. Lenoir recorded the largest total at 391, followed by Randolph at 236. Forsyth worsened 108.6% to 169 from 81.
 
-Manufacturing remains the largest sector at 663 job losses, down 19.5% from 824. Finance & Insurance reached 253 with no comparable prior activity, and Transportation & Warehousing worsened by 66.7% to 135.
+By sector, Manufacturing drives the increase: job losses climbed 44.4% to 1,037 from 718. Finance & Insurance recorded 253 where no comparable activity was recorded, while Transportation & Warehousing eased 49.0% to 73.
 
 The model projects 622 job losses for 2026-10 (range 13–1,232) and 1,004 for 2027-03 (range 394–1,614).
 
 ## Analysis
 
-The short-term and long-run readings diverge. Both 90-day comparisons show easing, yet the trailing 12 months sit above the year before. The monthly path explains the gap: winter months ran well above their year-earlier levels, with 1,601 job losses in 2026-03 against 703 and 928 in 2026-02 against 457. More recent months have come in lower than a year earlier, at 73 in 2026-08 against 214 and 834 in 2026-09 against 964.
+The rise against the prior window is real but sits below last year's level, and the 12-month total is unchanged. Monthly figures since summer ran below the year-earlier months: 2026-08 recorded 73 against 214 and 2026-09 recorded 834 against 964. The 2026-10 row is partial.
 
-Geographically the current window is dispersed rather than concentrated: most of the leading counties each reflect a single notice, so one filing can reshape the county ranking from one window to the next.
+Concentration in Manufacturing is the main feature, with 7 of 14 current notices.
 
-- Whether the easing in 2026-08 and 2026-09 holds once late filings are posted.
-- Manufacturing, still the largest source of job losses despite the decline.
-- The forecast band for 2026-10 (13–1,232), which is wide relative to the recorded level.
+- Manufacturing, which holds most current job losses.
+- Whether new county activity in Lenoir and Randolph persists.
+- The model's higher projections later in the 6-month outlook.
 
 ## Where layoffs are shifting — by county
 
 | County | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Lenoir County | 1 | 391 | 0 | +391 | new |
-| Halifax County | 1 | 156 | 0 | +156 | new |
-| Alamance County | 1 | 150 | 0 | +150 | new |
-| Randolph County | 1 | 122 | 0 | +122 | new |
-| Pitt County | 1 | 97 | 0 | +97 | new |
-| Cumberland County | 1 | 73 | 0 | +73 | new |
-| Lee County | 1 | 67 | 0 | +67 | new |
-| Onslow County | 1 | 62 | 0 | +62 | new |
-| Mecklenburg County | 1 | 1 | 146 | -145 | -99.3% |
-| Cleveland County | 0 | 0 | 282 | -282 | -100.0% |
+| Lenoir | 1 | 391 | 0 | +391 | new |
+| Randolph | 2 | 236 | 0 | +236 | new |
+| Forsyth | 1 | 169 | 81 | +88 | 108.6% |
+| Halifax | 1 | 156 | 0 | +156 | new |
+| Rockingham | 1 | 133 | 0 | +133 | new |
+| Pitt | 2 | 109 | 0 | +109 | new |
+| Iredell | 1 | 96 | 0 | +96 | new |
+| Catawba | 1 | 93 | 0 | +93 | new |
+| Cumberland | 1 | 73 | 0 | +73 | new |
+| Lee | 1 | 67 | 0 | +67 | new |
 
 ## Industry pressure — NAICS sectors
 
 | Sector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Manufacturing | 3 | 663 | 824 | -161 | -19.5% |
+| Manufacturing | 7 | 1,037 | 718 | +319 | 44.4% |
 | Finance & Insurance | 2 | 253 | 0 | +253 | new |
-| Transportation & Warehousing | 2 | 135 | 81 | +54 | 66.7% |
+| Transportation & Warehousing | 1 | 73 | 143 | -70 | -49.0% |
 | Administrative, Support & Waste Management | 1 | 67 | 0 | +67 | new |
-| Retail Trade | 1 | 1 | 223 | -222 | -99.6% |
+| Retail Trade | 1 | 1 | 93 | -92 | -98.9% |
 | Information | 0 | 0 | 194 | -194 | -100.0% |
 | Other Services (except Public Administration) | 0 | 0 | 1 | -1 | -100.0% |
 | Professional, Scientific & Technical Services | 0 | 0 | 17 | -17 | -100.0% |
 | Wholesale Trade | 0 | 0 | 53 | -53 | -100.0% |
 
-_NAICS coverage: 100.0% of current-window notices have an enriched company._
+_NAICS coverage: 92.9% of current-window notices have an enriched company._
 
 ## Monthly trend (last 12 months)
 
@@ -77,6 +77,7 @@ _NAICS coverage: 100.0% of current-window notices have an enriched company._
 | 2026-07 | 5 | 652 | 656 |
 | 2026-08 | 1 | 73 | 214 |
 | 2026-09 | 6 | 834 | 964 |
+| 2026-10 | 7 | 621 | 1,230 |
 
 ## Outlook — next 6 months (model estimate)
 
@@ -93,4 +94,4 @@ _Statistical projection (ets-seasonal, fit on 71 months of history through 2026-
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

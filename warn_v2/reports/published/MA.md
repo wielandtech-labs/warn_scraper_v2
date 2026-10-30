@@ -1,67 +1,64 @@
 # Massachusetts (MA) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 17 | 31 | 17 | 88 | 101 |
-| Workers affected | 2,410 | 2,605 | 2,207 | 8,498 | 8,328 |
+| Notices | 16 | 22 | 16 | 87 | 96 |
+| Workers affected | 1,876 | 2,342 | 1,410 | 8,502 | 7,959 |
 
-**Job losses vs prior window: -7.5% · vs same window last year: 9.2% · trailing 12 months vs prior 12: 2.0%**
+**Job losses vs prior window: -19.9% · vs same window last year: +33.0% · trailing 12 months vs prior 12: +6.8%**
 
 ## Sentiment
 
-Job losses reported in Massachusetts WARN notices eased slightly to 2,410 in the current 90-day window, down 7.5% from 2,605 in the prior window. The seasonal comparison points the other way: the current figure is 9.2% above the 2,207 recorded in the same window last year. Over the longer run the picture is close to flat, with trailing-12-month job losses of 8,498, up 2.0% from 8,328.
+Massachusetts shows mixed signals. Current-window job losses eased to 1,876 from 2,342 in the prior window (-19.9%), but were 33.0% above the 1,410 in the same window last year. Over the trailing 12 months, 8,502 workers were affected, up 6.8% from 7,959.
 
-Most current job losses, 1,948, come from notices without a recorded county, up 57.2% from 1,239. Among identified counties, Middlesex led at 325, down 31.6%, and Worcester eased 91.0% to 25.
+Geographically, most losses (1,352) carry no county. Middlesex rose to 325 from 251, while Worcester eased to 87 from 278 and Essex to 53 from 225.
 
-By sector, Health Care & Social Assistance worsened sharply, rising 186.7% to 1,554 from 542. Transportation & Warehousing also climbed, up 378.0% to 239 from 50, while Manufacturing eased 23.6% to 418.
+By industry, Health Care & Social Assistance remains the largest source at 853, down from 1,043, and Manufacturing was little changed at 523. Transportation & Warehousing recorded 239 with no comparable prior activity.
 
-The model projects 460 job losses for 2026-10 (range 0–933) and 1,073 for 2027-01 (range 600–1,547).
+The model projects 460 workers affected in 2026-10 (0–933) and 1,073 in 2027-01 (600–1,547).
 
 ## Analysis
 
-Momentum and the seasonal comparison diverge only modestly, and the 12-month figure suggests a level that is broadly unchanged from a year earlier. The composition shifted more than the total: Health Care & Social Assistance now accounts for 1,554 of the 2,410 current job losses, while Educational Services and Accommodation & Food Services fell to zero from 414 and 227.
+Momentum has eased while the seasonal comparison has worsened, and the trailing-12-month trend is modestly higher. The monthly path explains the gap: 2026-08 recorded 1,321 against 350 a year earlier.
 
-The monthly path shows 2026-08 well above last year, at 1,321 against 350, while 2026-09 came in lower at 388 against 684.
+Health Care & Social Assistance and Manufacturing together dominate the sector table. The 2026-10 row (167) is partial.
 
-Geographic reading is limited because 12 of the 17 current notices have no recorded county. Sector rows cover 94.1% of current-window notices.
-
-- Health Care & Social Assistance, where job losses rose the most.
-- Whether the 2026-08 level repeats or proves a one-off.
-- The model's 2027-01 projection of 1,073 (range 600–1,547).
+- Whether the seasonal gap narrows as the August spike rolls out of the window.
+- Health Care & Social Assistance, still the largest sector at 853.
+- The model's 2027-01 projection, the highest in the outlook.
 
 ## Where layoffs are shifting — by county
 
 | County | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Unknown | 12 | 1,948 | 1,239 | +709 | 57.2% |
-| Middlesex | 2 | 325 | 475 | -150 | -31.6% |
-| Suffolk | 1 | 59 | 138 | -79 | -57.2% |
+| Unknown | 10 | 1,352 | 1,293 | +59 | 4.6% |
+| Middlesex | 2 | 325 | 251 | +74 | 29.5% |
+| Worcester | 2 | 87 | 278 | -191 | -68.7% |
+| Suffolk | 1 | 59 | 55 | +4 | 7.3% |
 | Essex | 1 | 53 | 225 | -172 | -76.4% |
-| Worcester | 1 | 25 | 278 | -253 | -91.0% |
-| Bristol | 0 | 0 | 10 | -10 | -100.0% |
 | Hampshire | 0 | 0 | 175 | -175 | -100.0% |
-| Norfolk County | 0 | 0 | 65 | -65 | -100.0% |
+| Norfolk | 0 | 0 | 65 | -65 | -100.0% |
 
 ## Industry pressure — NAICS sectors
 
 | Sector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Health Care & Social Assistance | 5 | 1,554 | 542 | +1,012 | 186.7% |
-| Manufacturing | 6 | 418 | 547 | -129 | -23.6% |
-| Transportation & Warehousing | 2 | 239 | 50 | +189 | 378.0% |
-| Professional, Scientific & Technical Services | 1 | 112 | 307 | -195 | -63.5% |
+| Health Care & Social Assistance | 2 | 853 | 1,043 | -190 | -18.2% |
+| Manufacturing | 7 | 523 | 547 | -24 | -4.4% |
+| Transportation & Warehousing | 2 | 239 | 0 | +239 | new |
+| Professional, Scientific & Technical Services | 1 | 112 | 0 | +112 | new |
+| Wholesale Trade | 1 | 62 | 0 | +62 | new |
 | Management of Companies & Enterprises | 1 | 59 | 0 | +59 | new |
 | Finance & Insurance | 1 | 3 | 2 | +1 | 50.0% |
 | Accommodation & Food Services | 0 | 0 | 227 | -227 | -100.0% |
-| Educational Services | 0 | 0 | 414 | -414 | -100.0% |
+| Educational Services | 0 | 0 | 65 | -65 | -100.0% |
 | Other Services (except Public Administration) | 0 | 0 | 55 | -55 | -100.0% |
-| Retail Trade | 0 | 0 | 162 | -162 | -100.0% |
 
-_NAICS coverage: 94.1% of current-window notices have an enriched company._
+_NAICS coverage: 93.8% of current-window notices have an enriched company._
 
 ## Monthly trend (last 12 months)
 
@@ -78,6 +75,7 @@ _NAICS coverage: 94.1% of current-window notices have an enriched company._
 | 2026-07 | 7 | 1,064 | 1,098 |
 | 2026-08 | 10 | 1,321 | 350 |
 | 2026-09 | 4 | 388 | 684 |
+| 2026-10 | 2 | 167 | 376 |
 
 ## Outlook — next 6 months (model estimate)
 
@@ -94,4 +92,4 @@ _Statistical projection (ets-seasonal, fit on 66 months of history through 2026-
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

@@ -1,49 +1,51 @@
 # Pennsylvania (PA) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 17 | 17 | 30 | 108 | 119 |
-| Workers affected | 1,892 | 3,245 | 119 | 9,845 | 15,303 |
+| Notices | 20 | 17 | 35 | 101 | 124 |
+| Workers affected | 1,895 | 3,302 | 0 | 10,155 | 14,078 |
 
-**Job losses vs prior window: -41.7% · vs same window last year: 1489.9% · trailing 12 months vs prior 12: -35.7%**
+**Job losses vs prior window: -42.6% · vs same window last year: n/a (no comparable activity) · trailing 12 months vs prior 12: -27.9%**
 
 ## Sentiment
 
-Job losses reported in Pennsylvania WARN notices eased to 1,892 in the current 90-day window, down 41.7% from 3,245 in the prior window. Against the same window last year the comparison points the other way, up 1489.9% from 119, but that base is unusually thin. Trailing-12-month job losses of 9,845 are 35.7% below the 15,303 of the twelve months before. Recent weeks may rise as late filings arrive.
+Pennsylvania job losses eased to 1,895 in the current 90-day window from 3,302 in the prior window, a 42.6% decline. Against the same window last year no comparable activity was recorded: its 35 notices reported 0 workers, so that comparison cannot show direction. Over the long run, trailing-12-month job losses of 10,155 are 27.9% below the 14,078 of the prior 12 months. Recent weeks may rise as late filings arrive.
 
-Montgomery eased the most, to 329 from 1,574 (-79.1%). Allegheny (251) and Beaver (200) recorded job losses where no comparable activity was recorded in the prior window.
+Geographically, Montgomery County drove most of the easing, falling 90.3% to 169 from 1,734. Allegheny (251) and Beaver (200) counties recorded job losses where no comparable activity was recorded in the prior window, while Philadelphia eased to 207 from 316.
 
-Manufacturing remains the largest sector at 682, down 64.0% from 1,895. Retail Trade worsened to 466 from 51 (813.7%), and Administrative, Support & Waste Management rose 116.9% to 180.
+By sector, Manufacturing remains the largest at 682 but fell 64.0% from 1,895. Retail Trade worsened, rising 109.6% to 415 from 198, and Transportation & Warehousing eased 61.6% to 246 from 640.
 
-The model projects 438 job losses for 2026-10 (range 0–3,715) and 1,987 for 2026-12 (range 0–5,264).
+The model projects 815 job losses for 2026-11 (range 0–1,752) and 1,344 for 2027-01 (range 406–2,283).
 
 ## Analysis
 
-Momentum and the 12-month trend both show easing, while the seasonal comparison shows a steep rise. The seasonal reading rests on a weak base: the monthly table shows 0 year-earlier job losses for 2026-08 and 2026-09, and 2025-11 and 2025-12 each list 16 notices with 0 workers. The prior-window and 12-month comparisons are the steadier guides.
+The decline against the prior window is broad but leans heavily on one county: Montgomery's drop of 1,565 workers accounts for most of the change. Outside it, losses are spread across several counties that had no comparable activity in the prior window, including Lebanon (177), Crawford (170) and Chester (150).
 
-Geography is dispersed, with most leading counties reflecting one or two notices. NAICS coverage is 94.1%, so the sector shifts are well grounded.
+The seasonal comparison is unavailable because last year's window reported 0 workers, and the monthly table shows the same gap for 2026-08 through 2026-10's year-earlier months. The 2026-10 row is partial.
 
-- Retail Trade, where job losses rose sharply against the prior window.
-- Whether the easing in Manufacturing persists.
-- The forecast bands, which all start at 0 and run into the thousands.
+The forecast band is wide, with lower bounds of 0 in most months.
+
+- Retail Trade, the one large sector where losses rose.
+- Whether newly active counties such as Allegheny and Beaver keep filing.
+- Upward revisions to the current window as late notices arrive.
 
 ## Where layoffs are shifting — by county
 
 | County | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Montgomery | 2 | 329 | 1,574 | -1,245 | -79.1% |
 | Allegheny | 1 | 251 | 0 | +251 | new |
+| Philadelphia | 4 | 207 | 316 | -109 | -34.5% |
+| Cumberland | 3 | 204 | 268 | -64 | -23.9% |
 | Beaver | 1 | 200 | 0 | +200 | new |
-| Philadelphia | 3 | 189 | 316 | -127 | -40.2% |
+| Lebanon | 2 | 177 | 0 | +177 | new |
 | Crawford | 1 | 170 | 0 | +170 | new |
-| Cumberland | 2 | 156 | 268 | -112 | -41.8% |
+| Montgomery | 1 | 169 | 1,734 | -1,565 | -90.3% |
 | Chester | 1 | 150 | 0 | +150 | new |
-| Philadelphia and Bucks | 1 | 147 | 0 | +147 | new |
-| Schuykill | 1 | 111 | 0 | +111 | new |
+| Schuylkill | 1 | 111 | 0 | +111 | new |
 | McKean | 1 | 80 | 0 | +80 | new |
 
 ## Industry pressure — NAICS sectors
@@ -51,17 +53,17 @@ Geography is dispersed, with most leading counties reflecting one or two notices
 | Sector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
 | Manufacturing | 4 | 682 | 1,895 | -1,213 | -64.0% |
-| Retail Trade | 3 | 466 | 51 | +415 | 813.7% |
+| Retail Trade | 3 | 415 | 198 | +217 | 109.6% |
+| Transportation & Warehousing | 4 | 246 | 640 | -394 | -61.6% |
 | Administrative, Support & Waste Management | 2 | 180 | 83 | +97 | 116.9% |
-| Transportation & Warehousing | 3 | 165 | 640 | -475 | -74.2% |
-| Health Care & Social Assistance | 1 | 160 | 237 | -77 | -32.5% |
-| Arts, Entertainment & Recreation | 1 | 111 | 0 | +111 | new |
-| Wholesale Trade | 1 | 48 | 0 | +48 | new |
+| Arts, Entertainment & Recreation | 2 | 159 | 0 | +159 | new |
+| Wholesale Trade | 2 | 115 | 0 | +115 | new |
+| Accommodation & Food Services | 1 | 18 | 0 | +18 | new |
 | Finance & Insurance | 1 | 0 | 0 | 0 | — |
+| Health Care & Social Assistance | 0 | 0 | 397 | -397 | -100.0% |
 | Information | 0 | 0 | 9 | -9 | -100.0% |
-| Mining, Quarrying, Oil & Gas Extraction | 0 | 0 | 75 | -75 | -100.0% |
 
-_NAICS coverage: 94.1% of current-window notices have an enriched company._
+_NAICS coverage: 95.0% of current-window notices have an enriched company._
 
 ## Monthly trend (last 12 months)
 
@@ -78,20 +80,21 @@ _NAICS coverage: 94.1% of current-window notices have an enriched company._
 | 2026-07 | 2 | 307 | 119 |
 | 2026-08 | 9 | 1,056 | 0 |
 | 2026-09 | 6 | 529 | 0 |
+| 2026-10 | 5 | 310 | 0 |
 
 ## Outlook — next 6 months (model estimate)
 
 | Month | Notices (80% band) | Workers affected (80% band) |
 |---|---:|---:|
-| 2026-10 | 10 (0–34) | 438 (0–3,715) |
-| 2026-11 | 12 (0–36) | 459 (0–3,736) |
-| 2026-12 | 13 (0–37) | 1,987 (0–5,264) |
-| 2027-01 | 8 (0–32) | 744 (0–4,021) |
-| 2027-02 | 9 (0–33) | 520 (0–3,797) |
-| 2027-03 | 7 (0–31) | 634 (0–3,912) |
+| 2026-10 | 11 (7–15) | 855 (0–1,791) |
+| 2026-11 | 11 (6–15) | 815 (0–1,752) |
+| 2026-12 | 11 (7–15) | 719 (0–1,657) |
+| 2027-01 | 9 (5–14) | 1,344 (406–2,283) |
+| 2027-02 | 7 (3–12) | 756 (0–1,696) |
+| 2027-03 | 8 (3–12) | 1,157 (217–2,097) |
 
 _Statistical projection (ets-seasonal, fit on 71 months of history through 2026-09); not recorded data._
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

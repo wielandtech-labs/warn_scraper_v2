@@ -1,15 +1,15 @@
 # South Dakota (SD) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 1 | 2 | 1 | 5 | 5 |
-| Workers affected | 2 | 54 | 0 | 177 | 810 |
+| Notices | 1 | 2 | 2 | 4 | 6 |
+| Workers affected | 2 | 54 | 90 | 87 | 900 |
 
-**Job losses vs prior window: -96.3% · vs same window last year: no comparable activity was recorded · trailing 12 months vs prior 12: -78.1%**
+**Job losses vs prior window: -96.3% · vs same window last year: -97.8% · trailing 12 months vs prior 12: -90.3%**
 
 ## Sentiment
 
@@ -29,7 +29,7 @@ Insufficient recent WARN activity in South Dakota to support a trend narrative (
 | Administrative, Support & Waste Management | 0 | 0 | 1 | -1 | -100.0% |
 | Wholesale Trade | 0 | 0 | 53 | -53 | -100.0% |
 
-_NAICS coverage: 0.0% of current-window notices have an enriched company, so the industry figures cover only a minority of notices._
+_NAICS coverage: 0.0% of current-window notices have an enriched company._
 
 ## Monthly trend (last 12 months)
 
@@ -55,4 +55,4 @@ _Statistical projection (ets-seasonal, fit on 63 months of history through 2026-
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

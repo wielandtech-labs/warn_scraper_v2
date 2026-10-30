@@ -1,66 +1,58 @@
 # Arizona (AZ) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 15 | 20 | 14 | 60 | 54 |
-| Workers affected | 1,004 | 3,286 | 2,867 | 8,976 | 8,665 |
+| Notices | 15 | 12 | 12 | 56 | 56 |
+| Workers affected | 1,004 | 1,893 | 4,226 | 5,818 | 11,376 |
 
-**Job losses vs prior window: -69.4% · vs same window last year: -65.0% · trailing 12 months vs prior 12: 3.6%**
+**Job losses vs prior window: -47% · vs same window last year: -76.2% · trailing 12 months vs prior 12: -48.9%**
 
 ## Sentiment
 
-Job losses reported in WARN notices across Arizona eased sharply to 1,004 in the current 90-day window, down 69.4% from 3,286 in the prior window and 65.0% below the 2,867 recorded in the same window last year. The long-run picture is less favourable: trailing-12-month job losses of 8,976 are 3.6% above the 8,665 of the twelve months before. Recent weeks may rise as late filings arrive.
+Job losses in Arizona eased on both comparisons: 1,004 workers in the current window, 47.0% below the prior window's 1,893 and 76.2% below the 4,226 recorded a year earlier. Trailing 12-month losses of 5,818 are 48.9% below the prior 12 months. Recent weeks may rise as late filings arrive.
 
-Maricopa remains the largest county at 689, though that is down 51.8% from 1,428; a separately labelled Maricopa County row holds a further 151. Coconino recorded 130, with no comparable activity in the prior window. Pima eased to 0 from 786 and Pinal to 0 from 705.
+Maricopa accounts for most current losses at 840 workers, down 15.7% from 997. Pinal fell to 0 from 705, and Pima declined 94.3% to 10. Coconino recorded 130 with no comparable activity in the prior window.
 
-By sector, Manufacturing eased 78.1% to 196 and Administrative, Support & Waste Management eased 74.5% to 183. Finance & Insurance moved the other way, rising to 143 from 12. Health Care & Social Assistance fell to 0 from 723.
+Manufacturing eased 76.1% to 196, and Administrative, Support & Waste Management declined 62.6% to 183. Finance & Insurance moved the other way, rising to 143 from 12.
 
-The model projects 652 job losses for 2026-10 (range 0–1,386) and 1,004 for 2027-01 (range 268–1,739).
+The model projects 652 job losses for 2026-10 (range 0–1,386) and 747 for 2026-11 (range 13–1,481).
 
 ## Analysis
 
-Both window comparisons show strong relief, but the 12-month trend still points to slightly higher job losses than a year ago. The current window follows a heavy spring: 2026-04 recorded 1,546 job losses and 2026-06 recorded 1,155, against 325 and 151 in the same months a year earlier.
+Both comparisons and the 12-month picture point to easing. Concentration is high: Maricopa holds 11 of the 15 current-window notices. The monthly path sits below last year in 2026-09 (522 against 838); the 2026-10 row is partial.
 
-The decline is broad across geography. Pima, Pinal and Yuma all fell to zero, and Maricopa itself roughly halved. The county field mixes "Maricopa" and "Maricopa County" labels, so the two rows should be read together.
-
-The 2026-10 row is partial, covering only the first days of the month, so its 118 job losses are not comparable with the 3,158 recorded in the same month a year earlier.
-
-- Late filings, which may lift the current window as they arrive.
-- Finance & Insurance, the one large sector where job losses rose.
-- The model's 2027-01 projection of 1,004, with a band of 268–1,739.
+- Late filings that could revise the current window upward.
+- Finance & Insurance, the one sector rising sharply.
+- Forecast levels above the recent monthly run rate, with a wide band.
 
 ## Where layoffs are shifting — by county
 
 | County | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Maricopa | 9 | 689 | 1,428 | -739 | -51.8% |
-| Maricopa County | 2 | 151 | 0 | +151 | new |
+| Maricopa | 11 | 840 | 997 | -157 | -15.7% |
 | Coconino | 1 | 130 | 0 | +130 | new |
-| Unknown | 2 | 24 | 15 | +9 | 60.0% |
-| Pima County | 1 | 10 | 99 | -89 | -89.9% |
-| Pima | 0 | 0 | 786 | -786 | -100.0% |
-| Pinal | 0 | 0 | 705 | -705 | -100.0% |
-| Yavapai | 0 | 0 | 21 | -21 | -100.0% |
-| Yuma | 0 | 0 | 232 | -232 | -100.0% |
+| Unknown | 2 | 24 | 15 | +9 | +60% |
+| Pima | 1 | 10 | 176 | -166 | -94.3% |
+| Pinal | 0 | 0 | 705 | -705 | -100% |
 
 ## Industry pressure — NAICS sectors
 
 | Sector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Manufacturing | 2 | 196 | 896 | -700 | -78.1% |
-| Administrative, Support & Waste Management | 2 | 183 | 717 | -534 | -74.5% |
-| Finance & Insurance | 2 | 143 | 12 | +131 | 1091.7% |
+| Manufacturing | 2 | 196 | 821 | -625 | -76.1% |
+| Administrative, Support & Waste Management | 2 | 183 | 489 | -306 | -62.6% |
+| Finance & Insurance | 2 | 143 | 12 | +131 | +1091.7% |
 | Agriculture, Forestry, Fishing & Hunting | 2 | 140 | 0 | +140 | new |
-| Professional, Scientific & Technical Services | 1 | 90 | 309 | -219 | -70.9% |
-| Wholesale Trade | 1 | 53 | 288 | -235 | -81.6% |
+| Professional, Scientific & Technical Services | 1 | 90 | 77 | +13 | +16.9% |
+| Wholesale Trade | 1 | 53 | 75 | -22 | -29.3% |
 | Retail Trade | 1 | 9 | 0 | +9 | new |
-| Health Care & Social Assistance | 0 | 0 | 723 | -723 | -100.0% |
-| Information | 0 | 0 | 3 | -3 | -100.0% |
-| Other Services (except Public Administration) | 0 | 0 | 66 | -66 | -100.0% |
+| Health Care & Social Assistance | 0 | 0 | 99 | -99 | -100% |
+| Information | 0 | 0 | 3 | -3 | -100% |
+| Other Services (except Public Administration) | 0 | 0 | 66 | -66 | -100% |
 
 _NAICS coverage: 73.3% of current-window notices have an enriched company._
 
@@ -96,4 +88,4 @@ _Statistical projection (ets-seasonal, fit on 71 months of history through 2026-
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

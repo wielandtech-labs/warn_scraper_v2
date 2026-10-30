@@ -1,63 +1,62 @@
 # Indiana (IN) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 6 | 11 | 12 | 34 | 30 |
-| Workers affected | 741 | 2,080 | 1,756 | 5,221 | 3,944 |
+| Notices | 6 | 10 | 11 | 35 | 31 |
+| Workers affected | 773 | 1,900 | 1,492 | 5,439 | 3,993 |
 
-**Job losses vs prior window: -64.4% · vs same window last year: -57.8% · trailing 12 months vs prior 12: 32.4%**
+**Job losses vs prior window: -59.3% · vs same window last year: -48.2% · trailing 12 months vs prior 12: +36.2%**
 
 ## Sentiment
 
-Job losses reported in Indiana WARN notices eased to 741 in the current 90-day window, down 64.4% from 2,080 in the prior window and 57.8% below the 1,756 recorded in the same window last year. Both comparisons point the same way, but the long-run picture does not: trailing-12-month job losses of 5,221 are 32.4% above the 3,944 of the twelve months before. Recent weeks may rise as late filings arrive.
+Indiana's recent picture eased, but the long-run trend worsened. Current-window job losses fell to 773 from 1,900 in the prior window (-59.3%) and were 48.2% below the 1,492 in the same window last year. Yet the trailing 12 months recorded 5,439 workers affected, up 36.2% from 3,993. Recent weeks may rise as late filings arrive.
 
-Hendricks still recorded the most job losses at 151, though that is down 87.8% from 1,234. Bartholomew (150) and Tippecanoe (133) recorded losses where no comparable activity was recorded in the prior window, and Vanderburgh eased to zero from 266.
+Geographically, Hendricks eased to 151 from 1,234, while Grant (279), Bartholomew (150) and Tippecanoe (133) recorded losses where no comparable activity was recorded in the prior window.
 
-By sector, Manufacturing moved against the headline, with job losses rising 11.2% to 485 from 436. Professional, Scientific & Technical Services eased 74.2% to 151, and Retail Trade recorded 105 where no comparable activity was recorded in the prior window.
+By industry, Manufacturing rose to 562 from 241, while Professional, Scientific & Technical Services eased to 151 from 586 and Administrative, Support & Waste Management fell to 0 from 572.
 
-The model projects 298 job losses for 2026-10 (range 0–710) and 497 for 2026-12 (range 86–909).
+The model projects 298 workers affected in 2026-10 (0–710) and 497 in 2026-12 (86–909).
 
 ## Analysis
 
-The 90-day easing contrasts with a worse 12-month picture. Much of that came from earlier months: 2026-06 recorded 1,644 job losses against 50 in the same month last year, and 2025-12 recorded 879 against 0. More recent months ran below last year, with 2026-08 at 223 against 930 and 2026-09 at 283 against 588.
+The 90-day comparisons and the 12-month comparison point in different directions. The trailing-12-month rise is driven largely by 2026-06, when 1,644 workers were affected against 50 a year earlier; the current window sits well below that level.
 
-Current-window activity is spread thinly, with one notice each across six counties, so no single area dominates. Manufacturing accounts for 485 of the 741 current job losses, and its losses rose while the overall total eased.
+Manufacturing now accounts for 562 of 773 workers affected, so the state's near-term direction rests largely on that sector.
 
-- Manufacturing, the largest sector and one moving against the overall easing.
-- Whether late filings revise the current window upward.
-- The model's 2026-12 projection of 497 (range 86–909) against the recent monthly run.
+- Whether Manufacturing's rise to 562 from 241 continues.
+- Late filings revising the current window upward.
+- The wide forecast bands, several with a lower bound of 0.
 
 ## Where layoffs are shifting — by county
 
 | County | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
+| Grant | 2 | 279 | 0 | +279 | new |
 | Hendricks | 1 | 151 | 1,234 | -1,083 | -87.8% |
 | Bartholomew | 1 | 150 | 0 | +150 | new |
 | Tippecanoe | 1 | 133 | 0 | +133 | new |
-| St. Joseph | 1 | 130 | 0 | +130 | new |
-| Elkhart | 1 | 105 | 0 | +105 | new |
-| Grant | 1 | 72 | 0 | +72 | new |
-| Boone | 0 | 0 | 80 | -80 | -100.0% |
+| Unknown | 1 | 60 | 0 | +60 | new |
+| Boone | 0 | 0 | 21 | -21 | -100.0% |
 | Clark | 0 | 0 | 111 | -111 | -100.0% |
-| Marion | 0 | 0 | 182 | -182 | -100.0% |
-| Vanderburgh | 0 | 0 | 266 | -266 | -100.0% |
+| Elkhart | 0 | 0 | 105 | -105 | -100.0% |
+| Marion | 0 | 0 | 92 | -92 | -100.0% |
+| St. Joseph | 0 | 0 | 130 | -130 | -100.0% |
 
 ## Industry pressure — NAICS sectors
 
 | Sector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Manufacturing | 4 | 485 | 436 | +49 | 11.2% |
+| Manufacturing | 4 | 562 | 241 | +321 | 133.2% |
 | Professional, Scientific & Technical Services | 1 | 151 | 586 | -435 | -74.2% |
-| Retail Trade | 1 | 105 | 0 | +105 | new |
 | Administrative, Support & Waste Management | 0 | 0 | 572 | -572 | -100.0% |
 | Health Care & Social Assistance | 0 | 0 | 85 | -85 | -100.0% |
 | Information | 0 | 0 | 7 | -7 | -100.0% |
-| Other Services (except Public Administration) | 0 | 0 | 90 | -90 | -100.0% |
 | Real Estate, Rental & Leasing | 0 | 0 | 76 | -76 | -100.0% |
+| Retail Trade | 0 | 0 | 105 | -105 | -100.0% |
 | Transportation & Warehousing | 0 | 0 | 21 | -21 | -100.0% |
 | Wholesale Trade | 0 | 0 | 207 | -207 | -100.0% |
 
@@ -78,6 +77,7 @@ _NAICS coverage: 100.0% of current-window notices have an enriched company._
 | 2026-07 | 2 | 235 | 65 |
 | 2026-08 | 2 | 223 | 930 |
 | 2026-09 | 2 | 283 | 588 |
+| 2026-10 | 2 | 267 | 222 |
 
 ## Outlook — next 6 months (model estimate)
 
@@ -94,4 +94,4 @@ _Statistical projection (ets-seasonal, fit on 71 months of history through 2026-
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

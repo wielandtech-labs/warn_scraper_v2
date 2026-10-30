@@ -1,67 +1,65 @@
 # Wisconsin (WI) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 14 | 18 | 17 | 64 | 64 |
-| Workers affected | 714 | 900 | 1,184 | 4,630 | 5,547 |
+| Notices | 10 | 18 | 17 | 63 | 63 |
+| Workers affected | 518 | 672 | 1,262 | 4,559 | 5,225 |
 
-**Job losses vs prior window: -20.7% · vs same window last year: -39.7% · trailing 12 months vs prior 12: -16.5%**
+**Job losses vs prior window: -22.9% · vs same window last year: -59.0% · trailing 12 months vs prior 12: -12.7%**
 
 ## Sentiment
 
-Job losses in Wisconsin WARN notices eased to 714 in the current 90-day window, down 20.7% from 900 in the prior window and 39.7% below the 1,184 recorded in the same window last year. The long-run picture agrees: trailing-12-month job losses of 4,630 are 16.5% below the 5,547 of the twelve months before.
+Job losses in Wisconsin eased on both comparisons. The current window recorded 518 workers affected across 10 notices, down 22.9% from 672 in the prior window and 59.0% below the 1,262 recorded in the same window last year. The trailing 12 months (4,559) were 12.7% lower than the prior 12 months (5,225).
 
-Washington County recorded the most losses at 159, where no comparable activity was recorded in the prior window, and Brown eased 19.7% to 147. Dane fell to 1 from 94.
+Brown (147), Lincoln (76) and Wood (68) recorded no comparable activity in the prior window, while Milwaukee climbed 75.4% to 121.
 
-By sector, Manufacturing still leads at 227, down 17.2%, while Professional, Scientific & Technical Services rose 113.0% to 147 and Agriculture, Forestry, Fishing & Hunting recorded 97 with no comparable prior activity. Accommodation & Food Services eased to 0 from 160.
+Manufacturing leads the sector table at 186 workers, up 27.4%, and Professional, Scientific & Technical Services rose 113.0% to 147. Mining, Quarrying, Oil & Gas Extraction (76) had no comparable activity in the prior window.
 
-The model projects 472 job losses for 2026-10 (range 78–865) and 910 for 2027-01 (range 517–1,304).
+The model projects 472 workers affected in 2026-10 (80% band 78–865) and 546 in 2026-11 (153–940).
 
 ## Analysis
 
-Momentum, the seasonal comparison and the 12-month trend all show easing. The quietest stretch is recent: 2026-09 recorded 41 job losses against 977 a year earlier. States post WARN notices with a lag, so recent weeks may rise as late filings arrive. The 2026-10 row is partial and covers only the first days of the month.
+Recent weeks may rise as late filings arrive, which matters here because the decline against the prior window is modest. The monthly path is uneven: 2026-09 recorded 41 workers against 977 a year earlier, while 2026-03 recorded 1,169 against 74. The 2026-10 row is partial.
 
-Losses are spread thinly across counties, with no county above 159, and sector rows cover 78.6% of current-window notices.
+Volumes are small, so a single notice can swing county and sector rankings.
 
-- Whether late filings revise 2026-09 upward.
-- Professional, Scientific & Technical Services, one of the few sectors where job losses rose.
-- The model's 2027-01 projection of 910 (range 517–1,304), above recent months.
+- Whether the 2027-01 projection of 910 (517–1,304) materializes.
+- Whether Manufacturing keeps rising from 146 in the prior window.
 
 ## Where layoffs are shifting — by county
 
 | County | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Washington | 3 | 159 | 0 | +159 | new |
-| Brown | 2 | 147 | 183 | -36 | -19.7% |
-| Lafayette | 2 | 97 | 0 | +97 | new |
-| Lincoln County | 1 | 76 | 0 | +76 | new |
+| Brown | 2 | 147 | 0 | +147 | new |
+| Milwaukee | 2 | 121 | 69 | +52 | +75.4% |
+| Lincoln | 1 | 76 | 0 | +76 | new |
 | Wood | 1 | 68 | 0 | +68 | new |
-| Jefferson | 1 | 59 | 0 | +59 | new |
 | Marathon | 1 | 47 | 0 | +47 | new |
-| Milwaukee | 1 | 43 | 83 | -40 | -48.2% |
-| Unknown | 1 | 17 | 6 | +11 | 183.3% |
-| Dane | 1 | 1 | 94 | -93 | -98.9% |
+| Washington | 1 | 41 | 118 | -77 | -65.3% |
+| Unknown | 1 | 17 | 6 | +11 | +183.3% |
+| Dane | 1 | 1 | 69 | -68 | -98.6% |
+| Adams | 0 | 0 | 4 | -4 | -100.0% |
+| Brown, Manitowoc, Outagamie, Shawano, Waushara | 0 | 0 | 12 | -12 | -100.0% |
 
 ## Industry pressure — NAICS sectors
 
 | Sector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Manufacturing | 4 | 227 | 274 | -47 | -17.2% |
-| Professional, Scientific & Technical Services | 2 | 147 | 69 | +78 | 113.0% |
-| Agriculture, Forestry, Fishing & Hunting | 2 | 97 | 0 | +97 | new |
+| Manufacturing | 3 | 186 | 146 | +40 | +27.4% |
+| Professional, Scientific & Technical Services | 2 | 147 | 69 | +78 | +113.0% |
 | Mining, Quarrying, Oil & Gas Extraction | 1 | 76 | 0 | +76 | new |
 | Finance & Insurance | 1 | 47 | 0 | +47 | new |
-| Health Care & Social Assistance | 1 | 43 | 0 | +43 | new |
 | Accommodation & Food Services | 0 | 0 | 160 | -160 | -100.0% |
+| Agriculture, Forestry, Fishing & Hunting | 0 | 0 | 97 | -97 | -100.0% |
+| Health Care & Social Assistance | 0 | 0 | 43 | -43 | -100.0% |
 | Information | 0 | 0 | 72 | -72 | -100.0% |
-| Real Estate, Rental & Leasing | 0 | 0 | 151 | -151 | -100.0% |
 | Transportation & Warehousing | 0 | 0 | 0 | 0 | — |
 
-_NAICS coverage: 78.6% of current-window notices have an enriched company._
+_NAICS coverage: 70.0% of current-window notices have an enriched company._
 
 ## Monthly trend (last 12 months)
 
@@ -78,7 +76,7 @@ _NAICS coverage: 78.6% of current-window notices have an enriched company._
 | 2026-07 | 8 | 412 | 270 |
 | 2026-08 | 6 | 309 | 93 |
 | 2026-09 | 1 | 41 | 977 |
-| 2026-10 | 1 | 47 | 192 |
+| 2026-10 | 3 | 168 | 192 |
 
 ## Outlook — next 6 months (model estimate)
 
@@ -95,4 +93,4 @@ _Statistical projection (ets-seasonal, fit on 71 months of history through 2026-
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._

@@ -1,69 +1,65 @@
 # Georgia (GA) — WARN Layoff Trends
 
-_Generated 2026-10-07 · Current window 2026-07-10 → 2026-10-07 vs prior 2026-04-11 → 2026-07-09 · same window last year 2025-07-10 → 2025-10-07_
+_Generated 2026-10-30 · Current window 2026-08-02 → 2026-10-30 vs prior 2026-05-04 → 2026-08-01 · same window last year 2025-08-02 → 2025-10-30_
 
 ## Summary
 
 | Metric | Current 90d | Prior 90d | Same 90d last yr | Trailing 12mo | Prior 12mo |
 |---|---:|---:|---:|---:|---:|
-| Notices | 19 | 16 | 30 | 92 | 83 |
-| Workers affected | 2,821 | 2,387 | 3,211 | 13,216 | 14,266 |
+| Notices | 20 | 17 | 28 | 90 | 85 |
+| Workers affected | 2,797 | 2,583 | 3,829 | 12,493 | 14,904 |
 
-**Job losses vs prior window: 18.2% · vs same window last year: -12.1% · trailing 12 months vs prior 12: -7.4%**
+**Job losses vs prior window: +8.3% · vs same window last year: -27% · trailing 12 months vs prior 12: -16.2%**
 
 ## Sentiment
 
-Job losses reported in WARN notices across Georgia climbed to 2,821 in the current 90-day window, up 18.2% from 2,387 in the prior window. The seasonal comparison is more favourable: that is 12.1% below the 3,211 recorded in the same window last year. Over the longer run, trailing-12-month job losses of 13,216 sit 7.4% below the 14,266 of the twelve months before.
+Job losses in Georgia worsened modestly against the prior window, rising 8.3% to 2,797 workers from 2,583, but eased 27.0% from 3,829 in the same window last year. Trailing 12-month losses of 12,493 are 16.2% below the prior 12 months.
 
-Cobb County dominates the current window with 1,414 job losses across 6 notices, where no comparable activity was recorded in the prior window. Clayton County eased 83.2% to 110 and Fulton County eased 65.8% to 126.
+Cobb accounts for the largest share at 1,414, with no comparable activity in the prior window. Clayton eased 69.5% to 199.
 
-By sector, Health Care & Social Assistance recorded 856 job losses with no comparable activity in the prior window. Wholesale Trade climbed to 593 from 84 and Manufacturing to 544 from 167, while Transportation & Warehousing eased 88.4% to 92.
+Health Care & Social Assistance (856) and Wholesale Trade (593) had no comparable activity in the prior window, while Manufacturing rose 107.1% to 557. Administrative, Support & Waste Management eased 91.9% to 77.
 
-The model projects 851 job losses for 2026-10 (range 0–2,046) and 1,095 for 2027-03 (range 0–2,289).
+The model projects 851 job losses for 2026-10 (range 0–2,046) and 755 for 2026-11 (range 0–1,949).
 
 ## Analysis
 
-Momentum has worsened while the seasonal and 12-month comparisons show relief, so the current rise is from a low prior window rather than an unusually high level. The monthly path shows the swing: 2026-04 recorded 129 job losses against 4,515 a year earlier, while 2026-08 recorded 2,320, close to the 2,332 of a year before.
+Momentum and the seasonal comparison diverge, and the current window is concentrated: Cobb's 6 notices make up about half of current losses. 2026-08 matched last year closely (2,320 against 2,332); the 2026-10 row is partial.
 
-Concentration is the main feature of the current window. Cobb County alone accounts for half of the state's current job losses, and three sectors where pressure rose (Health Care & Social Assistance, Wholesale Trade and Manufacturing) account for most of the rest.
-
-The 2026-10 row is partial, so its 9 job losses are not comparable with the 1,229 recorded in the same month a year earlier.
-
-- Whether Cobb County's cluster is a one-off or persists into the next window.
-- Health Care & Social Assistance, the largest sector by current job losses.
-- The model's bands, which run from 0 in every projected month.
+- Cobb, the new concentration point.
+- Health Care & Social Assistance and Wholesale Trade.
+- The wide forecast band.
 
 ## Where layoffs are shifting — by county
 
 | County | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
-| Cobb County | 6 | 1,414 | 0 | +1,414 | new |
-| Unknown | 4 | 283 | 817 | -534 | -65.4% |
-| Richmond County | 1 | 179 | 0 | +179 | new |
-| Houston County | 1 | 168 | 0 | +168 | new |
-| Cherokee County | 1 | 150 | 127 | +23 | 18.1% |
-| Fulton County | 1 | 126 | 368 | -242 | -65.8% |
-| Clayton County | 1 | 110 | 653 | -543 | -83.2% |
-| Coweta County | 1 | 102 | 0 | +102 | new |
-| Warren County | 1 | 102 | 107 | -5 | -4.7% |
-| Carroll County | 1 | 95 | 0 | +95 | new |
+| Cobb | 6 | 1,414 | 0 | +1,414 | new |
+| Unknown | 5 | 302 | 817 | -515 | -63% |
+| Clayton | 2 | 199 | 653 | -454 | -69.5% |
+| Richmond | 1 | 179 | 0 | +179 | new |
+| Houston | 1 | 168 | 0 | +168 | new |
+| Cherokee | 1 | 150 | 127 | +23 | +18.1% |
+| Bulloch | 1 | 115 | 0 | +115 | new |
+| Warren | 1 | 102 | 107 | -5 | -4.7% |
+| Carroll | 1 | 95 | 0 | +95 | new |
+| Fulton | 1 | 73 | 494 | -421 | -85.2% |
 
 ## Industry pressure — NAICS sectors
 
 | Sector | Notices | Workers affected | Prior workers | Δ workers | Δ% |
 |---|---:|---:|---:|---:|---:|
 | Health Care & Social Assistance | 2 | 856 | 0 | +856 | new |
-| Wholesale Trade | 4 | 593 | 84 | +509 | 606.0% |
-| Manufacturing | 4 | 544 | 167 | +377 | 225.7% |
-| Administrative, Support & Waste Management | 2 | 203 | 867 | -664 | -76.6% |
+| Wholesale Trade | 4 | 593 | 0 | +593 | new |
+| Manufacturing | 4 | 557 | 269 | +288 | +107.1% |
 | Agriculture, Forestry, Fishing & Hunting | 1 | 110 | 0 | +110 | new |
-| Transportation & Warehousing | 1 | 92 | 791 | -699 | -88.4% |
+| Administrative, Support & Waste Management | 1 | 77 | 953 | -876 | -91.9% |
 | Retail Trade | 1 | 9 | 0 | +9 | new |
 | Finance & Insurance | 1 | 5 | 112 | -107 | -95.5% |
-| Construction | 0 | 0 | 127 | -127 | -100.0% |
-| Professional, Scientific & Technical Services | 0 | 0 | 51 | -51 | -100.0% |
+| Construction | 0 | 0 | 127 | -127 | -100% |
+| Professional, Scientific & Technical Services | 0 | 0 | 51 | -51 | -100% |
+| Transportation & Warehousing | 0 | 0 | 883 | -883 | -100% |
 
-_NAICS coverage: 84.2% of current-window notices have an enriched company._
+_NAICS coverage: 70% of current-window notices have an enriched company._
 
 ## Monthly trend (last 12 months)
 
@@ -80,7 +76,7 @@ _NAICS coverage: 84.2% of current-window notices have an enriched company._
 | 2026-07 | 4 | 427 | 621 |
 | 2026-08 | 13 | 2,320 | 2,332 |
 | 2026-09 | 2 | 172 | 375 |
-| 2026-10 | 1 | 9 | 1,229 |
+| 2026-10 | 5 | 305 | 1,229 |
 
 ## Outlook — next 6 months (model estimate)
 
@@ -97,4 +93,4 @@ _Statistical projection (ets-seasonal, fit on 45 months of history through 2026-
 
 ---
 
-_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-07 figures._
+_Figures computed from non-superseded WARN notices bucketed by notice date; notices without a reported worker count contribute 0 to the workers-affected sums. Written analysis by Claude from the 2026-10-30 figures._
