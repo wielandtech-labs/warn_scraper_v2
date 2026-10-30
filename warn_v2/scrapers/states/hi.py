@@ -159,6 +159,9 @@ def _fetch_hi_year(year: int) -> bytes | None:
 class HIScraper:
     state = "HI"
     source_url = _WDD_URL
+    # Current-year entries link an HTML notice page, not the PDF; the page
+    # carries the PDF link, which download-pdfs follows (see _landing_pdf_url).
+    pdf_via_landing_page = True
     expected_row_range = (1, 500)
     required_fields = frozenset({"employer", "notice_date"})
 

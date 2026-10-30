@@ -232,6 +232,10 @@ def test_normalize_key_and_display_name():
         ("MD", "Balto Co.", "MD|baltimore", "Baltimore"),
         ("MD", "Montgomery Co.", "MD|montgomery", "Montgomery"),
         ("MD", "Baltimore City", "MD|baltimore city", "Baltimore City"),
+        # MD's listing mixes typographic and straight apostrophes
+        ("MD", "Prince George\u2019s", "MD|prince george's", "Prince George's"),
+        ("MD", "Prince George\u2019s County", "MD|prince george's", "Prince George's"),
+        ("MD", "Prince George's Co.", "MD|prince george's", "Prince George's"),
         ("MO", "St. Louis (county)", "MO|st. louis", "St. Louis"),
         ("MO", "St. Louis city", "MO|st. louis city", "St. Louis city"),
         ("UT", "Utah County", "UT|utah", "Utah"),

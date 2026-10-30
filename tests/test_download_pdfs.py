@@ -634,3 +634,71 @@ def test_re_extract_state_filter(db, tmp_path):
     db.refresh(ct)
     assert stats["considered"] == 1
     assert ct.layoff_count == 42
+
+
+# ---------------------------------------------------------------------------
+# HTML landing pages (HI current-year notices link a page, not the PDF)
+# ---------------------------------------------------------------------------
+
+_HI_PAGE = "https://labor.hawaii.gov/wdd/warn-notices/warn-notice-acme/"
+_HI_PDF = "https://labor.hawaii.gov/wdd/files/2026/10/Acme_WARN.pdf"
+
+
+def _landing_html(*pdf_links: str) -> bytes:
+    links = "".join(f'<a href="{u}">notice</a>' for u in pdf_links)
+    footer = '<footer><a href="/files/privacy-policy.pdf">privacy</a></footer>'
+    return f"<html><body><article><p>Acme</p>{links}</article>{footer}</body></html>".encode()
+
+
+def _run(db, tmp_path, state):
+    with patch("warn_v2.scripts.download_pdfs.session_scope") as mock_scope:
+        mock_scope.return_value.__enter__ = lambda _: db
+        mock_scope.return_value.__exit__ = MagicMock(return_value=False)
+        with patch("warn_v2.scripts.download_pdfs.extract_warn_fields",
+                   return_value={"layoff_count": 9}):
+            return download_pdfs(state, pdf_dir=tmp_path)
+
+
+@respx.mock
+def test_hi_landing_page_is_followed_to_its_pdf(db, tmp_path):
+    notice = _insert_notice(db, state="HI", raw_notice_url=_HI_PAGE)
+    db.commit()
+    respx.get(_HI_PAGE).mock(return_value=httpx.Response(
+        200, content=_landing_html("/wdd/files/2026/10/Acme_WARN.pdf"),
+        headers={"content-type": "text/html; charset=UTF-8"}))
+    respx.get(_HI_PDF).mock(return_value=httpx.Response(200, content=_FAKE_PDF))
+
+    stats = _run(db, tmp_path, "HI")
+
+    db.refresh(notice)
+    assert stats["errors"] == 0 and stats["enriched"] == 1
+    assert notice.layoff_count == 9
+    assert (tmp_path / notice.pdf_path).read_bytes() == _FAKE_PDF
+
+
+@respx.mock
+def test_landing_page_with_several_pdfs_is_not_guessed(db, tmp_path):
+    notice = _insert_notice(db, state="HI", raw_notice_url=_HI_PAGE)
+    db.commit()
+    respx.get(_HI_PAGE).mock(return_value=httpx.Response(
+        200, content=_landing_html("/a.pdf", "/b.pdf"),
+        headers={"content-type": "text/html"}))
+
+    stats = _run(db, tmp_path, "HI")
+
+    db.refresh(notice)
+    assert stats["errors"] == 1 and notice.pdf_path is None
+
+
+@respx.mock
+def test_html_page_not_followed_for_states_without_landing_pages(db, tmp_path):
+    page = "https://labor.alaska.gov/RR/notices/page"
+    notice = _insert_notice(db, state="AK", raw_notice_url=page)
+    db.commit()
+    respx.get(page).mock(return_value=httpx.Response(
+        200, content=_landing_html("/x.pdf"), headers={"content-type": "text/html"}))
+
+    stats = _run(db, tmp_path, "AK")
+
+    db.refresh(notice)
+    assert stats["errors"] == 1 and notice.pdf_path is None

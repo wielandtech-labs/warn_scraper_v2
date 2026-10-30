@@ -299,6 +299,32 @@ def re_extract(
     return stats
 
 
+def _follows_landing_page(state: str) -> bool:
+    """Whether this state's raw_notice_url may be an HTML notice page that
+    links the PDF (scraper attribute ``pdf_via_landing_page``)."""
+    try:
+        return bool(getattr(get_scraper(state), "pdf_via_landing_page", False))
+    except Exception:
+        return False
+
+
+def _landing_pdf_url(html: bytes, page_url: str) -> str | None:
+    """The one PDF a notice landing page links from its article body, or None
+    when it links none or several (ambiguous: don't guess)."""
+    from urllib.parse import urljoin, urlparse
+
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html, "html.parser")
+    body = soup.find("article") or soup.find("main") or soup
+    urls = {
+        urljoin(page_url, str(a["href"]))
+        for a in body.find_all("a", href=True)
+        if urlparse(str(a["href"])).path.lower().endswith(".pdf")
+    }
+    return urls.pop() if len(urls) == 1 else None
+
+
 def _process_one(
     session: Session, notice: Notice, *, pdf_dir: Path, dry_run: bool
 ) -> str:
@@ -316,7 +342,20 @@ def _process_one(
         return "errors"
 
     content_type = r.headers.get("content-type", "")
-    if "pdf" not in content_type.lower() and not pdf_bytes[:4] == b"%PDF":
+    is_pdf = "pdf" in content_type.lower() or pdf_bytes[:4] == b"%PDF"
+    if not is_pdf and _follows_landing_page(notice.state):
+        pdf_url = _landing_pdf_url(pdf_bytes, str(r.url))
+        if pdf_url is not None:
+            try:
+                r = httpx.get(pdf_url, headers=_UA, timeout=30, follow_redirects=True)
+                r.raise_for_status()
+                pdf_bytes = r.content
+            except httpx.HTTPError as e:
+                log.warning("%s %s: fetch failed: %s", notice.state, notice.notice_id[:8], e)
+                return "errors"
+            content_type = r.headers.get("content-type", "")
+            is_pdf = "pdf" in content_type.lower() or pdf_bytes[:4] == b"%PDF"
+    if not is_pdf:
         log.warning(
             "%s %s: not a PDF (content-type %r) — not storing",
             notice.state, notice.notice_id[:8], content_type,

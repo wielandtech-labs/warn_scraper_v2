@@ -69,6 +69,9 @@ _MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct",
 # archive files from 2020 through mid-2025 use "# WORKERS AFFECTED:".
 _WORKERS_KEYS = ("WORKERS AFFECTED", "# WORKERS AFFECTED")
 
+# A 2-6 digit NAICS code where a county name belongs (left-shifted rows).
+_NAICS_SHAPED_RE = re.compile(r"\d{2,6}")
+
 # Thousands separator between digits ("1,604" -> "1604").
 _THOUSANDS_RE = re.compile(r"(?<=\d),(?=\d{3}\b)")
 
@@ -517,6 +520,17 @@ class ILScraper:
                 naics = str(int(naics_raw))
             else:
                 naics = as_str(naics_raw) or None
+            county_idx = header.get("COUNTY", -1)
+            if (naics is None and county and county_idx > 0
+                    and _NAICS_SHAPED_RE.fullmatch(county)):
+                # Left-shifted row (revision / "additional workers" filings,
+                # 2021-2024 archives): TYPE OF LAYOFF is omitted, so the cause
+                # sits under it, the NAICS under COUNTY and the county one
+                # column left of COUNTY (EVENT CAUSES, or CEJA RELATED in
+                # layouts that have it). Shift them back.
+                left = current_row[county_idx - 1] if county_idx - 1 < len(current_row) else None
+                naics, county = county, as_str(left) or None
+                event_causes, layoff_type = layoff_type, None
 
             rows.append(
                 NoticeRow(
