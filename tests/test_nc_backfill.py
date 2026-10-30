@@ -45,7 +45,7 @@ def test_nc_2013_pinned_wayback_url_is_a_replay_url():
 
 
 @respx.mock
-def test_nc_discovery_appends_pinned_2013_capture_after_hub_years():
+def test_nc_discovery_returns_hub_years_only():
     html = (
         b"<html><body>"
         b"<a href='/warn-report-2019/open'>2019</a>"
@@ -57,8 +57,6 @@ def test_nc_discovery_appends_pinned_2013_capture_after_hub_years():
     assert _discover_nc_pdf_urls() == [
         "https://www.commerce.nc.gov/warn-report-2019/open",
         "https://www.commerce.nc.gov/warn-report-2014-0/open",
-        _WARN_2013_PDF_URL,
-        *_INTRANET_WINDOWS,
     ]
 
 

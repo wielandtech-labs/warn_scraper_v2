@@ -462,7 +462,8 @@ def test_supported_states_in_registry(state) -> None:
 
     assert state in _SUPPORTED
     spec = _BACKFILL[state]
-    assert (spec.fetch_year is None) != (spec.discover_urls is None)
+    modes = [spec.fetch_year, spec.discover_urls or spec.bundled_files, spec.bundled_bytes]
+    assert sum(m is not None for m in modes) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -1961,7 +1962,6 @@ def test_nc_discover_pdf_urls_dedupes_years_and_absolutizes():
     )
     respx.get(_ARCHIVE_HUB).mock(return_value=httpx.Response(200, content=html))
 
-    from warn_v2.scrapers.states.nc import _INTRANET_WINDOWS, _WARN_2013_PDF_URL
 
     urls = _discover_nc_pdf_urls()
     assert urls == [
@@ -1969,23 +1969,26 @@ def test_nc_discover_pdf_urls_dedupes_years_and_absolutizes():
         "https://www.commerce.nc.gov/worker-adjustment-and-retraining-notification-warn-report-2021/open",
         "https://www.commerce.nc.gov/warn-report-2019/open",
         "https://www.commerce.nc.gov/warn-report-2014-0/open",
-        _WARN_2013_PDF_URL,  # pinned Wayback capture, appended after hub years
-        *_INTRANET_WINDOWS,  # pre-2013 rolling-report captures
-    ]
+    ]  # the pinned 2013 / pre-2013 captures come from nc_pinned_files
 
 
 @respx.mock
-def test_nc_discover_pdf_urls_keeps_wayback_pins_on_http_error():
-    from warn_v2.scrapers.states.nc import (
-        _ARCHIVE_HUB,
-        _INTRANET_WINDOWS,
-        _WARN_2013_PDF_URL,
-        _discover_nc_pdf_urls,
-    )
+def test_nc_discover_pdf_urls_empty_on_http_error():
+    from warn_v2.scrapers.states.nc import _ARCHIVE_HUB, _discover_nc_pdf_urls
 
     respx.get(_ARCHIVE_HUB).mock(return_value=httpx.Response(500))
-    # The pinned captures don't depend on the hub.
-    assert _discover_nc_pdf_urls() == [_WARN_2013_PDF_URL, *_INTRANET_WINDOWS]
+    assert _discover_nc_pdf_urls() == []
+
+
+def test_nc_pinned_files_are_bundled():
+    from warn_v2.scrapers.states.nc import (
+        _INTRANET_WINDOWS,
+        _WARN_2013_PDF_URL,
+        nc_pinned_files,
+    )
+
+    # Served from nc_wayback.tar.gz, so a hub outage or Wayback 429 can't drop them.
+    assert [u for u, _raw in nc_pinned_files()] == [_WARN_2013_PDF_URL, *_INTRANET_WINDOWS]
 
 
 def test_nc_parse_pdf_summary_count_era():
@@ -2145,9 +2148,12 @@ def test_backfill_historical_nc_dispatches_per_url(db) -> None:
         return_value=httpx.Response(200, content=_nc_fixture("archive_grid_2025.pdf"))
     )
 
-    with patch(
-        "warn_v2.scripts.backfill_historical._discover_nc_pdf_urls",
-        return_value=[grid_url, summary_url],
+    with (
+        patch(
+            "warn_v2.scripts.backfill_historical._discover_nc_pdf_urls",
+            return_value=[grid_url, summary_url],
+        ),
+        patch("warn_v2.scripts.backfill_historical.nc_pinned_files", return_value=[]),
     ):
         stats = backfill_historical("NC", dry_run=True)
 

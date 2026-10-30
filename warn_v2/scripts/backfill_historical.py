@@ -68,7 +68,7 @@ from warn_v2.scrapers.states.co import _fetch_co_year, _parse_co_year
 from warn_v2.scrapers.states.ct import _discover_ct_archive_urls, parse_ct_archive
 from warn_v2.scrapers.states.dc import (
     _fetch_dc_year,  # noqa: F401 - the DC year-loop spec (commented below); tests patch it
-    dc_log_urls,
+    dc_log_files,
     parse_dc_log,
 )
 from warn_v2.scrapers.states.fl import _fetch_fl_year, parse_fl_year
@@ -103,13 +103,13 @@ from warn_v2.scrapers.states.mn import (
     _parse_archive_pdf as _parse_mn_archive_pdf,
 )
 from warn_v2.scrapers.states.mo import (
-    _discover_mo_archive_urls,
+    mo_archive_files,
     parse_mo_archive_html,
     parse_mo_log_pdf,
 )
 from warn_v2.scrapers.states.ms import _discover_ms_archive_urls, parse_ms_archive_pdf
 from warn_v2.scrapers.states.ms import _discover_pdf_urls as _discover_ms_pdf_urls
-from warn_v2.scrapers.states.nc import _discover_nc_pdf_urls, parse_nc_pdf
+from warn_v2.scrapers.states.nc import _discover_nc_pdf_urls, nc_pinned_files, parse_nc_pdf
 from warn_v2.scrapers.states.ne import (
     is_ne_lc_member,
     ne_archive_files,
@@ -169,6 +169,7 @@ class BackfillSpec:
     # tar.gz under warn_v2/scrapers/data/ (see warn_v2.scrapers.bundled).
     # Returns (member_name, bytes) pairs; each member is parsed via
     # ``parse_for_url(member_name)`` when set, else ``scraper.parse``.
+    # May be combined with ``discover_urls``; the bundle runs first.
     bundled_files: Callable[[], list[tuple[str, bytes]]] | None = None
 
 
@@ -214,12 +215,12 @@ _BACKFILL: dict[str, BackfillSpec] = {
         parse_for_url=lambda u: (lambda raw, _u=u: parse_ct_archive(raw, _u)),
     ),
     # DC: the 2002 - Jan 2012 "Monthly WARN Notification Log" from three pinned
-    # Wayback captures (dc._LOG_CAPTURES). The live year pages 2013+ were the
-    # route before 2026-10-26 and are already in prod; restore this to re-run
-    # them:
+    # Wayback captures (dc._LOG_CAPTURES, bundled in dc_wayback.tar.gz). The
+    # live year pages 2013+ were the route before 2026-10-26 and are already in
+    # prod; restore this to re-run them:
     #   BackfillSpec(year_start=2013, fetch_year=lambda s, y: _fetch_dc_year(y))
     "DC": BackfillSpec(
-        discover_urls=lambda: dc_log_urls(),
+        bundled_files=lambda: dc_log_files(),
         parse_for_url=lambda u: (lambda raw, _u=u: parse_dc_log(raw, _u)),
     ),
     # CO: one Google Sheet per year, 2015+; the regular scraper reads only the
@@ -355,6 +356,7 @@ _BACKFILL: dict[str, BackfillSpec] = {
     # eras; parse_nc_pdf dispatches on detected content. Capture the URL so
     # each PDF's parser records its own source_url.
     "NC": BackfillSpec(
+        bundled_files=lambda: nc_pinned_files(),
         discover_urls=lambda: _discover_nc_pdf_urls(),
         parse_for_url=lambda u: (lambda raw, _u=u: parse_nc_pdf(raw, _u)),
     ),
@@ -413,7 +415,7 @@ _BACKFILL: dict[str, BackfillSpec] = {
     # closing lists several worksites per city, which collapse to one row per
     # (employer, date, city) under the notice_id hash.
     "MO": BackfillSpec(
-        discover_urls=lambda: _discover_mo_archive_urls(),
+        bundled_files=lambda: mo_archive_files(),
         parse_for_url=lambda u: (
             (lambda raw, _u=u: parse_mo_log_pdf(raw, _u))
             if u.lower().endswith(".pdf")
@@ -589,19 +591,21 @@ def backfill_historical(
             scraper, spec.bundled_bytes(), label="bundled-snapshot",
             stats=stats, dry_run=dry_run,
         )
-    elif spec.bundled_files is not None:
-        members = spec.bundled_files()
-        if limit is not None:
-            members = members[:limit]
-        for name, raw in members:
-            stats["years_attempted"] += 1
-            parse_fn = spec.parse_for_url(name) if spec.parse_for_url else None
-            _ingest_raw(
-                scraper, raw, label=f"bundled:{name}",
-                stats=stats, dry_run=dry_run, parse_fn=parse_fn,
-            )
-    elif spec.discover_urls is not None:
-        _backfill_url_list(scraper, spec, stats, dry_run=dry_run, limit=limit)
+    elif spec.bundled_files is not None or spec.discover_urls is not None:
+        # A spec may set both: bundled Wayback captures plus live URLs (NC).
+        if spec.bundled_files is not None:
+            members = spec.bundled_files()
+            if limit is not None:
+                members = members[:limit]
+            for name, raw in members:
+                stats["years_attempted"] += 1
+                parse_fn = spec.parse_for_url(name) if spec.parse_for_url else None
+                _ingest_raw(
+                    scraper, raw, label=f"bundled:{name}",
+                    stats=stats, dry_run=dry_run, parse_fn=parse_fn,
+                )
+        if spec.discover_urls is not None:
+            _backfill_url_list(scraper, spec, stats, dry_run=dry_run, limit=limit)
     else:
         start = year_start or spec.year_start or datetime.now().year
         end = year_end or datetime.now().year

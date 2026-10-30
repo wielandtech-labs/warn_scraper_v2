@@ -19,8 +19,8 @@ from bs4 import BeautifulSoup
 
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
+from warn_v2.scrapers.bundled import DATA_DIR, load_pinned
 from warn_v2.scrapers.registry import register
-from warn_v2.scrapers.wayback import replay_url
 
 _URL = "https://does.dc.gov/page/industry-closings-and-layoffs-warn-notifications-{year}"
 
@@ -165,8 +165,9 @@ _LOG_DATE_RE = re.compile(r"^\d{1,2}/(?:\d{1,2}/)?\d{2,4}$")
 _LEADING_INT_RE = re.compile(r"^\s*([\d,]+)")
 
 
-def dc_log_urls() -> list[str]:
-    return [replay_url(ts, _LOG_URL) for ts in _LOG_CAPTURES]
+def dc_log_files() -> list[tuple[str, bytes]]:
+    """The pinned captures from ``dc_wayback.tar.gz``, keyed by replay URL."""
+    return load_pinned(DATA_DIR / "dc_wayback.tar.gz", [(ts, _LOG_URL) for ts in _LOG_CAPTURES])
 
 
 def _log_date(raw: str) -> date | None:

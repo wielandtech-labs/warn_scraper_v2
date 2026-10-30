@@ -527,5 +527,11 @@ WARN-scope total ≈ **+7,500–8,600** (Non-WARN NE excluded), against the
   behind **opaque CMS ids** (DC `cwp/view,a,…,q,572897.asp`: follow nav links
   from a homepage capture), and under **sibling paths** (NC
   `Documents/Reports/WARN/` vs `WARN/`; TX `svcs/jtpa/` vs `files/news/`).
+- *(2026-10)* **Prod Jobs should not fetch from Wayback.** The 2026-10-29
+  MO/NC/DC dry-run Job got `429 Too Many Requests` on 10 of its first 14
+  captures (the cluster's IP is throttled far harder than a workstation's),
+  with ~2 min of backoff per file. Commit the captures as a bundle
+  (`bundled.load_pinned`, `<st>_wayback.tar.gz`) so the Job is deterministic
+  and needs no network; MO, NC, DC and AZ moved to bundles in #415.
 - *(2026-10)* When pinning one capture per year, choose by content (row count),
   not recency. FL 2012's newest capture was the header-only one.

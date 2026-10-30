@@ -3,7 +3,8 @@
 Historical backfill (Jul 2003 - 2007): before JobLink (whose search reaches
 2010), AZ DES published a monthly "Dislocated Worker Program" report as PDF,
 monthly files Jul-2003 → May-2005 and one file per year for 2006 and 2007
-(pinned Wayback captures, ``_ARCHIVE_PDFS``). See ``parse_az_archive_pdf``.
+(pinned Wayback captures, ``_ARCHIVE_PDFS``, bundled in
+``az_wayback.tar.gz``). See ``parse_az_archive_pdf``.
 """
 from __future__ import annotations
 
@@ -16,9 +17,9 @@ import pdfplumber
 
 from warn_v2.scrapers._helpers import as_date, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed
+from warn_v2.scrapers.bundled import DATA_DIR, load_pinned
 from warn_v2.scrapers.job_link import JobLinkScraper
 from warn_v2.scrapers.registry import register
-from warn_v2.scrapers.wayback import fetch as wayback_fetch
 from warn_v2.scrapers.wayback import replay_url
 
 
@@ -98,11 +99,12 @@ def _source_url(year: int, month: int) -> str:
 
 
 def fetch_az_archive_year(year: int) -> list[bytes] | None:
-    """The year's pinned DES report PDFs, or None outside 2003-2007."""
+    """The year's pinned DES report PDFs from ``az_wayback.tar.gz`` (bundled
+    because Wayback rate-limits the cluster), or None outside 2003-2007."""
     caps = _ARCHIVE_PDFS.get(year)
     if not caps:
         return None
-    return [raw for ts, url in caps if (raw := wayback_fetch(replay_url(ts, url)))]
+    return [raw for _url, raw in load_pinned(DATA_DIR / "az_wayback.tar.gz", caps)]
 
 
 def parse_az_archive_pdf(raw: bytes, year: int) -> list[NoticeRow]:

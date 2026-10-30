@@ -14,8 +14,9 @@ program-year pages (MO publishes by Program Year, July-June), but the Wayback
 Machine holds a consolidated Jul-2012→Jun-2015 log PDF, the PY2015 log PDF,
 and the PY2016-PY2018 HTML pages. The older rapidresponse.ded.mo.gov site
 holds one log PDF per program year PY2001-PY2011 (same 8-column layout).
-Static pinned captures — no runtime CDX.
-See ``_discover_mo_archive_urls`` / ``parse_mo_log_pdf`` /
+Static pinned captures, bundled in ``mo_wayback.tar.gz`` (Wayback
+rate-limits the cluster).
+See ``mo_archive_files`` / ``parse_mo_log_pdf`` /
 ``parse_mo_archive_html``.
 """
 from __future__ import annotations
@@ -30,9 +31,9 @@ from bs4 import BeautifulSoup
 
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
+from warn_v2.scrapers.bundled import DATA_DIR, load_pinned
 from warn_v2.scrapers.playwright_base import PlaywrightScraper
 from warn_v2.scrapers.registry import register
-from warn_v2.scrapers.wayback import replay_url
 
 _DATE_RE = re.compile(r"\d{1,2}/\d{1,2}/\d{4}")
 
@@ -254,9 +255,9 @@ _BACKFILL_CUTOFF = date(2019, 1, 1)
 _ARCHIVE_DATE_RE = re.compile(r"\d{1,2}/\d{1,2}/\d{2,4}")
 
 
-def _discover_mo_archive_urls() -> list[str]:
-    """Static pinned Wayback ``id_`` replay URLs — no runtime CDX."""
-    return [replay_url(ts, url) for ts, url in _ARCHIVE_CAPTURES]
+def mo_archive_files() -> list[tuple[str, bytes]]:
+    """The pinned captures from ``mo_wayback.tar.gz``, keyed by replay URL."""
+    return load_pinned(DATA_DIR / "mo_wayback.tar.gz", list(_ARCHIVE_CAPTURES))
 
 
 _TYPE_WORDS = {"layoff", "closing", "closure"}

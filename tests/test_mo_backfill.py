@@ -31,7 +31,7 @@ import pytest
 
 from warn_v2.scrapers.base import ParseFailed
 from warn_v2.scrapers.states.mo import (
-    _discover_mo_archive_urls,
+    mo_archive_files,
     parse_mo_archive_html,
     parse_mo_log_pdf,
 )
@@ -232,10 +232,12 @@ def test_html_parse_failed_when_no_warn_table() -> None:
 # Backfill wiring
 # ---------------------------------------------------------------------------
 
-def test_discovery_is_static_16_urls() -> None:
-    urls = _discover_mo_archive_urls()
-    assert len(urls) == 16
+def test_bundle_holds_all_16_pinned_captures() -> None:
+    files = mo_archive_files()
+    urls = [u for u, _raw in files]
+    assert len(files) == 16
     assert all(u.startswith("https://web.archive.org/web/") and "id_/" in u for u in urls)
+    assert all(raw for _u, raw in files)
     pdfs = [u for u in urls if u.endswith(".pdf")]
     assert len(pdfs) == 13
     # PY2001-PY2011 rapidresponse logs come first, then jobs.mo.gov
@@ -247,13 +249,15 @@ def test_discovery_is_static_16_urls() -> None:
     # the 2015-09-12 warn-log-2016.pdf capture is a strict subset of the
     # py2015 capture and stays out of the list
     assert not [u for u in urls if "warn-log-2016" in u]
+    # the bundled PY2001 log is the fixture's capture
+    assert len(parse_mo_log_pdf(dict(files)[urls[0]], urls[0])) == 114
 
 
 def test_backfill_spec_dispatch() -> None:
     from warn_v2.scripts.backfill_historical import _BACKFILL
 
     spec = _BACKFILL["MO"]
-    assert spec.discover_urls is not None
+    assert spec.bundled_files is not None
     pdf_fn = spec.parse_for_url("https://web.archive.org/x/warn-log-py2015.pdf")
     html_fn = spec.parse_for_url("https://web.archive.org/x/es/warn2016")
     rows = pdf_fn(_read("archive_log_py2015.pdf"))

@@ -11,7 +11,33 @@ from __future__ import annotations
 import tarfile
 from pathlib import Path
 
+from warn_v2.scrapers.wayback import replay_url
+
 DATA_DIR = Path(__file__).resolve().parent / "data"
+
+
+def wayback_member(ts: str, url: str) -> str:
+    """Bundle member name for a pinned Wayback capture: ``<ts>_<basename>``."""
+    return f"{ts}_{url.rstrip('/').rsplit('/', 1)[1]}"
+
+
+def load_pinned(path: Path, captures: list[tuple[str, str]]) -> list[tuple[str, bytes]]:
+    """Bytes of pinned Wayback captures from a bundle, keyed by replay URL.
+
+    Wayback rate-limits the cluster hard (most fetches in a 2026-10-29 Job
+    got 429s), so captures a backfill depends on are committed instead.
+    Returning the replay URL as the name keeps URL-keyed parsers and the
+    rows' ``source_url`` unchanged. Order follows ``captures``; a capture
+    missing from the bundle raises, so a stale bundle fails loudly.
+    """
+    members = dict(load_archive(path))
+    out = []
+    for ts, url in captures:
+        name = wayback_member(ts, url)
+        if name not in members:
+            raise KeyError(f"{path.name}: missing pinned capture {name}")
+        out.append((replay_url(ts, url), members[name]))
+    return out
 
 
 def load_archive(path: Path) -> list[tuple[str, bytes]]:
