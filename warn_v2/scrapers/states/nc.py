@@ -43,6 +43,7 @@ from bs4 import BeautifulSoup
 
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
+from warn_v2.scrapers.bundled import DATA_DIR, load_pinned
 from warn_v2.scrapers.registry import register
 from warn_v2.scrapers.wayback import replay_url
 
@@ -191,9 +192,8 @@ _ARCHIVE_HREF_RE = re.compile(r"warn[\w-]*?(20(?:1[4-9]|2[0-5]))[\w-]*/open/?$",
 # PDF; this pinned Wayback capture is the only surviving copy, so discovery
 # appends it statically — no CDX query needed. Same layout as 2014-2017, so it
 # lands in _parse_nc_summary_count.
-_WARN_2013_PDF_URL = replay_url(
-    "20150327025758", "http://www.nccommerce.com/Portals/11/WARN/Warn-2013.pdf"
-)
+_WARN_2013 = ("20150327025758", "http://www.nccommerce.com/Portals/11/WARN/Warn-2013.pdf")
+_WARN_2013_PDF_URL = replay_url(*_WARN_2013)
 
 # Before 2013 the same report was a rolling "Summary Count(Intranet)" PDF whose
 # date range moved with each edition. These captures are the only ones left
@@ -239,17 +239,23 @@ def _intranet_window(source_url: str) -> tuple[date, date]:
     return date.min, date.max
 
 
+def nc_pinned_files() -> list[tuple[str, bytes]]:
+    """The pinned Wayback captures (2013 and the pre-2013 intranet editions)
+    from ``nc_wayback.tar.gz``, keyed by replay URL. Bundled because Wayback
+    rate-limits the cluster; they don't depend on the hub either."""
+    captures = [_WARN_2013, *((ts, u) for ts, u, _lo, _hi in _INTRANET_PDFS)]
+    return load_pinned(DATA_DIR / "nc_wayback.tar.gz", captures)
+
+
 def _discover_nc_pdf_urls() -> list[str]:
-    """Return one absolute PDF URL per archive year, newest first: the hub's
-    /open links (2014+), then the pinned Wayback captures (2013 and the
-    pre-2013 intranet editions). The pins don't depend on the hub, so a hub
-    outage still returns them."""
-    pinned = [_WARN_2013_PDF_URL, *_INTRANET_WINDOWS]
+    """Return one absolute PDF URL per archive year (2014+), newest first,
+    from the hub's /open links. The older years come from
+    ``nc_pinned_files``."""
     try:
         r = httpx.get(_ARCHIVE_HUB, headers=_UA, timeout=60, follow_redirects=True)
         r.raise_for_status()
     except httpx.HTTPError:
-        return pinned
+        return []
     soup = BeautifulSoup(r.content, "html.parser")
     by_year: dict[int, str] = {}
     for a in soup.find_all("a", href=True):
@@ -260,7 +266,7 @@ def _discover_nc_pdf_urls() -> list[str]:
         year = int(m.group(1))
         url = href if href.startswith("http") else _BASE_URL + href
         by_year.setdefault(year, url)  # first (page lists newest first)
-    return [by_year[y] for y in sorted(by_year, reverse=True)] + pinned
+    return [by_year[y] for y in sorted(by_year, reverse=True)]
 
 
 def parse_nc_pdf(raw: bytes, source_url: str) -> list[NoticeRow]:
@@ -626,6 +632,7 @@ def _parse_nc_intranet_summary(pdf, source_url: str) -> list[NoticeRow]:
 
     for page in pdf.pages:
         page_words = page.extract_words()
+        page.close()  # free parsed objects per page
         # The header wraps over several lines, so read the anchors from every
         # word above the page's first dated row (a date at the left margin;
         # the "Date Range:" banner's dates sit mid-page).

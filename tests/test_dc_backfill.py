@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 from warn_v2.scrapers.base import ParseFailed
-from warn_v2.scrapers.states.dc import _LOG_CAPTURES, dc_log_urls, parse_dc_log
+from warn_v2.scrapers.states.dc import _LOG_CAPTURES, dc_log_files, parse_dc_log
 
 _FIXTURES = Path(__file__).resolve().parent.parent / "warn_v2" / "scrapers" / "fixtures" / "dc"
 
@@ -63,18 +63,20 @@ def test_early_capture_strips_warn_label_and_keeps_leading_counts() -> None:
 
 def test_pinned_captures_newest_first() -> None:
     assert _LOG_CAPTURES == ("20120514073024", "20051208073424", "20050408160035")
-    urls = dc_log_urls()
+    files = dc_log_files()
+    urls = [u for u, _raw in files]
     assert all(u.startswith("https://web.archive.org/web/") and "id_/" in u for u in urls)
     assert all(u.endswith("/does/cwp/view,a,1232,q,572897.asp") for u in urls)
+    assert len(parse_dc_log(files[0][1], urls[0])) == 147  # same capture as the fixture
 
 
 def test_backfill_spec_routes_to_log_parser() -> None:
     from warn_v2.scripts.backfill_historical import _BACKFILL
 
     spec = _BACKFILL["DC"]
-    assert spec.discover_urls is not None
-    url = dc_log_urls()[0]
-    rows = spec.parse_for_url(url)(_read("log_2012-05.html"))
+    assert spec.bundled_files is not None
+    url, raw = spec.bundled_files()[0]
+    rows = spec.parse_for_url(url)(raw)
     assert len(rows) == 147
     assert rows[0].source_url == url
 

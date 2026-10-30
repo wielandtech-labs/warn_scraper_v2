@@ -494,7 +494,7 @@ GDOL `public/es/warn/searchwarns/list` captures are empty forms), TX
 | 2 | ✅ **done 2026-10-18** (+2,434, w_homelab #1196) — **GA** CICS WarnID listings: parse WR01A–D, union by program year (latest capture wins), PY1988 → Oct-2006. CDX holds 68 WR01 captures 2004-08 → 2006-10 (32 distinct digests), not 189; the 2006-10-09 captures already contain every WARN ID seen earlier, so only those are bundled | Wayback HTML | 2,474 rows |
 | 3 | ✅ **built 2026-10-26** (run pending) — **MO** rapidresponse PY2001–PY2011 PDFs: 11 captures (PY2006–09 from the 2012-03 re-issues, which revise counts), same `parse_mo_log_pdf`; fixes for a row above a page's first rule (Ford Claycomo 1,222) and letter-spaced cells. Every file's parsed sum equals its printed total. Local dry run: 627 rows, 0 near-misses | Wayback PDF | **627** |
 | 4 | ✅ **built 2026-10-26** (run pending) — **TN** bundled `tn_archive_2012.tar.gz`: `warnnotices.shtml` @20140915080834 for 2012 (145) plus `warn-report-archive` @20160713151608 for Jan-2013 → Jun-2016 (245, with WARN numbers; it holds everything the 2015-07 capture did except one row). Not built: the Jul 2016 – 2017 image-only letters (OCR), which are still a gap | Wayback HTML | **390** |
-| 5 | **AZ** 2003–2007 annual/monthly PDFs (keep W, decide A/P) | Wayback PDF | ~350–450 |
+| 5 | ✅ **built 2026-10-26** (run pending) — **AZ** DES monthly report PDFs Jul-2003 → May-2005 + 2006/2007 annuals (25 pinned captures). W rows only: A/P rows are local-area alerts or closure flags, and an A row often repeats a W row, so it would collide on notice_id. Notice date = report month's first day (the date column is the layoff date). The 2006–07 annuals re-list ongoing events monthly, so each repeat keeps only its first month (159 → 99 in 2007). Not recoverable: Jun–Dec 2005 (not archived), 2008 (lists carry no notice dates) | Wayback PDF | **256** |
 | 6 | ✅ **done 2026-10-18** — **TX** 2003 XLS (reuse the 2004–2013 XLS parser); #396 + w_homelab #1193 | Wayback XLS | **+315** |
 | 7 | ✅ **built 2026-10-26** (run pending) — **NC** "Summary Count(Intranet)" editions: 2012 (the 2013-03-11 capture clipped to 2012), PY2009, Oct–Nov 2011, 1–15 Jan 2009. New `_parse_nc_intranet_summary` (County column, per-edition header anchors). Same-day rows of one employer merge with counts summed, because the hash has no county (2012: 109 lines → 62 notices). Sums match the printed monthly subtotals | Wayback PDF | **157** |
 | 8 | ✅ **built 2026-10-26** (run pending) — **DC** monthly log: 50 distinct CDX versions compared; the latest (147 notices, 2005→Jan-2012) plus the two 2005 versions (17 dropped 2002–05 notices) cover everything. The 2007/2009 versions add only respellings, so they are excluded | Wayback HTML | **164** |
@@ -527,5 +527,11 @@ WARN-scope total ≈ **+7,500–8,600** (Non-WARN NE excluded), against the
   behind **opaque CMS ids** (DC `cwp/view,a,…,q,572897.asp`: follow nav links
   from a homepage capture), and under **sibling paths** (NC
   `Documents/Reports/WARN/` vs `WARN/`; TX `svcs/jtpa/` vs `files/news/`).
+- *(2026-10)* **Prod Jobs should not fetch from Wayback.** The 2026-10-29
+  MO/NC/DC dry-run Job got `429 Too Many Requests` on 10 of its first 14
+  captures (the cluster's IP is throttled far harder than a workstation's),
+  with ~2 min of backoff per file. Commit the captures as a bundle
+  (`bundled.load_pinned`, `<st>_wayback.tar.gz`) so the Job is deterministic
+  and needs no network; MO, NC, DC and AZ moved to bundles in #415.
 - *(2026-10)* When pinning one capture per year, choose by content (row count),
   not recency. FL 2012's newest capture was the header-only one.
