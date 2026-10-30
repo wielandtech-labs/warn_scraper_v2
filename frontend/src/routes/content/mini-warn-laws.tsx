@@ -14,8 +14,8 @@ export function MiniWarnLawsPage() {
         <p className="mt-1 leading-relaxed">
           While the federal WARN Act sets a nationwide baseline (100+ employees, 60-day notice),
           individual states have enacted <strong>mini-WARN laws</strong> with far stricter
-          rules. Some states require <strong>90 days advance notice</strong> (New York, New Jersey, Maine),
-          lower threshold employer sizes down to <strong>50 employees</strong>, or mandate{" "}
+          rules. Some states require <strong>90 days advance notice</strong> (New York, New Jersey, Maine,
+          Nebraska), lower threshold employer sizes down to <strong>25 employees</strong> (Iowa), or mandate{" "}
           <strong>compulsory severance pay</strong> (New Jersey, Maine). Employers must comply with
           whichever law provides greater protection to workers.
         </p>
@@ -346,6 +346,16 @@ export function MiniWarnLawsPage() {
               relocations, and provides a statutory dislocated worker benefit allowance.
             </p>
           </div>
+          {STATE_RULES.filter((r) => r.summary).map((r) => (
+            <div key={r.code} className="space-y-1 rounded-lg bg-slate-50 p-4 dark:bg-slate-800/40">
+              <h4 className="font-semibold text-slate-900 dark:text-slate-100">
+                <a href={`/states/${r.code}`} className="hover:underline">
+                  {r.state} ({r.statuteCitation})
+                </a>
+              </h4>
+              <p className="text-xs text-slate-600 dark:text-slate-300">{r.summary}</p>
+            </div>
+          ))}
           {OTHER_STATE_NOTES.map((n) => (
             <div key={n.code} className="space-y-1 rounded-lg bg-slate-50 p-4 dark:bg-slate-800/40">
               <h4 className="font-semibold text-slate-900 dark:text-slate-100">
@@ -379,7 +389,8 @@ export function MiniWarnLawsPage() {
             Which states require 90 days advance notice instead of 60 days?
           </h3>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            <strong>New York</strong>, <strong>New Jersey</strong>, and <strong>Maine</strong> require 90
+            <strong>New York</strong>, <strong>New Jersey</strong>, <strong>Maine</strong>, and{" "}
+            <strong>Nebraska</strong> require 90
             calendar days of advance notice before a covered plant closure or mass layoff takes effect,
             compared to the 60-day federal baseline.
           </p>
