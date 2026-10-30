@@ -38,6 +38,12 @@ _UPDATE_FIELDS: tuple[str, ...] = ("layoff_count", "effective_date", "raw_notice
 # never touches notice_id (hashed from the original row before location lookup).
 _DEFAULT_CITY: dict[str, str] = {"DC": "Washington"}
 
+# States whose sources write comma-less "<street> <City> <ST> <zip>" addresses and
+# whose existing rows have been moved by `relink-cities`. Adding a state here
+# without relinking it splits its notices across city-less and city locations
+# at the same ZIP (and hides amendments from mark-superseded), so do both.
+_ADDRESS_TAIL_CITY_STATES = frozenset({"CA"})
+
 # A NAICS code is 2-6 digits (column allows 8).
 _NAICS_RE = re.compile(r"\b\d{2,8}\b")
 
@@ -374,13 +380,14 @@ def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None
     caller, so existing rows keep their id (no re-key / churn) and get the location
     filled in on the next scrape via the COALESCE path.
 
-    Address-tail city: a row with no city whose address ends "<City> <ST> <zip>"
-    without commas (CA EDD since ~2022) gets its city from the Census place
+    Address-tail city: a row (in ``_ADDRESS_TAIL_CITY_STATES``) with no city whose
+    address ends "<City> <ST> <zip>" without commas (CA EDD since ~2022) gets
+    its city from the Census place
     names, on the location only, for the same no-re-key reason. Existing rows
     keep their old location (location_id is first-non-null-wins); the
     ``relink-cities`` command moves them.
     """
-    if not row.city:
+    if not row.city and row.state.upper() in _ADDRESS_TAIL_CITY_STATES:
         tail_city = city_from_address_tail(row.state, row.address)
         if tail_city:
             row = replace(row, city=tail_city)

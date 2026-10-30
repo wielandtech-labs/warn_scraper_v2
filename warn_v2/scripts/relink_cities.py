@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session
 
 from warn_v2.db.models import Location, Notice
 from warn_v2.geo.city_centroids import city_from_address_tail
-from warn_v2.pipeline.storage import _get_or_create_location
+from warn_v2.pipeline.storage import _ADDRESS_TAIL_CITY_STATES, _get_or_create_location
 from warn_v2.scrapers._helpers import zip_from
 from warn_v2.scrapers.base import NoticeRow
 
@@ -43,6 +43,10 @@ def relink_cities(session: Session, state: str) -> dict[str, int]:
     ``relinked``, and ``no_city`` (address tail matched no place).
     """
     state = state.upper()
+    if state not in _ADDRESS_TAIL_CITY_STATES:
+        # New rows only get the tail city in these states; relinking any other
+        # would split its old and new notices across locations the other way.
+        raise ValueError(f"{state} is not in storage._ADDRESS_TAIL_CITY_STATES")
     stats = {"considered": 0, "relinked": 0, "no_city": 0}
     notices = session.scalars(
         select(Notice)

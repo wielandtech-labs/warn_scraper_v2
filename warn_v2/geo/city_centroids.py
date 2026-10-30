@@ -111,7 +111,9 @@ def city_from_address_tail(state: str | None, address: str | None) -> str | None
     for k in range(min(_MAX_CITY_WORDS, len(words)), 0, -1):
         candidate = " ".join(words[-k:])
         if lookup(state, candidate) is not None:
-            return candidate
+            # Location city matching is case-sensitive; an all-caps address
+            # must not mint "PALMDALE" beside "Palmdale".
+            return candidate.title() if candidate.isupper() else candidate
     return None
 
 
