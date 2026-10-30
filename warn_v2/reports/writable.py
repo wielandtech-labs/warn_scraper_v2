@@ -1,6 +1,6 @@
-"""Fail fast when a job can't write to its reports directory.
+"""Fail fast when a job can't write to its output directory.
 
-The reports PVC is NFS, where the pod's fsGroup does not re-own existing
+The reports and PDF PVCs are NFS, where the pod's fsGroup does not re-own existing
 files. When #382 (2026-10-16) moved the containers from root to uid 1000,
 everything earlier runs had written stayed root-owned. The weekly ml-train
 then ran its whole backtest before failing on a mkdir, and the scores went
@@ -50,7 +50,9 @@ def require_writable(root: Path) -> None:
     bad = unwritable_dirs(root)
     if not bad:
         return
-    uid = os.getuid()
+    # No getuid/getgid on Windows (local test runs).
+    uid = os.getuid() if hasattr(os, "getuid") else "?"
+    gid = os.getgid() if hasattr(os, "getgid") else "?"
 
     def owner(p: Path) -> str:
         try:
@@ -63,5 +65,5 @@ def require_writable(root: Path) -> None:
     raise click.ClickException(
         f"{len(bad)} director{'y' if len(bad) == 1 else 'ies'} under {root} not writable "
         f"by uid {uid}:\n{listed}{more}\n"
-        f"Re-own them once as root, e.g. `chown -R {uid}:{os.getgid()} {root}`."
+        f"Re-own them once as root, e.g. `chown -R {uid}:{gid} {root}`."
     )

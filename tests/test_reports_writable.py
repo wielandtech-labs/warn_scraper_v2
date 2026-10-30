@@ -69,3 +69,16 @@ def test_ml_train_fails_before_touching_the_database(tmp_path, monkeypatch):
     monkeypatch.setattr("warn_v2.db.session.session_scope", boom)
     res = CliRunner().invoke(cli.main, ["ml-train", "--reports-dir", str(tmp_path)])
     assert res.exit_code != 0 and "not writable" in res.output
+
+
+def test_download_pdfs_fails_before_fetching(tmp_path, monkeypatch):
+    from warn_v2 import cli
+
+    _deny(monkeypatch, tmp_path)
+
+    def boom(*a, **k):
+        raise AssertionError("download_pdfs must not run")
+
+    monkeypatch.setattr("warn_v2.scripts.download_pdfs.download_pdfs", boom)
+    res = CliRunner().invoke(cli.main, ["download-pdfs", "--pdf-dir", str(tmp_path)])
+    assert res.exit_code != 0 and "not writable" in res.output

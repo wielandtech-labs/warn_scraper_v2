@@ -1096,8 +1096,13 @@ def download_pdfs_cmd(
         )
         return
 
+    from warn_v2.reports.writable import require_writable
     from warn_v2.scripts.download_pdfs import download_pdfs
 
+    if not dry_run:
+        # Per-file storage errors are swallowed below, so an unwritable volume
+        # would otherwise "succeed" with errors=N and store nothing.
+        require_writable(pdf_dir)
     stats = download_pdfs(state, limit=limit, dry_run=dry_run, pdf_dir=pdf_dir)
     suffix = " (dry run — nothing written)" if dry_run else ""
     click.echo(
