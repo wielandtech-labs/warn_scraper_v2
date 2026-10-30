@@ -1096,8 +1096,13 @@ def download_pdfs_cmd(
         )
         return
 
+    from warn_v2.reports.writable import require_writable
     from warn_v2.scripts.download_pdfs import download_pdfs
 
+    if not dry_run:
+        # Per-file storage errors are swallowed below, so an unwritable volume
+        # would otherwise "succeed" with errors=N and store nothing.
+        require_writable(pdf_dir)
     stats = download_pdfs(state, limit=limit, dry_run=dry_run, pdf_dir=pdf_dir)
     suffix = " (dry run — nothing written)" if dry_run else ""
     click.echo(
@@ -1816,7 +1821,10 @@ def sentiment_report_cmd(reports_dir: Path, dry_run: bool) -> None:
     from warn_v2.reports.bls import fetch_bls_context
     from warn_v2.reports.forecast import FORECASTS_JSON, build_forecasts
     from warn_v2.reports.generate import _atomic_write, generate_payloads
+    from warn_v2.reports.writable import require_writable
 
+    if not dry_run:
+        require_writable(reports_dir)  # fail in seconds, not after the payloads
     # BLS macro context rides in the national + industry payloads.
     # Fail-open: None is fine.
     bls = fetch_bls_context([sid for sid, _, _ in NAICS_SECTORS])
@@ -2119,7 +2127,9 @@ def ml_train_cmd(reports_dir: Path) -> None:
 
     from warn_v2.db.session import session_scope
     from warn_v2.ml.train import train_and_score
+    from warn_v2.reports.writable import require_writable
 
+    require_writable(reports_dir)  # before the backtest, not after it
     with session_scope() as session:
         run = train_and_score(
             session,
