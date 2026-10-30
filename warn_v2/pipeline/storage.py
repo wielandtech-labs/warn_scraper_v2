@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from warn_v2.closure import normalize_closure_category
 from warn_v2.companies.normalize import canonical_name
 from warn_v2.db.models import Company, Location, Notice
+from warn_v2.geo.city_centroids import city_from_address_tail
 from warn_v2.geo.geocoder import geocode as _geocode
 from warn_v2.pipeline.dedup import notice_id
 from warn_v2.scrapers._helpers import norm
@@ -36,6 +37,12 @@ _UPDATE_FIELDS: tuple[str, ...] = ("layoff_count", "effective_date", "raw_notice
 # KY/MT county-centroid fallback. Applied only inside location creation, so it
 # never touches notice_id (hashed from the original row before location lookup).
 _DEFAULT_CITY: dict[str, str] = {"DC": "Washington"}
+
+# States whose sources write comma-less "<street> <City> <ST> <zip>" addresses and
+# whose existing rows have been moved by `relink-cities`. Adding a state here
+# without relinking it splits its notices across city-less and city locations
+# at the same ZIP (and hides amendments from mark-superseded), so do both.
+_ADDRESS_TAIL_CITY_STATES = frozenset({"CA"})
 
 # A NAICS code is 2-6 digits (column allows 8).
 _NAICS_RE = re.compile(r"\b\d{2,8}\b")
@@ -372,7 +379,19 @@ def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None
     local ``row`` only; ``notice_id`` was already hashed from the original row by the
     caller, so existing rows keep their id (no re-key / churn) and get the location
     filled in on the next scrape via the COALESCE path.
+
+    Address-tail city: a row (in ``_ADDRESS_TAIL_CITY_STATES``) with no city whose
+    address ends "<City> <ST> <zip>" without commas (CA EDD since ~2022) gets
+    its city from the Census place
+    names, on the location only, for the same no-re-key reason. Existing rows
+    keep their old location (location_id is first-non-null-wins); the
+    ``relink-cities`` command moves them.
     """
+    if not row.city and row.state.upper() in _ADDRESS_TAIL_CITY_STATES:
+        tail_city = city_from_address_tail(row.state, row.address)
+        if tail_city:
+            row = replace(row, city=tail_city)
+
     if not row.city and not row.zip and not row.county:
         derived_city = _derive_location_city(row)
         if derived_city:
