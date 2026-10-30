@@ -134,12 +134,16 @@ def parse_az_archive_pdf(raw: bytes, year: int) -> list[NoticeRow]:
     with pdf:
         for page in pdf.pages:
             m = _MONTH_RE.search(page.extract_text() or "")
+            tables = page.extract_tables()
+            # Free each page's parsed objects as we go: the 64-page 2007
+            # annual otherwise holds ~150 MB until the PDF closes.
+            page.close()
             if not m or m.group(1) not in _MONTHS:
                 continue
             notice_date = date(int(m.group(2)), _MONTHS[m.group(1)], 1)
             if notice_date.year != year:
                 continue
-            for table in page.extract_tables():
+            for table in tables:
                 head = [" ".join((c or "").upper().split()) for c in table[0]]
                 firm_i = next((i for i, h in enumerate(head) if "FIRM" in h), None)
                 type_i = next((i for i, h in enumerate(head) if h == "TYPE"), None)

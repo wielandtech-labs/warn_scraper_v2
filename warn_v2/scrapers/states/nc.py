@@ -632,6 +632,7 @@ def _parse_nc_intranet_summary(pdf, source_url: str) -> list[NoticeRow]:
 
     for page in pdf.pages:
         page_words = page.extract_words()
+        page.close()  # free parsed objects per page
         # The header wraps over several lines, so read the anchors from every
         # word above the page's first dated row (a date at the left margin;
         # the "Date Range:" banner's dates sit mid-page).

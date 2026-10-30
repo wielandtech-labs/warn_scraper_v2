@@ -366,7 +366,9 @@ def parse_mo_log_pdf(raw: bytes, source_url: str) -> list[NoticeRow]:
                 if page.rects
                 else {}
             )
-            for tbl in page.extract_tables(settings):
+            tables = page.extract_tables(settings)
+            page.close()  # free parsed objects per page (17-page logs)
+            for tbl in tables:
                 for r in tbl:
                     if not r or len(r) % 8:
                         continue
