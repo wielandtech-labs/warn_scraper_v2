@@ -30,7 +30,7 @@ be counting convention or real loss.
 
 | State | Shortfall | Hypothesis to test |
 |---|---|---|
-| CA | 2021–25: +157/+368/+965/+971/+497 | EDD prints one row per worksite, and LaborCurrent may keep them all. |
+| CA | 2021–25: +157/+368/+965/+971/+497 | **Classified 2026-10-30: counting convention, no missing notices.** EDD's own FY reports hold 1,742 lines with a 2023 notice date, so LaborCurrent's 2,335 exceeds the source itself. We hold 1,370 because the lines of one filing (same employer and date, different worksites or layoff phases) merge into one notice with summed workers: Salesforce 2023-01-04 = 650 + 1 + 52 + 49 = 752 in prod. Side finding, fixed by #418: CA notices since ~2022 had no city, because EDD's comma-less addresses defeated `city_from_address`. |
 | MN | 2018–26, about +900 (2019: 51/275) | DEED's report pages also list non-WARN plant closings / mass layoffs. |
 | NE | 2014–19, about +525 (2018: 7/115) | Partial ingest of the frozen `WARNReportData` endpoint. APProjects' CC-BY set also holds 845 NE rows to our 149. |
 | IL | 2020: 439/810 | COVID-era amendments/duplicates on their side, or rows we superseded. |

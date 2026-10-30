@@ -22,6 +22,7 @@ from __future__ import annotations
 import gzip
 import json
 import logging
+import re
 import threading
 from decimal import Decimal
 from pathlib import Path
@@ -80,6 +81,38 @@ def lookup(state: str | None, city: str | None) -> tuple[float, float] | None:
     if key is None:
         return None
     return _load().get(key)
+
+
+_TAIL_TOKEN_RE = re.compile(r"[\s,]+")
+# Longest city name tried, in words ("Rancho Santa Margarita" is 3).
+_MAX_CITY_WORDS = 4
+
+
+def city_from_address_tail(state: str | None, address: str | None) -> str | None:
+    """City from a comma-less "<street> <City> <ST> <zip>" address, or None.
+
+    EDD (CA) writes worksite addresses like "732 W Rancho Vista Blvd Palmdale
+    CA 93551", where nothing marks where the street ends. The words just
+    before "<ST> <zip>" are matched against the Census place names, longest
+    first, so "... South San Francisco CA 94080" yields "South San Francisco"
+    and not "San Francisco". Neighborhoods that are not Census places
+    (Sylmar, La Jolla) and misspellings return None rather than a guess.
+    """
+    if not state or not address:
+        return None
+    m = re.match(
+        rf"^(.*?)[\s,]+{re.escape(state.strip().upper())}\.?\s+\d{{5}}(?:-\d{{4}})?\s*$",
+        " ".join(address.split()),
+        re.I,
+    )
+    if not m:
+        return None
+    words = [w for w in _TAIL_TOKEN_RE.split(m.group(1).strip()) if w]
+    for k in range(min(_MAX_CITY_WORDS, len(words)), 0, -1):
+        candidate = " ".join(words[-k:])
+        if lookup(state, candidate) is not None:
+            return candidate
+    return None
 
 
 def lookup_decimal(state: str | None, city: str | None) -> tuple[Decimal, Decimal] | None:

@@ -345,6 +345,40 @@ def mark_superseded_cmd(dry_run: bool, state: str | None, force: bool) -> None:
     click.echo(f"marked={stats['marked']} skipped={stats['skipped']}{suffix}")
 
 
+@main.command("relink-cities")
+@click.option("--state", required=True, help="State abbreviation, e.g. CA")
+@click.option("--dry-run", is_flag=True, help="Report what would change, then roll back")
+def relink_cities_cmd(state: str, dry_run: bool) -> None:
+    """Give city-less notices the city in their address (no re-key).
+
+    \b
+    One-shot repair for notices whose address ends "<City> <ST> <zip>" with no
+    commas (CA EDD since ~2022), ingested before storage derived that city.
+
+    \b
+    Examples:
+      warn-v2 relink-cities --state CA --dry-run
+      warn-v2 relink-cities --state CA
+    """
+    from warn_v2.db.session import get_session_factory
+    from warn_v2.scripts.relink_cities import relink_cities
+
+    session = get_session_factory()()
+    try:
+        stats = relink_cities(session, state)
+        if dry_run:
+            session.rollback()
+        else:
+            session.commit()
+    finally:
+        session.close()
+    suffix = " (dry run — nothing written)" if dry_run else ""
+    click.echo(
+        f"considered={stats['considered']} relinked={stats['relinked']} "
+        f"no_city={stats['no_city']}{suffix}"
+    )
+
+
 @main.command("purge-impossible-dates")
 @click.option("--dry-run", is_flag=True, help="Preview matches without deleting")
 @click.option("--state", default=None, help="Limit to one state abbreviation, e.g. CO")
