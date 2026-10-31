@@ -251,6 +251,46 @@ export const STATE_RULES: StateRule[] = [
       "Reaches small employers: 25+ employees must give 30 days notice of a site closing or " +
       "a layoff of 25+ employees within 30 days.",
   },
+  {
+    state: "Ohio",
+    code: "OH",
+    statute: "Ohio mini-WARN law",
+    statuteCitation: "Ohio Rev. Code § 4113.31",
+    employerSize: "100+ employees (working 4,000+ hours a week in total)",
+    noticePeriod: "60 calendar days",
+    closureTrigger: "Same as federal: 50+ employees at a single site",
+    layoffTrigger: "50+ employees at a single site in any 30-day period, with no 33% test",
+    severanceRequirement: "None mandated (federal WARN remedies apply)",
+    keyDifferences: [
+      "Mass layoff: 50 job losses at one site in 30 days, with no 33% test (federal: 50–499 must be a third of the site)",
+      "Notice also goes to the Director of Job and Family Services and to the municipal and county chief elected officials",
+      "Employees can seek the federal WARN remedies of back pay and benefits",
+      "In effect since September 30, 2025",
+    ],
+    summary:
+      "Since September 2025, employers with 100+ employees must give 60 days notice of a " +
+      "mass layoff of 50+ at one site, without the federal 33% test.",
+  },
+  {
+    state: "Delaware",
+    code: "DE",
+    statute: "Delaware Worker Adjustment and Retraining Notification Act",
+    statuteCitation: "19 Del. C. ch. 19",
+    employerSize: "100+ employees (excluding part-time)",
+    noticePeriod: "60 calendar days",
+    closureTrigger: "50+ employees at a single site in any 30-day period",
+    layoffTrigger: "500+ employees, or 50–499 if 33%+ of the site, in any 30-day period",
+    severanceRequirement: "None mandated (back pay and benefits for up to 60 days if notice is late)",
+    keyDifferences: [
+      "Also covers relocating operations 50+ miles away",
+      "Notice to the Division of Employment and Training and the local Workforce Development Board, with each worker's contact details",
+      "Notice must describe severance, payouts, and relocation options",
+      "Civil penalty of $1,000 per day, or $100 per day per worker if greater",
+    ],
+    summary:
+      "Employers with 100+ employees must give 60 days notice of closings, mass layoffs, and " +
+      "relocations of 50+ miles, including each worker's contact details for the state.",
+  },
 ];
 
 /** States the guide mentions only briefly, under "Other States". */
@@ -260,7 +300,10 @@ export const OTHER_STATE_NOTES: { code: string; title: string; note: string }[] 
     title: "Connecticut (Conn. Gen. Stat. § 31-51o)",
     note:
       "Requires employers with 100+ workers closing or relocating an establishment to pay for " +
-      "continued group health insurance coverage for affected employees for up to 120 days.",
+      "continued group health insurance coverage for affected employees for up to 120 days. " +
+      "From October 1, 2026, a WARN notice filed with the state Labor Department must also say " +
+      "whether the layoffs relate to artificial intelligence or other technological change " +
+      "(Public Act 26-15).",
   },
   {
     code: "MD",
@@ -277,6 +320,20 @@ export const OTHER_STATE_NOTES: { code: string; title: string; note: string }[] 
       "assistance and health insurance benefits for workers laid off from facilities with 50+ employees.",
   },
   {
+    code: "MI",
+    title: "Michigan (MCL 450.736)",
+    note:
+      "No mandatory state law. The state encourages employers considering a closing or " +
+      "relocation to give notice as early as possible.",
+  },
+  {
+    code: "MN",
+    title: "Minnesota (Minn. Stat. § 116L.976)",
+    note:
+      "Advance notice is voluntary, but an employer that gives notice, including federal WARN " +
+      "notice, must report the names, addresses, and occupations of affected employees to the state.",
+  },
+  {
     code: "TN",
     title: "Tennessee (Tenn. Code § 50-1-601)",
     note:
@@ -284,6 +341,45 @@ export const OTHER_STATE_NOTES: { code: string; title: string; note: string }[] 
       "notification to the state labor department.",
   },
 ];
+
+/** States with no mini-WARN law of their own, where federal WARN alone sets the
+ *  rules, with any smaller related rule worth a line. Checked 2026-10-31 against
+ *  state agency pages or statutes, J.J. Keller's per-state compliance summaries
+ *  ("has no statutes regarding plant closings or mass layoffs"), and 2026
+ *  surveys of state laws, none of which list these states. */
+export const NO_STATE_LAW: Record<string, string | null> = {
+  AL: "Employers must tell the nearest unemployment claims office about a mass separation (Ala. Admin. Code r. 480-4-3.10).",
+  AK: null,
+  AZ: null,
+  AR: null,
+  CO: null,
+  DC: "The Department of Employment Services encourages voluntary notice of layoffs that federal WARN doesn't cover.",
+  FL: null,
+  GA: null,
+  ID: null,
+  IN: null,
+  KS: null,
+  KY: null,
+  LA: null,
+  MS: null,
+  MO: null,
+  MT: "Montana's plant-closing statute covers only state government operations (Mont. Code Ann. §§ 39-2-1001 to -1004).",
+  NV: null,
+  NM: null,
+  NC: null,
+  ND: null,
+  OK: null,
+  OR: "Federal WARN notices go to Oregon's Higher Education Coordinating Commission (ORS 285A.516).",
+  PA: null,
+  RI: null,
+  SC: "South Carolina repealed its old shutdown-notice rule in 2010.",
+  SD: null,
+  TX: null,
+  UT: null,
+  VA: null,
+  WV: null,
+  WY: null,
+};
 
 // Profiles with their own section in the guide; the rest live under "Other States".
 const GUIDE_ANCHOR: Record<string, string> = {

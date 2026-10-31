@@ -1,5 +1,8 @@
-import { OTHER_STATE_NOTES, STATE_RULES } from "../../lib/stateWarnLaws";
+import { stateName } from "../../lib/format";
+import { NO_STATE_LAW, OTHER_STATE_NOTES, STATE_RULES } from "../../lib/stateWarnLaws";
 import { ContentPage } from "./ContentPage";
+
+const FEDERAL = STATE_RULES.find((r) => r.code === "US")!;
 
 export function MiniWarnLawsPage() {
   return (
@@ -60,6 +63,12 @@ export function MiniWarnLawsPage() {
           className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
         >
           Other States
+        </a>
+        <a
+          href="#no-state-law"
+          className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+        >
+          No State Law
         </a>
         <a
           href="#mini-warn-faq"
@@ -365,6 +374,31 @@ export function MiniWarnLawsPage() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section id="no-state-law" className="card mt-6 space-y-3 p-6">
+        <h3 className="border-b border-slate-200 pb-3 text-xl font-semibold text-slate-900 dark:border-slate-800 dark:text-slate-100">
+          States With No Mini-WARN Law
+        </h3>
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          These jurisdictions have no layoff-notice law of their own, so only the federal WARN Act
+          applies ({FEDERAL.noticePeriod} of notice from employers with{" "}
+          {FEDERAL.employerSize.toLowerCase()}):
+        </p>
+        <p className="text-sm leading-relaxed">
+          {Object.keys(NO_STATE_LAW)
+            .map((code) => ({ code, name: stateName(code) }))
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((s, i) => (
+              <span key={s.code}>
+                {i > 0 && ", "}
+                <a href={`/states/${s.code}`} className="text-sky-700 hover:underline dark:text-sky-400">
+                  {s.name}
+                </a>
+              </span>
+            ))}
+          .
+        </p>
       </section>
 
       {/* FAQ */}
