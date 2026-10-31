@@ -30,6 +30,7 @@ from bs4 import BeautifulSoup
 from curl_cffi import requests as cffi_requests
 from curl_cffi.requests.exceptions import RequestException
 
+from warn_v2.companies.normalize import canonical_name
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.bundled import DATA_DIR, load_archive
@@ -323,6 +324,9 @@ register(TNScraper())
 # The pages overlap in 2013-2014 with different spellings, so each member
 # keeps only its own window. Later captures of either page hold no rows, so
 # Jul 2016 - 2016 stays a gap (2017+ comes from tn_archive.tar.gz).
+# warn-report-archive's "Notice Type" holds WARN numbers, not CL/LO, so its
+# Jan 2013 - Aug 2014 rows take the type from the warnnotices row with the same
+# notice date and canonical employer name (138 rows match).
 _PRE2017_PATH = DATA_DIR / "tn_archive_2012.tar.gz"
 _PRE2017_PAGES = {
     # member prefix: (original page URL, first and last notice date kept)
@@ -352,7 +356,37 @@ def parse_tn_pre2017(raw: bytes, member: str) -> list[NoticeRow]:
     """
     prefix, ts = member.removesuffix(".html").rsplit("_", 1)
     page_url, lo, hi = _PRE2017_PAGES[prefix]
+    entries = _pre2017_entries(raw, page_url, ts, lo, hi)
+    if not entries:
+        raise ParseFailed(f"TN {member}: no notice rows in its window")
+    if prefix == "warn-report-archive":
+        types = _pre2017_cl_lo_types()
+        for e in entries:
+            if not e["closure_type"]:
+                e["closure_type"] = types.get((e["posted"], canonical_name(e["employer"])))
     replay = f"https://web.archive.org/web/{ts}id_/{page_url}"
+    return _merge_archive_collisions(entries, source_url=replay)
+
+
+def _pre2017_cl_lo_types() -> dict[tuple[date, str], str]:
+    """(notice date, canonical employer) -> type from every warnnotices row.
+
+    A key whose rows disagree on the type maps to nothing.
+    """
+    seen: dict[tuple[date, str], set[str]] = {}
+    for member, raw in tn_pre2017_files():
+        prefix, ts = member.removesuffix(".html").rsplit("_", 1)
+        if prefix != "warnnotices":
+            continue
+        for e in _pre2017_entries(raw, _PRE2017_PAGES[prefix][0], ts, date.min, date.max):
+            if e["closure_type"]:
+                key = (e["posted"], canonical_name(e["employer"]))
+                seen.setdefault(key, set()).add(e["closure_type"])
+    return {k: next(iter(v)) for k, v in seen.items() if len(v) == 1}
+
+
+def _pre2017_entries(raw: bytes, page_url: str, ts: str, lo: date, hi: date) -> list[dict]:
+    """Notice entries of one pre-2017 page dated within ``lo``..``hi``."""
     soup = BeautifulSoup(raw, "html.parser")
     entries: list[dict] = []
     for table in soup.find_all("table"):
@@ -398,6 +432,4 @@ def parse_tn_pre2017(raw: bytes, member: str) -> list[NoticeRow]:
                     ),
                 }
             )
-    if not entries:
-        raise ParseFailed(f"TN {member}: no notice rows in its window")
-    return _merge_archive_collisions(entries, source_url=replay)
+    return entries

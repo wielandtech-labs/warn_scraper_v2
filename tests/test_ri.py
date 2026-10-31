@@ -44,6 +44,8 @@ def test_ri_closure_type_populated(ri_sample_xlsx: bytes) -> None:
     rows = scraper.parse(ri_sample_xlsx)
     closures = [r for r in rows if r.closure_type == "Closure"]
     assert closures, "expected at least some rows to be classified as Closure"
+    # "Closing: No" is a layoff, not unknown.
+    assert any(r.closure_type == "Layoff" for r in rows)
 
 
 def test_ri_messy_count_parsed(ri_sample_xlsx: bytes) -> None:

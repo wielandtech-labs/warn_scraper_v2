@@ -159,7 +159,10 @@ _ZIP_KEYS = ("zip", "zip code")
 _ADDRESS_KEYS = ("address", "location address")
 # EDD wraps this header inside the cell ("Layoff/\nClosure"); norm() collapses
 # the newline to a space, so the wrapped spelling is "layoff/ closure".
-_TYPE_KEYS = ("layoff/closure", "layoff/ closure", "type", "closure type")
+# The fiscal-year PDFs head it "Layoff/Closure\nType" -> "layoff/closure type".
+_TYPE_KEYS = (
+    "layoff/closure", "layoff/ closure", "layoff/closure type", "type", "closure type",
+)
 
 
 class CAScraper:

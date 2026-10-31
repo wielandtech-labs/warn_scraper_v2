@@ -2123,9 +2123,8 @@ def test_nc_parse_pdf_current_grid_era():
     assert first.layoff_count == 120
     assert first.city == "Durham"
     assert first.county == "Durham County"
-    assert first.closure_type == "Permanent"
+    assert first.closure_type == "Layoff Permanent"
     assert first.extra["warn_number"] == "202500001"
-    assert first.extra["warn_notice_type"] == "Layoff"
 
 
 def test_nc_parse_pdf_raises_on_bad_bytes():

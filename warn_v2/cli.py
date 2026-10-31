@@ -379,6 +379,37 @@ def relink_cities_cmd(state: str, dry_run: bool) -> None:
     )
 
 
+@main.command("recategorize-closures")
+@click.option("--dry-run", is_flag=True, help="Report what would change, then roll back")
+def recategorize_closures_cmd(dry_run: bool) -> None:
+    """Re-derive closure_category for uncategorized notices from their stored type.
+
+    \b
+    One-shot repair after a normalizer improvement: categories are
+    first-non-null-wins, so rows no scraper re-reads keep a NULL category.
+
+    \b
+    Examples:
+      warn-v2 recategorize-closures --dry-run
+      warn-v2 recategorize-closures
+    """
+    from warn_v2.db.session import get_session_factory
+    from warn_v2.scripts.recategorize_closures import recategorize_closures
+
+    session = get_session_factory()()
+    try:
+        filled = recategorize_closures(session)
+        if dry_run:
+            session.rollback()
+        else:
+            session.commit()
+    finally:
+        session.close()
+    suffix = " (dry run — nothing written)" if dry_run else ""
+    per_state = " ".join(f"{st}={n}" for st, n in sorted(filled.items()))
+    click.echo(f"categorized={sum(filled.values())} {per_state}{suffix}")
+
+
 @main.command("purge-impossible-dates")
 @click.option("--dry-run", is_flag=True, help="Preview matches without deleting")
 @click.option("--state", default=None, help="Limit to one state abbreviation, e.g. CO")

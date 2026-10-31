@@ -39,7 +39,8 @@ def test_wa_parses_live_sample(wa_sample_html: bytes) -> None:
     assert first.effective_date == date(2026, 7, 17)
     assert first.layoff_count == 252
     assert first.city == "Seattle"
-    assert first.closure_type == "Permanent"
+    # "Closure Layoff" + "Type of Layoff", not the Permanent/Temporary cell alone.
+    assert first.closure_type == "Layoff Permanent"
 
 
 def test_wa_validation_passes(wa_sample_html: bytes) -> None:

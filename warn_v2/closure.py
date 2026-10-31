@@ -35,13 +35,18 @@ def normalize_closure_category(raw: str | None) -> str | None:
     if not s:
         return None
 
-    # "clos" covers closure / closing / permanent closures.
-    has_clos = "clos" in s or bool(_CLOSURE_CODE_RE.search(s))
+    # "clos" covers closure / closing / permanent closures; "shut" covers IL's
+    # "Shutdown" / "Shut Down".
+    has_clos = "clos" in s or "shut" in s or bool(_CLOSURE_CODE_RE.search(s))
     has_layoff = (
         "layoff" in s
         or "lay off" in s
+        or "lay-off" in s
         or "reduction" in s
+        or "in force" in s  # IL's truncated "Red in Force"
         or "rif" in s
+        or "downsiz" in s
+        or "furlough" in s
         or bool(_LAYOFF_CODE_RE.search(s))
     )
 
