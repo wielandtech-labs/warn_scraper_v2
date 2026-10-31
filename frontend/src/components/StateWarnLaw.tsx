@@ -1,21 +1,29 @@
 import { Link } from "@tanstack/react-router";
 
-import { OTHER_STATE_NOTES, STATE_RULES, guideAnchor } from "../lib/stateWarnLaws";
+import { NO_STATE_LAW, OTHER_STATE_NOTES, STATE_RULES, guideAnchor } from "../lib/stateWarnLaws";
 
 /* The state's own layoff-notice ("mini-WARN") rules on its state page, from
-   the same data as the /mini-warn-laws guide. States the guide doesn't cover
-   get the federal baseline, worded so it doesn't claim the state has no law
-   of its own. */
+   the same data as the /mini-warn-laws guide. States checked and found to
+   have no law of their own say so; any state not yet checked gets the federal
+   baseline worded so it doesn't claim the state has no law. */
 
 const FEDERAL = STATE_RULES.find((r) => r.code === "US")!;
 
 export function StateWarnLaw({ code, name }: { code: string; name: string }) {
   const rule = STATE_RULES.find((r) => r.code === code);
   const note = OTHER_STATE_NOTES.find((n) => n.code === code);
+  const noLaw = code in NO_STATE_LAW;
+  const federal = (
+    <>
+      employers with {FEDERAL.employerSize.toLowerCase()} must give {FEDERAL.noticePeriod} of
+      notice before a plant closing affecting {FEDERAL.closureTrigger.toLowerCase()}, or a mass
+      layoff of {FEDERAL.layoffTrigger.toLowerCase()}.
+    </>
+  );
   const guide = (
     <Link
       to="/mini-warn-laws"
-      hash={rule || note ? guideAnchor(code) : undefined}
+      hash={rule || note ? guideAnchor(code) : noLaw ? "no-state-law" : undefined}
       className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400"
     >
       Compare state WARN laws →
@@ -68,14 +76,19 @@ export function StateWarnLaw({ code, name }: { code: string; name: string }) {
             with {FEDERAL.employerSize.toLowerCase()}.
           </p>
         </>
+      ) : noLaw ? (
+        <>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            {name} has no state mini-WARN law, so the federal WARN Act sets the rules: {federal}
+          </p>
+          {NO_STATE_LAW[code] && (
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{NO_STATE_LAW[code]}</p>
+          )}
+        </>
       ) : (
         <p className="text-sm text-slate-600 dark:text-slate-400">
-          Our state-law guide doesn't cover {name} yet. The federal WARN Act sets the baseline:
-          employers with {FEDERAL.employerSize.toLowerCase()} must give{" "}
-          {FEDERAL.noticePeriod} of notice before a plant closing affecting{" "}
-          {FEDERAL.closureTrigger.toLowerCase()}, or a mass layoff of{" "}
-          {FEDERAL.layoffTrigger.toLowerCase()}. Some states add rules of their own; {name}'s labor
-          department has the details.
+          Our state-law guide doesn't cover {name} yet. The federal WARN Act sets the baseline:{" "}
+          {federal} Some states add rules of their own; {name}'s labor department has the details.
         </p>
       )}
       <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
