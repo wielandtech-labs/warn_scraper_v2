@@ -37,7 +37,8 @@ def test_nc_parses_live_sample(nc_sample_html: bytes) -> None:
     assert first.layoff_count == 82
     assert first.city == "Wilmington"
     assert first.county == "New Hanover County"
-    assert first.closure_type == "Permanent"
+    # "WARN notice type" + "Type of layoff or closure" (Permanent/Temporary).
+    assert first.closure_type == "Closure Permanent"
     assert first.extra.get("warn_number") == "202600001"
 
 

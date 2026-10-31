@@ -8,7 +8,7 @@ Schema (Excel, all-years workbook with sheets: 2026, 2025, 2024, Previous Years)
   Number Affected | Effective Date | Closing Yes/No | Union Yes/No | Union Address
 
 Each sheet starts with a title row, two blank rows, then the header row, then data.
-"Closing Yes/No" = "Yes" maps to closure_type "Closure".
+"Closing Yes/No" maps Yes to closure_type "Closure" and No to "Layoff".
 "Number Affected" can be an integer (native) or a messy string like
 "9,891 Remote Workers (2 from RI)"; we extract the first integer found.
 
@@ -140,7 +140,8 @@ def _parse_sheet(ws) -> list[NoticeRow]:
         closing_val = (
             str(raw_row[closing_col]).strip().lower() if closing_col is not None else ""
         )
-        closure_type = "Closure" if closing_val == "yes" else None
+        # A WARN notice that is not a closing is a layoff (same rule as CT).
+        closure_type = {"yes": "Closure", "no": "Layoff"}.get(closing_val)
 
         rows.append(
             NoticeRow(

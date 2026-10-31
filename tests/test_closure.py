@@ -18,6 +18,8 @@ from warn_v2.closure import normalize_closure_category
         " cl ",
         "Closure Permanent",   # CA EDD vocabulary
         "Closure Temporary",
+        "Shutdown",    # IL
+        "Shut Down",
     ],
 )
 def test_closure_variants(raw: str) -> None:
@@ -38,6 +40,10 @@ def test_closure_variants(raw: str) -> None:
         "Layoff Permanent",              # CA EDD vocabulary
         "Layoff Temporary",
         "Layoff Not known at this time",
+        "Red in Force",  # IL, truncated
+        "Downsize",      # CO
+        "Furlough",
+        "Lay-Off",       # MO
     ],
 )
 def test_layoff_variants(raw: str) -> None:

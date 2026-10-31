@@ -143,10 +143,15 @@ def _parse_grid(table) -> list[NoticeRow]:
         if notice_date is None:
             continue
 
+        # "Closure Layoff" holds Closure/Layoff; "Type of Layoff" holds
+        # Permanent/Temporary. Joined like CA's "Layoff Permanent".
         closure_layoff = (
-            as_str(_text(cells[closure_idx]))
+            _text(cells[closure_idx])
             if closure_idx is not None and closure_idx < len(cells)
-            else None
+            else ""
+        )
+        closure_type = as_str(
+            " ".join(filter(None, (closure_layoff, _text(cells[col["type of layoff"]]))))
         )
 
         rows.append(
@@ -156,10 +161,9 @@ def _parse_grid(table) -> list[NoticeRow]:
                 notice_date=notice_date,
                 effective_date=as_date(_text(cells[col["layoff start date"]])),
                 layoff_count=as_int(_text(cells[col["# of workers"]])),
-                closure_type=as_str(_text(cells[col["type of layoff"]])),
+                closure_type=closure_type,
                 city=as_str(_text(cells[col["location"]])),
                 source_url=SOURCE_URL,
-                extra={"closure_layoff": closure_layoff or ""},
             )
         )
     return rows

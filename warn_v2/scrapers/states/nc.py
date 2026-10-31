@@ -161,15 +161,17 @@ def _row_from_nc_grid(
         notice_date=notice_date,
         effective_date=as_date(cell("effective date")),
         layoff_count=as_int(cell("number affected at this location")),
-        closure_type=as_str(cell("type of layoff or closure")),
+        # "WARN notice type" holds Layoff/Closure; despite its name, "Type of
+        # layoff or closure" holds Permanent/Temporary. Joined like the
+        # 2018-2021 archive's "Closure Permanent" cell.
+        closure_type=as_str(
+            " ".join(filter(None, (cell("warn notice type"), cell("type of layoff or closure"))))
+        ),
         city=as_str(cell("city")),
         county=as_str(cell("county")),
         address=address,
         source_url=source_url,
-        extra={
-            "warn_number": as_str(cell("warn number")) or "",
-            "warn_notice_type": as_str(cell("warn notice type")) or "",
-        },
+        extra={"warn_number": as_str(cell("warn number")) or ""},
     )
 
 
@@ -420,7 +422,8 @@ def _parse_nc_ssrs_grid(pdf, source_url: str) -> list[NoticeRow]:
                 notice_date=notice_date,
                 effective_date=as_date(cell("effective date")),
                 layoff_count=as_int(cell("no. of employees")),
-                closure_type=as_str(cell("layoff/closure")),
+                # 2020-2021 wrap the header: "Layoff/\nClosure" -> "layoff/ closure".
+                closure_type=as_str(cell("layoff/closure") or cell("layoff/ closure")),
                 city=city,
                 county=as_str(cell("county/parish")),
                 zip=zip_code,
