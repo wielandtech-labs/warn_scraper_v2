@@ -69,6 +69,13 @@ def _notice_ids():
     return select(Notice.notice_id).where(Notice.is_superseded.is_(False))
 
 
+def _notice_rows():
+    # scraped_at is first-seen (storage.upsert never updates it). An amendment
+    # can still change a few fields later, but that's rare; first-seen is the
+    # most honest date we have, and it keeps old filings from looking fresh.
+    return select(Notice.notice_id, Notice.scraped_at).where(Notice.is_superseded.is_(False))
+
+
 def _chunks(db: Session, stmt) -> int:
     total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     return -(-total // _SITEMAP_CHUNK)
@@ -88,23 +95,40 @@ def sitemap_xml(db: Session = Depends(get_db)) -> Response:
     return _xml(index)
 
 
+# App pages whose content is the latest notices, so they change when one lands.
+_LATEST_DRIVEN = frozenset({"/", "/notices"})
+
+
 @router.get("/sitemaps/pages.xml")
-def sitemap_pages() -> Response:
+def sitemap_pages(db: Session = Depends(get_db)) -> Response:
     base = site_base_url()
     urlset = Element("urlset", xmlns=_SITEMAP_NS)
+    # Latest visible filing per state: what changes a state page (and, the
+    # newest of them, the homepage and notice list).
+    latest = dict(
+        db.execute(
+            select(Notice.state, func.max(Notice.notice_date))
+            .where(Notice.is_superseded.is_(False))
+            .group_by(Notice.state)
+        ).all()
+    )
+    newest = max((d for d in latest.values() if d is not None), default=None)
 
-    def add(path: str, changefreq: str, priority: str) -> None:
+    def add(path: str, changefreq: str, priority: str, lastmod=None) -> None:
         url = SubElement(urlset, "url")
         SubElement(url, "loc").text = base + path
+        if lastmod is not None:
+            SubElement(url, "lastmod").text = lastmod.isoformat()
         SubElement(url, "changefreq").text = changefreq
         SubElement(url, "priority").text = priority
 
     for path in _APP_PAGES:
-        add(path, "daily", "1.0" if path == "/" else "0.9")
+        add(path, "daily", "1.0" if path == "/" else "0.9",
+            newest if path in _LATEST_DRIVEN else None)
     for path in content_page_paths():
         add(path, "monthly", "0.7")
     for code in sorted(STATE_NAMES):
-        add(f"/states/{code}", "daily", "0.8")
+        add(f"/states/{code}", "daily", "0.8", latest.get(code))
     for sector in sorted(SECTOR_NAME):
         add(f"/reports/industry/{sector}", "weekly", "0.6")
     return _xml(urlset)
@@ -133,18 +157,21 @@ def sitemap_companies(chunk: int, db: Session = Depends(get_db)) -> Response:
 
 @router.get("/sitemaps/notices-{chunk:int}.xml")
 def sitemap_notices(chunk: int, db: Session = Depends(get_db)) -> Response:
-    ids = db.scalars(
-        _notice_ids()
+    rows = db.execute(
+        _notice_rows()
         .order_by(Notice.notice_id)
         .offset(chunk * _SITEMAP_CHUNK)
         .limit(_SITEMAP_CHUNK)
     ).all()
-    if not ids:
+    if not rows:
         raise HTTPException(status_code=404, detail="No such sitemap")
     base = site_base_url()
     urlset = Element("urlset", xmlns=_SITEMAP_NS)
-    for nid in ids:
-        SubElement(SubElement(urlset, "url"), "loc").text = f"{base}/notices/{nid}"
+    for nid, scraped_at in rows:
+        url = SubElement(urlset, "url")
+        SubElement(url, "loc").text = f"{base}/notices/{nid}"
+        if scraped_at is not None:
+            SubElement(url, "lastmod").text = scraped_at.date().isoformat()
     return _xml(urlset)
 
 
