@@ -8,6 +8,13 @@ everything else, run `warn-v2 recategorize-closures` (it works from the stored
 `closure_type`) or re-run `backfill-historical` (the category fills in on the
 re-upsert).
 
+A daily scrape doesn't always re-read. Scrapers that fetch through
+`conditional_get` record `not_modified` and skip the parse while the source
+file is unchanged, so a fix doesn't reach them until the state publishes a new
+file. RI was stuck this way after #424, and a one-off Job re-read it
+unconditionally (w_homelab #1302). Check the state's recent `/api/scraper-runs`
+before you count on the daily run.
+
 ## Audit 2026-10-31
 
 Prod had 94,328 notices, 54% of them categorized. Every state's live parser
@@ -22,10 +29,10 @@ CO, IA, AK and VA also carry free-text reasons ("Loss of contract",
 
 | State | What was wrong | Repair for stored rows |
 |---|---|---|
-| WA | Read "Type of Layoff" (Permanent/Temporary), not "Closure Layoff" | the daily scrape re-reads the full list |
+| WA | Read "Type of Layoff" (Permanent/Temporary), not "Closure Layoff" | the daily scrape re-reads the full list (done 2026-11-01) |
 | NC | Read "Type of layoff or closure" (Permanent/Temporary), not "WARN notice type"; 2020-21 PDFs wrap the header | `backfill-historical --state NC` |
 | CA | FY report PDFs head the column "Layoff/Closure Type"; 2020-25 rows from the retired `WARN_Report.xlsx` predate #118 | re-ingest the FY PDFs (`_discover_archive_urls`) |
-| RI | "Closing: No" was left NULL instead of Layoff | the daily scrape (full workbook) |
+| RI | "Closing: No" was left NULL instead of Layoff | a one-off unconditional re-read (the daily scrape returns `not_modified`) |
 | TN | 2013 - Aug 2014 archive rows carry WARN numbers, not CL/LO | `backfill-historical --state TN` (cross-fills from the warnnotices page) |
 | MD | 2010-22 rows store the raw codes `1`/`2` (ingested before the code map) | `recategorize-closures` |
 | IL, CO, MO | "Shutdown", "Red in Force", "Downsize", "Furlough", "Lay-Off" not normalized | `recategorize-closures` |
