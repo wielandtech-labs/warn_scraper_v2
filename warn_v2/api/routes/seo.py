@@ -6,7 +6,7 @@ take precedence over the SPA static mount.
 """
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from xml.etree.ElementTree import Element, SubElement, tostring
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -105,13 +105,14 @@ def sitemap_pages(db: Session = Depends(get_db)) -> Response:
     urlset = Element("urlset", xmlns=_SITEMAP_NS)
     # Latest visible filing per state: what changes a state page (and, the
     # newest of them, the homepage and notice list).
-    latest = dict(
-        db.execute(
+    latest: dict[str, date | None] = {
+        state: last
+        for state, last in db.execute(
             select(Notice.state, func.max(Notice.notice_date))
             .where(Notice.is_superseded.is_(False))
             .group_by(Notice.state)
         ).all()
-    )
+    }
     newest = max((d for d in latest.values() if d is not None), default=None)
 
     def add(path: str, changefreq: str, priority: str, lastmod=None) -> None:

@@ -703,11 +703,13 @@ def _company_meta(cid: int, db: Session | None) -> PageMeta:
     name = comp.name if comp is not None else canon.name
     path = f"/companies/{canon.id}"
     body = None
-    try:
-        member_ids = list(db.scalars(members))
-        filings = _recent(db, _COMPANY_NOTICES, company_ids=member_ids)
-    except Exception:
-        filings = []
+    filings: list[Notice] = []
+    if db is not None:
+        try:
+            member_ids = list(db.scalars(members))
+            filings = _recent(db, _COMPANY_NOTICES, company_ids=member_ids)
+        except Exception:
+            filings = []
     if filings:
         body = f"<h2 {_H2}>WARN notices filed by {escape(name)}</h2>" + _notice_list(filings)
         if stats[0] > len(filings):
