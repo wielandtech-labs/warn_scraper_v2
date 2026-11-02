@@ -7,6 +7,7 @@ import { AlertSignup } from "../components/AlertSignup";
 import { BlsLevels } from "../components/BlsLevels";
 import { Collapsed } from "../components/Collapsed";
 import { CountyImpact } from "../components/CountyImpact";
+import { StateBadgeEmbedButton } from "../components/EmbedDialog";
 import { EmployerRanking } from "../components/EmployerRanking";
 import { Figure, Figures } from "../components/Figures";
 import { ForecastNote } from "../components/ForecastNote";
@@ -210,6 +211,11 @@ export function StateDetailPage() {
           >
             RSS
           </a>
+          <StateBadgeEmbedButton
+            code={code}
+            name={name}
+            triggerClassName="font-medium text-sky-700 hover:underline dark:text-sky-400"
+          />
         </div>
       </header>
 

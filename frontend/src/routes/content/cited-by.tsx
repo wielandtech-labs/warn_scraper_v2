@@ -1,16 +1,19 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 
+import { stateBadgeSnippet } from "../../lib/embed";
 import { ContentPage } from "./ContentPage";
 
 function CitationBlock({
   label,
   text,
   htmlSnippet,
+  buttonLabel = "Copy Citation",
 }: {
   label: string;
   text: string;
   htmlSnippet?: string;
+  buttonLabel?: string;
 }) {
   const [copied, setCopied] = useState(false);
   const copyTarget = htmlSnippet || text;
@@ -36,7 +39,7 @@ function CitationBlock({
           {copied ? (
             <span className="text-emerald-600 dark:text-emerald-400">Copied!</span>
           ) : (
-            <span>Copy Citation</span>
+            <span>{buttonLabel}</span>
           )}
         </button>
       </div>
@@ -50,6 +53,8 @@ function CitationBlock({
 export function CitedByPage() {
   const webHtmlSnippet =
     'Layoff data provided by <a href="https://warnindex.com">WARN Index</a>, compiled from state WARN Act filings.';
+
+  const badgeSnippet = stateBadgeSnippet("https://warnindex.com", "CA", "California");
 
   const bibtex = `@misc{warnindex2026,
   author = {{WARN Index}},
@@ -143,6 +148,24 @@ export function CitedByPage() {
 
         <CitationBlock label="BibTeX (Academic & Econometric Research)" text={bibtex} />
       </div>
+
+      <h2 className="!mt-8 text-xl font-bold">Embeds for Your Site</h2>
+      <p className="text-sm text-slate-600 dark:text-slate-400">
+        Free, auto-updating widgets for newsrooms, blogs, workforce boards and READMEs. Every state page
+        has an <strong>Embed</strong> link for its 30-day layoff badge, and every notice page has an{" "}
+        <strong>Embed</strong> button for a live notice card.
+      </p>
+      <div className="flex items-center gap-3 text-sm">
+        <span className="text-slate-500 dark:text-slate-400">Example:</span>
+        <a href="/states/CA">
+          <img src="/embed/badge/state/CA.svg" alt="California WARN layoffs badge" height={20} />
+        </a>
+      </div>
+      <CitationBlock
+        label="State layoff badge (HTML, California shown; swap the two-letter code)"
+        text={badgeSnippet}
+        buttonLabel="Copy code"
+      />
 
       <h2 className="!mt-8 text-xl font-bold">Data Access &amp; Tools for Reporters</h2>
       <p className="text-sm text-slate-600 dark:text-slate-400">
