@@ -173,8 +173,9 @@ export function CitedByPage() {
       </p>
       <ul className="text-sm space-y-2">
         <li>
-          <strong>Bulk Data Downloads:</strong> Download the entire nationwide dataset as a CSV or JSON file
-          from our <Link to="/api-docs">Data &amp; API page</Link>.
+          <strong>Bulk Data Downloads:</strong> The entire nationwide dataset is mirrored weekly on 
+          <a href="https://huggingface.co/datasets/warn-index/us-warn-layoffs">Hugging Face</a> (Parquet and CSV, no account needed). Filtered CSV and
+          JSON exports are on our <Link to="/api-docs">Data &amp; API page</Link>.
         </li>
         <li>
           <strong>Interactive Visualizations:</strong> Explore charts and trends by industry and geography on

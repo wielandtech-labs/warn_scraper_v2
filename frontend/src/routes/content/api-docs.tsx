@@ -80,6 +80,13 @@ export function ApiDocsPage() {
 
       <h2>Bulk WARN dataset download</h2>
       <p>
+        <strong>Full dataset, no key needed:</strong> a weekly snapshot of every
+        notice (public columns, Parquet and gzipped CSV, CC BY 4.0) is mirrored on 
+        <a href="https://huggingface.co/datasets/warn-index/us-warn-layoffs">Hugging Face</a>. Load it with 
+        <code>load_dataset("warn-index/us-warn-layoffs")</code> or download the
+        files directly.
+      </p>
+      <p>
         Researchers, analysts, and engineering teams can export records from our
         nationwide layoff database. Every notices/companies filter has a matching export
         that streams the result set as CSV or JSON:
