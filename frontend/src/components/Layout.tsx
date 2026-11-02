@@ -81,7 +81,7 @@ function AccountArea() {
           Admin
         </Link>
       )}
-      {user.role !== "free" && (
+      {user.role === "admin" && (
         <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-900 dark:text-sky-300">
           {user.role}
         </span>
@@ -223,7 +223,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <Link className="hover:underline" to="/terms">Terms</Link>
           </nav>
           <p>
-            The national WARN layoff tracker and database — daily Worker Adjustment and Retraining Notification filings from all 50 states.
+            The free national WARN layoff tracker and database — daily Worker Adjustment and Retraining Notification filings from all 50 states.
           </p>
         </div>
       </footer>

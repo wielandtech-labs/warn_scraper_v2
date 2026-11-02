@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 
@@ -81,7 +81,7 @@ function KeysCard() {
         <Link to="/api-docs" className="text-sky-700 underline dark:text-sky-400">
           Data &amp; API
         </Link>{" "}
-        for limits per tier.
+        for usage limits.
       </p>
 
       {lastCreated && <NewKeyBanner created={lastCreated} />}
@@ -199,73 +199,6 @@ function UsageCard() {
   );
 }
 
-function PlanCard({ role }: { role: string }) {
-  const queryClient = useQueryClient();
-  const checkout = useMutation({
-    mutationFn: api.billingCheckout,
-    onSuccess: ({ url }) => {
-      window.location.href = url;
-    },
-  });
-  const portal = useMutation({
-    mutationFn: api.billingPortal,
-    onSuccess: ({ url }) => {
-      window.location.href = url;
-    },
-  });
-  // Returning from Stripe: the webhook may have flipped the role — refetch.
-  useEffect(() => {
-    if (window.location.search.includes("checkout=")) {
-      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
-    }
-  }, [queryClient]);
-
-  const billingUnavailable =
-    (checkout.error instanceof ApiError && checkout.error.status === 503) ||
-    (portal.error instanceof ApiError && portal.error.status === 503);
-
-  return (
-    <div className="card">
-      <h2 className="text-lg font-semibold">Plan</h2>
-      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        Current tier: <span className="font-medium capitalize">{role}</span>
-      </p>
-      <div className="mt-3 flex gap-2">
-        {role === "free" && (
-          <button
-            type="button"
-            className="btn-primary"
-            disabled={checkout.isPending}
-            onClick={() => checkout.mutate()}
-          >
-            {checkout.isPending ? "Redirecting…" : "Upgrade to Paid"}
-          </button>
-        )}
-        {role === "paid" && (
-          <button
-            type="button"
-            className="btn-secondary"
-            disabled={portal.isPending}
-            onClick={() => portal.mutate()}
-          >
-            {portal.isPending ? "Redirecting…" : "Manage billing"}
-          </button>
-        )}
-        {(role === "enterprise" || role === "admin") && (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Your plan is managed directly — contact us for changes.
-          </p>
-        )}
-      </div>
-      {billingUnavailable && (
-        <p className="mt-2 text-sm text-amber-700 dark:text-amber-400">
-          Billing isn't open yet — check back soon.
-        </p>
-      )}
-    </div>
-  );
-}
-
 /** The account holder's email alerts, listed by the same endpoint /alerts uses.
  *  Editing happens on /alerts, so this stays a summary with a way in. */
 function AlertsCard() {
@@ -348,7 +281,6 @@ export function AccountPage() {
     <div className="mx-auto max-w-3xl space-y-4">
       <h1 className="text-2xl font-semibold">Account</h1>
       <p className="text-sm text-slate-500 dark:text-slate-400">{auth.data.email}</p>
-      <PlanCard role={auth.data.role} />
       <AlertsCard />
       <KeysCard />
       <UsageCard />

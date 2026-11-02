@@ -197,13 +197,11 @@ export const api = {
   forgotPassword: (email: string) =>
     post<{ status: string; message: string }>("/api/auth/forgot", { email }),
 
-  // ---------- API keys / usage / billing (account page) ----------
+  // ---------- API keys / usage (account page) ----------
   listKeys: () => get<ApiKeyOut[]>("/api/keys"),
   createKey: (name?: string) => post<ApiKeyCreatedOut>("/api/keys", { name: name || null }),
   revokeKey: (id: number) => del<{ status: string }>(`/api/keys/${id}`),
   usage: () => get<UsageOut>("/api/usage"),
-  billingCheckout: () => post<{ url: string }>("/api/billing/checkout"),
-  billingPortal: () => post<{ url: string }>("/api/billing/portal"),
 
   listNotices: (q: NoticesQuery = {}) =>
     get<Page<NoticeOut>>("/api/notices" + qs(q as Record<string, string | number | undefined>)),

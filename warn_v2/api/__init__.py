@@ -63,10 +63,9 @@ def create_app(static_dir: Path | None = None) -> FastAPI:
             "Read-only API for WARN Act layoff notices, companies, and scraper audit logs.\n\n"
             "**Authentication:** anonymous requests work at low rate limits. For "
             "programmatic access, create an account and send an API key as "
-            "`X-API-Key: warn_...` or `Authorization: Bearer warn_...` — free keys get a "
-            "daily quota; paid tiers add enriched company fields, bulk exports, and "
-            "higher limits. Check your quota at `/api/usage`; keyed responses carry "
-            "`X-RateLimit-*` headers."
+            "`X-API-Key: warn_...` or `Authorization: Bearer warn_...`. Accounts and "
+            "keys are free, and each key gets its own daily quota. Check it at "
+            "`/api/usage`; keyed responses carry `X-RateLimit-*` headers."
         ),
         lifespan=_lifespan,
     )
@@ -112,7 +111,8 @@ def create_app(static_dir: Path | None = None) -> FastAPI:
     app.include_router(auth.router, prefix="/api")
     app.include_router(keys.router, prefix="/api")
     app.include_router(usage.router, prefix="/api")
-    app.include_router(billing.router, prefix="/api")  # webhook must never 429
+    # Webhook must never 429. Kept out of the public OpenAPI schema.
+    app.include_router(billing.router, prefix="/api", include_in_schema=False)
     app.include_router(admin.router, prefix="/api")  # require_admin per route
     app.include_router(logos.router, prefix="/api")  # dozens per page; see module
     limited = [Depends(ratelimit.enforce_limits)]

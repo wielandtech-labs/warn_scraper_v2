@@ -16,9 +16,10 @@ export function ExportButtons({
 }) {
   const auth = useAuth();
   // Mirrors FREE_EXPORT_CAP in warn_v2/api/routes/exports.py — surfaced here
-  // so free-tier users aren't silently handed a truncated file.
+  // so nobody is silently handed a truncated file. The full dataset is the
+  // free Hugging Face mirror.
   const capped = !auth.data || auth.data.role === "free";
-  const capNote = "Anonymous and free exports are capped at 1,000 rows.";
+  const capNote = "Exports are capped at the most recent 1,000 rows.";
 
   const href = (format: "csv" | "json") => {
     const sp = new URLSearchParams({ format });
@@ -46,7 +47,13 @@ export function ExportButtons({
       </a>
       {capped && (
         <span className="hidden text-xs text-slate-400 md:inline dark:text-slate-400">
-          first 1,000 rows
+          first 1,000 rows ·{" "}
+          <a
+            className="text-sky-700 hover:underline dark:text-sky-400"
+            href="https://huggingface.co/datasets/warn-index/us-warn-layoffs"
+          >
+            full dataset (free)
+          </a>
         </span>
       )}
     </div>

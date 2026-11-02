@@ -4,11 +4,10 @@ Writes ``warn_dataset.parquet``, ``warn_dataset.csv.gz`` and a Hugging Face
 dataset card (``README.md``) to an output directory, and optionally uploads
 the folder to a Hugging Face dataset repo (``warn-v2 export-public-mirror``).
 
-Exactly the free tier's export columns (``NOTICE_PUBLIC_COLS``, built by the
+Exactly the public export columns (``NOTICE_PUBLIC_COLS``, built by the
 same statement as /api/notices/export) plus a ``detail_url``: filing data, our
-geocoding and industry codes. Paid-tier company fields (employee counts, parent
-companies, unique ids) never leave here -- the site's terms forbid
-redistributing them.
+geocoding and industry codes. Licensed provider company fields (employee
+counts, parent companies, unique ids) never leave here.
 """
 from __future__ import annotations
 
@@ -98,8 +97,7 @@ For real-time filings, maps, alerts and the REST API, visit
 `detail_url` links each notice to its page on WARN Index. Superseded duplicates
 are excluded. Records come from public state filings; `company_name` is WARN
 Index's employer matching, the NAICS fields its industry classification, and
-`lat`/`lon` its geocoding. Paid-tier company data (employee counts, parent
-companies) is not included.
+`lat`/`lon` its geocoding.
 
 ## License and attribution
 
