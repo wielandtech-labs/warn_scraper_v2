@@ -22,8 +22,8 @@ export function TermsPage() {
       <ul>
         <li>Browsing the website is free and requires no account.</li>
         <li>
-          Programmatic access requires an API key. Free keys have modest rate
-          and daily limits; paid tiers raise them. Respect the limits — 429
+          The API is free, with or without a free API key, and is
+          rate-limited. Respect the limits — 429
           responses include a <code>Retry-After</code> header.
         </li>
         <li>
@@ -35,25 +35,11 @@ export function TermsPage() {
         </li>
       </ul>
 
-      <h2>Paid tiers</h2>
-      <ul>
-        <li>
-          Paid subscriptions unlock enriched company fields (corporate parent
-          names, headcounts), bulk exports, and higher limits. Billing is
-          handled by Stripe; cancel anytime from your account page.
-        </li>
-        <li>
-          Enriched company fields are licensed for your own use and analysis.
-          <strong> Redistributing or reselling the enriched fields as a dataset
-          is not permitted</strong> — publish conclusions, not the raw enriched
-          columns.
-        </li>
-        <li>
-          Access is per organization, not per key: sharing keys outside your
-          organization or proxying the API for third parties requires an
-          enterprise agreement.
-        </li>
-      </ul>
+      <h2>Separate agreements</h2>
+      <p>
+        Data or access provided under a separate written agreement is governed
+        by that agreement, including any limits it places on redistribution.
+      </p>
 
       <h2>Fair use and revocation</h2>
       <p>
@@ -71,7 +57,7 @@ export function TermsPage() {
 
       <h2>Contact</h2>
       <p>
-        Questions, enterprise access, or data corrections:{" "}
+        Questions or data corrections:{" "}
         <a href="mailto:info@warnindex.com">info@warnindex.com</a>.
       </p>
     </ContentPage>

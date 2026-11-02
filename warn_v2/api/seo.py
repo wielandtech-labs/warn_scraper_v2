@@ -25,9 +25,9 @@ from warn_v2.states import state_name
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
-DEFAULT_TITLE = "WARN Index — US WARN Layoff Tracker & Layoff Database"
+DEFAULT_TITLE = "WARN Index — Free US WARN Layoff Tracker & Database"
 DEFAULT_DESCRIPTION = (
-    "The national WARN layoff tracker and database. Track, search, and map "
+    "The free national WARN layoff tracker and database. Track, search, and map "
     "Worker Adjustment and Retraining Notification (WARN) layoffs and plant "
     "closures across all 50 US states, updated daily."
 )
@@ -62,8 +62,8 @@ class PageMeta:
 # Static content pages (Phase 3) get their meta from this table. Keyed by path.
 _CONTENT_PAGES: dict[str, tuple[str, str]] = {
     "/about": (
-        "About WARN Index — US Layoff Tracker & Database",
-        "About WARN Index: a nationwide, daily-updated US layoff tracker and "
+        "About WARN Index — Free US Layoff Tracker & Database",
+        "About WARN Index: a free, nationwide, daily-updated US layoff tracker and "
         "standardized WARN database aggregating notices across all 50 state "
         "labor agencies.",
     ),
@@ -201,6 +201,15 @@ def _dataset_json_ld() -> dict[str, Any]:
                 "encodingFormat": "application/json",
                 "contentUrl": f"{base}/api/notices/export?format=json",
             },
+            {
+                # The full weekly snapshot; the exports above are row-capped.
+                "@type": "DataDownload",
+                "encodingFormat": "application/vnd.apache.parquet",
+                "contentUrl": (
+                    "https://huggingface.co/datasets/warn-index/us-warn-layoffs"
+                    "/resolve/main/warn_dataset.parquet"
+                ),
+            },
         ],
         "isAccessibleForFree": True,
         "license": "https://creativecommons.org/licenses/by/4.0/",
@@ -269,6 +278,11 @@ def _faq_json_ld(is_warn_act: bool = False) -> dict[str, Any]:
                 "Can I download the WARN dataset or use an API?",
                 "Yes. The complete dataset is available via public REST API and bulk "
                 "CSV/JSON downloads.",
+            ),
+            (
+                "Is WARN Index free?",
+                "Yes. Browsing, email alerts, API keys, and the full dataset download "
+                "are free. The data is licensed CC BY 4.0: use it with attribution.",
             ),
         ]
 

@@ -50,11 +50,11 @@ export function SignupPage() {
       <div className="card">
         <h1 className="text-xl font-semibold">Create an account</h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Free API access with your own keys. See{" "}
+          It&apos;s free: get your own API keys and a daily quota. See{" "}
           <Link to="/api-docs" className="text-sky-700 underline dark:text-sky-400">
             Data &amp; API
           </Link>{" "}
-          for tiers and limits.
+          for limits.
         </p>
         <form
           className="mt-4 space-y-3"

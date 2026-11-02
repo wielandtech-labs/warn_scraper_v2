@@ -4,8 +4,8 @@ export function AboutPage() {
   return (
     <ContentPage
       title="About WARN Index"
-      docTitle="About WARN Index — US Layoff Tracker & Database"
-      intro="A nationwide, daily-updated WARN layoff tracker and standardized database of US worker adjustments and plant closures."
+      docTitle="About WARN Index — Free US Layoff Tracker & Database"
+      intro="A free, nationwide, daily-updated WARN layoff tracker and standardized database of US worker adjustments and plant closures."
     >
       <p>
         <strong>WARN Index</strong> collects, standardizes, and publishes layoff notices
@@ -14,6 +14,11 @@ export function AboutPage() {
         state &quot;mini-WARN&quot; laws across all 50 US states and DC. We turn fragmented state
         filings into a unified <a href="/notices">layoff database</a> that is freely searchable,
         mappable, and downloadable as a <a href="/api-docs">WARN dataset</a>.
+      </p>
+      <p>
+        WARN Index is free. Browsing needs no account, email alerts and API keys
+        cost nothing, and the{" "}
+        <a href="https://huggingface.co/datasets/warn-index/us-warn-layoffs">full dataset</a> is a free download under CC BY 4.0.
       </p>
 
       <h2>Why the WARN layoff tracker exists</h2>

@@ -42,6 +42,13 @@ export function FaqPage() {
         <a href="/feed.rss">RSS feed</a> for real-time notice alerts.
       </p>
 
+      <h2>Is WARN Index free?</h2>
+      <p>
+        Yes. Browsing, <a href="/alerts">email alerts</a>, API keys, and the{" "}
+        <a href="https://huggingface.co/datasets/warn-index/us-warn-layoffs">full dataset download</a> are free. The data is licensed
+        CC BY 4.0: use it with attribution (see <a href="/cited-by">Cited by</a>).
+      </p>
+
       <h2>How are company industries classified?</h2>
       <p>
         We link employers to NAICS and SIC industry codes with machine-assisted validation and confidence scoring;
