@@ -1,22 +1,39 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
-// "Embed" button + modal for a notice: a copyable <iframe> snippet pointing at
-// the backend's /embed/notices/{id} card, plus a live preview of that card.
-// Native <dialog> + showModal() gives focus trapping and Esc-to-close for free.
-export function EmbedButton({ noticeId, employer }: { noticeId: string; employer: string }) {
+import { escapeAttr, stateBadgeSnippet } from "../lib/embed";
+
+// "Embed" trigger + modal: a copyable HTML snippet pointing at one of the
+// backend's /embed/* endpoints, plus a live preview. Native <dialog> +
+// showModal() gives focus trapping and Esc-to-close for free.
+//
+// Every snippet carries a plain <a href> back to the matching page on this
+// site. That outer link is what other sites actually give us; a link inside
+// an <iframe> counts for the frame's own document, not the host page.
+function EmbedDialog({
+  trigger,
+  triggerClassName = "btn-secondary",
+  heading,
+  intro,
+  snippet,
+  rows = 5,
+  preview,
+}: {
+  trigger: string;
+  triggerClassName?: string;
+  heading: string;
+  intro: string;
+  snippet: string;
+  rows?: number;
+  // Rendered only while the dialog is open, so the page doesn't fetch the
+  // embed until asked.
+  preview: () => ReactNode;
+}) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   // Where the current click started: a text selection dragged out of the
   // textarea also ends with a click on the <dialog> itself.
   const downOnBackdrop = useRef(false);
-
-  const origin = window.location.origin;
-  const src = `${origin}/embed/notices/${noticeId}`;
-  const snippet =
-    `<iframe src="${src}" title="${escapeAttr(employer)} WARN notice" ` +
-    `width="100%" height="260" style="max-width:480px;border:0;color-scheme:normal" loading="lazy"></iframe>\n` +
-    `<p style="font-size:12px">Source: <a href="${origin}/notices/${noticeId}">WARN Index</a></p>`;
 
   const show = () => {
     setOpen(true);
@@ -33,8 +50,8 @@ export function EmbedButton({ noticeId, employer }: { noticeId: string; employer
 
   return (
     <>
-      <button type="button" className="btn-secondary" onClick={show}>
-        Embed
+      <button type="button" className={triggerClassName} onClick={show}>
+        {trigger}
       </button>
       <dialog
         ref={dialogRef}
@@ -47,10 +64,8 @@ export function EmbedButton({ noticeId, employer }: { noticeId: string; employer
         <div className="space-y-4 p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-lg font-semibold">Embed this notice</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Paste this HTML into your page or CMS. The card stays up to date.
-              </p>
+              <h2 className="text-lg font-semibold">{heading}</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">{intro}</p>
             </div>
             <button
               type="button"
@@ -82,7 +97,7 @@ export function EmbedButton({ noticeId, employer }: { noticeId: string; employer
             <textarea
               readOnly
               value={snippet}
-              rows={5}
+              rows={rows}
               onFocus={(e) => e.currentTarget.select()}
               aria-label="Embed code"
               className="w-full resize-none rounded-md border border-slate-200 bg-white p-2 font-mono text-xs dark:border-slate-700 dark:bg-slate-950"
@@ -93,20 +108,7 @@ export function EmbedButton({ noticeId, employer }: { noticeId: string; employer
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Preview
             </span>
-            {/* Mounted only while open, so the page doesn't fetch the card until asked. */}
-            {open && (
-              <iframe
-                src={src}
-                title="Embed preview"
-                width="100%"
-                height={260}
-                className="mt-2 max-w-[480px] border-0"
-                // The card declares no color-scheme. In dark mode the site does, and a
-                // mismatch makes the browser paint an opaque backdrop behind the frame
-                // (the snippet carries the same reset for hosts with a dark scheme).
-                style={{ colorScheme: "normal" }}
-              />
-            )}
+            {open && <div className="mt-2">{preview()}</div>}
           </div>
         </div>
       </dialog>
@@ -114,6 +116,61 @@ export function EmbedButton({ noticeId, employer }: { noticeId: string; employer
   );
 }
 
-function escapeAttr(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+export function EmbedButton({ noticeId, employer }: { noticeId: string; employer: string }) {
+  const origin = window.location.origin;
+  const src = `${origin}/embed/notices/${noticeId}`;
+  const snippet =
+    `<iframe src="${src}" title="${escapeAttr(employer)} WARN notice" ` +
+    `width="100%" height="260" style="max-width:480px;border:0;color-scheme:normal" loading="lazy"></iframe>\n` +
+    `<p style="font-size:12px">Source: <a href="${origin}/notices/${noticeId}">WARN Index</a></p>`;
+  return (
+    <EmbedDialog
+      trigger="Embed"
+      heading="Embed this notice"
+      intro="Paste this HTML into your page or CMS. The card stays up to date."
+      snippet={snippet}
+      preview={() => (
+        <iframe
+          src={src}
+          title="Embed preview"
+          width="100%"
+          height={260}
+          className="max-w-[480px] border-0"
+          // The card declares no color-scheme. In dark mode the site does, and a
+          // mismatch makes the browser paint an opaque backdrop behind the frame
+          // (the snippet carries the same reset for hosts with a dark scheme).
+          style={{ colorScheme: "normal" }}
+        />
+      )}
+    />
+  );
+}
+
+export function StateBadgeEmbedButton({
+  code,
+  name,
+  triggerClassName,
+}: {
+  code: string;
+  name: string;
+  triggerClassName?: string;
+}) {
+  const origin = window.location.origin;
+  return (
+    <EmbedDialog
+      trigger="Embed"
+      triggerClassName={triggerClassName}
+      heading={`Embed the ${name} layoff badge`}
+      intro={`Shows workers affected by ${name} WARN notices in the last 30 days, refreshed daily. Works in any page, README or newsletter.`}
+      snippet={stateBadgeSnippet(origin, code, name)}
+      rows={3}
+      preview={() => (
+        <img
+          src={`${origin}/embed/badge/state/${code}.svg`}
+          alt={`${name} WARN layoffs badge`}
+          height={20}
+        />
+      )}
+    />
+  );
 }
