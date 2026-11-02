@@ -450,3 +450,89 @@ def test_sitemap_index_covers_every_company_and_notice(api_client, db, monkeypat
                + _locs(api_client.get("/sitemaps/notices-1.xml")))
     assert len(notices) == 4 and not any("WA" in n for n in notices)
     assert api_client.get("/sitemaps/notices-9.xml").status_code == 404
+
+
+# --- crawler-visible body content and lastmod -------------------------------
+
+def _root(html: str) -> str:
+    return html.split('<div id="root">', 1)[1]
+
+
+def test_notice_page_renders_facts_and_cross_links(db):
+    from warn_v2.db.models import Location
+
+    db.add(Company(id=40, name="Vandelay Industries"))
+    db.add(Location(id=41, city="Toledo", state="OH"))
+    n = _notice(db, state="OH", employer="Vandelay <Industries>", layoff_count=250)
+    n.company_id, n.location_id = 40, 41
+    n.closure_type = "Plant Closure"
+    n.source_url = "https://jfs.ohio.gov/warn"
+    n.raw_notice_url = "javascript:alert(1)"
+    db.commit()
+
+    body = _root(render_index(_BASE_HTML, page_meta_for_path(f"/notices/{n.notice_id}", db=db)))
+    assert '<a href="/companies/40"' in body
+    assert "Vandelay &lt;Industries&gt;" in body and "<Industries>" not in body
+    assert "Toledo, OH" in body and '<a href="/states/OH"' in body
+    assert "250" in body and "Plant Closure" in body and "January 15, 2026" in body
+    assert 'href="https://jfs.ohio.gov/warn" rel="nofollow noopener"' in body
+    assert "javascript:" not in body
+
+
+def test_company_page_lists_its_notices_including_merged_dupes(db):
+    db.add_all([Company(id=50, name="Hooli"), Company(id=51, name="Hooli LLC",
+                                                     canonical_company_id=50)])
+    a = _notice(db, state="CA", employer="Hooli", notice_date=date(2025, 1, 1))
+    b = _notice(db, state="WA", employer="Hooli LLC", notice_date=date(2026, 2, 1))
+    a.company_id, b.company_id = 50, 51
+    db.commit()
+
+    body = _root(render_index(_BASE_HTML, page_meta_for_path("/companies/50", db=db)))
+    assert body.index(f"/notices/{b.notice_id}") < body.index(f"/notices/{a.notice_id}")
+    assert '<a href="/states/CA"' in body and '<a href="/states/WA"' in body
+
+
+def test_state_page_lists_latest_notices_in_that_state_only(db):
+    ca = _notice(db, state="CA", employer="Initrode")
+    tx = _notice(db, state="TX", employer="Chotchkies")
+    gone = _notice(db, state="CA", employer="Superseded Co")
+    gone.is_superseded = True
+    db.commit()
+
+    body = _root(render_index(_BASE_HTML, page_meta_for_path("/states/ca", db=db)))
+    assert f"/notices/{ca.notice_id}" in body
+    assert f"/notices/{tx.notice_id}" not in body
+    assert f"/notices/{gone.notice_id}" not in body
+    assert '<a href="/notices?state=CA"' in body
+
+
+def test_home_links_latest_notices_and_every_state(db):
+    n = _notice(db, employer="Penetrode")
+    db.commit()
+    body = _root(render_index(_BASE_HTML, page_meta_for_path("/", db=db)))
+    assert f"/notices/{n.notice_id}" in body
+    assert all(f'<a href="/states/{c}"' in body for c in STATE_NAMES)
+
+
+def test_body_content_degrades_without_db():
+    # No DB: pages still render (head tags + nav), just without the lists.
+    assert page_meta_for_path("/states/CA").fallback_html is None
+    assert '<a href="/states/CA"' in page_meta_for_path("/").fallback_html
+
+
+def test_sitemaps_carry_lastmod_for_notices_and_state_pages(api_client, db):
+    _notice(db, state="CA", employer="A", notice_date=date(2026, 3, 1))
+    _notice(db, state="CA", employer="B", notice_date=date(2026, 5, 9))
+    _notice(db, state="NY", employer="C", notice_date=date(2025, 7, 4))
+    db.commit()
+
+    base = site_base_url()
+    pages = api_client.get("/sitemaps/pages.xml").text
+    assert f"<loc>{base}/states/CA</loc><lastmod>2026-05-09</lastmod>" in pages
+    assert f"<loc>{base}/states/NY</loc><lastmod>2025-07-04</lastmod>" in pages
+    assert f"<loc>{base}/</loc><lastmod>2026-05-09</lastmod>" in pages
+    # Nothing filed in AK: no date rather than a made-up one
+    assert f"<loc>{base}/states/AK</loc><changefreq>" in pages
+
+    notices = api_client.get("/sitemaps/notices-0.xml").text
+    assert notices.count("<lastmod>") == 3

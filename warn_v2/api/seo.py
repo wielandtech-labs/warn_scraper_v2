@@ -390,6 +390,7 @@ def page_meta_for_path(path: str, db: Session | None = None) -> PageMeta:
             DEFAULT_DESCRIPTION,
             "/",
             json_ld=[_website_json_ld(), _dataset_json_ld()],
+            fallback_html=_home_body(db),
         )
 
     if path == "/status":
@@ -409,6 +410,7 @@ def page_meta_for_path(path: str, db: Session | None = None) -> PageMeta:
             "filings for each jurisdiction.",
             "/states",
             json_ld=_breadcrumb_json_ld([("Home", "/"), ("States", "/states")]),
+            fallback_html=_states_list(),
         )
 
     if path == "/api-docs":
@@ -494,6 +496,7 @@ def page_meta_for_path(path: str, db: Session | None = None) -> PageMeta:
                 ("States", "/states"),
                 (name, f"/states/{code}"),
             ]),
+            fallback_html=_state_body(code, name, db),
         )
 
     m = re.fullmatch(r"/reports/industry/([^/]+)", path)
@@ -546,6 +549,111 @@ def _fmt_day(d: date) -> str:
     return f"{d:%B} {d.day}, {d.year}"
 
 
+# --- Crawler-visible body content --------------------------------------------
+#
+# The served HTML used to carry only an <h1>, the description and a nav, the
+# same ~50 words on every one of ~150k pages, with no links between notices,
+# companies and states. Search engines treat that as thin content and could
+# only discover detail pages through the sitemap. These helpers render the
+# page's actual facts and cross-links as plain HTML inside #root; React's
+# createRoot() replaces it on load, so the app itself is unchanged.
+
+_LINK = 'style="color:#0284c7"'
+_LIST = 'style="line-height:1.7;padding-left:1.25rem;margin:0 0 1.5rem"'
+_H2 = 'style="font-size:1.2rem;font-weight:600;margin:1.5rem 0 0.5rem"'
+_STATE_NOTICES = 30
+_COMPANY_NOTICES = 100
+_HOME_NOTICES = 25
+
+
+def _a(href: str, text: str) -> str:
+    return f'<a href="{escape(href, quote=True)}" {_LINK}>{escape(text)}</a>'
+
+
+def _external(url: str | None, text: str) -> str | None:
+    # Only http(s): these come from scraped state pages.
+    if not url or not url.lower().startswith(("http://", "https://")):
+        return None
+    return (
+        f'<a href="{escape(url, quote=True)}" rel="nofollow noopener" {_LINK}>'
+        f"{escape(text)}</a>"
+    )
+
+
+def _place(n: Any) -> str:
+    city = n.location.city if n.location is not None else None
+    return f"{city}, {n.state}" if city else (state_name(n.state) or n.state)
+
+
+def _notice_list(notices: list[Any]) -> str:
+    items = []
+    for n in notices:
+        bits = [_place(n)]
+        if n.layoff_count:
+            bits.append(f"{n.layoff_count:,} workers")
+        if n.notice_date:
+            bits.append(_fmt_day(n.notice_date))
+        items.append(
+            f"<li>{_a(f'/notices/{n.notice_id}', n.employer)}: {escape(' · '.join(bits))}</li>"
+        )
+    return f"<ul {_LIST}>{''.join(items)}</ul>"
+
+
+def _recent(db: Session, limit: int, **where: Any) -> list[Any]:
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from warn_v2.db.models import Notice
+
+    stmt = (
+        select(Notice)
+        .options(selectinload(Notice.location))
+        .where(Notice.is_superseded.is_(False))
+        .order_by(Notice.notice_date.desc().nullslast(), Notice.notice_id)
+        .limit(limit)
+    )
+    if "state" in where:
+        stmt = stmt.where(Notice.state == where["state"])
+    if "company_ids" in where:
+        stmt = stmt.where(Notice.company_id.in_(where["company_ids"]))
+    return list(db.scalars(stmt))
+
+
+def _states_list() -> str:
+    from warn_v2.states import STATE_NAMES
+
+    links = " · ".join(_a(f"/states/{c}", STATE_NAMES[c]) for c in sorted(STATE_NAMES))
+    return f'<h2 {_H2}>WARN layoffs by state</h2><p style="line-height:1.8">{links}</p>'
+
+
+def _home_body(db: Session | None) -> str | None:
+    body = ""
+    if db is not None:
+        try:
+            latest = _recent(db, _HOME_NOTICES)
+        except Exception:
+            latest = []
+        if latest:
+            body += f"<h2 {_H2}>Latest WARN notices</h2>" + _notice_list(latest)
+    return body + _states_list()
+
+
+def _state_body(code: str, name: str, db: Session | None) -> str | None:
+    if db is None:
+        return None
+    try:
+        latest = _recent(db, _STATE_NOTICES, state=code)
+    except Exception:
+        return None
+    body = f"<h2 {_H2}>Latest WARN notices in {escape(name)}</h2>"
+    body += _notice_list(latest) if latest else f"<p>No {escape(name)} notices yet.</p>"
+    body += (
+        f"<p>{_a(f'/notices?state={code}', f'Search every {name} notice')} · "
+        f"{_a(f'/states/{code}/feed.rss', 'RSS feed')}</p>"
+    )
+    return body
+
+
 def _company_meta(cid: int, db: Session | None) -> PageMeta:
     """Company detail. A merged duplicate canonicalises to the company it was
     merged into, and its copy describes that company's whole history, which
@@ -594,6 +702,22 @@ def _company_meta(cid: int, db: Session | None) -> PageMeta:
     # canonical URL of the company it was merged into.
     name = comp.name if comp is not None else canon.name
     path = f"/companies/{canon.id}"
+    body = None
+    filings: list[Notice] = []
+    if db is not None:
+        try:
+            member_ids = list(db.scalars(members))
+            filings = _recent(db, _COMPANY_NOTICES, company_ids=member_ids)
+        except Exception:
+            filings = []
+    if filings:
+        body = f"<h2 {_H2}>WARN notices filed by {escape(name)}</h2>" + _notice_list(filings)
+        if stats[0] > len(filings):
+            body += f"<p>Showing the latest {len(filings)} of {stats[0]:,} notices.</p>"
+        states = sorted({f.state for f in filings})
+        body += "<p>Layoffs in: " + " · ".join(
+            _a(f"/states/{st}", state_name(st) or st) for st in states
+        ) + "</p>"
     n, workers, n_states, first, last = stats
     if n:
         parts = [f"{name}: {n:,} WARN layoff notice{'s' if n != 1 else ''}"]
@@ -618,6 +742,7 @@ def _company_meta(cid: int, db: Session | None) -> PageMeta:
         ]),
         # A company whose every notice was superseded has nothing to show.
         noindex=not n,
+        fallback_html=body,
     )
 
 
@@ -676,6 +801,53 @@ def _notice_meta(nid: str, db: Session | None) -> PageMeta:
             (f"{notc.employer} ({st})", path),
         ]),
         noindex=notc.is_superseded,
+        fallback_html=_safe(_notice_body, notc, place),
+    )
+
+
+def _safe(render: Any, *args: Any) -> str | None:
+    """Body content is an extra: a DB hiccup while building it drops the
+    content, never the page (the head tags are already resolved)."""
+    try:
+        return render(*args)
+    except Exception:
+        return None
+
+
+def _notice_body(n: Any, place: str) -> str:
+    employer = (
+        _a(f"/companies/{n.company.canonical_company_id or n.company.id}", n.employer)
+        if n.company is not None
+        else escape(n.employer)
+    )
+    st_name = state_name(n.state) or n.state
+    rows = [("Employer", employer)]
+    rows.append(("Location", f"{escape(place)} ({_a(f'/states/{n.state}', st_name)})"))
+    if n.address:
+        rows.append(("Address as filed", escape(n.address)))
+    if n.layoff_count:
+        rows.append(("Workers affected", f"{n.layoff_count:,}"))
+    if n.closure_type:
+        rows.append(("Type", escape(n.closure_type.strip())))
+    if n.notice_date:
+        rows.append(("Notice date", _fmt_day(n.notice_date)))
+    if n.effective_date:
+        rows.append(("Effective date", _fmt_day(n.effective_date)))
+    sources = [
+        x for x in (
+            _external(n.raw_notice_url, "Original notice"),
+            _external(n.source_url, "State agency listing"),
+        ) if x
+    ]
+    if sources:
+        rows.append(("Source", " · ".join(sources)))
+    dl = "".join(
+        f'<dt style="font-weight:600">{label}</dt><dd style="margin:0 0 0.5rem">{value}</dd>'
+        for label, value in rows
+    )
+    return (
+        f"<h2 {_H2}>Notice details</h2><dl style=\"margin:0 0 1.5rem\">{dl}</dl>"
+        f"<p>{_a(f'/states/{n.state}', f'More WARN layoffs in {st_name}')}</p>"
     )
 
 
@@ -751,6 +923,7 @@ def render_index(base_html: str, meta: PageMeta) -> str:
         f'<h1 style="font-size:1.75rem;font-weight:700;margin-bottom:0.75rem">{h1_text}</h1>'
         '<p style="color:#475569;font-size:1.1rem;line-height:1.6;'
         f'margin-bottom:1.5rem">{p_text}</p>'
+        f"{meta.fallback_html or ''}"
         '<nav style="display:flex;gap:1rem;font-size:0.875rem">'
         '<a href="/" style="color:#0284c7">Home</a>'
         '<a href="/notices" style="color:#0284c7">Notices</a>'
