@@ -554,3 +554,8 @@ def test_organization_links_profiles():
     assert org["@type"] == "Organization"
     assert "https://www.linkedin.com/company/warn-index/" in org["sameAs"]
     assert "https://huggingface.co/warn-index" in org["sameAs"]
+
+
+def test_dataset_json_ld_has_zenodo_doi():
+    from warn_v2.api.seo import _dataset_json_ld
+    assert _dataset_json_ld()["identifier"] == "https://doi.org/10.5281/zenodo.23902958"
