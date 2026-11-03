@@ -179,7 +179,8 @@ export function CitedByPage() {
       <ul className="text-sm space-y-2">
         <li>
           <strong>Bulk Data Downloads:</strong> The entire nationwide dataset is mirrored weekly on 
-          <a href="https://huggingface.co/datasets/warn-index/us-warn-layoffs">Hugging Face</a> (Parquet and CSV, no account needed). Filtered CSV and
+          <a href="https://huggingface.co/datasets/warn-index/us-warn-layoffs">Hugging Face</a> (Parquet and CSV, no account needed) and on{" "}
+          <a href="https://www.kaggle.com/datasets/warnindex/us-warn-act-layoff-notices-1989-2026">Kaggle</a>. Filtered CSV and
           JSON exports are on our <Link to="/api-docs">Data &amp; API page</Link>.
         </li>
         <li>

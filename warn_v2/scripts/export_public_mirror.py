@@ -33,8 +33,54 @@ CARD = "README.md"
 # Zenodo concept DOI: resolves to the newest archived snapshot.
 ZENODO_DOI = "10.5281/zenodo.23902958"
 
+HF_DATASET = "warn-index/us-warn-layoffs"
+KAGGLE_DATASET = "warnindex/us-warn-act-layoff-notices-1989-2026"
+
 KAGGLE_API = "https://api.kaggle.com/v1"
 KAGGLE_SUBTITLE = "US WARN Act layoff notices from state labor agencies, refreshed weekly"
+# Must be existing Kaggle tags; unknown ones are skipped by Kaggle, not errors.
+KAGGLE_KEYWORDS = [
+    "employment", "economics", "business", "united states", "government",
+    "tabular", "time series analysis", "geospatial analysis",
+]
+WARN_ACT_YEAR = 1988  # the WARN Act was signed in 1988; earlier dates are source typos
+
+# column -> (Kaggle data type, description). One entry per COLUMNS, in order.
+COLUMN_DOCS: dict[str, tuple[str, str]] = {
+    "notice_id": ("id", "Stable WARN Index id for the notice (a hash of state, employer, "
+                  "notice date, city and ZIP). Same id across snapshots: use it to join versions."),
+    "state": ("province", "Two-letter code of the state whose labor agency published the "
+              "notice."),
+    "employer": ("string", "Employer name exactly as published by the state."),
+    "notice_date": ("datetime", "Date the notice was filed or published by the state."),
+    "effective_date": ("datetime", "Date the layoff or closure takes effect (the 60-day WARN "
+                       "default when the state omits it)."),
+    "layoff_count": ("integer", "Number of workers affected, summed across the worksites of one "
+                     "filing. Empty when the state does not publish a count."),
+    "closure_category": ("string", "Normalized type: Closure, Layoff, or Non-WARN (Mississippi "
+                         "Rapid Response events that are not statutory notices). Empty when "
+                         "the source does not say."),
+    "company_name": ("string", "Canonical company name from WARN Index's employer matching "
+                     "(spelling variants of one employer share a name)."),
+    "naics_code": ("string", "NAICS industry code of the matched company."),
+    "naics_desc": ("string", "NAICS industry title for naics_code."),
+    "city": ("city", "Worksite city."),
+    "county": ("string", "Worksite county."),
+    "zip": ("postalcode", "Worksite ZIP code."),
+    "lat": ("latitude", "Worksite latitude from WARN Index geocoding (street, ZIP, city or "
+            "county precision, best available)."),
+    "lon": ("longitude", "Worksite longitude, see lat."),
+    "source_url": ("url", "State web page the notice was collected from."),
+    "raw_notice_url": ("url", "The notice's own detail page or PDF on the state site, when "
+                       "there is one (state links can go stale)."),
+    "detail_url": ("url", "The notice's page on WARN Index."),
+}
+FILE_DOCS = {
+    PARQUET: "Every current (non-superseded) WARN notice, one row per notice, typed: dates "
+             "are dates, layoff_count is a nullable integer. Best for pandas, polars, "
+             "DuckDB and Spark.",
+    CSV_GZ: "The same rows and columns as the Parquet file, as gzip-compressed CSV.",
+}
 
 
 def fetch_frame(db: Session) -> pd.DataFrame:
@@ -64,7 +110,7 @@ def render_card(df: pd.DataFrame, generated: datetime) -> str:
     base = site_base_url()
     dates = df["notice_date"].dropna()
     span = f"{min(dates).isoformat()} to {max(dates).isoformat()}" if len(dates) else "n/a"
-    fields = "\n".join(f"- `{c}`" for c in COLUMNS)
+    fields = "\n".join(f"| `{c}` | {COLUMN_DOCS[c][1]} |" for c in COLUMNS)
     return f"""---
 language:
 - en
@@ -98,8 +144,14 @@ sources and normalized into one table.
 For real-time filings, maps, alerts and the REST API, visit
 **[WARN Index]({base})**. API docs: {base}/api-docs
 
+The same weekly snapshot is published on
+[Hugging Face](https://huggingface.co/datasets/{HF_DATASET}) and
+[Kaggle](https://www.kaggle.com/datasets/{KAGGLE_DATASET}).
+
 ## Fields
 
+| Column | Description |
+|---|---|
 {fields}
 
 `detail_url` links each notice to its page on WARN Index. Superseded duplicates
@@ -206,7 +258,8 @@ def push_kaggle(out_dir: Path, handle: str, now: datetime | None = None) -> str:
             put = httpx.put(start["createUrl"], content=data, timeout=300,
                             headers={"Content-Type": "application/octet-stream"})
             put.raise_for_status()
-            tokens.append({"token": start["token"]})
+            tokens.append({"token": start["token"], **kaggle_file_doc(name)})
+        description = card_body((out_dir / CARD).read_text(encoding="utf-8"))
         resp = _kaggle_call(client, "datasets.DatasetApiService/CreateDatasetVersion", {
             "ownerSlug": owner,
             "datasetSlug": slug,
@@ -215,9 +268,78 @@ def push_kaggle(out_dir: Path, handle: str, now: datetime | None = None) -> str:
                 "deleteOldVersions": False,
                 "files": tokens,
                 "subtitle": KAGGLE_SUBTITLE,
-                "description": card_body((out_dir / CARD).read_text(encoding="utf-8")),
+                "description": description,
             },
         })
-    if resp.get("error"):
-        raise RuntimeError(f"Kaggle rejected the version: {resp['error']}")
+        if resp.get("error"):
+            raise RuntimeError(f"Kaggle rejected the version: {resp['error']}")
+        # Cosmetic: the version is already in, so a metadata failure only logs.
+        try:
+            update_kaggle_metadata(client, owner, slug, kaggle_title(out_dir, now), description)
+        except Exception:
+            log.exception("Kaggle metadata update failed (the new version is uploaded)")
     return resp.get("url") or f"https://www.kaggle.com/datasets/{owner}/{slug}"
+
+
+def kaggle_file_doc(name: str) -> dict:
+    """File description + column docs, sent with each uploaded file."""
+    return {
+        "description": FILE_DOCS[name],
+        "columns": [
+            {"order": i, "name": c, "type": COLUMN_DOCS[c][0], "description": COLUMN_DOCS[c][1]}
+            for i, c in enumerate(COLUMNS)
+        ],
+    }
+
+
+def kaggle_title(out_dir: Path, now: datetime) -> str:
+    """"US WARN Act Layoff Notices 1989-2026": first and last plausible notice year."""
+    dates = pd.read_parquet(out_dir / PARQUET, columns=["notice_date"])["notice_date"].dropna()
+    years = [d.year for d in dates if WARN_ACT_YEAR <= d.year <= now.year]
+    span = f" {min(years)}-{max(years)}" if years else ""
+    return f"US WARN Act Layoff Notices{span}"
+
+
+def kaggle_sources(base: str) -> str:
+    return (
+        "WARN Act notices published by US state workforce agencies, one public listing per "
+        "state; each row's `source_url` is the page it came from. Collected daily, "
+        f"deduplicated, geocoded and industry-coded by [WARN Index]({base}). "
+        f"Methodology: {base}/methodology. Coverage by state: {base}/states."
+    )
+
+
+def kaggle_settings(current: dict, title: str, description: str) -> dict:
+    """Settings for UpdateDatasetMetadata: the fields we own, over the current ones.
+
+    Keeps visibility and collaborators exactly as they are (an omitted field
+    must never flip the dataset private or drop a collaborator). Subtitle and
+    description are sent again, not copied from `current`: the new version may
+    still be processing, and copying would write last week's text back. File
+    and column docs travel with the version itself.
+    """
+    keep = {k: current[k] for k in ("isPrivate", "collaborators") if k in current}
+    return {
+        **keep,
+        "title": title,
+        "subtitle": KAGGLE_SUBTITLE,
+        "description": description,
+        "keywords": KAGGLE_KEYWORDS,
+        "licenses": [{"name": "CC-BY-4.0"}],
+        "expectedUpdateFrequency": "weekly",
+        "userSpecifiedSources": kaggle_sources(site_base_url()),
+    }
+
+
+def update_kaggle_metadata(
+    client: httpx.Client, owner: str, slug: str, title: str, description: str
+) -> None:
+    ids = {"ownerSlug": owner, "datasetSlug": slug}
+    got = _kaggle_call(client, "datasets.DatasetApiService/GetDatasetMetadata", ids)
+    if got.get("errorMessage") or "info" not in got:
+        raise RuntimeError(f"Kaggle metadata read failed: {got.get('errorMessage')}")
+    resp = _kaggle_call(client, "datasets.DatasetApiService/UpdateDatasetMetadata",
+                        {**ids, "settings": kaggle_settings(got["info"], title, description)})
+    if resp.get("errors"):
+        raise RuntimeError(f"Kaggle metadata update errors: {resp['errors']}")
+    log.info("Kaggle metadata updated for %s/%s", owner, slug)

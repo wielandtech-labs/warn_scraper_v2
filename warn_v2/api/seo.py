@@ -178,6 +178,13 @@ def content_page_paths() -> list[str]:
 ORG_PROFILES = (
     "https://www.linkedin.com/company/warn-index/",
     "https://huggingface.co/warn-index",
+    "https://www.kaggle.com/warnindex",
+)
+
+# The full weekly snapshot, mirrored (warn-v2 export-public-mirror).
+DATASET_MIRRORS = (
+    "https://huggingface.co/datasets/warn-index/us-warn-layoffs",
+    "https://www.kaggle.com/datasets/warnindex/us-warn-act-layoff-notices-1989-2026",
 )
 
 
@@ -199,6 +206,7 @@ def _dataset_json_ld() -> dict[str, Any]:
         "name": "WARN Index — US WARN Act Layoff Dataset",
         "description": DEFAULT_DESCRIPTION,
         "url": f"{base}/api-docs",
+        "sameAs": list(DATASET_MIRRORS),
         "keywords": [
             "WARN layoffs",
             "WARN layoff tracker",

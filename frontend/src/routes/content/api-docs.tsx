@@ -69,7 +69,9 @@ export function ApiDocsPage() {
         notice (public columns, Parquet and gzipped CSV, CC BY 4.0) is mirrored on 
         <a href="https://huggingface.co/datasets/warn-index/us-warn-layoffs">Hugging Face</a>. Load it with 
         <code>load_dataset("warn-index/us-warn-layoffs")</code> or download the
-        files directly.
+        files directly. The same snapshot, with column descriptions, is on{" "}
+        <a href="https://www.kaggle.com/datasets/warnindex/us-warn-act-layoff-notices-1989-2026">Kaggle</a>{" "}
+        for use in Kaggle notebooks.
       </p>
       <p>
         Researchers, analysts, and engineering teams can export records from our
