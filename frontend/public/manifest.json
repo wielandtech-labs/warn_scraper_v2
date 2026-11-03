@@ -1,0 +1,23 @@
+{
+  "id": "/",
+  "name": "WARN Index — US Layoff Tracker",
+  "short_name": "WARN Index",
+  "description": "Every US state WARN Act layoff notice, gathered daily and mapped.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#DA2F25",
+  "background_color": "#f8fafc",
+  "categories": ["news", "business"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ],
+  "shortcuts": [
+    { "name": "Latest notices", "url": "/notices", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Map", "url": "/map", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Trends", "url": "/stats", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
