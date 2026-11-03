@@ -327,3 +327,13 @@ the SPA's `/outlook` page.
   CI excluding zero). Weaker signals (q < 0.20) appear as a clearly labelled
   watch list. Templates obey the job-losses wording rule, and a test enforces
   it.
+
+## License
+
+- **Code:** [GNU AGPL-3.0-or-later](LICENSE), Copyright (C) 2026 Raphael
+  Wieland. If you run a modified version as a network service, you must
+  offer its users your source code (AGPL section 13).
+- **Data:** WARN Index notice data is licensed
+  [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Attribute it with
+  a link to [warnindex.com](https://warnindex.com); see the
+  [citation guide](https://warnindex.com/cited-by).

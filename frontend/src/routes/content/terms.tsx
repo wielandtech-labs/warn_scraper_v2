@@ -17,6 +17,12 @@ export function TermsPage() {
         completeness. Notices are amended by states after filing — figures can
         and do change.
       </p>
+      <p>
+        The website&apos;s source code is open source under the{" "}
+        <a href="https://www.gnu.org/licenses/agpl-3.0.html">GNU AGPL-3.0</a>{" "}
+        and is <a href="https://github.com/wielandtech-labs/warn_scraper_v2">on GitHub</a>. The data is licensed separately,
+        under CC BY 4.0 (below).
+      </p>
 
       <h2>Website and free API use</h2>
       <ul>

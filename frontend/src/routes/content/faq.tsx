@@ -46,7 +46,8 @@ export function FaqPage() {
       <p>
         Yes. Browsing, <a href="/alerts">email alerts</a>, API keys, and the{" "}
         <a href="https://huggingface.co/datasets/warn-index/us-warn-layoffs">full dataset download</a> are free. The data is licensed
-        CC BY 4.0: use it with attribution (see <a href="/cited-by">Cited by</a>).
+        CC BY 4.0: use it with attribution (see <a href="/cited-by">Cited by</a>), and the{" "}
+        <a href="https://github.com/wielandtech-labs/warn_scraper_v2">source code</a> is open source under the GNU AGPL-3.0.
       </p>
 
       <h2>How are company industries classified?</h2>
