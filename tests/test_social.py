@@ -234,3 +234,39 @@ def test_cli_rejects_unknown_platform():
     result = CliRunner().invoke(cli.main, ["post-alerts", "--platform", "myspace"])
     assert result.exit_code != 0
     assert "unknown platform" in result.output
+
+
+# ----- hashtags -----
+
+def test_render_post_hashtags_sit_above_the_link():
+    n = _notice("abc", 1350)
+    text = format.render_post(n, format.BLUESKY_HASHTAGS)
+    lines = text.splitlines()
+    assert lines[-2] == "#layoffs #WARNAct"
+    assert lines[-1] == "https://warnindex.com/notices/abc"
+    assert "#" not in format.render_post(n)  # webhooks get no hashtags
+
+
+def test_render_post_with_hashtags_stays_under_limit():
+    n = _notice("a" * 32, 300, employer="Very Long Employer " * 30)
+    text = format.render_post(n, format.BLUESKY_HASHTAGS)
+    assert len(text) <= format.MAX_POST_CHARS
+    assert text.endswith("/notices/" + "a" * 32)
+    assert "#layoffs #WARNAct" in text
+
+
+def test_build_record_marks_hashtags_with_tag_facets():
+    n = _notice("abc", 1350, employer="Store #layoffsville")
+    url = "https://warnindex.com/notices/abc"
+    text = format.render_post(n, format.BLUESKY_HASHTAGS)
+    record = bluesky.build_record(text, url, "t", "d", None, NOW)
+    raw = text.encode("utf-8")
+    tags = [f for f in record["facets"]
+            if f["features"][0]["$type"] == "app.bsky.richtext.facet#tag"]
+    assert [f["features"][0]["tag"] for f in tags] == ["layoffs", "WARNAct"]
+    tag_line_start = len(text[: text.rindex("#layoffs #WARNAct")].encode("utf-8"))
+    for f in tags:
+        s, e = f["index"]["byteStart"], f["index"]["byteEnd"]
+        assert s >= tag_line_start  # never inside the employer name
+        assert raw[s:e].decode() == "#" + f["features"][0]["tag"]
+    assert record["facets"][-1]["features"][0]["$type"] == "app.bsky.richtext.facet#link"
