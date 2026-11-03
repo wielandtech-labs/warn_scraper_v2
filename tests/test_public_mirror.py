@@ -166,6 +166,8 @@ def test_push_kaggle_uploads_files_then_versions(tmp_path, monkeypatch):
                    "collaborators": [{"username": "friend", "role": "writer"}]}
         rx.post(f"{mirror.KAGGLE_API}/datasets.DatasetApiService/GetDatasetMetadata").mock(
             return_value=Response(200, json={"info": current}))
+        rx.post(f"{mirror.KAGGLE_API}/datasets.DatasetApiService/ListDatasetFiles").mock(
+            return_value=Response(200, json={"datasetFiles": []}))
         meta_url = f"{mirror.KAGGLE_API}/datasets.DatasetApiService/UpdateDatasetMetadata"
         meta = rx.post(meta_url).mock(return_value=Response(200, json={}))
         url = mirror.push_kaggle(tmp_path, "o/s", now=NOW)
@@ -183,6 +185,7 @@ def test_push_kaggle_uploads_files_then_versions(tmp_path, monkeypatch):
     files = body["body"]["files"]
     assert [f["token"] for f in files] == ["t1", "t2"]
     assert files[0]["description"] == mirror.FILE_DOCS[mirror.PARQUET]
+    assert files[1]["description"] == mirror.FILE_DOCS[mirror.KAGGLE_CSV]
     assert [c["name"] for c in files[0]["columns"]] == mirror.COLUMNS
     assert files[0]["columns"][1] == {"order": 1, "name": "state", "type": "province",
                                       "description": mirror.COLUMN_DOCS["state"][1]}
@@ -197,6 +200,8 @@ def test_push_kaggle_uploads_files_then_versions(tmp_path, monkeypatch):
     assert settings["keywords"] == mirror.KAGGLE_KEYWORDS
     assert settings["description"] == "# Card\n" and settings["subtitle"] == mirror.KAGGLE_SUBTITLE
     assert "https://warnindex.com/methodology" in settings["userSpecifiedSources"]
+    # Nothing listed yet (new version processing): fall back to the known names.
+    assert [f["name"] for f in settings["data"]] == [mirror.PARQUET, mirror.KAGGLE_CSV]
 
 
 def test_push_kaggle_surfaces_api_error(tmp_path, monkeypatch):
@@ -269,7 +274,8 @@ def test_cli_kaggle_still_runs_when_hf_fails(db, tmp_path, monkeypatch):
 
 def test_column_docs_cover_every_column():
     assert list(mirror.COLUMN_DOCS) == mirror.COLUMNS
-    assert set(mirror.FILE_DOCS) == {mirror.PARQUET, mirror.CSV_GZ}
+    assert set(mirror.FILE_DOCS) == {mirror.PARQUET, mirror.KAGGLE_CSV}
+    assert mirror.kaggle_name(mirror.CSV_GZ) == "warn_dataset.csv"  # Kaggle unpacks .gz
     assert not any("|" in desc for _, desc in mirror.COLUMN_DOCS.values())  # card table
     assert 20 <= len(mirror.KAGGLE_SUBTITLE) <= 80  # Kaggle's subtitle limits
 
@@ -316,11 +322,15 @@ def test_apply_kaggle_metadata_docs_existing_files_and_cover(tmp_path, monkeypat
     pd.DataFrame({"notice_date": [date(1989, 3, 1), date(2026, 9, 1)]}).to_parquet(
         tmp_path / mirror.PARQUET)
     (tmp_path / mirror.CARD).write_text("---\nx: y\n---\n# Card\n", encoding="utf-8")
-    info = {"isPrivate": False, "data": [{"name": mirror.PARQUET}, {"name": "other.txt"}]}
+    info = {"isPrivate": False, "data": []}  # what Kaggle really returns
     api = mirror.KAGGLE_API
     with respx.mock(assert_all_called=True) as rx:
         rx.post(f"{api}/datasets.DatasetApiService/GetDatasetMetadata").mock(
             return_value=Response(200, json={"info": info}))
+        listed = [{"name": "warn_dataset.csv"}, {"name": "warn_dataset.parquet"},
+                  {"name": "other.txt"}]
+        rx.post(f"{api}/datasets.DatasetApiService/ListDatasetFiles").mock(
+            return_value=Response(200, json={"datasetFiles": listed}))
         start = rx.post(f"{api}/blobs.BlobApiService/StartBlobUpload").mock(
             return_value=Response(200, json={"token": "img", "createUrl": "https://upload.test/c"}))
         rx.put("https://upload.test/c").mock(return_value=Response(200))
@@ -334,7 +344,9 @@ def test_apply_kaggle_metadata_docs_existing_files_and_cover(tmp_path, monkeypat
     assert settings["title"] == "US WARN Act Layoff Notices 1989-2026"
     assert settings["description"] == "# Card\n"
     assert settings["image"] == {"token": "img", "cropRectangles": mirror.COVER_CROPS}
-    assert [f["name"] for f in settings["data"]] == [mirror.PARQUET]  # unknown files untouched
+    # Kaggle's own file names; unknown files untouched.
+    assert [f["name"] for f in settings["data"]] == ["warn_dataset.csv", "warn_dataset.parquet"]
+    assert settings["data"][0]["description"] == mirror.FILE_DOCS[mirror.KAGGLE_CSV]
     zip_col = next(c for c in settings["data"][0]["columns"] if c["name"] == "zip")
     assert zip_col["type"] == "postalcode"
 
