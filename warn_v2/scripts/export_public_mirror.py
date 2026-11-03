@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import httpx
@@ -60,9 +60,11 @@ COLUMN_DOCS: dict[str, tuple[str, str]] = {
     "employer": ("string", "Employer name exactly as published by the state."),
     "notice_date": ("datetime", "Date the notice was filed or published by the state."),
     "effective_date": ("datetime", "Date the layoff or closure takes effect (the 60-day WARN "
-                       "default when the state omits it)."),
+                       "default when the state omits it). Empty when the state's date is more "
+                       "than 2 years before or 5 years after notice_date (a source typo)."),
     "layoff_count": ("integer", "Number of workers affected, summed across the worksites of one "
-                     "filing. Empty when the state does not publish a count."),
+                     "filing. Empty when the state does not publish a count, or publishes a "
+                     "negative one."),
     "closure_category": ("string", "Normalized type: Closure, Layoff, or Non-WARN (Mississippi "
                          "Rapid Response events that are not statutory notices). Empty when "
                          "the source does not say."),
@@ -97,6 +99,38 @@ def kaggle_name(name: str) -> str:
     return KAGGLE_CSV if name == CSV_GZ else name
 
 
+# Public-export sanity window for effective_date relative to notice_date.
+# 99.9% of notices fall within -1 to +1.4 years; outside -2/+5 years the value
+# is a source typo (years 0001-3030, decade slips, one stale date reused on
+# dozens of later notices), so the public files leave it empty.
+EFFECTIVE_BEFORE_DAYS = 2 * 365
+EFFECTIVE_AFTER_DAYS = 5 * 365
+
+
+def blank_implausible(df: pd.DataFrame) -> pd.DataFrame:
+    """Empty values that cannot be right, in the public files only.
+
+    The database, site and API keep what the state published; these files are
+    for analysis, where a -3 worker count or a year-3030 date only misleads.
+    Blanks negative layoff_count and effective_date outside the window above.
+    """
+    neg = df["layoff_count"].notna() & (df["layoff_count"] < 0)
+    df.loc[neg, "layoff_count"] = pd.NA
+
+    def implausible(eff: object, notice: object) -> bool:
+        if not isinstance(eff, date) or not isinstance(notice, date):
+            return False
+        days = (eff - notice).days
+        return days < -EFFECTIVE_BEFORE_DAYS or days > EFFECTIVE_AFTER_DAYS
+
+    bad = [implausible(e, n) for e, n in zip(df["effective_date"], df["notice_date"], strict=True)]
+    df.loc[bad, "effective_date"] = None
+    if neg.any() or any(bad):
+        log.info("public mirror: blanked %d negative counts, %d implausible effective dates",
+                 int(neg.sum()), sum(bad))
+    return df
+
+
 def fetch_frame(db: Session) -> pd.DataFrame:
     base = site_base_url()
     rows = db.execute(notice_export_stmt().execution_options(yield_per=1_000))
@@ -110,7 +144,7 @@ def fetch_frame(db: Session) -> pd.DataFrame:
     df["layoff_count"] = df["layoff_count"].astype("Int64")
     # Dates stay datetime.date objects (pyarrow writes them as date32): going
     # through pd.to_datetime would raise on any source typo outside 1677-2262.
-    return df[COLUMNS]
+    return blank_implausible(df)[COLUMNS]
 
 
 def _size_category(n: int) -> str:
@@ -171,7 +205,10 @@ The same weekly snapshot is published on
 `detail_url` links each notice to its page on WARN Index. Superseded duplicates
 are excluded. Records come from public state filings; `company_name` is WARN
 Index's employer matching, the NAICS fields its industry classification, and
-`lat`/`lon` its geocoding.
+`lat`/`lon` its geocoding. Values that cannot be right are left empty here (a
+negative `layoff_count`, or an `effective_date` more than 2 years before or 5
+years after `notice_date`); the notice page on WARN Index shows the state's
+original value.
 
 ## License and attribution
 
