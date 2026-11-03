@@ -80,13 +80,34 @@ def test_write_mirror_files_and_card(db, tmp_path):
 
 
 def test_out_of_range_source_dates_do_not_break_the_export(db, tmp_path):
-    # A source typo far outside pandas' nanosecond range must not fail the run.
+    # A source typo far outside pandas' nanosecond range must not fail the run;
+    # the public files leave it empty.
     db.add(Notice(notice_id="typo", state="TX", employer="X", notice_date=date(2026, 1, 2),
                   effective_date=date(3026, 1, 2), source_url="https://example.com"))
     db.commit()
     mirror.write_mirror(db, tmp_path, now=NOW)
     parquet = pd.read_parquet(tmp_path / mirror.PARQUET)
-    assert parquet.loc[0, "effective_date"] == date(3026, 1, 2)
+    assert pd.isna(parquet.loc[0, "effective_date"])
+
+
+def test_blank_implausible_values():
+    nd = date(2020, 6, 1)
+    df = pd.DataFrame({
+        "notice_id": ["neg", "ok", "zero", "early", "late", "edge", "nodate", "year1"],
+        "notice_date": [nd, nd, nd, nd, nd, nd, None, nd],
+        "effective_date": [nd, date(2020, 8, 1), nd, date(2017, 1, 1), date(2030, 1, 1),
+                           date(2025, 5, 30), date(2020, 1, 1), date(1, 1, 1)],
+        "layoff_count": pd.array([-3, 81, 0, 5, 5, 5, 5, 5], dtype="Int64"),
+    })
+    out = mirror.blank_implausible(df).set_index("notice_id")
+    assert pd.isna(out.loc["neg", "layoff_count"])
+    assert out.loc["zero", "layoff_count"] == 0 and out.loc["ok", "layoff_count"] == 81
+    assert out.loc["ok", "effective_date"] == date(2020, 8, 1)
+    assert out.loc["early", "effective_date"] is None  # > 2 years before
+    assert out.loc["late", "effective_date"] is None  # > 5 years after
+    assert out.loc["year1", "effective_date"] is None
+    assert out.loc["edge", "effective_date"] == date(2025, 5, 30)  # inside +5 years
+    assert out.loc["nodate", "effective_date"] == date(2020, 1, 1)  # no notice_date: keep
 
 
 def test_empty_database_still_writes(db, tmp_path):
