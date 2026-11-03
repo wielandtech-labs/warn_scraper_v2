@@ -25,6 +25,7 @@ import { MiniWarnLawsPage } from "./routes/content/mini-warn-laws";
 import { MethodologyPage } from "./routes/content/methodology";
 import { FaqPage } from "./routes/content/faq";
 import { CitedByPage } from "./routes/content/cited-by";
+import { DonatePage } from "./routes/content/donate";
 import { ApiDocsPage } from "./routes/content/api-docs";
 import { TermsPage } from "./routes/content/terms";
 import { LoginPage } from "./routes/login";
@@ -364,6 +365,11 @@ const citedByRoute = createRoute({
   path: "/cited-by",
   component: CitedByPage,
 });
+const donateRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/donate",
+  component: DonatePage,
+});
 const apiDocsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/api-docs",
@@ -438,6 +444,7 @@ const routeTree = rootRoute.addChildren([
   methodologyRoute,
   faqRoute,
   citedByRoute,
+  donateRoute,
   apiDocsRoute,
   termsRoute,
   loginRoute,

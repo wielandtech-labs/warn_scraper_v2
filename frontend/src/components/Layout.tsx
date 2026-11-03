@@ -212,6 +212,8 @@ export function Layout({ children }: { children: ReactNode }) {
             <span aria-hidden>·</span>
             <Link className="hover:underline" to="/cited-by">Press &amp; Cited By</Link>
             <span aria-hidden>·</span>
+            <Link className="hover:underline" to="/donate">Donate</Link>
+            <span aria-hidden>·</span>
             <Link className="hover:underline" to="/states">Browse states</Link>
             <span aria-hidden>·</span>
             <Link className="hover:underline" to="/status">Scraper status</Link>
