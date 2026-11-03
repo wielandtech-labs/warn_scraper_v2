@@ -25,6 +25,16 @@ declare module "@tanstack/react-router" {
   }
 }
 
+// public/sw.js: installability + offline app shell. Prod only, so the Vite
+// dev server's unhashed modules never land in its cache.
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      /* No worker means no offline shell; the site works the same online. */
+    });
+  });
+}
+
 const rootEl = document.getElementById("root");
 if (!rootEl) throw new Error("Root element not found");
 

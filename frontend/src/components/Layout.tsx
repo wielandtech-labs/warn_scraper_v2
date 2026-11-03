@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 
 import { api } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
+import { useInstallPrompt } from "../hooks/useInstallPrompt";
 import { SearchBox } from "./SearchBox";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -98,6 +99,31 @@ function AccountArea() {
   );
 }
 
+/* "Install app": shown only where the browser can install (Chromium's
+   prompt) or on iOS Safari, which needs the manual Share-sheet route. */
+function InstallApp({ className }: { className?: string }) {
+  const state = useInstallPrompt();
+  if (state.kind === "prompt") {
+    return (
+      <button
+        type="button"
+        onClick={() => void state.install()}
+        className={`whitespace-nowrap rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 ${className ?? ""}`}
+      >
+        Install app
+      </button>
+    );
+  }
+  if (state.kind === "ios") {
+    return (
+      <p className={className}>
+        Install the app: tap Share, then <span className="font-medium">Add to Home Screen</span>.
+      </p>
+    );
+  }
+  return null;
+}
+
 export function Layout({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   return (
@@ -189,6 +215,7 @@ export function Layout({ children }: { children: ReactNode }) {
               <AccountArea />
               <ThemeToggle />
             </div>
+            <InstallApp className="mt-3 text-sm text-slate-600 dark:text-slate-400" />
           </div>
         )}
       </header>
@@ -199,6 +226,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <BrandMark className="h-5 w-5" />
             <span className="font-display text-base font-semibold">WARN Index</span>
           </div>
+          <InstallApp />
           <nav className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <Link className="hover:underline" to="/about">About</Link>
             <span aria-hidden>·</span>
