@@ -74,6 +74,9 @@ def test_write_mirror_files_and_card(db, tmp_path):
     assert "doi = {10.5281/zenodo.23902958}" in card
     assert "](https://doi.org/10.5281/zenodo.23902958)" in card
     assert "employee_count" not in card
+    assert "| `layoff_count` | Number of workers affected" in card
+    assert f"](https://www.kaggle.com/datasets/{mirror.KAGGLE_DATASET})" in card
+    assert "](https://huggingface.co/datasets/warn-index/us-warn-layoffs)" in card
 
 
 def test_out_of_range_source_dates_do_not_break_the_export(db, tmp_path):
@@ -138,8 +141,10 @@ def test_push_kaggle_uploads_files_then_versions(tmp_path, monkeypatch):
 
     _clear_kaggle_env(monkeypatch)
     monkeypatch.setenv("KAGGLE_API_TOKEN", "KGAT_test")
-    for name, body in ((mirror.PARQUET, b"pq"), (mirror.CSV_GZ, b"csvgz")):
-        (tmp_path / name).write_bytes(body)
+    dates = [date(1901, 1, 1), date(1990, 5, 1), date(2026, 9, 1)]
+    pd.DataFrame({"notice_date": dates}).to_parquet(tmp_path / mirror.PARQUET, index=False)
+    pq_bytes = (tmp_path / mirror.PARQUET).read_bytes()
+    (tmp_path / mirror.CSV_GZ).write_bytes(b"csvgz")
     card = "---\nlicense: cc-by-4.0\n---\n\n# Card\n"
     (tmp_path / mirror.CARD).write_text(card, encoding="utf-8")
 
@@ -156,21 +161,41 @@ def test_push_kaggle_uploads_files_then_versions(tmp_path, monkeypatch):
         version = rx.post(version_url).mock(
             return_value=Response(200, json={"url": "https://www.kaggle.com/datasets/o/s"})
         )
+        current = {"title": "old", "isPrivate": False, "keywords": ["x"],
+                   "collaborators": [{"username": "friend", "role": "writer"}]}
+        rx.post(f"{mirror.KAGGLE_API}/datasets.DatasetApiService/GetDatasetMetadata").mock(
+            return_value=Response(200, json={"info": current}))
+        meta_url = f"{mirror.KAGGLE_API}/datasets.DatasetApiService/UpdateDatasetMetadata"
+        meta = rx.post(meta_url).mock(return_value=Response(200, json={}))
         url = mirror.push_kaggle(tmp_path, "o/s", now=NOW)
 
     assert url == "https://www.kaggle.com/datasets/o/s"
     first = json.loads(start.calls[0].request.content)
     assert first["type"] == "DATASET" and first["name"] == mirror.PARQUET
-    assert first["contentLength"] == 2
+    assert first["contentLength"] == len(pq_bytes)
     assert start.calls[0].request.headers["Authorization"] == "Bearer KGAT_test"
-    assert put1.calls[0].request.content == b"pq" and put2.calls[0].request.content == b"csvgz"
+    assert put1.calls[0].request.content == pq_bytes and put2.calls[0].request.content == b"csvgz"
     # The pre-signed upload URL must not receive Kaggle credentials.
     assert "Authorization" not in put1.calls[0].request.headers
     body = json.loads(version.calls[0].request.content)
     assert body["ownerSlug"] == "o" and body["datasetSlug"] == "s"
-    assert body["body"]["files"] == [{"token": "t1"}, {"token": "t2"}]
+    files = body["body"]["files"]
+    assert [f["token"] for f in files] == ["t1", "t2"]
+    assert files[0]["description"] == mirror.FILE_DOCS[mirror.PARQUET]
+    assert [c["name"] for c in files[0]["columns"]] == mirror.COLUMNS
+    assert files[0]["columns"][1] == {"order": 1, "name": "state", "type": "province",
+                                      "description": mirror.COLUMN_DOCS["state"][1]}
     assert body["body"]["versionNotes"] == "Weekly snapshot 2026-10-16"
     assert body["body"]["description"] == "# Card\n"
+    settings = json.loads(meta.calls[0].request.content)["settings"]
+    assert settings["title"] == "US WARN Act Layoff Notices 1990-2026"  # 1901 typo ignored
+    assert settings["isPrivate"] is False
+    assert settings["collaborators"] == current["collaborators"]
+    assert settings["licenses"] == [{"name": "CC-BY-4.0"}]
+    assert settings["expectedUpdateFrequency"] == "weekly"
+    assert settings["keywords"] == mirror.KAGGLE_KEYWORDS
+    assert settings["description"] == "# Card\n" and settings["subtitle"] == mirror.KAGGLE_SUBTITLE
+    assert "https://warnindex.com/methodology" in settings["userSpecifiedSources"]
 
 
 def test_push_kaggle_surfaces_api_error(tmp_path, monkeypatch):
@@ -239,3 +264,39 @@ def test_cli_kaggle_still_runs_when_hf_fails(db, tmp_path, monkeypatch):
     )
     assert kaggle == ["o/s"]
     assert result.exit_code != 0 and "hub down" in result.output
+
+
+def test_column_docs_cover_every_column():
+    assert list(mirror.COLUMN_DOCS) == mirror.COLUMNS
+    assert set(mirror.FILE_DOCS) == {mirror.PARQUET, mirror.CSV_GZ}
+    assert not any("|" in desc for _, desc in mirror.COLUMN_DOCS.values())  # card table
+    assert 20 <= len(mirror.KAGGLE_SUBTITLE) <= 80  # Kaggle's subtitle limits
+
+
+def test_kaggle_settings_never_changes_visibility(monkeypatch):
+    settings = mirror.kaggle_settings({"isPrivate": True, "title": "x"}, "T", "D")
+    assert settings["isPrivate"] is True  # carried over, never forced
+    assert "collaborators" not in mirror.kaggle_settings({}, "T", "D")
+
+
+def test_metadata_failure_does_not_fail_the_push(tmp_path, monkeypatch):
+    import respx
+    from httpx import Response
+
+    _clear_kaggle_env(monkeypatch)
+    monkeypatch.setenv("KAGGLE_API_TOKEN", "KGAT_test")
+    pd.DataFrame({"notice_date": [date(2026, 1, 1)]}).to_parquet(tmp_path / mirror.PARQUET)
+    (tmp_path / mirror.CSV_GZ).write_bytes(b"x")
+    (tmp_path / mirror.CARD).write_text("# Card", encoding="utf-8")
+    with respx.mock:
+        respx.post(f"{mirror.KAGGLE_API}/blobs.BlobApiService/StartBlobUpload").mock(
+            return_value=Response(200, json={"token": "t", "createUrl": "https://upload.test/x"}))
+        respx.put("https://upload.test/x").mock(return_value=Response(200))
+        respx.post(f"{mirror.KAGGLE_API}/datasets.DatasetApiService/CreateDatasetVersion").mock(
+            return_value=Response(200, json={}))
+        get = respx.post(f"{mirror.KAGGLE_API}/datasets.DatasetApiService/GetDatasetMetadata").mock(
+            return_value=Response(500))
+        update = respx.post(
+            f"{mirror.KAGGLE_API}/datasets.DatasetApiService/UpdateDatasetMetadata")
+        assert mirror.push_kaggle(tmp_path, "o/s", now=NOW).endswith("/o/s")
+    assert get.called and not update.called  # no blind write when the read fails
