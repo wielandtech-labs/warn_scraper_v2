@@ -12,6 +12,11 @@ from warn_v2.states import state_name
 # fewer than graphemes, so staying under 300 code points is always safe.
 MAX_POST_CHARS = 300
 
+# Added to Bluesky posts only, so keyword and hashtag feeds pick them up.
+# Bluesky needs a tag facet for each (bluesky.tag_facets); chat webhooks
+# get no hashtags.
+BLUESKY_HASHTAGS = ("#layoffs", "#WARNAct")
+
 
 def notice_url(notice: Notice) -> str:
     return f"{site_base_url()}/notices/{notice.notice_id}"
@@ -23,11 +28,13 @@ def place(notice: Notice) -> str:
     return f"{local}, {notice.state}" if local else (state_name(notice.state) or notice.state)
 
 
-def render_post(notice: Notice) -> str:
-    """The alert text; the notice URL is always the last line. The employer
-    name is truncated with an ellipsis when the post would run over the limit."""
+def render_post(notice: Notice, hashtags: tuple[str, ...] = ()) -> str:
+    """The alert text; the notice URL is always the last line, with any
+    `hashtags` on the line before it. The employer name is truncated with an
+    ellipsis when the post would run over the limit."""
     count = f"{notice.layoff_count:,}" if notice.layoff_count is not None else "Not published"
     effective = fmt_date(notice.effective_date) or "Pending"
+    tags = f"{' '.join(hashtags)}\n" if hashtags else ""
 
     def build(employer: str) -> str:
         return (
@@ -36,6 +43,7 @@ def render_post(notice: Notice) -> str:
             f"• Action: {closure_label(notice.closure_category)}\n"
             f"• Location: {place(notice)}\n"
             f"• Effective: {effective}\n\n"
+            f"{tags}"
             f"{notice_url(notice)}"
         )
 

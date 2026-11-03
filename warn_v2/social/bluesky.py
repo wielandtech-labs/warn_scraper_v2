@@ -13,6 +13,8 @@ from typing import Any
 
 import httpx
 
+from warn_v2.social.format import BLUESKY_HASHTAGS
+
 SERVICE = "https://bsky.social"
 
 
@@ -30,6 +32,24 @@ def link_facet(text: str, url: str) -> dict[str, Any]:
     }
 
 
+def tag_facets(text: str, hashtags: tuple[str, ...] = BLUESKY_HASHTAGS) -> list[dict[str, Any]]:
+    """Tag facets for the last occurrence of each of `hashtags` (render_post
+    puts them on the line above the link). Without a facet Bluesky shows a
+    hashtag as plain text and tag feeds don't index it. Only our own tags are
+    marked, so a "#" in an employer name never becomes a tag."""
+    facets = []
+    for tag in hashtags:
+        start = text.rfind(tag)
+        if start < 0:
+            continue
+        byte_start = len(text[:start].encode("utf-8"))
+        facets.append({
+            "index": {"byteStart": byte_start, "byteEnd": byte_start + len(tag.encode("utf-8"))},
+            "features": [{"$type": "app.bsky.richtext.facet#tag", "tag": tag.lstrip("#")}],
+        })
+    return facets
+
+
 def build_record(
     text: str, url: str, title: str, description: str, thumb: dict[str, Any] | None,
     now: datetime,
@@ -42,7 +62,7 @@ def build_record(
         "text": text,
         "createdAt": now.astimezone(UTC).isoformat().replace("+00:00", "Z"),
         "langs": ["en"],
-        "facets": [link_facet(text, url)],
+        "facets": [*tag_facets(text), link_facet(text, url)],
         "embed": {"$type": "app.bsky.embed.external", "external": external},
     }
 

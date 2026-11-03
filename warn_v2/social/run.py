@@ -24,7 +24,7 @@ from warn_v2.api.og_cards import notice_card_png
 from warn_v2.db.models import Notice, NoticeSocialPost
 from warn_v2.social import bluesky, webhook
 from warn_v2.social.candidates import select_candidates
-from warn_v2.social.format import notice_url, render_post
+from warn_v2.social.format import BLUESKY_HASHTAGS, notice_url, render_post
 
 log = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ def _run_platform(
     posted = 0
     for notice in notices:
         nid = notice.notice_id
-        text = render_post(notice)
+        text = render_post(notice, BLUESKY_HASHTAGS if platform == "bluesky" else ())
         if dry_run:
             log.info("post-alerts [dry-run] %s %s:\n%s", platform, nid, text)
             posted += 1
