@@ -33,6 +33,10 @@ spec:
                 - --push
                 - --repo
                 - {{ .Values.publicMirror.repo | quote }}
+                {{- with .Values.publicMirror.kaggle.dataset }}
+                - --kaggle
+                - {{ . | quote }}
+                {{- end }}
               env:
                 {{- include "warn-v2.envSecrets" . | nindent 16 }}
                 - name: HF_TOKEN
@@ -44,6 +48,13 @@ spec:
                        at the scratch volume, not the image's home dir. */}}
                 - name: HF_HOME
                   value: /work/hf
+                {{- if .Values.publicMirror.kaggle.dataset }}
+                - name: KAGGLE_API_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.publicMirror.kaggle.secretName }}
+                      key: {{ .Values.publicMirror.kaggle.secretKey }}
+                {{- end }}
               volumeMounts:
                 - name: work
                   mountPath: /work

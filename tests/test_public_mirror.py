@@ -112,3 +112,130 @@ def test_cli_push_without_token_fails(db, tmp_path, monkeypatch):
     args = ["export-public-mirror", "--out", str(tmp_path), "--push"]
     result = CliRunner().invoke(cli.main, args)
     assert result.exit_code != 0 and "HF_TOKEN" in result.output
+
+
+KAGGLE_ENV = ("KAGGLE_API_TOKEN", "KAGGLE_USERNAME", "KAGGLE_KEY")
+
+
+def _clear_kaggle_env(monkeypatch):
+    for var in KAGGLE_ENV:
+        monkeypatch.delenv(var, raising=False)
+
+
+def test_card_body_strips_front_matter():
+    card = mirror.render_card(pd.DataFrame(columns=mirror.COLUMNS), NOW)
+    body = mirror.card_body(card)
+    assert body.startswith("# WARN Index: US WARN Act Layoff Dataset")
+    assert "configs:" not in body and "license: cc-by-4.0" not in body
+    assert mirror.card_body("# no front matter") == "# no front matter"
+
+
+def test_push_kaggle_uploads_files_then_versions(tmp_path, monkeypatch):
+    import json
+
+    import respx
+    from httpx import Response
+
+    _clear_kaggle_env(monkeypatch)
+    monkeypatch.setenv("KAGGLE_API_TOKEN", "KGAT_test")
+    for name, body in ((mirror.PARQUET, b"pq"), (mirror.CSV_GZ, b"csvgz")):
+        (tmp_path / name).write_bytes(body)
+    card = "---\nlicense: cc-by-4.0\n---\n\n# Card\n"
+    (tmp_path / mirror.CARD).write_text(card, encoding="utf-8")
+
+    with respx.mock(assert_all_called=True) as rx:
+        start = rx.post(f"{mirror.KAGGLE_API}/blobs.BlobApiService/StartBlobUpload").mock(
+            side_effect=[
+                Response(200, json={"token": "t1", "createUrl": "https://upload.test/1"}),
+                Response(200, json={"token": "t2", "createUrl": "https://upload.test/2"}),
+            ]
+        )
+        put1 = rx.put("https://upload.test/1").mock(return_value=Response(200))
+        put2 = rx.put("https://upload.test/2").mock(return_value=Response(200))
+        version_url = f"{mirror.KAGGLE_API}/datasets.DatasetApiService/CreateDatasetVersion"
+        version = rx.post(version_url).mock(
+            return_value=Response(200, json={"url": "https://www.kaggle.com/datasets/o/s"})
+        )
+        url = mirror.push_kaggle(tmp_path, "o/s", now=NOW)
+
+    assert url == "https://www.kaggle.com/datasets/o/s"
+    first = json.loads(start.calls[0].request.content)
+    assert first["type"] == "DATASET" and first["name"] == mirror.PARQUET
+    assert first["contentLength"] == 2
+    assert start.calls[0].request.headers["Authorization"] == "Bearer KGAT_test"
+    assert put1.calls[0].request.content == b"pq" and put2.calls[0].request.content == b"csvgz"
+    # The pre-signed upload URL must not receive Kaggle credentials.
+    assert "Authorization" not in put1.calls[0].request.headers
+    body = json.loads(version.calls[0].request.content)
+    assert body["ownerSlug"] == "o" and body["datasetSlug"] == "s"
+    assert body["body"]["files"] == [{"token": "t1"}, {"token": "t2"}]
+    assert body["body"]["versionNotes"] == "Weekly snapshot 2026-10-16"
+    assert body["body"]["description"] == "# Card\n"
+
+
+def test_push_kaggle_surfaces_api_error(tmp_path, monkeypatch):
+    import pytest
+    import respx
+    from httpx import Response
+
+    _clear_kaggle_env(monkeypatch)
+    monkeypatch.setenv("KAGGLE_USERNAME", "u")
+    monkeypatch.setenv("KAGGLE_KEY", "k")
+    for name in (mirror.PARQUET, mirror.CSV_GZ, mirror.CARD):
+        (tmp_path / name).write_text("x", encoding="utf-8")
+    with respx.mock:
+        respx.post(f"{mirror.KAGGLE_API}/blobs.BlobApiService/StartBlobUpload").mock(
+            return_value=Response(200, json={"token": "t", "createUrl": "https://upload.test/x"})
+        )
+        respx.put("https://upload.test/x").mock(return_value=Response(200))
+        respx.post(f"{mirror.KAGGLE_API}/datasets.DatasetApiService/CreateDatasetVersion").mock(
+            return_value=Response(200, json={"error": "Dataset not found"})
+        )
+        with pytest.raises(RuntimeError, match="Dataset not found"):
+            mirror.push_kaggle(tmp_path, "o/s", now=NOW)
+
+
+def test_push_kaggle_rejects_bad_handle(tmp_path):
+    import pytest
+
+    with pytest.raises(ValueError, match="owner/slug"):
+        mirror.push_kaggle(tmp_path, "just-a-slug")
+
+
+def test_cli_kaggle_pushes(db, tmp_path, monkeypatch):
+    calls = []
+    _clear_kaggle_env(monkeypatch)
+    monkeypatch.setenv("KAGGLE_API_TOKEN", "KGAT_test")
+    monkeypatch.setattr(mirror, "push_kaggle", lambda out, handle: calls.append(handle) or "u")
+    result = CliRunner().invoke(
+        cli.main, ["export-public-mirror", "--out", str(tmp_path), "--kaggle", "o/s"]
+    )
+    assert result.exit_code == 0, result.output
+    assert calls == ["o/s"]
+
+
+def test_cli_kaggle_without_credentials_fails_before_export(db, tmp_path, monkeypatch):
+    _clear_kaggle_env(monkeypatch)
+    result = CliRunner().invoke(
+        cli.main, ["export-public-mirror", "--out", str(tmp_path / "d"), "--kaggle", "o/s"]
+    )
+    assert result.exit_code != 0 and "KAGGLE_API_TOKEN" in result.output
+    assert not (tmp_path / "d").exists()
+
+
+def test_cli_kaggle_still_runs_when_hf_fails(db, tmp_path, monkeypatch):
+    kaggle = []
+
+    def hf_fails(out, repo, token):
+        raise RuntimeError("hub down")
+
+    _clear_kaggle_env(monkeypatch)
+    monkeypatch.setenv("HF_TOKEN", "hf_test")
+    monkeypatch.setenv("KAGGLE_API_TOKEN", "KGAT_test")
+    monkeypatch.setattr(mirror, "push_mirror", hf_fails)
+    monkeypatch.setattr(mirror, "push_kaggle", lambda out, handle: kaggle.append(handle) or "u")
+    result = CliRunner().invoke(
+        cli.main, ["export-public-mirror", "--out", str(tmp_path), "--push", "--kaggle", "o/s"]
+    )
+    assert kaggle == ["o/s"]
+    assert result.exit_code != 0 and "hub down" in result.output
