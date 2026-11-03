@@ -300,3 +300,58 @@ def test_metadata_failure_does_not_fail_the_push(tmp_path, monkeypatch):
             f"{mirror.KAGGLE_API}/datasets.DatasetApiService/UpdateDatasetMetadata")
         assert mirror.push_kaggle(tmp_path, "o/s", now=NOW).endswith("/o/s")
     assert get.called and not update.called  # no blind write when the read fails
+
+
+def test_apply_kaggle_metadata_docs_existing_files_and_cover(tmp_path, monkeypatch):
+    import json
+
+    import respx
+    from httpx import Response
+
+    _clear_kaggle_env(monkeypatch)
+    monkeypatch.setenv("KAGGLE_API_TOKEN", "KGAT_test")
+    pd.DataFrame({"notice_date": [date(1989, 3, 1), date(2026, 9, 1)]}).to_parquet(
+        tmp_path / mirror.PARQUET)
+    (tmp_path / mirror.CARD).write_text("---\nx: y\n---\n# Card\n", encoding="utf-8")
+    info = {"isPrivate": False, "data": [{"name": mirror.PARQUET}, {"name": "other.txt"}]}
+    api = mirror.KAGGLE_API
+    with respx.mock(assert_all_called=True) as rx:
+        rx.post(f"{api}/datasets.DatasetApiService/GetDatasetMetadata").mock(
+            return_value=Response(200, json={"info": info}))
+        start = rx.post(f"{api}/blobs.BlobApiService/StartBlobUpload").mock(
+            return_value=Response(200, json={"token": "img", "createUrl": "https://upload.test/c"}))
+        rx.put("https://upload.test/c").mock(return_value=Response(200))
+        meta = rx.post(f"{api}/datasets.DatasetApiService/UpdateDatasetMetadata").mock(
+            return_value=Response(200, json={}))
+        mirror.apply_kaggle_metadata(tmp_path, "o/s", mirror.KAGGLE_COVER, now=NOW)
+    # Metadata only: respx rejects any unmocked call, e.g. CreateDatasetVersion.
+    upload = json.loads(start.calls[0].request.content)
+    assert upload["type"] == "INBOX" and upload["name"] == "kaggle-cover.png"
+    settings = json.loads(meta.calls[0].request.content)["settings"]
+    assert settings["title"] == "US WARN Act Layoff Notices 1989-2026"
+    assert settings["description"] == "# Card\n"
+    assert settings["image"] == {"token": "img", "cropRectangles": mirror.COVER_CROPS}
+    assert [f["name"] for f in settings["data"]] == [mirror.PARQUET]  # unknown files untouched
+    zip_col = next(c for c in settings["data"][0]["columns"] if c["name"] == "zip")
+    assert zip_col["type"] == "postalcode"
+
+
+def test_cover_fits_kaggle_crops():
+    from PIL import Image
+
+    with Image.open(mirror.KAGGLE_COVER) as img:
+        assert img.size == (1120, 560)  # >= 560x280, 2:1
+    for crop in mirror.COVER_CROPS:
+        assert crop["left"] + crop["width"] <= 1120 and crop["top"] + crop["height"] <= 560
+
+
+def test_cli_kaggle_metadata(db, tmp_path, monkeypatch):
+    calls = []
+    _clear_kaggle_env(monkeypatch)
+    monkeypatch.setenv("KAGGLE_API_TOKEN", "KGAT_test")
+    monkeypatch.setattr(mirror, "apply_kaggle_metadata",
+                        lambda out, handle, cover: calls.append((handle, cover)))
+    result = CliRunner().invoke(cli.main, ["kaggle-metadata", "--out", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert calls == [(mirror.KAGGLE_DATASET, mirror.KAGGLE_COVER)]
+    assert (tmp_path / mirror.CARD).exists()
