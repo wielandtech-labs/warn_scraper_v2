@@ -98,7 +98,7 @@ _CONTENT_PAGES: dict[str, tuple[str, str]] = {
     "/donate": (
         "Donate — Support the Free WARN Layoff Tracker — WARN Index",
         "WARN Index is free and open source, with no ads and no paywall. Support "
-        "the daily WARN layoff tracker with a Bitcoin or Ethereum donation.",
+        "the daily WARN layoff tracker with a Bitcoin, Ethereum, or Litecoin donation.",
     ),
     "/api-docs": (
         "WARN Dataset & API — Layoff Database Access — WARN Index",

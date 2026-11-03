@@ -38,6 +38,13 @@ export const DONATION_COINS: DonationCoin[] = [
     uri: "ethereum:0xeE79a5116F506c989A9D2683c7f675E11253f816",
     note: "Also accepts ERC-20 tokens such as USDC. Send on Ethereum mainnet only.",
   },
+  {
+    id: "ltc",
+    name: "Litecoin",
+    symbol: "LTC",
+    address: "ltc1qm36cfdh9a99z9qse3hdu5uxetwndq6g9de8fzx",
+    uri: "litecoin:ltc1qm36cfdh9a99z9qse3hdu5uxetwndq6g9de8fzx",
+  },
 ];
 
 export const SOURCE_URL =
