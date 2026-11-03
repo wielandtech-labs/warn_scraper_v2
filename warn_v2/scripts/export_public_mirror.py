@@ -44,6 +44,12 @@ KAGGLE_KEYWORDS = [
     "tabular", "time series analysis", "geospatial analysis",
 ]
 WARN_ACT_YEAR = 1988  # the WARN Act was signed in 1988; earlier dates are source typos
+# 1120x560 cover (2:1 header); everything sits in the centre square, the thumbnail.
+KAGGLE_COVER = Path(__file__).parent / "assets" / "kaggle-cover.png"
+COVER_CROPS = [
+    {"title": "cover image", "top": 0, "left": 0, "width": 1120, "height": 560},
+    {"title": "thumbnail", "top": 0, "left": 280, "width": 560, "height": 560},
+]
 
 # column -> (Kaggle data type, description). One entry per COLUMNS, in order.
 COLUMN_DOCS: dict[str, tuple[str, str]] = {
@@ -331,15 +337,61 @@ def kaggle_settings(current: dict, title: str, description: str) -> dict:
     }
 
 
+def _upload_cover(client: httpx.Client, cover: Path) -> dict:
+    data = cover.read_bytes()
+    start = _kaggle_call(client, "blobs.BlobApiService/StartBlobUpload", {
+        "type": "INBOX",
+        "name": cover.name,
+        "contentType": "image/png",
+        "contentLength": len(data),
+        "lastModifiedEpochSeconds": int(cover.stat().st_mtime),
+    })
+    put = httpx.put(start["createUrl"], content=data, timeout=120,
+                    headers={"Content-Type": "application/octet-stream"})
+    put.raise_for_status()
+    return {"token": start["token"], "cropRectangles": COVER_CROPS}
+
+
 def update_kaggle_metadata(
-    client: httpx.Client, owner: str, slug: str, title: str, description: str
-) -> None:
+    client: httpx.Client, owner: str, slug: str, title: str, description: str,
+    *, file_docs: bool = False, cover: Path | None = None,
+) -> dict:
+    """Read the current metadata, then write ours over it. Returns the old info.
+
+    file_docs: also describe the files already on Kaggle (new versions carry
+    their own). cover: also upload this image as the cover and thumbnail.
+    """
     ids = {"ownerSlug": owner, "datasetSlug": slug}
     got = _kaggle_call(client, "datasets.DatasetApiService/GetDatasetMetadata", ids)
     if got.get("errorMessage") or "info" not in got:
         raise RuntimeError(f"Kaggle metadata read failed: {got.get('errorMessage')}")
+    settings = kaggle_settings(got["info"], title, description)
+    if file_docs:
+        settings["data"] = [
+            {"name": f["name"], "description": FILE_DOCS[f["name"]],
+             "columns": [{"name": c, "description": COLUMN_DOCS[c][1], "type": COLUMN_DOCS[c][0]}
+                         for c in COLUMNS]}
+            for f in got["info"].get("data") or [] if f.get("name") in FILE_DOCS
+        ]
+    if cover is not None:
+        settings["image"] = _upload_cover(client, cover)
     resp = _kaggle_call(client, "datasets.DatasetApiService/UpdateDatasetMetadata",
-                        {**ids, "settings": kaggle_settings(got["info"], title, description)})
+                        {**ids, "settings": settings})
     if resp.get("errors"):
         raise RuntimeError(f"Kaggle metadata update errors: {resp['errors']}")
     log.info("Kaggle metadata updated for %s/%s", owner, slug)
+    return got["info"]
+
+
+def apply_kaggle_metadata(out_dir: Path, handle: str, cover: Path | None,
+                          now: datetime | None = None) -> None:
+    """One-off: metadata + existing-file docs (+ cover) without a new version."""
+    owner, _, slug = handle.partition("/")
+    now = now or datetime.now(UTC)
+    auth = kaggle_auth()
+    headers = auth if isinstance(auth, dict) else {}
+    basic = auth if isinstance(auth, httpx.BasicAuth) else None
+    description = card_body((out_dir / CARD).read_text(encoding="utf-8"))
+    with httpx.Client(headers=headers, auth=basic, timeout=120) as client:
+        update_kaggle_metadata(client, owner, slug, kaggle_title(out_dir, now), description,
+                               file_docs=True, cover=cover)

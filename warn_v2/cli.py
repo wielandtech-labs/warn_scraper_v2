@@ -1739,6 +1739,35 @@ def export_public_mirror_cmd(
         raise click.ClickException("; ".join(failed))
 
 
+@main.command("kaggle-metadata")
+@click.option("--out", "out_dir", type=click.Path(file_okay=False, path_type=Path),
+              default="dist", show_default=True)
+@click.option("--kaggle", "kaggle_dataset", envvar="KAGGLE_DATASET", metavar="OWNER/SLUG",
+              default="warnindex/us-warn-act-layoff-notices-1989-2026", show_default=True)
+@click.option("--cover/--no-cover", default=True, show_default=True,
+              help="Also upload the bundled cover image")
+def kaggle_metadata_cmd(out_dir: Path, kaggle_dataset: str, cover: bool) -> None:
+    """Fill in the Kaggle dataset's metadata without pushing a new version.
+
+    Writes the snapshot to --out (for the title's year span and the card),
+    then sets title, subtitle, description, keywords, license, frequency,
+    sources, the docs of the files already on Kaggle and, by default, the
+    cover image. Needs KAGGLE_API_TOKEN.
+    """
+    from warn_v2.db.session import session_scope
+    from warn_v2.scripts import export_public_mirror as mirror
+
+    try:
+        mirror.kaggle_auth()
+    except RuntimeError as e:
+        raise click.UsageError(str(e)) from e
+    with session_scope() as session:
+        mirror.write_mirror(session, out_dir)
+    mirror.apply_kaggle_metadata(out_dir, kaggle_dataset,
+                                 mirror.KAGGLE_COVER if cover else None)
+    click.echo(f"updated metadata on https://www.kaggle.com/datasets/{kaggle_dataset}")
+
+
 @main.command("issue-key")
 @click.option("--email", required=True)
 @click.option("--name", default=None, help="Label shown in key listings")
