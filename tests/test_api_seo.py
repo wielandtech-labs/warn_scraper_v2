@@ -198,6 +198,15 @@ def test_sitemap_lists_all_states_and_content(api_client):
         assert f"{base}{path}" in locs
 
 
+def test_donate_page_has_meta_and_is_in_sitemap(api_client):
+    assert "/donate" in content_page_paths()
+    meta = page_meta_for_path("/donate")
+    assert "Donate" in meta.title
+    assert not meta.noindex
+    locs = api_client.get("/sitemaps/pages.xml").text
+    assert f"{site_base_url()}/donate" in locs
+
+
 # --- RSS feeds --------------------------------------------------------------
 
 def test_feed_rss_returns_recent_notices(api_client, db):

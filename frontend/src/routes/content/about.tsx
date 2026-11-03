@@ -19,6 +19,7 @@ export function AboutPage() {
         WARN Index is free. Browsing needs no account, email alerts and API keys
         cost nothing, and the{" "}
         <a href="https://huggingface.co/datasets/warn-index/us-warn-layoffs">full dataset</a> is a free download under CC BY 4.0.
+        If it helps you, you can <a href="/donate">support it with a donation</a>.
       </p>
 
       <h2>Why the WARN layoff tracker exists</h2>

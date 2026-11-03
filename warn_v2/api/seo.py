@@ -95,6 +95,11 @@ _CONTENT_PAGES: dict[str, tuple[str, str]] = {
         "Citation formats (BibTeX, APA, MLA), newsroom fast facts, and bulk dataset "
         "access for journalists and economic researchers citing WARN Index.",
     ),
+    "/donate": (
+        "Donate — Support the Free WARN Layoff Tracker — WARN Index",
+        "WARN Index is free and open source, with no ads and no paywall. Support "
+        "the daily WARN layoff tracker with a Bitcoin or Ethereum donation.",
+    ),
     "/api-docs": (
         "WARN Dataset & API — Layoff Database Access — WARN Index",
         "Access the complete WARN dataset and layoff database via public REST "
