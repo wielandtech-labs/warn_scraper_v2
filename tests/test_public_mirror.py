@@ -70,7 +70,9 @@ def test_write_mirror_files_and_card(db, tmp_path):
     assert "2019-01-05 to 2026-09-01" in card
     assert "from 2 state" in card
     assert "author = {{WARN Index}}" in card
-    assert "howpublished = {\\url{https://warnindex.com}}" in card
+    assert "howpublished = {\\url{https://warnindex.com}}," in card
+    assert "doi = {10.5281/zenodo.23902958}" in card
+    assert "](https://doi.org/10.5281/zenodo.23902958)" in card
     assert "employee_count" not in card
 
 

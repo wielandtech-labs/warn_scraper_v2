@@ -56,22 +56,27 @@ export function CitedByPage() {
 
   const badgeSnippet = stateBadgeSnippet("https://warnindex.com", "CA", "California");
 
+  // Zenodo concept DOI: always resolves to the newest archived snapshot.
+  const doi = "10.5281/zenodo.23902958";
+
   const bibtex = `@misc{warnindex2026,
   author = {{WARN Index}},
-  title = {Nationwide Worker Adjustment and Retraining Notification (WARN) Layoff Dataset},
+  title = {WARN Index: US WARN Act Layoff Notices Dataset},
   year = {2026},
+  publisher = {Zenodo},
+  doi = {${doi}},
   howpublished = {\\url{https://warnindex.com}},
-  note = {Daily aggregated WARN Act filings from 50 US state labor departments}
+  note = {Daily aggregated WARN Act filings from US state labor departments}
 }`;
 
   const apa =
-    "WARN Index. (2026). Nationwide WARN Act Layoff Dataset & Tracker. Retrieved from https://warnindex.com";
+    `WARN Index. (2026). WARN Index: US WARN Act layoff notices dataset [Data set]. Zenodo. https://doi.org/${doi}`;
 
   const mla =
-    '"Nationwide WARN Act Layoff Dataset." WARN Index, 2026, https://warnindex.com.';
+    `WARN Index. "WARN Index: US WARN Act Layoff Notices Dataset." Zenodo, 2026, https://doi.org/${doi}.`;
 
   const chicago =
-    'WARN Index. 2026. "Nationwide WARN Act Layoff Dataset." Accessed 2026. https://warnindex.com.';
+    `WARN Index. 2026. "WARN Index: US WARN Act Layoff Notices Dataset." Zenodo. https://doi.org/${doi}.`;
 
   return (
     <ContentPage

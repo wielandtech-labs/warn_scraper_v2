@@ -27,6 +27,8 @@ COLUMNS = [*NOTICE_PUBLIC_COLS, "detail_url"]
 PARQUET = "warn_dataset.parquet"
 CSV_GZ = "warn_dataset.csv.gz"
 CARD = "README.md"
+# Zenodo concept DOI: resolves to the newest archived snapshot.
+ZENODO_DOI = "10.5281/zenodo.23902958"
 
 
 def fetch_frame(db: Session) -> pd.DataFrame:
@@ -103,12 +105,16 @@ Index's employer matching, the NAICS fields its industry classification, and
 
 CC BY 4.0. Please credit **WARN Index** with a link to {base}.
 
+Archived snapshots with a citable DOI are on Zenodo:
+[{ZENODO_DOI}](https://doi.org/{ZENODO_DOI}) (always the newest version).
+
 ```bibtex
 @misc{{warnindex{generated.year},
   author = {{{{WARN Index}}}},
   title = {{US Worker Adjustment and Retraining Notification (WARN) Layoff Dataset}},
   year = {{{generated.year}}},
-  howpublished = {{\\url{{{base}}}}}
+  howpublished = {{\\url{{{base}}}}},
+  doi = {{{ZENODO_DOI}}}
 }}
 ```
 """

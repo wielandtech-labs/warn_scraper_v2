@@ -232,6 +232,8 @@ def _dataset_json_ld() -> dict[str, Any]:
         ],
         "isAccessibleForFree": True,
         "license": "https://creativecommons.org/licenses/by/4.0/",
+        # Zenodo concept DOI (newest archived snapshot), for Dataset Search.
+        "identifier": "https://doi.org/10.5281/zenodo.23902958",
         "spatialCoverage": {
             "@type": "Place",
             "name": "United States",
