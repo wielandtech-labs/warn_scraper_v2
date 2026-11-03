@@ -287,7 +287,8 @@ def _faq_json_ld(is_warn_act: bool = False) -> dict[str, Any]:
             (
                 "Is WARN Index free?",
                 "Yes. Browsing, email alerts, API keys, and the full dataset download "
-                "are free. The data is licensed CC BY 4.0: use it with attribution.",
+                "are free. The data is licensed CC BY 4.0: use it with attribution. "
+                "The source code is open source under the GNU AGPL-3.0.",
             ),
         ]
 

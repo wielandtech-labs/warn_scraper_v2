@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "WARN Scraper V2 — AI-assisted state layoff-notice collector"
 readme = "README.md"
 requires-python = ">=3.12"
-license = { text = "GPL-3.0-or-later" }
+license = { text = "AGPL-3.0-or-later" }
 authors = [{ name = "Raphael Wieland", email = "contact@wielandtech.com" }]
 
 dependencies = [
