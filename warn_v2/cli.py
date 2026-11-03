@@ -1693,25 +1693,50 @@ def export_bigquery_cmd(project: str, dataset: str, snapshot: bool, dry_run: boo
 @click.option("--push", is_flag=True, help="Upload the folder to the Hugging Face dataset repo")
 @click.option("--repo", default="warn-index/us-warn-layoffs", show_default=True,
               envvar="HF_DATASET_REPO")
-def export_public_mirror_cmd(out_dir: Path, push: bool, repo: str) -> None:
+@click.option("--kaggle", "kaggle_dataset", default=None, envvar="KAGGLE_DATASET",
+              metavar="OWNER/SLUG", help="Also push a new version of this Kaggle dataset")
+def export_public_mirror_cmd(
+    out_dir: Path, push: bool, repo: str, kaggle_dataset: str | None
+) -> None:
     """Write the public dataset snapshot (parquet + csv.gz + dataset card).
 
     Public columns only -- never provider-enriched fields. With --push,
-    uploads to Hugging Face using HF_TOKEN; exits non-zero on failure so the
-    k8s Job surfaces as Failed.
+    uploads to Hugging Face using HF_TOKEN; with --kaggle, pushes a new
+    version of an existing Kaggle dataset using KAGGLE_API_TOKEN. Each
+    destination is tried even if the other fails; any failure exits non-zero
+    so the k8s Job surfaces as Failed.
     """
     from warn_v2.db.session import session_scope
-    from warn_v2.scripts.export_public_mirror import push_mirror, write_mirror
+    from warn_v2.scripts import export_public_mirror as mirror
+
+    if push and not os.environ.get("HF_TOKEN"):
+        raise click.UsageError("--push needs HF_TOKEN")
+    if kaggle_dataset:
+        try:
+            mirror.kaggle_auth()
+        except RuntimeError as e:
+            raise click.UsageError(str(e)) from e
 
     with session_scope() as session:
-        df = write_mirror(session, out_dir)
+        df = mirror.write_mirror(session, out_dir)
     click.echo(f"wrote {len(df)} notices to {out_dir}")
+    failed = []
     if push:
-        token = os.environ.get("HF_TOKEN")
-        if not token:
-            raise click.UsageError("--push needs HF_TOKEN")
-        push_mirror(out_dir, repo, token)
-        click.echo(f"pushed to https://huggingface.co/datasets/{repo}")
+        try:
+            mirror.push_mirror(out_dir, repo, os.environ["HF_TOKEN"])
+            click.echo(f"pushed to https://huggingface.co/datasets/{repo}")
+        except Exception as e:  # still try Kaggle; fail at the end
+            logging.getLogger(__name__).exception("Hugging Face push failed")
+            failed.append(f"Hugging Face: {e}")
+    if kaggle_dataset:
+        try:
+            url = mirror.push_kaggle(out_dir, kaggle_dataset)
+            click.echo(f"pushed to {url}")
+        except Exception as e:
+            logging.getLogger(__name__).exception("Kaggle push failed")
+            failed.append(f"Kaggle: {e}")
+    if failed:
+        raise click.ClickException("; ".join(failed))
 
 
 @main.command("issue-key")

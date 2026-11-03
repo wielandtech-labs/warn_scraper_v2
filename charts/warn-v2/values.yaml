@@ -325,15 +325,24 @@ bqExport:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 500m, memory: 512Mi }
 
-# Weekly public dataset snapshot on Hugging Face (warn-v2 export-public-mirror
-# --push): public columns only, never provider-enriched fields. HF_TOKEN (a
-# write token for the dataset's org) comes from the warn-v2-hf SealedSecret.
+# Weekly public dataset snapshot on Hugging Face and optionally Kaggle
+# (warn-v2 export-public-mirror --push [--kaggle]): public columns only, never
+# provider-enriched fields. HF_TOKEN (a write token for the dataset's org)
+# comes from the warn-v2-hf SealedSecret.
 publicMirror:
   enabled: false          # flip on in HelmRelease once warn-v2-hf exists
   schedule: "37 11 * * 1" # Monday, after the daily pipeline has settled
   repo: warn-index/us-warn-layoffs
   secretName: warn-v2-hf
   secretKey: token
+  # Optional Kaggle mirror: the same job also pushes a new version of this
+  # dataset (owner/slug). Create the dataset once by hand on kaggle.com
+  # (public, CC BY 4.0) -- the API would create it private. Empty = off.
+  # KAGGLE_API_TOKEN comes from the warn-v2-kaggle SealedSecret.
+  kaggle:
+    dataset: ""
+    secretName: warn-v2-kaggle
+    secretKey: token
   resources:
     requests: { cpu: 100m, memory: 512Mi }
     limits:   { cpu: 1000m, memory: 1536Mi }
