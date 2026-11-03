@@ -29,7 +29,7 @@ DEFAULT_TITLE = "WARN Index — Free US WARN Layoff Tracker & Database"
 DEFAULT_DESCRIPTION = (
     "The free national WARN layoff tracker and database. Track, search, and map "
     "Worker Adjustment and Retraining Notification (WARN) layoffs and plant "
-    "closures across all 50 US states, updated daily."
+    "closures across all available US states, updated daily."
 )
 
 
@@ -64,7 +64,7 @@ _CONTENT_PAGES: dict[str, tuple[str, str]] = {
     "/about": (
         "About WARN Index — Free US Layoff Tracker & Database",
         "About WARN Index: a free, nationwide, daily-updated US layoff tracker and "
-        "standardized WARN database aggregating notices across all 50 state "
+        "standardized WARN database aggregating notices from all available state "
         "labor agencies.",
     ),
     "/warn-act": (
@@ -127,7 +127,7 @@ _APP_PAGES_META: dict[str, tuple[str, str]] = {
     "/map": (
         "WARN Layoff Map — Interactive US WARN Tracker — WARN Index",
         "Interactive map of US WARN layoffs and plant-closure notices across "
-        "all 50 states, filterable by state, industry, and date.",
+        "all available states, filterable by state, industry, and date.",
     ),
     "/stats": (
         "WARN Layoff Statistics & Trends — WARN Index Tracker",
@@ -292,7 +292,7 @@ def _faq_json_ld(is_warn_act: bool = False) -> dict[str, Any]:
             ),
             (
                 "Which states are covered?",
-                "All 50 US states and the District of Columbia.",
+                "All available US states and the District of Columbia.",
             ),
             (
                 "Can I download the WARN dataset or use an API?",

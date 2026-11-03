@@ -457,7 +457,7 @@ export function MiniWarnLawsPage() {
             How can I monitor WARN filings in real-time?
           </h3>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            WARN Index monitors state labor agency publications daily across all 50 states and Washington
+            WARN Index monitors state labor agency publications daily across all available states and Washington
             DC. You can search our centralized <a href="/notices">layoff database</a>, filter by employer or
             industry, or download the full <a href="/api-docs">WARN dataset</a>.
           </p>

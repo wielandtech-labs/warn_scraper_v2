@@ -104,7 +104,7 @@ export function HeroMap({ byState, bucket, after, rangeLabel, national, failed =
               Free US WARN Layoff Tracker &amp; Database
             </h1>
             <p className="mt-2 max-w-md text-sm text-slate-600 dark:text-slate-400">
-              Track Worker Adjustment and Retraining Notification (WARN) filings, plant closures, and workforce reductions across all 50 states. Free, no account needed, updated daily.
+              Track Worker Adjustment and Retraining Notification (WARN) filings, plant closures, and workforce reductions across all available states. Free, no account needed, updated daily.
             </p>
           </div>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">

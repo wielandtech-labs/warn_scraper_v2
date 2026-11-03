@@ -256,7 +256,7 @@ export function NoticesPage() {
               <span className="hidden sm:inline"> Hover a company or state for its history.</span>
             </>
           ) : (
-            "Search the complete database of Worker Adjustment and Retraining Notification (WARN) layoff notices across all 50 states."
+            "Search the complete database of Worker Adjustment and Retraining Notification (WARN) layoff notices across all available states."
           )
         }
         aside={
