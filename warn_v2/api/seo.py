@@ -173,6 +173,24 @@ def content_page_paths() -> list[str]:
     return sorted(_CONTENT_PAGES)
 
 
+# Profiles that belong to WARN Index. Listing them as sameAs lets search
+# engines tie these profiles to the site.
+ORG_PROFILES = (
+    "https://www.linkedin.com/company/warn-index/",
+    "https://huggingface.co/warn-index",
+)
+
+
+def _organization(base: str) -> dict[str, Any]:
+    return {
+        "@type": "Organization",
+        "name": "WARN Index",
+        "url": base,
+        "logo": f"{base}/apple-touch-icon.png",
+        "sameAs": list(ORG_PROFILES),
+    }
+
+
 def _dataset_json_ld() -> dict[str, Any]:
     base = site_base_url()
     return {
@@ -190,11 +208,7 @@ def _dataset_json_ld() -> dict[str, Any]:
             "Layoff database",
             "Worker Adjustment and Retraining Notification",
         ],
-        "creator": {
-            "@type": "Organization",
-            "name": "WARN Index",
-            "url": base,
-        },
+        "creator": _organization(base),
         "distribution": [
             {
                 "@type": "DataDownload",
@@ -238,6 +252,7 @@ def _website_json_ld() -> dict[str, Any]:
             "target": f"{base}/notices?employer={{search_term_string}}",
             "query-input": "required name=search_term_string",
         },
+        "publisher": _organization(base),
     }
 
 
@@ -359,16 +374,8 @@ def _mini_warn_article_json_ld() -> dict[str, Any]:
             "mini-WARN statutes in California, New York, New Jersey, Illinois, and more."
         ),
         "url": f"{base}/mini-warn-laws",
-        "author": {
-            "@type": "Organization",
-            "name": "WARN Index",
-            "url": base,
-        },
-        "publisher": {
-            "@type": "Organization",
-            "name": "WARN Index",
-            "url": base,
-        },
+        "author": _organization(base),
+        "publisher": _organization(base),
     }
 
 

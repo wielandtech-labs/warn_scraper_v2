@@ -545,3 +545,12 @@ def test_sitemaps_carry_lastmod_for_notices_and_state_pages(api_client, db):
 
     notices = api_client.get("/sitemaps/notices-0.xml").text
     assert notices.count("<lastmod>") == 3
+
+
+def test_organization_links_profiles():
+    home = page_meta_for_path("/")
+    website = next(item for item in home.json_ld if item["@type"] == "WebSite")
+    org = website["publisher"]
+    assert org["@type"] == "Organization"
+    assert "https://www.linkedin.com/company/warn-index/" in org["sameAs"]
+    assert "https://huggingface.co/warn-index" in org["sameAs"]

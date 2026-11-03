@@ -226,6 +226,8 @@ export function Layout({ children }: { children: ReactNode }) {
             <span aria-hidden>·</span>
             {/* AGPL-3.0 section 13: offer the source to network users. */}
             <a className="hover:underline" href="https://github.com/wielandtech-labs/warn_scraper_v2">Source code</a>
+            <span aria-hidden>·</span>
+            <a className="hover:underline" href="https://www.linkedin.com/company/warn-index/" rel="me">LinkedIn</a>
           </nav>
           <p>
             The free national WARN layoff tracker and database — daily Worker Adjustment and Retraining Notification filings from all 50 states.
