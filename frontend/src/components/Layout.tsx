@@ -222,12 +222,14 @@ export function Layout({ children }: { children: ReactNode }) {
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
       <footer className="mt-10 border-t border-slate-200 dark:border-slate-800">
         <div className="mx-auto max-w-7xl space-y-3 px-4 py-8 text-xs text-slate-500 dark:text-slate-400">
-          <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100">
-            <BrandMark className="h-5 w-5" />
-            <span className="font-display text-base font-semibold">WARN Index</span>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100">
+              <BrandMark className="h-5 w-5" />
+              <span className="font-display text-base font-semibold">WARN Index</span>
+            </div>
+            <InstallApp className="ml-auto text-right" />
           </div>
-          <InstallApp />
-          <nav className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <nav className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
             <Link className="hover:underline" to="/about">About</Link>
             <span aria-hidden>·</span>
             <Link className="hover:underline" to="/warn-act">What is the WARN Act?</Link>
@@ -258,7 +260,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <a className="hover:underline" href="https://www.linkedin.com/company/warn-index/" rel="me">LinkedIn</a>
           </nav>
           <p>
-            The free national WARN layoff tracker and database — daily Worker Adjustment and Retraining Notification filings from all available states.
+            The free national WARN layoff tracker and database. Daily Worker Adjustment and Retraining Notification filings from all available states.
           </p>
         </div>
       </footer>
