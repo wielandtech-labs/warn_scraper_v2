@@ -11,7 +11,7 @@ export function ApiDocsPage() {
     >
       <p>
         The WARN Index provides programmatic and bulk data access to standardized
-        Worker Adjustment and Retraining Notification (WARN) filings across all 50 US
+        Worker Adjustment and Retraining Notification (WARN) filings across all available US
         states. All read endpoints return JSON and live under <code>/api</code>. The
         full interactive reference (OpenAPI / Swagger) is at{" "}
         <a href="/docs">/docs</a>, and the raw schema at{" "}

@@ -23,7 +23,7 @@ export function FaqPage() {
 
       <h2>Which states are covered in the database?</h2>
       <p>
-        We cover all 50 US states and the District of Columbia. See our{" "}
+        We cover all available US states and the District of Columbia. See our{" "}
         <a href="/states">layoffs by state</a> directory or the{" "}
         <a href="/status">scraper status page</a> for the live health and update timestamp of every jurisdiction.
       </p>

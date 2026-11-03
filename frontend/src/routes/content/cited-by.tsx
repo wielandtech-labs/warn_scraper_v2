@@ -99,7 +99,7 @@ export function CitedByPage() {
       <h2 className="!mt-8 text-xl font-bold">Fast Facts for Newsrooms</h2>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 text-sm">
         <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="font-semibold text-slate-900 dark:text-slate-100">50-State + DC Coverage</div>
+          <div className="font-semibold text-slate-900 dark:text-slate-100">Coverage of All Available States</div>
           <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
             Automated daily scrapers continuously monitor official state workforce and labor department
             portals across the United States.

@@ -11,7 +11,7 @@ export function AboutPage() {
         <strong>WARN Index</strong> collects, standardizes, and publishes layoff notices
         filed under the federal{" "}
         <a href="/warn-act">Worker Adjustment and Retraining Notification (WARN) Act</a> and
-        state &quot;mini-WARN&quot; laws across all 50 US states and DC. We turn fragmented state
+        state &quot;mini-WARN&quot; laws across all available US states and DC. We turn fragmented state
         filings into a unified <a href="/notices">layoff database</a> that is freely searchable,
         mappable, and downloadable as a <a href="/api-docs">WARN dataset</a>.
       </p>
