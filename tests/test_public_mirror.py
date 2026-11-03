@@ -162,6 +162,7 @@ def test_push_kaggle_uploads_files_then_versions(tmp_path, monkeypatch):
             return_value=Response(200, json={"url": "https://www.kaggle.com/datasets/o/s"})
         )
         current = {"title": "old", "isPrivate": False, "keywords": ["x"],
+                   "licenses": [{"name": "CC BY 4.0", "url": "https://example"}],
                    "collaborators": [{"username": "friend", "role": "writer"}]}
         rx.post(f"{mirror.KAGGLE_API}/datasets.DatasetApiService/GetDatasetMetadata").mock(
             return_value=Response(200, json={"info": current}))
@@ -191,7 +192,7 @@ def test_push_kaggle_uploads_files_then_versions(tmp_path, monkeypatch):
     assert settings["title"] == "US WARN Act Layoff Notices 1990-2026"  # 1901 typo ignored
     assert settings["isPrivate"] is False
     assert settings["collaborators"] == current["collaborators"]
-    assert settings["licenses"] == [{"name": "CC-BY-4.0"}]
+    assert settings["licenses"] == [{"name": "CC BY 4.0"}]  # Kaggle's own name, echoed back
     assert settings["expectedUpdateFrequency"] == "weekly"
     assert settings["keywords"] == mirror.KAGGLE_KEYWORDS
     assert settings["description"] == "# Card\n" and settings["subtitle"] == mirror.KAGGLE_SUBTITLE
@@ -276,7 +277,9 @@ def test_column_docs_cover_every_column():
 def test_kaggle_settings_never_changes_visibility(monkeypatch):
     settings = mirror.kaggle_settings({"isPrivate": True, "title": "x"}, "T", "D")
     assert settings["isPrivate"] is True  # carried over, never forced
-    assert "collaborators" not in mirror.kaggle_settings({}, "T", "D")
+    bare = mirror.kaggle_settings({}, "T", "D")
+    assert "collaborators" not in bare
+    assert "licenses" not in bare  # never invent a license id Kaggle may reject
 
 
 def test_metadata_failure_does_not_fail_the_push(tmp_path, monkeypatch):

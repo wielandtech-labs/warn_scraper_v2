@@ -323,15 +323,24 @@ def kaggle_settings(current: dict, title: str, description: str) -> dict:
     description are sent again, not copied from `current`: the new version may
     still be processing, and copying would write last week's text back. File
     and column docs travel with the version itself.
+
+    The license is carried over as Kaggle reports it (set to CC BY 4.0 on
+    kaggle.com when the dataset was created). The update API rejects the
+    documented id "CC-BY-4.0" with "You've specified an invalid license", and
+    a rejected field fails the whole update.
     """
     keep = {k: current[k] for k in ("isPrivate", "collaborators") if k in current}
+    licenses = [{"name": lic["name"]} for lic in current.get("licenses") or [] if lic.get("name")]
+    if licenses:
+        keep["licenses"] = licenses
+    else:
+        log.warning("Kaggle dataset has no license; set CC BY 4.0 on kaggle.com")
     return {
         **keep,
         "title": title,
         "subtitle": KAGGLE_SUBTITLE,
         "description": description,
         "keywords": KAGGLE_KEYWORDS,
-        "licenses": [{"name": "CC-BY-4.0"}],
         "expectedUpdateFrequency": "weekly",
         "userSpecifiedSources": kaggle_sources(site_base_url()),
     }
