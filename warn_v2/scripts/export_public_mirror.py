@@ -81,12 +81,20 @@ COLUMN_DOCS: dict[str, tuple[str, str]] = {
                        "there is one (state links can go stale)."),
     "detail_url": ("url", "The notice's page on WARN Index."),
 }
+# Kaggle unpacks the uploaded .csv.gz and stores it as plain .csv.
+KAGGLE_CSV = "warn_dataset.csv"
+# Keyed by the file name as stored on Kaggle.
 FILE_DOCS = {
     PARQUET: "Every current (non-superseded) WARN notice, one row per notice, typed: dates "
              "are dates, layoff_count is a nullable integer. Best for pandas, polars, "
              "DuckDB and Spark.",
-    CSV_GZ: "The same rows and columns as the Parquet file, as gzip-compressed CSV.",
+    KAGGLE_CSV: "The same rows and columns as the Parquet file, as CSV.",
 }
+
+
+def kaggle_name(name: str) -> str:
+    """The name an uploaded file gets on Kaggle."""
+    return KAGGLE_CSV if name == CSV_GZ else name
 
 
 def fetch_frame(db: Session) -> pd.DataFrame:
@@ -264,7 +272,7 @@ def push_kaggle(out_dir: Path, handle: str, now: datetime | None = None) -> str:
             put = httpx.put(start["createUrl"], content=data, timeout=300,
                             headers={"Content-Type": "application/octet-stream"})
             put.raise_for_status()
-            tokens.append({"token": start["token"], **kaggle_file_doc(name)})
+            tokens.append({"token": start["token"], **kaggle_file_doc(kaggle_name(name))})
         description = card_body((out_dir / CARD).read_text(encoding="utf-8"))
         resp = _kaggle_call(client, "datasets.DatasetApiService/CreateDatasetVersion", {
             "ownerSlug": owner,
@@ -281,7 +289,8 @@ def push_kaggle(out_dir: Path, handle: str, now: datetime | None = None) -> str:
             raise RuntimeError(f"Kaggle rejected the version: {resp['error']}")
         # Cosmetic: the version is already in, so a metadata failure only logs.
         try:
-            update_kaggle_metadata(client, owner, slug, kaggle_title(out_dir, now), description)
+            update_kaggle_metadata(client, owner, slug, kaggle_title(out_dir, now), description,
+                                   file_docs=True)
         except Exception:
             log.exception("Kaggle metadata update failed (the new version is uploaded)")
     return resp.get("url") or f"https://www.kaggle.com/datasets/{owner}/{slug}"
@@ -367,8 +376,9 @@ def update_kaggle_metadata(
 ) -> dict:
     """Read the current metadata, then write ours over it. Returns the old info.
 
-    file_docs: also describe the files already on Kaggle (new versions carry
-    their own). cover: also upload this image as the cover and thumbnail.
+    file_docs: also describe the files on Kaggle, by the names Kaggle lists
+    them under (GetDatasetMetadata's `data` comes back empty). cover: also
+    upload this image as the cover and thumbnail.
     """
     ids = {"ownerSlug": owner, "datasetSlug": slug}
     got = _kaggle_call(client, "datasets.DatasetApiService/GetDatasetMetadata", ids)
@@ -376,11 +386,14 @@ def update_kaggle_metadata(
         raise RuntimeError(f"Kaggle metadata read failed: {got.get('errorMessage')}")
     settings = kaggle_settings(got["info"], title, description)
     if file_docs:
+        listed = _kaggle_call(client, "datasets.DatasetApiService/ListDatasetFiles", ids)
+        names = [f["name"] for f in listed.get("datasetFiles") or []
+                 if f.get("name") in FILE_DOCS] or list(FILE_DOCS)
         settings["data"] = [
-            {"name": f["name"], "description": FILE_DOCS[f["name"]],
+            {"name": n, "description": FILE_DOCS[n],
              "columns": [{"name": c, "description": COLUMN_DOCS[c][1], "type": COLUMN_DOCS[c][0]}
                          for c in COLUMNS]}
-            for f in got["info"].get("data") or [] if f.get("name") in FILE_DOCS
+            for n in names
         ]
     if cover is not None:
         settings["image"] = _upload_cover(client, cover)
