@@ -176,8 +176,17 @@ def test_ia_fetch_fails_when_event_log_link_missing(monkeypatch: pytest.MonkeyPa
 
 def test_ia_fetch_wraps_http_errors(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(httpx, "get", _fake_get({_SOURCE_URL: (404, b"")}))
-    with pytest.raises(ScrapeFailed, match="IA: fetch failed"):
+    with pytest.raises(ScrapeFailed, match=r"IA: GET .*warn/notices"):
         get_scraper("IA").fetch()
+
+
+def test_ia_fetch_finds_link_by_text_without_aria_label(monkeypatch: pytest.MonkeyPatch) -> None:
+    pages = {
+        _SOURCE_URL: (200, b'<a href="/media/9/download"><h3>WARN Event Log</h3></a>'),
+        "https://workforce.iowa.gov/media/9/download": (200, b"event-log-bytes"),
+    }
+    monkeypatch.setattr(httpx, "get", _fake_get(pages))
+    assert get_scraper("IA").fetch() == b"event-log-bytes"
 
 
 # ---------------------------------------------------------------------------

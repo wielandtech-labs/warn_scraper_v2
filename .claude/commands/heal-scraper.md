@@ -98,7 +98,7 @@ s = get_scraper(state)
 try:
     raw = s.fetch()
 except Exception as e:
-    print(f"FETCH_FAILED: {type(e).__name__}: {e}")   # transient/network — not a code bug
+    print(f"FETCH_FAILED: {type(e).__name__}: {e}")   # usually transient; see "Classify the result"
     sys.exit(0)
 try:
     rows = s.parse(raw)

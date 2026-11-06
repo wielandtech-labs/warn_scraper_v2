@@ -90,7 +90,7 @@ class IAScraper:
             r.raise_for_status()
             return r.content
         except httpx.HTTPError as e:
-            raise ScrapeFailed(f"IA: fetch failed: {e}") from e
+            raise ScrapeFailed(f"IA: GET {e.request.url}: {e}") from e
 
     def parse(self, raw: bytes) -> list[NoticeRow]:
         try:
