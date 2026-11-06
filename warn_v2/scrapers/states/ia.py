@@ -2,7 +2,10 @@
 
 Source: https://workforce.iowa.gov/employers/resources/warn/notices
 Data:   Cumulative Excel workbook (ADA-compliant version of the Tableau
-        visualization).  The file is hosted at a stable media endpoint.
+        visualization), linked from the source page as "WARN Event Log".  Each
+        re-upload gets a new media id (3025 -> 3050 -> 3276, the old one 404s),
+        so ``fetch()`` reads the current link from the page.  The sibling "WARN
+        Data by Year" workbook is an aggregate table, not notices.
 
 Excel columns (12, A-L):
   Company | Street Address | City | County | State | ZIP |
@@ -32,9 +35,11 @@ from __future__ import annotations
 import io
 from collections import defaultdict
 from datetime import date, datetime
+from urllib.parse import urljoin
 
 import httpx
 import openpyxl
+from bs4 import BeautifulSoup
 
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
@@ -42,7 +47,6 @@ from warn_v2.scrapers.bundled import DATA_DIR, load_archive
 from warn_v2.scrapers.registry import register
 
 _SOURCE_URL = "https://workforce.iowa.gov/employers/resources/warn/notices"
-_XL_URL = "https://workforce.iowa.gov/media/3050/download?inline"
 
 _UA = {
     "User-Agent": (
@@ -51,6 +55,17 @@ _UA = {
     ),
     "Referer": _SOURCE_URL,
 }
+
+
+def _discover_xl_url() -> str:
+    """Return the current "WARN Event Log" workbook URL from the source page."""
+    r = httpx.get(_SOURCE_URL, headers=_UA, timeout=60, follow_redirects=True)
+    r.raise_for_status()
+    soup = BeautifulSoup(r.content, "html.parser")
+    for a in soup.find_all("a", href=True):
+        if "warn event log" in (a.get("aria-label") or a.get_text()).lower():
+            return urljoin(_SOURCE_URL, a["href"])
+    raise ScrapeFailed(f"IA: no 'WARN Event Log' link on {_SOURCE_URL}")
 
 
 def _as_date(val: object) -> date | None:
@@ -71,11 +86,11 @@ class IAScraper:
 
     def fetch(self) -> bytes:
         try:
-            r = httpx.get(_XL_URL, headers=_UA, timeout=60, follow_redirects=True)
+            r = httpx.get(_discover_xl_url(), headers=_UA, timeout=60, follow_redirects=True)
             r.raise_for_status()
             return r.content
         except httpx.HTTPError as e:
-            raise ScrapeFailed(f"IA: GET {_XL_URL}: {e}") from e
+            raise ScrapeFailed(f"IA: GET {e.request.url}: {e}") from e
 
     def parse(self, raw: bytes) -> list[NoticeRow]:
         try:
