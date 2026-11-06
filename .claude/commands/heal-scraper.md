@@ -119,7 +119,10 @@ PY
 **Classify the result:**
 - `FETCH_FAILED` → the source is down or blocking; this is **not** a parser bug.
   Report it as transient/skipped and move on. (If many states FETCH_FAIL at once,
-  suspect the network, not the scrapers.)
+  suspect the network, not the scrapers.) **Exception:** a 404/410 from a site
+  that is otherwise up means the file moved, which is a real break. Continue to
+  step 2. When repointing a URL, check that the new file's newest notice is not
+  older than prod's: a look-alike can be a frozen copy (NV #303 did this).
 - `PARSE_RAISED` or `VALIDATE ok=False` → a **real break**. The snapshot path is
   printed; you'll replay against it. Continue.
 - `VALIDATE ok=True` → nothing to fix. Report "ok" and move on, **unless** the
