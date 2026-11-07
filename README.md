@@ -1,10 +1,69 @@
-# WARN Scraper V2
+<p align="center">
+  <a href="https://warnindex.com"><img src="frontend/public/favicon.svg" width="72" height="72" alt="WARN Index logo"></a>
+</p>
 
-AI-assisted rebuild of [warn_scrapper](https://wielandtech.com) (2022). Collects state WARN layoff notices, enriches each company via LLM + free public sources, and is built so a state's reformatted site can be repaired quickly when it breaks.
+<h1 align="center">WARN Index</h1>
 
-## Why V2
+<p align="center">
+  <b>The free US layoff tracker.</b> Every WARN Act notice from 47 states and DC,<br>
+  collected daily, cleaned, mapped and open: <a href="https://warnindex.com"><b>warnindex.com</b></a>
+</p>
 
-V1 had ~33 hand-written per-state scrapers that broke every time a state site reformatted, plus a Selenium-based commercial-data enrichment scraper that was the main source of bad data. V2 keeps the original "Headhunter" goal — surface workers ~60 days before layoff — but minimizes the maintenance burden: the fetch/parse split saves a replayable snapshot on every failure, so a broken parser is reproduced and fixed with a single Claude Code op (see [Repairing a broken scraper](#repairing-a-broken-scraper)).
+<p align="center">
+  <a href="https://github.com/wielandtech-labs/warn_scraper_v2/actions/workflows/ci.yml"><img src="https://github.com/wielandtech-labs/warn_scraper_v2/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/code-AGPL--3.0-blue" alt="Code license: AGPL-3.0"></a>
+  <a href="https://creativecommons.org/licenses/by/4.0/"><img src="https://img.shields.io/badge/data-CC%20BY%204.0-lightgrey" alt="Data license: CC BY 4.0"></a>
+  <a href="https://doi.org/10.5281/zenodo.23902958"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.23902958.svg" alt="DOI"></a>
+  <br>
+  <a href="https://huggingface.co/datasets/warn-index/us-warn-layoffs"><img src="https://img.shields.io/badge/Hugging%20Face-dataset-FFD21E?logo=huggingface&logoColor=black" alt="Hugging Face dataset"></a>
+  <a href="https://www.kaggle.com/datasets/warnindex/us-warn-act-layoff-notices-1989-2026"><img src="https://img.shields.io/badge/Kaggle-dataset-20BEFF?logo=kaggle&logoColor=white" alt="Kaggle dataset"></a>
+  <a href="https://bsky.app/profile/warnindex.com"><img src="https://img.shields.io/badge/Bluesky-%40warnindex.com-1185FE?logo=bluesky&logoColor=white" alt="Bluesky: @warnindex.com"></a>
+</p>
+
+<p align="center">
+  <a href="https://warnindex.com">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/img/hero-dark.png">
+      <img src="docs/img/hero-light.png" alt="The WARN Index dashboard: workers affected, notices and a map of layoffs by state" width="900">
+    </picture>
+  </a>
+</p>
+
+Employers planning a plant closing or mass layoff usually have to notify the
+state about 60 days ahead under the federal **WARN Act** and state "mini-WARN"
+laws. Those notices are public, but every state publishes them differently:
+HTML tables, PDFs, spreadsheets, search forms. WARN Index checks each state's
+postings on a schedule, most of them daily, then de-duplicates, geocodes and
+classifies the filings into one national database.
+
+## Live right now
+
+These badges are served by warnindex.com and show the workers affected by
+notices filed in the last 30 days (GitHub caches images, so they can lag a few
+hours):
+
+<p>
+  <a href="https://warnindex.com/states/CA"><img src="https://warnindex.com/embed/badge/state/CA.svg" alt="California layoffs, last 30 days"></a>
+  <a href="https://warnindex.com/states/TX"><img src="https://warnindex.com/embed/badge/state/TX.svg" alt="Texas layoffs, last 30 days"></a>
+  <a href="https://warnindex.com/states/NY"><img src="https://warnindex.com/embed/badge/state/NY.svg" alt="New York layoffs, last 30 days"></a>
+  <a href="https://warnindex.com/states/IL"><img src="https://warnindex.com/embed/badge/state/IL.svg" alt="Illinois layoffs, last 30 days"></a>
+  <a href="https://warnindex.com/states/WA"><img src="https://warnindex.com/embed/badge/state/WA.svg" alt="Washington layoffs, last 30 days"></a>
+  <a href="https://warnindex.com/states/FL"><img src="https://warnindex.com/embed/badge/state/FL.svg" alt="Florida layoffs, last 30 days"></a>
+</p>
+
+## What you can do with it
+
+- **Search** notices by company, state, city or industry, and see a company's
+  full filing history in one place.
+- **Watch the trend**: layoffs over time on a map and on charts, set against
+  official BLS labor data, plus reports for each state and industry.
+- **Get alerts** by email when a new notice matches your filters, or follow
+  large ones on [Bluesky](https://bsky.app/profile/warnindex.com).
+- **Use the data**: a REST API, CSV/JSON exports and a full weekly snapshot.
+
+<p align="center">
+  <a href="https://warnindex.com/stats"><img src="docs/img/trends.png" alt="Layoff trends: workers affected by month, with summary figures" width="900"></a>
+</p>
 
 ## Get the data
 
@@ -17,327 +76,115 @@ You don't need to run the scraper to use the data:
 
 The data is CC BY 4.0 (see [License](#license)).
 
-## Architecture
+## Embed it on your site
 
-```
-CronJob (K3s) ──▶ Scraper runner ──▶ Postgres (CloudNativePG)
-                       │
-            parse fail │                 ┌──▶ Enrichment worker (Claude + web search)
-                       ▼                 │
-            snapshot saved ──────────────┴──▶ FastAPI + CSV/Sheet export
-            (replay material)
-                       │
-                       ▼
-            Claude Code /heal-scraper op
-            reproduces live, fixes parse(), opens PR for review
+The state badges above work anywhere an image does: blogs, READMEs,
+newsletters.
+
+```html
+<a href="https://warnindex.com/states/CA"><img src="https://warnindex.com/embed/badge/state/CA.svg" alt="California WARN layoffs, last 30 days (WARN Index)" height="20"></a>
 ```
 
-See the [design plan](https://github.com/wielandtech) for full details (kept locally in `~/.claude/plans/`).
+Any single notice is also available as a self-contained card that stays up to
+date. On a notice's page at warnindex.com, click **Embed** to copy its
+snippet. It looks like this:
+
+```html
+<iframe src="https://warnindex.com/embed/notices/NOTICE_ID" title="Employer WARN notice" width="100%" height="260" style="max-width:480px;border:0;color-scheme:normal" loading="lazy"></iframe>
+<p style="font-size:12px">Source: <a href="https://warnindex.com/notices/NOTICE_ID">WARN Index</a></p>
+```
+
+Please keep the link back to warnindex.com: it's the attribution the CC BY
+license asks for.
+
+## How it works
+
+```mermaid
+flowchart LR
+    S[47 state sites + DC] -->|scheduled scrape| R[Scraper runner]
+    R -->|parse OK| DB[(Postgres)]
+    R -->|parse fails| SN[Snapshot saved]
+    SN --> H["/heal-scraper<br/>(Claude Code)"]
+    H -->|fix + PR for review| R
+    DB --> E[Company enrichment<br/>+ geocoding]
+    E --> DB
+    DB --> API[FastAPI + React site<br/>warnindex.com]
+    DB --> M[Weekly dataset mirror<br/>Hugging Face · Kaggle]
+    DB --> B[Bluesky alerts]
+```
+
+Each state is one small module with a `fetch()` and a `parse()`. When a state
+redesigns its site and `parse()` breaks, the runner saves the raw page as a
+snapshot, and the [`/heal-scraper`](docs/repairing-scrapers.md) Claude Code op
+reproduces the break, fixes the parser against the live page and the golden
+fixture, and opens a PR for a human to review.
+
+**Coverage:** 48 jurisdictions (47 states + DC). Arkansas, New Hampshire and
+Wyoming publish no usable notice list; see
+[`docs/deferred-states.md`](docs/deferred-states.md).
 
 ## Quick start
 
-```powershell
-# Core scraping + tests
+You need Python 3.12+, [uv](https://docs.astral.sh/uv/) and a Postgres
+database. Node 20 is only needed to work on the frontend.
+
+```bash
 uv sync --extra dev
-uv run python -m pytest
-uv run warn-v2 scrape --state CA
+export DATABASE_URL=postgresql+psycopg://warn:warn@localhost:5432/warn_v2
+uv run alembic upgrade head        # create the schema
 
-# Repair a broken scraper — Claude Code op, not a CLI command (see below)
-#   /heal-scraper CA        in Claude Code, or  /loop /heal-scraper
-
-# Enrichment agent (requires ANTHROPIC_API_KEY)
-uv run warn-v2 enrich                   # enrich up to 50 unenriched companies
-uv run warn-v2 enrich --state CA        # only companies from CA notices
-uv run warn-v2 enrich --rerun-below 0.7 # re-enrich low-confidence rows
-uv run warn-v2 enrich --dry-run         # run agent but don't write to DB
-
-# API + SPA (Phase 5 + 6) — single process, single port
-uv run warn-v2 serve                    # FastAPI + bundled SPA on :8000
-uv run warn-v2 backfill-geo             # populate locations.lat/lon from ZIP centroids
-
-# Frontend dev (separate from python — requires node 20)
-cd frontend && npm install && npm run dev   # Vite dev server on :5173, proxies to :8000
+uv run warn-v2 scrape --state CA   # scrape one state
+uv run warn-v2 serve               # API + site on http://localhost:8000
 ```
 
-### Note on local testing under Windows Smart App Control
+Run the tests with `uv run python -m pytest`. The tests use SQLite, so they
+don't need Postgres. For a quick loop, skip the slow ML tests:
+`-m "not slow" -n 4`.
 
-Smart App Control (SAC) on Windows blocks unsigned native extensions; some
-wheels (numpy, pandas) ship `.pyd` binaries that SAC rejects, so the pandas-
-touching tests fail locally with an "Application Control policy has blocked
-this file" `ImportError`. The non-pandas tests (`tests/test_dedup.py`,
-`tests/test_validate.py`, `tests/test_storage.py`) all run fine locally.
+Frontend development:
 
-The full suite runs in GitHub Actions (Linux), which is the canonical
-verification environment since production runs in K3s containers anyway. To
-run the full suite locally either turn SAC off (one-way; not recommended),
-install WSL2 (`wsl --install`), or build and `docker run` the image.
+```bash
+cd frontend && npm install && npm run dev   # Vite on :5173, proxies the API on :8000
+```
+
+The app reads its settings from environment variables (see
+[`.env.example`](.env.example)); nothing loads a `.env` file for you. Company
+enrichment also needs an `ANTHROPIC_API_KEY`:
+
+```bash
+uv run warn-v2 enrich --state CA --dry-run
+```
 
 ## Repo layout
 
 | Path | Purpose |
 |------|---------|
-| `warn_v2/scrapers/base.py` | `StateScraper` Protocol + `NoticeRow` |
 | `warn_v2/scrapers/states/{state}.py` | One module per state |
 | `warn_v2/scrapers/fixtures/{state}/` | Golden samples + expected counts |
-| `warn_v2/pipeline/` | runner, validate, dedup, storage |
-| `warn_v2/enrichment/` | Claude-driven company enrichment |
-| `warn_v2/reports/` | Weekly sentiment reports + industry scorecards (see below) |
-| `.claude/commands/heal-scraper.md` | Claude Code op that repairs a broken scraper |
-| `.claude/skills/layoff-sentiment/` | Claude Code skill that writes the sentiment reports |
-| `warn_v2/api/` | FastAPI read-only API |
-| `warn_v2/db/` | SQLAlchemy models + Alembic |
-| `charts/warn-v2/` | Helm chart for K3s deploy via Flux |
+| `warn_v2/pipeline/` | Runner, validation, de-duplication, storage |
+| `warn_v2/enrichment/` | Company enrichment |
+| `warn_v2/api/` | FastAPI app, embeds and share cards |
+| `warn_v2/reports/`, `warn_v2/outlook/` | Weekly reports and statistical outlook |
+| `warn_v2/social/` | Bluesky alerts |
+| `warn_v2/db/` | SQLAlchemy models + Alembic migrations |
+| `frontend/` | React site |
+| `charts/warn-v2/` | Helm chart (K3s, deployed with Flux) |
+| `.claude/` | Claude Code ops: `/heal-scraper`, `/layoff-sentiment`, … |
 
-## Status
+## More docs
 
-- [x] Phase 0 — scaffold + first state (CA)
-- [x] Phase 1 — 5 representative states (CA, TX, NY, FL, WA)
-- [x] Phase 2 — replayable failure snapshots + repair workflow (the original in-app self-heal agent was retired 2026-06-19 in favor of the Claude Code `/heal-scraper` op)
-- [x] Phase 3 — bulk-port remaining states (46 jurisdictions)
-- [x] **Production deployment live** (K3s via Flux, CloudNativePG, 2026-05-26)
-- [x] Phase 4 — enrichment agent (Claude + web search, runs every 6 h)
-- [x] Phase 5 — API + Grafana + AlertManager
-- [x] Phase 6 — React SPA (dashboard, notices, companies, map, stats)
+- [Repairing a broken scraper](docs/repairing-scrapers.md)
+- [Analytics: BLS indicators, sentiment reports, outlook](docs/analytics.md)
+- [Operations: production deployment and local-testing notes](docs/operations.md)
+- [Roadmap](docs/ROADMAP.md) · [Deferred states](docs/deferred-states.md) ·
+  [Historical sources](docs/historical-sources.md)
 
-### Production deployment (as of 2026-05-26)
+## Background
 
-The scraper runs in a K3s homelab cluster managed by Flux GitOps (see
-`w_homelab` repo at `wielandtech-labs/w_homelab`).
-
-**Infrastructure stack:**
-- **Image**: `ghcr.io/wielandtech-labs/warn-v2` — built by `.github/workflows/docker.yml`,
-  tagged `YYYYMMDD-HHMMSS-{sha}` for Flux Image Automation auto-upgrades
-- **GitOps source**: `GitRepository` → `HelmRelease` using `charts/warn-v2`
-  from this repo directly (not an OCI/HelmRepository)
-- **Database**: shared CloudNativePG `postgres-cluster` in the `database` namespace;
-  app uses `postgres-cluster-rw.database.svc.cluster.local:5432/warn_v2`
-- **Alembic**: initial migration (`revision a1b2c3d4e5f6`) ran 2026-05-26;
-  all four tables live (`locations`, `companies`, `notices`, `scraper_runs`)
-- **CronJobs**: `warn-v2-warn-v2-scraper` runs daily at 07:17 (`scrape-all`); `warn-v2-warn-v2-enricher` runs every 6 h at `:23` (`enrich`, 50 companies/run, 30 s between companies); `warn-v2-warn-v2-cross-check` (opt-in via `crossCheck.enabled`) runs daily at 09:17 (`cross-check`), re-fetching each state's live WARN page and recording drift vs. stored notices to `cross_check_runs`; `warn-v2-warn-v2-sentiment-report` runs weekly Mon 02:07 (`sentiment-report`, see [Sentiment reports](#sentiment-reports--industry-scorecards)); `warn-v2-warn-v2-bls` (opt-in via `bls.enabled`) runs weekly Wed 12:40 (`fetch-bls`, see [Economic indicators](#economic-indicators))
-- **Snapshots PVC**: `synostorage-iscsi-retain`, 10 Gi, mounted at `/var/snapshots`
-
-**Secrets in `warn-v2` namespace** (all SealedSecrets, reconciled by Flux):
-
-| Secret | Key | Env var |
-|--------|-----|---------|
-| `warn-v2-db` | `url` | `DATABASE_URL` |
-| `warn-v2-anthropic` | `api-key` | `ANTHROPIC_API_KEY` |
-
-> **Password rule**: `DATABASE_URL` must contain only URL-safe characters.
-> Use `openssl rand -hex 20` to generate the Postgres role password — never
-> a random generator that can produce `@`, `/`, `+`, or `=` in output.
-> On the k3s cluster, use `~/.local/bin/kubeseal` (v0.37.0, installed 2026-05-26).
-
-**Known issues as of 2026-05-27:**
-
-- **GA**: `tcsg.edu/warn-public-view/` page sometimes doesn't settle to networkidle
-  in under 60 s; scraper now uses `wait_until="load"` + `wait_for_selector("table")`.
-- **MA**: mass.gov CSV endpoints reject plain httpx (403); scraper now downloads
-  CSVs via the Playwright browser context so session cookies are shared.
-- **TN** *(resolved 2026-06-26, PR #88)*: `tn.gov`'s WAF resets TLS connections
-  for non-browser fingerprints; scraper now fetches via `curl_cffi`
-  (`impersonate="chrome"`) with a short retry loop (the WAF still RSTs ~1 in 4
-  handshakes). No proxy needed.
-
-**Running a one-off migration or scrape on the cluster:**
-
-```bash
-# Alembic upgrade (run from a shell with kubectl access)
-kubectl run alembic-init -n warn-v2 \
-  --image=ghcr.io/wielandtech-labs/warn-v2:LATEST_TAG \
-  --restart=Never \
-  --overrides='{
-    "spec":{"containers":[{
-      "name":"alembic-init",
-      "image":"ghcr.io/wielandtech-labs/warn-v2:LATEST_TAG",
-      "command":["uv","run","alembic","upgrade","head"],
-      "env":[{"name":"DATABASE_URL","valueFrom":{"secretKeyRef":{"name":"warn-v2-db","key":"url"}}}]
-    }]}
-  }'
-
-# Manual scrape for one state
-kubectl create job --from=cronjob/warn-v2-warn-v2-scraper manual-$(date +%s) -n warn-v2
-
-# Or targeted:
-kubectl run scrape-tx -n warn-v2 \
-  --image=ghcr.io/wielandtech-labs/warn-v2:LATEST_TAG \
-  --restart=Never \
-  --overrides='{
-    "spec":{"containers":[{
-      "name":"scrape-tx",
-      "image":"ghcr.io/wielandtech-labs/warn-v2:LATEST_TAG",
-      "command":["uv","run","warn-v2","scrape-all","--states","TX"],
-      "env":[
-        {"name":"DATABASE_URL","valueFrom":{"secretKeyRef":{"name":"warn-v2-db","key":"url"}}},
-        {"name":"ANTHROPIC_API_KEY","valueFrom":{"secretKeyRef":{"name":"warn-v2-anthropic","key":"api-key"}}},
-        {"name":"SNAPSHOT_DIR","value":"/tmp"}
-      ]
-    }]}
-  }'
-```
-
-### Phase 3 coverage
-
-48 jurisdictions implemented (47 states + DC):
-
-| Implemented | Deferred |
-|-------------|---------|
-| AK, AL, AZ, CA, CO, CT, DC, DE, FL, GA, HI, IA, ID, IL, IN, KS, KY, LA, MA, MD, ME, MI, MN, MO, MS, MT, NC, ND, NE, NJ, NM, NV, NY, OH, OK, OR, PA, RI, SC, SD, TN, TX, UT, VA, VT, WA, WI, WV | AR, NH, WY (no public data) |
-
-See [`docs/deferred-states.md`](docs/deferred-states.md) for investigation notes on each deferred state, and [`docs/ROADMAP.md`](docs/ROADMAP.md) for the agent-executable work tracks (healing, backfills, records requests, enrichment).
-
-### Repairing a broken scraper
-
-When a scraper's `parse()` or `validate()` step fails, the runner saves the raw
-response as a **snapshot** (`warn_v2/pipeline/runner.py`) and records the failure
-in `scraper_runs`. That snapshot is replay material: the fetch/parse split means
-a fixed `parse()` can be re-run against the exact bytes that broke it.
-
-Repair is a **Claude Code op**, not an in-app agent — the
-[`/heal-scraper`](.claude/commands/heal-scraper.md) slash command in this repo.
-(The earlier in-app self-heal loop under `warn_v2/heal/` was removed 2026-06-19;
-it reinvented, inside the app, what Claude Code already does natively with a
-human reviewing the PR.)
-
-**What the op does**, per target state:
-
-1. **Reproduces the break live, locally** — runs the state's `fetch()` + `parse()`
-   and the same `validate()` gate the runner uses (`expected_row_range` +
-   `required_fields`), with no DB or cluster access. A `fetch()` network error is
-   treated as transient and skipped; a `parse()`/`validate()` failure is a real
-   break.
-2. Reads the scraper module (`warn_v2/scrapers/states/<xx>.py`) and the golden
-   fixture (`warn_v2/scrapers/fixtures/<xx>/`), and fixes `parse()` so it handles
-   the live page **and** still passes the golden fixture.
-3. Runs the test suite, then opens a PR for human review (it never merges —
-   merging `main` is a production deploy). Before opening, it checks for an
-   existing PR for that state so a repeated run doesn't duplicate it.
-
-**Running it:**
-
-```text
-/heal-scraper CA          # repair one state, interactively in Claude Code
-/loop /heal-scraper       # sweep all states, self-paced
-/loop 6h /heal-scraper    # re-check on an interval
-```
-
-For unattended runs, a local Windows Task Scheduler entry (or WSL cron) launches
-Claude Code headless shortly after the nightly scrape — see
-[`.claude/commands/heal-scraper.md`](.claude/commands/heal-scraper.md) for the
-scheduled-task recipe. The op needs only `git`/`gh` and the local venv; no
-cluster access (reproduction is live), so it runs fine off the dev machine.
-
-**Environment:**
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `SNAPSHOT_DIR` | `./snapshots` | Where the runner writes raw failure snapshots (replay material) |
-
-## Economic indicators
-
-WARN notices count *announced* layoffs at larger employers. On their own they
-can't say whether a spike is a loosening labour market or noise against a
-strong one, so each layoff time series carries a companion card of official
-BLS context on the same period span — `/stats`, every state page, and the
-industry reports.
-
-Three datasets, all monthly and seasonally adjusted, stored in `bls_series`
-keyed by raw BLS series id:
-
-| Dataset | Series | Coverage |
-|---|---|---|
-| `unemployment` | CPS U-3 + U-6 nationally, LAUS rates per state | 50 states + DC + PR. BLS publishes no monthly **state U-6** |
-| `payrolls` | CES all-employees levels, total nonfarm or by NAICS sector | National. Sector figures use the closest CES supersector, broader than NAICS where several sectors share one |
-| `jolts` | Layoffs & discharges, job openings, quits | National + 50 states and DC. **State estimates are modelled and republished annually**, so they run ~9 months behind the national series |
-
-`warn-v2 fetch-bls` refreshes them (default: a rolling three-year window, which
-picks up BLS revisions; `--start-year 2000` backfills). Series ids are built in
-`warn_v2/labor/catalog.py` — the only module that knows their layouts, because
-**a malformed id is not an error**: it comes back inside `Results.series` with
-an empty `data` list, indistinguishable from a real series with no data in the
-requested span. The job therefore fails on *coverage* rather than on status, and
-`tests/test_labor_catalog.py` pins each layout.
-
-`BLS_API_KEY` (free registration) is effectively required: unregistered callers
-get 10 series and 10 years per request and 25 requests a day, and the catalogue
-is ~225 series. With a key it is 50 series, 20 years and 500 requests. Supply it
-via the `warn-v2-bls` SealedSecret; the key is scoped to this CronJob, not to
-the API pods.
-
-Not included: LISEP's True Rate of Unemployment. Their terms of use forbid
-redistributing it, and it ships only as a monthly spreadsheet on a rotating CDN
-path. U-6 is the closest public-domain equivalent.
-
-## Sentiment reports & industry scorecards
-
-Markdown reports — one per state, a national roll-up (`US.md`), and a scorecard
-per NAICS sector — committed to `warn_v2/reports/published/`, served at
-`/api/reports/*`, and rendered on the SPA's state pages (below the hardest-hit
-counties) and `/reports` page. Claude writes them on demand with the
-`/layoff-sentiment` skill (`.claude/skills/layoff-sentiment/`) from figures the
-weekly CronJob computes; they ship in the image, so a report PR is a deploy.
-
-**Pipeline** (`sentiment-report` CLI; CronJob Mon 02:07 UTC):
-
-1. **Deterministic aggregates** (`aggregate.py`, `industry.py`) — every number in
-   a report comes from SQL over non-superseded notices. Time axes: current 90
-   days vs the prior 90 (momentum), the same 90-day window one year earlier
-   (seasonal baseline), trailing 12 months vs the 12 before (long run), and a
-   12-month monthly series where each month carries the same month a year
-   earlier. Percent changes are pre-computed into the payload; the sector
-   scorecards add a 0-100 score + grade from a documented formula.
-2. **BLS macro context** (`bls.py`) — official CES payroll month-over-month
-   changes (total nonfarm + closest supersector per sector) and the unemployment
-   rate, aligned to the same months, injected as `bls_context` into the national
-   and industry payloads. Strictly fail-open: any API problem and the reports
-   render without it. Shares its HTTP client and series ids with the
-   `fetch-bls` ingester (see [Economic indicators](#economic-indicators)),
-   which is *not* fail-open.
-3. **Export** (`generate.py`) — `payloads.json` (every report's figures:
-   aggregates + forecast + BLS context, served at `/api/reports/payloads`),
-   `industries.json` (the `/reports` scorecard grid), and `forecasts.json`
-   (the forecast charts), atomically written to the reports PVC
-   (`/var/reports`). No LLM runs in-cluster.
-4. **Write + publish** (`/layoff-sentiment` skill) — Claude reads the payloads,
-   writes the reports to the template in its SKILL.md, and opens a PR. Its
-   `validate.py` is the gate: every number and date must appear in the
-   payload, growth vocabulary ("added/grew/gained") is banned — every figure
-   is workers losing jobs — and only the markdown subset the SPA renders is
-   allowed.
-
-```powershell
-uv run warn-v2 sentiment-report --dry-run   # offline smoke test of the export
-```
-
-## Outlook
-
-`warn_v2/outlook/` turns the WARN panel into forward-looking findings that
-must pass a statistical test before they are published. The same weekly
-`sentiment-report` run writes `outlook.json` (fail-open, like
-`forecasts.json`). It is served raw at `/api/reports/outlook` and rendered on
-the SPA's `/outlook` page.
-
-- **Trends** (`trends.py`): per-state monthly notice counts over the last 36
-  settled months, fitted with a quasi-Poisson GLM using month-of-year dummies.
-  The standard errors are inflated for AR(1) autocorrelation. Newey-West SEs
-  rejected 19-25% of null series at nominal 5% in simulation, so they were
-  dropped. Results are reported as Benjamini-Hochberg q-values per family,
-  with DerSimonian-Laird pooling plus empirical-Bayes shrinkage across states.
-- **Sectors**: the trend in each NAICS sector's *share* of classified notices,
-  not its count, because enrichment coverage drifts over time.
-- **Coverage** (`coverage.py`): per-state month masks treat these as missing
-  data, not zeros:
-  - months before a state's first notice;
-  - a series' improbably low trailing edge (publication lag or a stale
-    scraper);
-  - improbable interior zero-runs.
-- **Unemployment link**: the effect of the lagged 12-month change in state
-  unemployment (LAUS, from `bls_series`) on monthly filings, pooled across
-  states and re-fitted without 2020-21.
-- **Claims** (`claims.py`): templated statements gated on q < 0.05 (or a 95%
-  CI excluding zero). Weaker signals (q < 0.20) appear as a clearly labelled
-  watch list. Templates obey the job-losses wording rule, and a test enforces
-  it.
+This is the second version of a 2022 project. V1 had about 33 hand-written
+scrapers that broke every time a state site changed. V2 keeps the original
+goal (surface affected workers about 60 days before a layoff) but splits fetch
+from parse, so a broken parser can be replayed and repaired quickly.
 
 ## License
 
