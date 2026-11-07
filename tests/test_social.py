@@ -11,9 +11,9 @@ from click.testing import CliRunner
 from sqlalchemy import select
 
 from warn_v2 import cli
-from warn_v2.db.models import Location, Notice, NoticeSocialPost
+from warn_v2.db.models import Company, Location, Notice, NoticeSocialPost
 from warn_v2.social import bluesky, format, run
-from warn_v2.social.candidates import select_candidates
+from warn_v2.social.candidates import ENRICHMENT_WAIT, select_candidates
 
 NOW = datetime(2026, 10, 16, 12, 0, tzinfo=UTC)
 
@@ -86,7 +86,73 @@ def test_candidates_are_per_platform(db):
     assert _ids(db, "discord") == ["n1"]
 
 
+def test_candidates_wait_for_first_enrichment_attempt(db):
+    fresh = NOW - timedelta(hours=3)
+    db.add_all(
+        [
+            # Not attempted yet, scraped 3h ago: held for the enricher.
+            _notice("held", 900, company=Company(name="Held Co")),
+            _notice("missed", 800, company=Company(name="Miss Co", provider_attempted_at=fresh)),
+            _notice("hit", 700, company=Company(name="Hit Co", enriched_at=fresh)),
+            _notice("nocompany", 600),
+            # Never attempted, but past the wait: posted without an industry.
+            _notice(
+                "waited", 500, company=Company(name="Slow Co"),
+                scraped=NOW - ENRICHMENT_WAIT - timedelta(hours=1),
+            ),
+        ]
+    )
+    db.commit()
+    assert _ids(db) == ["missed", "hit", "nocompany", "waited"]
+
+
+def test_candidates_skip_the_wait_when_an_industry_is_already_known(db):
+    canon = Company(name="Acme Inc", naics_code="493110")
+    db.add(canon)
+    db.flush()
+    db.add_all(
+        [
+            # The filing itself carried a NAICS code.
+            _notice("sourced", 900, company=Company(name="Src Co", naics_code="311999")),
+            # A merged name variant, unattempted, whose canonical has a code.
+            _notice(
+                "variant", 800,
+                company=Company(name="Acme - Plant 2", canonical_company_id=canon.id),
+            ),
+        ]
+    )
+    db.commit()
+    notices = select_candidates(db, now=NOW, platform="bluesky", min_layoffs=250, limit=10)
+    assert [n.notice_id for n in notices] == ["sourced", "variant"]
+    assert format.industry(notices[1]) == "Warehousing and Storage"
+
+
 # ----- post text -----
+
+def test_render_post_industry_line():
+    n = _notice("abc", 1350, closure_category="Layoff")
+    n.company = Company(name="Acme", naics_code="493110", naics_desc="General Warehousing")
+    lines = format.render_post(n).splitlines()
+    assert lines[lines.index("• Action: Mass layoff") + 1] == "• Industry: General Warehousing"
+
+    n.company = Company(name="Acme", naics_code="311999")  # code only: subsector name
+    assert "• Industry: Food Manufacturing" in format.render_post(n)
+
+    n.company = Company(name="Acme", naics_code="31")  # sector only
+    assert "• Industry: Manufacturing" in format.render_post(n)
+
+    n.company = Company(name="Acme")  # attempted, nothing found
+    assert "Industry" not in format.render_post(n)
+
+
+def test_render_post_with_industry_stays_under_limit():
+    n = _notice("abc", 1350, employer="Very Long Employer Name " * 20)
+    n.company = Company(name="x", naics_desc="Administrative Management and General "
+                        "Management Consulting Services " * 2)
+    text = format.render_post(n, format.BLUESKY_HASHTAGS)
+    assert len(text) <= format.MAX_POST_CHARS
+    assert "• Industry: Administrative Management" in text
+
 
 def test_render_post_format():
     n = _notice("abc", 1350, closure_category="Layoff", effective_date=date(2026, 12, 13))
