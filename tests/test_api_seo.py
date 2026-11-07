@@ -555,6 +555,7 @@ def test_organization_links_profiles():
     assert "https://www.linkedin.com/company/warn-index/" in org["sameAs"]
     assert "https://huggingface.co/warn-index" in org["sameAs"]
     assert "https://www.kaggle.com/warnindex" in org["sameAs"]
+    assert "https://bsky.app/profile/warnindex.com" in org["sameAs"]
 
 
 def test_dataset_json_ld_has_zenodo_doi():
