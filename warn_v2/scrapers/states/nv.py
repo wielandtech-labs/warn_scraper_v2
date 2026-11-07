@@ -37,7 +37,9 @@ from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.http_cache import conditional_get
 from warn_v2.scrapers.registry import register
 
-_PDF_URL = "https://detr.nv.gov/content/media/WARN_and_Non_WARN_Master_w_Logo_.pdf"
+# Not the look-alike ..._w_Logo_.pdf: that copy froze on 2026-07-01 and still
+# serves 200, so reading it fails silently. This one was briefly 404 on 2026-09-02.
+_PDF_URL = "https://detr.nv.gov/content/media/WARN_and_Non_WARN_Master_w_Logo.pdf"
 _SOURCE_URL = "https://detr.nv.gov/Page/Warn_Notices"
 
 _UA = {
