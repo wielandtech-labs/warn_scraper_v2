@@ -4,12 +4,13 @@ from __future__ import annotations
 import io
 from datetime import date
 
+import httpx
 import openpyxl
 import pytest
 
-from warn_v2.scrapers.base import NoticeRow, ParseFailed
+from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
 from warn_v2.scrapers.registry import get_scraper
-from warn_v2.scrapers.states.ia import _dedup_zip_variance
+from warn_v2.scrapers.states.ia import _SOURCE_URL, _dedup_zip_variance
 
 # ---------------------------------------------------------------------------
 # Fixture builder
@@ -133,6 +134,59 @@ def test_ia_raises_on_empty() -> None:
     scraper = get_scraper("IA")
     with pytest.raises(ParseFailed, match="no data rows"):
         scraper.parse(_build_xlsx([]))
+
+
+# ---------------------------------------------------------------------------
+# Workbook discovery
+# ---------------------------------------------------------------------------
+
+_LANDING = b"""
+<a target="_blank" aria-label="WARN Data by Year (ADA Compliant) Download an Excel
+   file containing a data table of WARN information aggregated by year."
+   href="/media/3250/download?inline">by year</a>
+<a target="_blank" aria-label="WARN Event Log (ADA Compliant) Download an Excel
+   file containing a data table of WARN information aggregated by notice."
+   href="/media/3276/download?inline">event log</a>
+"""
+
+
+def _fake_get(pages: dict[str, tuple[int, bytes]]):
+    def get(url: str, **_: object) -> httpx.Response:
+        status, content = pages[url]
+        return httpx.Response(status, content=content, request=httpx.Request("GET", url))
+
+    return get
+
+
+def test_ia_fetch_follows_event_log_link_not_data_by_year(monkeypatch: pytest.MonkeyPatch) -> None:
+    pages = {
+        _SOURCE_URL: (200, _LANDING),
+        "https://workforce.iowa.gov/media/3276/download?inline": (200, b"event-log-bytes"),
+    }
+    monkeypatch.setattr(httpx, "get", _fake_get(pages))
+    assert get_scraper("IA").fetch() == b"event-log-bytes"
+
+
+def test_ia_fetch_fails_when_event_log_link_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    pages = {_SOURCE_URL: (200, b'<a href="/media/3250/download?inline">by year</a>')}
+    monkeypatch.setattr(httpx, "get", _fake_get(pages))
+    with pytest.raises(ScrapeFailed, match="WARN Event Log"):
+        get_scraper("IA").fetch()
+
+
+def test_ia_fetch_wraps_http_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(httpx, "get", _fake_get({_SOURCE_URL: (404, b"")}))
+    with pytest.raises(ScrapeFailed, match=r"IA: GET .*warn/notices"):
+        get_scraper("IA").fetch()
+
+
+def test_ia_fetch_finds_link_by_text_without_aria_label(monkeypatch: pytest.MonkeyPatch) -> None:
+    pages = {
+        _SOURCE_URL: (200, b'<a href="/media/9/download"><h3>WARN Event Log</h3></a>'),
+        "https://workforce.iowa.gov/media/9/download": (200, b"event-log-bytes"),
+    }
+    monkeypatch.setattr(httpx, "get", _fake_get(pages))
+    assert get_scraper("IA").fetch() == b"event-log-bytes"
 
 
 # ---------------------------------------------------------------------------
