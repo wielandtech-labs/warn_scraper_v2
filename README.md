@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://warnindex.com"><img src="frontend/public/favicon.svg" width="72" height="72" alt="WARN Index logo"></a>
+  <a href="https://warnindex.com"><img src="frontend/public/icon-192.png" width="72" height="72" alt="WARN Index logo"></a>
 </p>
 
 <h1 align="center">WARN Index</h1>
@@ -45,7 +45,7 @@ hours):
 <p>
   <a href="https://warnindex.com/states/CA"><img src="https://warnindex.com/embed/badge/state/CA.svg" alt="California layoffs, last 30 days"></a>
   <a href="https://warnindex.com/states/TX"><img src="https://warnindex.com/embed/badge/state/TX.svg" alt="Texas layoffs, last 30 days"></a>
-  <a href="https://warnindex.com/states/NY"><img src="https://warnindex.com/embed/badge/state/NY.svg" alt="New York layoffs, last 30 days"></a>
+  <a href="https://warnindex.com/states/MI"><img src="https://warnindex.com/embed/badge/state/MI.svg" alt="Michigan layoffs, last 30 days"></a>
   <a href="https://warnindex.com/states/IL"><img src="https://warnindex.com/embed/badge/state/IL.svg" alt="Illinois layoffs, last 30 days"></a>
   <a href="https://warnindex.com/states/WA"><img src="https://warnindex.com/embed/badge/state/WA.svg" alt="Washington layoffs, last 30 days"></a>
   <a href="https://warnindex.com/states/FL"><img src="https://warnindex.com/embed/badge/state/FL.svg" alt="Florida layoffs, last 30 days"></a>
@@ -62,7 +62,12 @@ hours):
 - **Use the data**: a REST API, CSV/JSON exports and a full weekly snapshot.
 
 <p align="center">
-  <a href="https://warnindex.com/stats"><img src="docs/img/trends.png" alt="Layoff trends: workers affected by month, with summary figures" width="900"></a>
+  <a href="https://warnindex.com/stats">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/img/trends-dark.png">
+      <img src="docs/img/trends-light.png" alt="Layoff trends: workers affected by month, with summary figures" width="900">
+    </picture>
+  </a>
 </p>
 
 ## Get the data
