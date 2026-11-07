@@ -6,6 +6,17 @@ AI-assisted rebuild of [warn_scrapper](https://wielandtech.com) (2022). Collects
 
 V1 had ~33 hand-written per-state scrapers that broke every time a state site reformatted, plus a Selenium-based commercial-data enrichment scraper that was the main source of bad data. V2 keeps the original "Headhunter" goal — surface workers ~60 days before layoff — but minimizes the maintenance burden: the fetch/parse split saves a replayable snapshot on every failure, so a broken parser is reproduced and fixed with a single Claude Code op (see [Repairing a broken scraper](#repairing-a-broken-scraper)).
 
+## Get the data
+
+You don't need to run the scraper to use the data:
+
+- **Live tracker, alerts and API:** [warnindex.com](https://warnindex.com) ([API docs](https://warnindex.com/api-docs))
+- **Full weekly snapshot:** [Hugging Face](https://huggingface.co/datasets/warn-index/us-warn-layoffs) · [Kaggle](https://www.kaggle.com/datasets/warnindex/us-warn-act-layoff-notices-1989-2026)
+- **Citable archive (DOI):** [10.5281/zenodo.23902958](https://doi.org/10.5281/zenodo.23902958)
+- **New large notices on Bluesky:** [@warnindex.com](https://bsky.app/profile/warnindex.com)
+
+The data is CC BY 4.0 (see [License](#license)).
+
 ## Architecture
 
 ```
