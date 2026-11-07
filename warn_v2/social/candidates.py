@@ -3,10 +3,10 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import or_, select
+from sqlalchemy.orm import Session, aliased, contains_eager, selectinload
 
-from warn_v2.db.models import Notice, NoticeSocialPost
+from warn_v2.db.models import Company, Notice, NoticeSocialPost
 
 # Discovered recently: the scrape that found it ran within this window.
 SCRAPED_WITHIN = timedelta(hours=48)
@@ -14,6 +14,11 @@ SCRAPED_WITHIN = timedelta(hours=48)
 # years-old notices with scraped_at=now, so scraped_at alone would announce a
 # decade of history the first time a backfill lands.
 FILED_WITHIN = timedelta(days=30)
+# A notice waits until its company has had a first enrichment attempt, so the
+# post can carry the industry. The enricher runs every 6h; past this window
+# the notice is posted without it, so a stalled enricher never silences alerts.
+# Must stay well under SCRAPED_WITHIN or held notices would never post.
+ENRICHMENT_WAIT = timedelta(hours=12)
 
 
 def select_candidates(
@@ -25,12 +30,18 @@ def select_candidates(
     limit: int,
 ) -> list[Notice]:
     """Largest-first notices with at least `min_layoffs` workers, discovered and
-    filed recently, not superseded, not Non-WARN, and not yet posted on
-    `platform`."""
+    filed recently, not superseded, not Non-WARN, not yet posted on `platform`,
+    and past their company's first enrichment attempt (or ENRICHMENT_WAIT)."""
+    canonical = aliased(Company)
     already = select(NoticeSocialPost.notice_id).where(NoticeSocialPost.platform == platform)
     stmt = (
         select(Notice)
-        .options(selectinload(Notice.location))
+        .outerjoin(Company, Notice.company_id == Company.id)
+        .outerjoin(canonical, Company.canonical_company_id == canonical.id)
+        .options(
+            selectinload(Notice.location),
+            contains_eager(Notice.company).selectinload(Company.canonical),
+        )
         .where(
             Notice.layoff_count >= min_layoffs,
             Notice.is_superseded.is_(False),
@@ -38,6 +49,14 @@ def select_candidates(
             Notice.scraped_at >= now - SCRAPED_WITHIN,
             Notice.notice_date >= (now - FILED_WITHIN).date(),
             Notice.notice_id.not_in(already),
+            or_(
+                Notice.company_id.is_(None),
+                Company.naics_code.is_not(None),  # e.g. from the filing itself
+                Company.enriched_at.is_not(None),
+                canonical.naics_code.is_not(None),  # a merged dupe's canonical
+                Company.provider_attempted_at.is_not(None),
+                Notice.scraped_at <= now - ENRICHMENT_WAIT,
+            ),
         )
         .order_by(Notice.layoff_count.desc(), Notice.notice_id)
         .limit(limit)

@@ -101,6 +101,10 @@ class Company(Base):
     canonical_company_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("companies.id", ondelete="SET NULL"), index=True
     )  # set => duplicate of the canonical (same legal entity); canonical row = NULL
+    # Read-only: writers set canonical_company_id directly.
+    canonical: Mapped[Company | None] = relationship(
+        "Company", remote_side=[id], viewonly=True
+    )
     name_normalized: Mapped[str | None] = mapped_column(String(512), index=True)
     # The global ultimate's own unique id — the same kind of identifier as
     # ``unique_id`` above, one level up the corporate tree.
