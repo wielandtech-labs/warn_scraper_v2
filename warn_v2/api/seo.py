@@ -179,6 +179,7 @@ ORG_PROFILES = (
     "https://www.linkedin.com/company/warn-index/",
     "https://huggingface.co/warn-index",
     "https://www.kaggle.com/warnindex",
+    "https://bsky.app/profile/warnindex.com",
 )
 
 # The full weekly snapshot, mirrored (warn-v2 export-public-mirror).
