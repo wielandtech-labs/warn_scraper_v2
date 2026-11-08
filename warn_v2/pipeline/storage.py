@@ -44,6 +44,12 @@ _DEFAULT_CITY: dict[str, str] = {"DC": "Washington"}
 # at the same ZIP (and hides amendments from mark-superseded), so do both.
 _ADDRESS_TAIL_CITY_STATES = frozenset({"CA"})
 
+# Source-assigned notice numbers some parsers keep in NoticeRow.extra. Two rows
+# that differ in one are separate notices, never duplicates (_merge_worksite_rows).
+_SOURCE_ID_KEYS: tuple[str, ...] = (
+    "ga_warn_id", "warn_id", "warn_number", "track_number", "notice_number",
+)
+
 # A NAICS code is 2-6 digits (column allows 8).
 _NAICS_RE = re.compile(r"\b\d{2,8}\b")
 
@@ -80,18 +86,25 @@ def _merge_worksite_rows(rows: Iterable[NoticeRow]) -> list[NoticeRow]:
     the last worksite's ``layoff_count``, discarding the rest and badly
     under-counting affected workers (and manufacturing spurious count==1 rows).
 
-    For each ``notice_id`` group we first drop exact-worksite duplicates (same
-    normalized address) so a true duplicate row is never double-counted, then sum
-    ``layoff_count`` across the remaining distinct addresses. The first row of the
-    group represents the merged notice, carrying the summed count (left ``None``
-    only when every row's count was ``None`` — never coerced to 0).
+    For each ``notice_id`` group we first drop duplicate rows, then sum
+    ``layoff_count`` across the rest. A row is a duplicate when its normalized
+    address, ``layoff_count``, ``effective_date`` and source notice number
+    (``_SOURCE_ID_KEYS``) all match an earlier row's (sources do list one
+    notice twice: AL 2020 rows reappear with an asterisked closure type, and a
+    WA 2026 row is repeated verbatim; GA's eight 50-worker Lockheed notices
+    differ only by their GA WARN id, so they are not duplicates). Rows that share an
+    address but differ in count or date are separate filings or tranches
+    (IA lists each layoff wave as its own row; MD lists two units at one
+    building) and are summed. The first row of the group represents the merged
+    notice, carrying the summed count (left ``None`` only when every row's count
+    was ``None``, never coerced to 0).
 
     Idempotent: a re-scrape reads the whole source file, so the group and its sum
     are identical, and the upsert *replaces* the stored count rather than
     accumulating. Groups with a single row are returned unchanged.
 
-    Known limit: rows with no address can't be told apart, so distinct same-city
-    worksites in address-less sources still collapse to one.
+    Known limits: the merged notice keeps only the first row's address, and two
+    address-less worksites with the same count and date count once.
     """
     groups: dict[str, list[NoticeRow]] = {}
     for row in rows:
@@ -102,13 +115,18 @@ def _merge_worksite_rows(rows: Iterable[NoticeRow]) -> list[NoticeRow]:
         if len(group) == 1:
             merged.append(group[0])
             continue
-        seen_addresses: set[str] = set()
+        seen_keys: set[tuple[object, ...]] = set()
         total: int | None = None
         for row in group:
-            addr = norm(row.address or "")
-            if addr and addr in seen_addresses:
-                continue  # exact-worksite duplicate — count it once
-            seen_addresses.add(addr)
+            key = (
+                norm(row.address or ""),
+                row.layoff_count,
+                row.effective_date,
+                tuple(row.extra.get(k) or "" for k in _SOURCE_ID_KEYS),
+            )
+            if key in seen_keys:
+                continue  # duplicate row: count it once
+            seen_keys.add(key)
             if row.layoff_count is not None:
                 total = (total or 0) + row.layoff_count
         merged.append(replace(group[0], layoff_count=total))
