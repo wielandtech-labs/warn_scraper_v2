@@ -265,7 +265,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <span aria-hidden>·</span>
             <a className="hover:underline" href="https://bsky.app/profile/warnindex.com" rel="me">Bluesky</a>
           </nav>
-          <p>
+          <p className="text-center">
             The free national WARN layoff tracker and database. Daily Worker Adjustment and Retraining Notification filings from all available states.
           </p>
         </div>
