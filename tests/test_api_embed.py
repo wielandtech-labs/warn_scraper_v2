@@ -1,7 +1,7 @@
 """/embed/* — the iframe notice card and the state badge."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -112,18 +112,27 @@ def test_unknown_notice_is_404_card(api_client):
 
 # ----- state badge -----
 
+def _seen(d: date) -> datetime:
+    return datetime(d.year, d.month, d.day, 12, tzinfo=UTC)
+
+
 def test_badge_sums_recent_non_superseded(api_client, db, monkeypatch):
     monkeypatch.setattr(embed_route, "_today", lambda: date(2026, 10, 16))
+    # The window is on first-seen (scraped_at); each notice here was seen the
+    # day it is dated unless noted.
     db.add_all(
         [
-            _notice("CA-1", "CA", date(2026, 10, 1), 1000),
-            _notice("CA-2", "CA", date(2026, 9, 16), 420),  # exactly 30 days back: in
-            _notice("CA-3", "CA", date(2026, 9, 15), 9000),  # 31 days back: out
-            _notice("CA-4", "CA", date(2026, 10, 2), 7000, is_superseded=True),
-            _notice("CA-5", "CA", date(2026, 10, 3), None),
-            _notice("CA-7", "CA", date(2026, 10, 4), 300, closure_category="Non-WARN"),
-            _notice("CA-8", "CA", date(2027, 10, 4), 800),  # mis-parsed future date
-            _notice("TX-1", "TX", date(2026, 10, 3), 50),
+            _notice(nid, st, d, n, scraped_at=_seen(min(d, date(2026, 10, 16))), **kw)
+            for nid, st, d, n, kw in [
+                ("CA-1", "CA", date(2026, 10, 1), 1000, {}),
+                ("CA-2", "CA", date(2026, 9, 16), 420, {}),  # seen 30 days back: in
+                ("CA-3", "CA", date(2026, 9, 15), 9000, {}),  # seen 31 days back: out
+                ("CA-4", "CA", date(2026, 10, 2), 7000, {"is_superseded": True}),
+                ("CA-5", "CA", date(2026, 10, 3), None, {}),
+                ("CA-7", "CA", date(2026, 10, 4), 300, {"closure_category": "Non-WARN"}),
+                ("CA-8", "CA", date(2027, 10, 4), 800, {}),  # mis-parsed future date
+                ("TX-1", "TX", date(2026, 10, 3), 50, {}),
+            ]
         ]
     )
     db.commit()
@@ -138,6 +147,22 @@ def test_badge_sums_recent_non_superseded(api_client, db, monkeypatch):
     db.add(_notice("CA-6", "CA", date(2026, 10, 10), 1))
     db.commit()
     assert "1,420 workers" in api_client.get("/embed/badge/state/CA.svg").text  # cached
+
+
+def test_badge_counts_late_posted_notices_but_not_backfills(api_client, db, monkeypatch):
+    # NY publishes notices ~60 days after their notice date: a notice dated in
+    # May but first seen this week is recent news; a 2013 row a backfill just
+    # inserted is not, and an old notice seen long ago stays out.
+    monkeypatch.setattr(embed_route, "_today", lambda: date(2026, 11, 7))
+    db.add_all(
+        [
+            _notice("NY-1", "NY", date(2026, 5, 20), 628, scraped_at=_seen(date(2026, 11, 5))),
+            _notice("NY-2", "NY", date(2013, 6, 12), 15, scraped_at=_seen(date(2026, 11, 1))),
+            _notice("NY-3", "NY", date(2026, 9, 1), 99, scraped_at=_seen(date(2026, 9, 2))),
+        ]
+    )
+    db.commit()
+    assert "628 workers" in api_client.get("/embed/badge/state/NY.svg").text
 
 
 def test_badge_state_with_no_notices_is_zero(api_client):

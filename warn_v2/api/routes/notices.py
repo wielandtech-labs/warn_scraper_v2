@@ -26,6 +26,7 @@ _SORT_COLUMNS = {
     "employer": Notice.employer,
     "layoff_count": Notice.layoff_count,
     "effective_date": Notice.effective_date,
+    "scraped_at": Notice.scraped_at,  # first seen by the pipeline
 }
 
 
@@ -59,7 +60,10 @@ def list_notices(
     max_lat: float | None = Query(None, description="Map box north bound (with the other 3)"),
     max_lon: float | None = Query(None, description="Map box east bound (with the other 3)"),
     sort_by: str | None = Query(
-        None, description="Column: notice_date, state, employer, layoff_count, effective_date"
+        None,
+        description=(
+            "Column: notice_date, state, employer, layoff_count, effective_date, scraped_at"
+        ),
     ),
     sort_dir: str | None = Query("desc", description="asc or desc"),
     pagination: PaginationParams = Depends(),

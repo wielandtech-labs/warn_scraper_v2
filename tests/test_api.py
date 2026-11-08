@@ -210,6 +210,16 @@ def test_notice_surfaces_location_city_and_county(api_client, db):
     assert body["location"]["state"] == "NV"
 
 
+def test_notices_sort_by_first_seen(api_client, db):
+    # A notice published long after its date (NY) is the newest by scraped_at.
+    for nid, d, seen in [("old_but_new", date(2026, 5, 20), datetime(2026, 11, 5, tzinfo=UTC)),
+                         ("recent", date(2026, 10, 2), datetime(2026, 10, 6, tzinfo=UTC))]:
+        db.add(Notice(notice_id=nid, state="NY", employer=nid, notice_date=d, scraped_at=seen))
+    db.commit()
+    body = api_client.get("/api/notices?sort_by=scraped_at&sort_dir=desc&limit=1").json()
+    assert body["items"][0]["notice_id"] == "old_but_new"
+
+
 def test_notices_excludes_superseded(api_client, db):
     """is_superseded=True notices must not appear in list results or totals."""
     _notice(db, state="IA", employer="Active Co", notice_date=date(2026, 1, 10))
