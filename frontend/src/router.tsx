@@ -27,6 +27,7 @@ import { FaqPage } from "./routes/content/faq";
 import { CitedByPage } from "./routes/content/cited-by";
 import { DonatePage } from "./routes/content/donate";
 import { ApiDocsPage } from "./routes/content/api-docs";
+import { SocialPage } from "./routes/content/social";
 import { TermsPage } from "./routes/content/terms";
 import { LoginPage } from "./routes/login";
 import { SignupPage } from "./routes/signup";
@@ -382,6 +383,12 @@ const termsRoute = createRoute({
   component: TermsPage,
 });
 
+const socialRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/social",
+  component: SocialPage,
+});
+
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
@@ -447,6 +454,7 @@ const routeTree = rootRoute.addChildren([
   donateRoute,
   apiDocsRoute,
   termsRoute,
+  socialRoute,
   loginRoute,
   signupRoute,
   accountRoute,

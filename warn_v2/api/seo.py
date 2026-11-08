@@ -144,6 +144,11 @@ _APP_PAGES_META: dict[str, tuple[str, str]] = {
         "Statistically tested findings on where US layoffs are heading: state "
         "and industry trends and the link to unemployment, derived from the WARN database.",
     ),
+    "/social": (
+        "Social — WARN Index",
+        "Follow WARN Index on LinkedIn, Bluesky, and X for US layoff data, new "
+        "features, and reports.",
+    ),
 }
 
 
@@ -180,6 +185,7 @@ ORG_PROFILES = (
     "https://huggingface.co/warn-index",
     "https://www.kaggle.com/warnindex",
     "https://bsky.app/profile/warnindex.com",
+    "https://x.com/warnindex",
 )
 
 # The full weekly snapshot, mirrored (warn-v2 export-public-mirror).

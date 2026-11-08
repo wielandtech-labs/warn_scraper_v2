@@ -124,6 +124,15 @@ function InstallApp({ className }: { className?: string }) {
   return null;
 }
 
+function FooterColumn({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <p className="mb-1 font-semibold text-slate-900 dark:text-slate-100">{title}</p>
+      {children}
+    </div>
+  );
+}
+
 export function Layout({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   return (
@@ -229,41 +238,30 @@ export function Layout({ children }: { children: ReactNode }) {
             </div>
             <InstallApp className="ml-auto text-right" />
           </div>
-          <nav className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
-            <Link className="hover:underline" to="/about">About</Link>
-            <span aria-hidden>·</span>
-            <Link className="hover:underline" to="/warn-act">What is the WARN Act?</Link>
-            <span aria-hidden>·</span>
-            <Link className="hover:underline" to="/mini-warn-laws">State Mini-WARN Laws</Link>
-            <span aria-hidden>·</span>
-            <Link className="hover:underline" to="/methodology">Methodology</Link>
-            <span aria-hidden>·</span>
-            <Link className="hover:underline" to="/faq">FAQ</Link>
-            <span aria-hidden>·</span>
-            <Link className="hover:underline" to="/cited-by">Press &amp; Cited By</Link>
-            <span aria-hidden>·</span>
-            <Link className="hover:underline" to="/donate">Donate</Link>
-            <span aria-hidden>·</span>
-            <Link className="hover:underline" to="/states">Browse states</Link>
-            <span aria-hidden>·</span>
-            <Link className="hover:underline" to="/status">Scraper status</Link>
-            <span aria-hidden>·</span>
-            <a className="hover:underline" href="/feed.rss">RSS</a>
-            <span aria-hidden>·</span>
-            <Link className="hover:underline" to="/api-docs">Data &amp; API</Link>
-            <span aria-hidden>·</span>
-            <a className="hover:underline" href="https://huggingface.co/datasets/warn-index/us-warn-layoffs">Hugging Face</a>
-            <span aria-hidden>·</span>
-            <a className="hover:underline" href="https://www.kaggle.com/datasets/warnindex/us-warn-act-layoff-notices-1989-2026">Kaggle</a>
-            <span aria-hidden>·</span>
-            <Link className="hover:underline" to="/terms">Terms</Link>
-            <span aria-hidden>·</span>
-            {/* AGPL-3.0 section 13: offer the source to network users. */}
-            <a className="hover:underline" href="https://github.com/wielandtech-labs/warn_scraper_v2">Source code</a>
-            <span aria-hidden>·</span>
-            <a className="hover:underline" href="https://www.linkedin.com/company/warn-index/" rel="me">LinkedIn</a>
-            <span aria-hidden>·</span>
-            <a className="hover:underline" href="https://bsky.app/profile/warnindex.com" rel="me">Bluesky</a>
+          <nav className="grid grid-cols-2 gap-x-6 gap-y-6 py-2 sm:grid-cols-3">
+            <FooterColumn title="Learn">
+              <Link className="hover:underline" to="/about">About</Link>
+              <Link className="hover:underline" to="/warn-act">What is the WARN Act?</Link>
+              <Link className="hover:underline" to="/mini-warn-laws">State Mini-WARN Laws</Link>
+              <Link className="hover:underline" to="/methodology">Methodology</Link>
+              <Link className="hover:underline" to="/faq">FAQ</Link>
+            </FooterColumn>
+            <FooterColumn title="Data">
+              <Link className="hover:underline" to="/states">Browse states</Link>
+              <Link className="hover:underline" to="/api-docs">Data &amp; API</Link>
+              <a className="hover:underline" href="/feed.rss">RSS</a>
+              <a className="hover:underline" href="https://huggingface.co/datasets/warn-index/us-warn-layoffs">Hugging Face</a>
+              <a className="hover:underline" href="https://www.kaggle.com/datasets/warnindex/us-warn-act-layoff-notices-1989-2026">Kaggle</a>
+              <Link className="hover:underline" to="/status">Scraper status</Link>
+            </FooterColumn>
+            <FooterColumn title="Project">
+              <Link className="hover:underline" to="/cited-by">Press &amp; Cited By</Link>
+              <Link className="hover:underline" to="/donate">Donate</Link>
+              <Link className="hover:underline" to="/social">Social</Link>
+              {/* AGPL-3.0 section 13: offer the source to network users. */}
+              <a className="hover:underline" href="https://github.com/wielandtech-labs/warn_scraper_v2">Source code</a>
+              <Link className="hover:underline" to="/terms">Terms</Link>
+            </FooterColumn>
           </nav>
           <p className="text-center">
             The free national WARN layoff tracker and database. Daily Worker Adjustment and Retraining Notification filings from all available states.
