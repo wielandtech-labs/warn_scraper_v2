@@ -31,7 +31,7 @@ from __future__ import annotations
 import logging
 
 from sqlalchemy import or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from warn_v2.db.models import Location, Notice
 from warn_v2.geo.city_centroids import city_from_address_tail
@@ -89,6 +89,7 @@ def _relink_ny(session: Session) -> dict[str, int]:
     stats = {"considered": 0, "relinked": 0, "no_city": 0}
     notices = session.scalars(
         select(Notice)
+        .options(joinedload(Notice.location))
         .where(Notice.state == "NY", Notice.address.is_not(None))
         .order_by(Notice.notice_id)
     ).all()

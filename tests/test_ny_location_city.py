@@ -2,7 +2,7 @@
 
 NY's legacy address parse (whose city feeds notice_id) yields street fragments
 like "Floor New York" for addresses without a double space. The corrected city
-rides in ``extra["location_city"]`` and existing rows move via relink-cities.
+rides in ``NoticeRow.location_city`` and existing rows move via relink-cities.
 """
 from __future__ import annotations
 
@@ -32,6 +32,9 @@ from warn_v2.scripts.relink_cities import relink_cities
         ("425 Essjay Road  Suite 100  Williamsville, NY, 14221", "Williamsville"),
         # The source sometimes drops the ZIP.
         ("One Rockwood Road  Sleepy Hollow, NY,", "Sleepy Hollow"),
+        # The source's usual spelling wins over the address's casing.
+        ("1 Main St BROOKLYN, NY, 11201", "Brooklyn"),
+        ("1 Main St  brooklyn, NY, 11201", "Brooklyn"),
         # Clean addresses agree with the legacy parse.
         ("420 Park Ave S  New York, NY, 10016", "New York"),
         # No confident city: keep whatever the location has.
@@ -52,12 +55,11 @@ def _ny_row(address: str, **kw) -> NoticeRow:
                 address=address, city=city, zip=zip_, county="New York")
     base.update(kw)
     loc = location_city(address)
-    if loc and loc != city:
-        base["extra"] = {"location_city": loc}
+    base["location_city"] = loc if loc != city else None
     return NoticeRow(**base)
 
 
-def test_parser_puts_corrected_city_in_extra_only():
+def test_parser_sets_location_city_and_keeps_legacy_city():
     from warn_v2.scrapers.registry import get_scraper
 
     csv = (
@@ -68,9 +70,9 @@ def test_parser_puts_corrected_city_in_extra_only():
     )
     junk, clean = get_scraper("NY").parse(csv)
     assert junk.city == "St New York"  # unchanged: it is hashed into notice_id
-    assert junk.extra["location_city"] == "New York"
+    assert junk.location_city == "New York"
     assert clean.city == "New York"
-    assert "location_city" not in clean.extra
+    assert clean.location_city is None
 
 
 def test_new_row_lands_on_corrected_location(db):

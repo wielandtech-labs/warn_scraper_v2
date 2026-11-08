@@ -26,6 +26,7 @@ import functools
 import gzip
 import io
 import re
+from collections import Counter
 from pathlib import Path
 
 import httpx
@@ -124,8 +125,6 @@ class NYScraper:
             # `city` is hashed into notice_id, so it keeps the legacy parse; the
             # corrected city goes on the location only (see location_city).
             loc_city = location_city(address_raw)
-            if loc_city and loc_city != city:
-                extra["location_city"] = loc_city
 
             rows.append(
                 NoticeRow(
@@ -139,6 +138,7 @@ class NYScraper:
                     city=city,
                     zip=zip_code,
                     county=county,
+                    location_city=loc_city if loc_city != city else None,
                     source_url=SOURCE_URL,
                     extra=extra,
                 )
@@ -197,12 +197,11 @@ def location_city(raw: str | None) -> str | None:
     if len(parts) > 1:
         return _clean_city(parts[-1].strip())
     words = head.replace(",", " ").split()
-    known = _known_cities()
     for k in range(min(_MAX_CITY_WORDS, len(words)), 0, -1):
         cand = " ".join(words[-k:])
         if cand.upper() == "NY":
             continue
-        if cand.lower() in known or lookup("NY", cand) is not None:
+        if cand.lower() in _known_cities() or lookup("NY", cand) is not None:
             return _clean_city(cand)
     return None
 
@@ -210,24 +209,32 @@ def location_city(raw: str | None) -> str | None:
 def _clean_city(city: str) -> str | None:
     if not city or city.upper() == "NY":
         return None
-    # Location city matching is case-sensitive: "ROCHESTER" must not mint a
-    # location beside "Rochester".
+    # Location city matching is case-sensitive, so "MCGRAW" or "brooklyn" must
+    # not mint a location beside "McGraw"/"Brooklyn": use the source's usual
+    # spelling when it has one, else title-case an all-caps name.
+    canonical = _known_cities().get(city.lower())
+    if canonical:
+        return canonical
     return city.title() if city.isupper() else city
 
 
 @functools.cache
-def _known_cities() -> frozenset[str]:
-    """Lower-cased cities the source writes after a double space (2006-2026)."""
-    known: set[str] = set()
+def _known_cities() -> dict[str, str]:
+    """Cities the source writes after a double space (2006-2026): lower -> usual spelling."""
+    spellings: dict[str, Counter[str]] = {}
     for rec in csv.DictReader(io.StringIO(ny_history_csv().decode("utf-8-sig"))):
         addr = next((v for k, v in rec.items() if k and k.strip() == "Impacted Site Address"), "")
         m = _HEAD_RE.match((addr or "").strip())
         parts = re.split(r"\s{2,}", m.group(1).rstrip(" ,")) if m else []
         city = parts[-1].strip() if len(parts) > 1 else ""
         if city and not _NOT_A_CITY_RE.search(city) and len(city.split()) <= _MAX_CITY_WORDS:
-            known.add(city.lower())
-    known.discard("ny")
-    return frozenset(known)
+            spellings.setdefault(city.lower(), Counter())[city] += 1
+    spellings.pop("ny", None)
+    # Most common spelling, preferring one that isn't all-caps or all-lowercase.
+    return {
+        low: max(c, key=lambda s: (not (s.isupper() or s.islower()), c[s]))
+        for low, c in spellings.items()
+    }
 
 
 register(NYScraper())
