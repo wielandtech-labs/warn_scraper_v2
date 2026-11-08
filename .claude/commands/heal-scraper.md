@@ -87,7 +87,10 @@ notice_ids, so this catches CA/IL/OR-style freezes. Don't flag on the newest
 median lag is ~60 days, p90 ~140), so their newest notice_date looks old while
 new notices keep landing (seen 2026-11-07: NY's newest notice_date was 36 days
 old, yet a posting from 10-26 landed 10-27). The 30-day badge counts by
-first-seen for the same reason. Treat every flagged state as a target even if it isn't in
+first-seen for the same reason. One blind spot: a one-off Job that backfills
+rows dated within the past year resets a state's first-seen age, so a scraper
+frozen before that Job stays unflagged for another full limit. After such a
+Job, read that state's `rows_new` in `/api/scraper-runs` instead. Treat every flagged state as a target even if it isn't in
 `$ARGUMENTS`. In step 1, a flagged state's `VALIDATE ok=True` does **not** mean
 "ok". The scraper agreeing with itself proves nothing. Open the state's
 human-facing landing page (the module docstring names it) and confirm there is

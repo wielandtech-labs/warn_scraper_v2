@@ -157,7 +157,8 @@ def notice_card(notice_id: str, db: Session = Depends(get_db)) -> HTMLResponse:
 BADGE_TTL_S = 24 * 3600
 BADGE_WINDOW_DAYS = 30
 # Only notices dated within this many days count, so a backfill of old years
-# (fresh scraped_at, old notice_date) never shows up as recent layoffs.
+# (fresh scraped_at, old notice_date) never shows up as recent layoffs. A
+# backfill of rows dated within the year still counts for 30 days.
 BADGE_MAX_NOTICE_AGE_DAYS = 365
 _badge_cache: dict[str, tuple[float, bytes]] = {}
 _badge_lock = threading.Lock()
