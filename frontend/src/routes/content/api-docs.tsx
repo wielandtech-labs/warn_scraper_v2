@@ -114,6 +114,8 @@ export function ApiDocsPage() {
       <p>
         Subscribe to <a href="/feed.rss">/feed.rss</a> for the latest notices
         site-wide, or <code>/states/&#123;CODE&#125;/feed.rss</code> for one state.
+        Large new notices are also posted to{" "}
+        <a href="https://bsky.app/profile/warnindex.com">@warnindex.com on Bluesky</a>.
       </p>
 
       <h2>Terms</h2>

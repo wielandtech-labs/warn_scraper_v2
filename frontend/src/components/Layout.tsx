@@ -252,12 +252,18 @@ export function Layout({ children }: { children: ReactNode }) {
             <span aria-hidden>·</span>
             <Link className="hover:underline" to="/api-docs">Data &amp; API</Link>
             <span aria-hidden>·</span>
+            <a className="hover:underline" href="https://huggingface.co/datasets/warn-index/us-warn-layoffs">Hugging Face</a>
+            <span aria-hidden>·</span>
+            <a className="hover:underline" href="https://www.kaggle.com/datasets/warnindex/us-warn-act-layoff-notices-1989-2026">Kaggle</a>
+            <span aria-hidden>·</span>
             <Link className="hover:underline" to="/terms">Terms</Link>
             <span aria-hidden>·</span>
             {/* AGPL-3.0 section 13: offer the source to network users. */}
             <a className="hover:underline" href="https://github.com/wielandtech-labs/warn_scraper_v2">Source code</a>
             <span aria-hidden>·</span>
             <a className="hover:underline" href="https://www.linkedin.com/company/warn-index/" rel="me">LinkedIn</a>
+            <span aria-hidden>·</span>
+            <a className="hover:underline" href="https://bsky.app/profile/warnindex.com" rel="me">Bluesky</a>
           </nav>
           <p>
             The free national WARN layoff tracker and database. Daily Worker Adjustment and Retraining Notification filings from all available states.
