@@ -139,6 +139,67 @@ def test_upsert_worksite_sum_is_idempotent(db) -> None:
     assert db.query(Notice).one().layoff_count == 32
 
 
+def test_upsert_sums_same_address_rows_with_different_counts(db) -> None:
+    """Two filings at one address (MD Amentum 2026-08-18: 65 + 317) both count.
+
+    Same-address rows used to be treated as exact duplicates whatever their
+    count, so only the first row's 65 survived.
+    """
+    addr = "7710 Milestone Parkway"
+    upsert_notices(db, [
+        _row(address=addr, layoff_count=65, effective_date=date(2026, 11, 13)),
+        _row(address=addr, layoff_count=317, effective_date=date(2026, 10, 31)),
+    ])
+    db.commit()
+
+    assert db.query(Notice).one().layoff_count == 382
+
+
+def test_upsert_sums_same_address_tranches(db) -> None:
+    """Equal counts at one address on different effective dates are separate
+    tranches (IA John Deere 2024-03-12: five rows of 30), not duplicates."""
+    addr = "825 SW Irvinedale Dr"
+    upsert_notices(db, [
+        _row(address=addr, layoff_count=30, effective_date=date(2024, 4, d))
+        for d in (8, 15, 29)
+    ])
+    db.commit()
+
+    assert db.query(Notice).one().layoff_count == 90
+
+
+def test_upsert_does_not_double_count_addressless_duplicates(db) -> None:
+    """A source that lists one address-less notice twice (AL 2020, WA 2026)
+    counts it once; it used to be summed to double."""
+    upsert_notices(db, [
+        _row(layoff_count=85, effective_date=date(2020, 10, 16), closure_type="Layoff"),
+        _row(layoff_count=85, effective_date=date(2020, 10, 16), closure_type="Layoff *"),
+    ])
+    db.commit()
+
+    assert db.query(Notice).one().layoff_count == 85
+
+
+def test_upsert_sums_rows_with_distinct_source_ids(db) -> None:
+    """Identical rows with different source notice numbers are separate notices
+    (GA CICS: eight 50-worker Lockheed notices on one date)."""
+    upsert_notices(db, [
+        _row(layoff_count=50, extra={"ga_warn_id": "1988070S"}),
+        _row(layoff_count=50, extra={"ga_warn_id": "1988057S"}),
+    ])
+    db.commit()
+
+    assert db.query(Notice).one().layoff_count == 100
+
+
+def test_upsert_still_sums_distinct_addressless_rows(db) -> None:
+    """Address-less rows with different counts are still distinct worksites."""
+    upsert_notices(db, [_row(layoff_count=7), _row(layoff_count=2192)])
+    db.commit()
+
+    assert db.query(Notice).one().layoff_count == 2199
+
+
 def test_upsert_creates_distinct_locations(db) -> None:
     rows = [
         _row(employer="Acme Inc", city="Oakland", zip="94607"),
