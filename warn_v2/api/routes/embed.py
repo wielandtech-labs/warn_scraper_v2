@@ -1,8 +1,8 @@
 """Routes: /embed/* — widgets other sites can put on their pages.
 
 - /embed/notices/{id}: a self-contained notice card, meant for an <iframe>.
-- /embed/badge/state/{code}.svg: a shields-style badge with a state's
-  workers-affected total for the last 30 days, meant for an <img>.
+- /embed/badge/state/{code}.svg: a shields-style badge with the workers in a
+  state's notices published in the last 30 days, meant for an <img>.
 
 At the site root (not /api) and outside the rate limiter, like the share cards:
 a newsroom article can carry them in front of every reader. The card is plain
@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import threading
 import time
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from html import escape
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -156,6 +156,10 @@ def notice_card(notice_id: str, db: Session = Depends(get_db)) -> HTMLResponse:
 
 BADGE_TTL_S = 24 * 3600
 BADGE_WINDOW_DAYS = 30
+# Only notices dated within this many days count, so a backfill of old years
+# (fresh scraped_at, old notice_date) never shows up as recent layoffs. A
+# backfill of rows dated within the year still counts for 30 days.
+BADGE_MAX_NOTICE_AGE_DAYS = 365
 _badge_cache: dict[str, tuple[float, bytes]] = {}
 _badge_lock = threading.Lock()
 
@@ -190,11 +194,16 @@ def render_badge(label: str, value: str) -> bytes:
 
 def _state_badge(db: Session, code: str) -> bytes:
     # Same population as the site's state totals: not superseded, Non-WARN out.
+    # The window is on first-seen (scraped_at), not notice_date: some states
+    # publish notices weeks after they are dated (NY's median lag is ~60 days),
+    # so a notice_date window reads ~0 for them even while notices keep landing.
+    # For states that post promptly the two windows are nearly the same.
     today = _today()
-    since = today - timedelta(days=BADGE_WINDOW_DAYS)
+    since = datetime.combine(today - timedelta(days=BADGE_WINDOW_DAYS), datetime.min.time(), UTC)
     stmt = select(func.coalesce(func.sum(Notice.layoff_count), 0)).where(
         Notice.state == code,
-        Notice.notice_date >= since,
+        Notice.scraped_at >= since,
+        Notice.notice_date >= today - timedelta(days=BADGE_MAX_NOTICE_AGE_DAYS),
         Notice.notice_date <= today,  # a mis-parsed future date isn't "recent"
     )
     workers = db.execute(_apply_closure_filter(_not_superseded(stmt), None)).scalar_one()

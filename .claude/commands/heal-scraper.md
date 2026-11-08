@@ -46,8 +46,8 @@ A scraper that reads the **wrong** source never fails. It reports `not_modified`
 or `ok` with `rows_new=0`, and the step-1 repro passes because it re-reads the
 same stale file. (Seen 2026-10-07: CA, IL and OR froze for 3-4 months this way.
 CA's file was renamed, IL's link regex missed new filenames, and OR notices
-stopped carrying the county the crawl filtered on.) So also check prod's
-**newest notice date** against the state's own cadence:
+stopped carrying the county the crawl filtered on.) So also check when prod
+**last gained a new notice** against the state's own cadence:
 
 ```bash
 "$PY" - <<'PY'
@@ -55,26 +55,42 @@ import datetime as dt, httpx
 from warn_v2.scrapers.registry import all_states
 API = "https://warnindex.com/api/notices"
 today = dt.date.today()
+year_ago = str(today - dt.timedelta(days=365))
 for s in all_states():
-    q = {"state": s, "limit": 1, "sort_by": "notice_date", "sort_dir": "desc"}
-    items = httpx.get(API, params=q, timeout=30).json()["items"]
+    q = {"state": s, "limit": 1, "sort_dir": "desc"}
+    items = httpx.get(API, params={**q, "sort_by": "notice_date"}, timeout=30).json()["items"]
     if not items:
         print(f"{s} STALE? no notices in prod"); continue
     newest = dt.date.fromisoformat(items[0]["notice_date"])
+    # First-seen: the newest scraped_at among notices dated within a year, so
+    # a backfill of old years (fresh scraped_at) can't make a state look alive.
+    seen = httpx.get(API, params={**q, "sort_by": "scraped_at", "after": year_ago},
+                     timeout=30).json()["items"]
+    last_new = dt.date.fromisoformat(seen[0]["scraped_at"][:10]) if seen else newest
     # Typical gap from the year *before* the newest notice, so a frozen
     # stretch doesn't shrink its own baseline.
     n = httpx.get(API, params={**q, "after": str(newest - dt.timedelta(days=365)),
                                "before": str(newest)}, timeout=30).json()["total"]
     limit = max(60, round(3 * 365 / max(n, 1)))
-    age = (today - newest).days
+    age = (today - last_new).days
     if age > limit:
-        print(f"{s} STALE? newest={newest} age={age}d limit={limit}d (n_prev_year={n})")
+        print(f"{s} STALE? last new notice landed {last_new} ({age}d, limit {limit}d); "
+              f"newest notice_date={newest} (n_prev_year={n})")
 PY
 ```
 
-A state is flagged when its newest notice is older than `max(60 days, 3x its
-typical gap)`. So CA (~1,500/yr) trips at 60 days, while a ~5/yr state like ND
-gets ~7 months. Treat every flagged state as a target even if it isn't in
+A state is flagged when no new notice has landed for longer than `max(60
+days, 3x its typical gap)`. So CA (~1,500/yr) trips at 60 days, while a ~5/yr
+state like ND gets ~7 months. A scraper reading the wrong source stops gaining
+notice_ids, so this catches CA/IL/OR-style freezes. Don't flag on the newest
+**notice_date** alone: some states publish weeks after a notice is dated (NY's
+median lag is ~60 days, p90 ~140), so their newest notice_date looks old while
+new notices keep landing (seen 2026-11-07: NY's newest notice_date was 36 days
+old, yet a posting from 10-26 landed 10-27). The 30-day badge counts by
+first-seen for the same reason. One blind spot: a one-off Job that backfills
+rows dated within the past year resets a state's first-seen age, so a scraper
+frozen before that Job stays unflagged for another full limit. After such a
+Job, read that state's `rows_new` in `/api/scraper-runs` instead. Treat every flagged state as a target even if it isn't in
 `$ARGUMENTS`. In step 1, a flagged state's `VALIDATE ok=True` does **not** mean
 "ok". The scraper agreeing with itself proves nothing. Open the state's
 human-facing landing page (the module docstring names it) and confirm there is
