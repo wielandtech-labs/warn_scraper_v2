@@ -39,7 +39,8 @@ export function FaqPage() {
       <p>
         Yes. You can download filtered records or the complete <a href="/api-docs">WARN dataset</a> in CSV or JSON format,
         or integrate our REST API into your workflows. You can also subscribe to our{" "}
-        <a href="/feed.rss">RSS feed</a> for real-time notice alerts.
+        <a href="/feed.rss">RSS feed</a> for real-time notice alerts, or follow{" "}
+        <a href="https://bsky.app/profile/warnindex.com">@warnindex.com on Bluesky</a> for large new notices.
       </p>
 
       <h2>Is WARN Index free?</h2>
