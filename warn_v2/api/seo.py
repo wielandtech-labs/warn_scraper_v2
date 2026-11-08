@@ -100,6 +100,11 @@ _CONTENT_PAGES: dict[str, tuple[str, str]] = {
         "WARN Index is free and open source, with no ads and no paywall. Support "
         "the daily WARN layoff tracker with a Bitcoin, Ethereum, or Litecoin donation.",
     ),
+    "/social": (
+        "Social — WARN Index",
+        "Follow WARN Index on LinkedIn, Bluesky, and X for US layoff data, new "
+        "features, and reports.",
+    ),
     "/api-docs": (
         "WARN Dataset & API — Layoff Database Access — WARN Index",
         "Access the complete WARN dataset and layoff database via public REST "
@@ -143,11 +148,6 @@ _APP_PAGES_META: dict[str, tuple[str, str]] = {
         "Layoff Outlook & Macro Trends — WARN Index",
         "Statistically tested findings on where US layoffs are heading: state "
         "and industry trends and the link to unemployment, derived from the WARN database.",
-    ),
-    "/social": (
-        "Social — WARN Index",
-        "Follow WARN Index on LinkedIn, Bluesky, and X for US layoff data, new "
-        "features, and reports.",
     ),
 }
 
