@@ -404,7 +404,14 @@ def _get_or_create_location(session: Session, row: NoticeRow) -> Location | None
     names, on the location only, for the same no-re-key reason. Existing rows
     keep their old location (location_id is first-non-null-wins); the
     ``relink-cities`` command moves them.
+
+    Scraper-corrected city: a scraper whose legacy ``city`` parse is wrong but
+    already baked into notice_ids (NY) sets ``row.location_city``; it replaces
+    ``city`` here, on the location only.
     """
+    if row.location_city:
+        row = replace(row, city=row.location_city)
+
     if not row.city and row.state.upper() in _ADDRESS_TAIL_CITY_STATES:
         tail_city = city_from_address_tail(row.state, row.address)
         if tail_city:

@@ -353,12 +353,14 @@ def relink_cities_cmd(state: str, dry_run: bool) -> None:
 
     \b
     One-shot repair for notices whose address ends "<City> <ST> <zip>" with no
-    commas (CA EDD since ~2022), ingested before storage derived that city.
+    commas (CA EDD since ~2022), ingested before storage derived that city, and
+    NY notices whose location carries a street fragment as the city.
 
     \b
     Examples:
       warn-v2 relink-cities --state CA --dry-run
       warn-v2 relink-cities --state CA
+      warn-v2 relink-cities --state NY --dry-run
     """
     from warn_v2.db.session import get_session_factory
     from warn_v2.scripts.relink_cities import relink_cities

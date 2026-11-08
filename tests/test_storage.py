@@ -520,3 +520,15 @@ def test_city_and_county_persist_without_zip(db) -> None:
     assert loc.county == "Humboldt"
     assert loc.zip in (None, "")
     assert db.query(Notice).one().location_id == loc.id
+
+
+def test_location_city_override_fixes_location_not_notice_id(db) -> None:
+    """location_city corrects the location; notice_id keeps the legacy city."""
+    row = _row(state="NY", city="Floor New York", zip="10001",
+               address="140 East 45th Street 12th Floor New York, NY, 10001",
+               location_city="New York")
+    upsert_notices(db, [row])
+    db.commit()
+    notice = db.get(Notice, notice_id(row))
+    assert notice is not None  # hashed from "Floor New York", as before
+    assert notice.location.city == "New York"

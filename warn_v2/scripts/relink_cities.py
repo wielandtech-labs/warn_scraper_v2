@@ -15,17 +15,23 @@ The new location is geocoded from its ZIP and county only (no street address),
 so the run makes no Census calls; that is the same precision the shared
 city-less ZIP location had. Locations left with no notices are not deleted.
 
+NY is the other supported state, with a different selection: its parser has
+always set a city, often a wrong one ("Floor New York", "Street  Brooklyn"), so
+every NY notice whose location city differs from
+``ny.location_city(address)`` is relinked, not just city-less ones.
+
 Usage::
 
     warn-v2 relink-cities --state CA --dry-run
     warn-v2 relink-cities --state CA
+    warn-v2 relink-cities --state NY --dry-run
 """
 from __future__ import annotations
 
 import logging
 
 from sqlalchemy import or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from warn_v2.db.models import Location, Notice
 from warn_v2.geo.city_centroids import city_from_address_tail
@@ -43,6 +49,8 @@ def relink_cities(session: Session, state: str) -> dict[str, int]:
     ``relinked``, and ``no_city`` (address tail matched no place).
     """
     state = state.upper()
+    if state == "NY":
+        return _relink_ny(session)
     if state not in _ADDRESS_TAIL_CITY_STATES:
         # New rows only get the tail city in these states; relinking any other
         # would split its old and new notices across locations the other way.
@@ -64,18 +72,51 @@ def relink_cities(session: Session, state: str) -> dict[str, int]:
         if city is None:
             stats["no_city"] += 1
             continue
-        old = notice.location
-        row = NoticeRow(
-            state=state,
-            employer=notice.employer or "",
-            city=city,
-            zip=(old.zip if old else None) or zip_from(None, notice.address),
-            county=old.county if old else None,
-        )
-        loc = _get_or_create_location(session, row)
-        if loc is not None and loc.id != notice.location_id:
-            notice.location = loc
-            stats["relinked"] += 1
+        _relink(session, notice, city, stats)
     session.flush()
     log.info("%s relink-cities: %s", state, stats)
     return stats
+
+
+def _relink_ny(session: Session) -> dict[str, int]:
+    """Relink NY notices whose location city isn't ``ny.location_city``.
+
+    ``considered`` counts the notices whose location city differs; notices
+    with no confident city keep their location and count as ``no_city``.
+    """
+    from warn_v2.scrapers.states.ny import location_city
+
+    stats = {"considered": 0, "relinked": 0, "no_city": 0}
+    notices = session.scalars(
+        select(Notice)
+        .options(joinedload(Notice.location))
+        .where(Notice.state == "NY", Notice.address.is_not(None))
+        .order_by(Notice.notice_id)
+    ).all()
+    for notice in notices:
+        city = location_city(notice.address)
+        if city is None:
+            stats["no_city"] += 1
+            continue
+        if notice.location is not None and notice.location.city == city:
+            continue
+        stats["considered"] += 1
+        _relink(session, notice, city, stats)
+    session.flush()
+    log.info("NY relink-cities: %s", stats)
+    return stats
+
+
+def _relink(session: Session, notice: Notice, city: str, stats: dict[str, int]) -> None:
+    old = notice.location
+    row = NoticeRow(
+        state=notice.state,
+        employer=notice.employer or "",
+        city=city,
+        zip=(old.zip if old else None) or zip_from(None, notice.address),
+        county=old.county if old else None,
+    )
+    loc = _get_or_create_location(session, row)
+    if loc is not None and loc.id != notice.location_id:
+        notice.location = loc
+        stats["relinked"] += 1

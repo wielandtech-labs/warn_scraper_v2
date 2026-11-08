@@ -45,6 +45,9 @@ class NoticeRow:
     naics_code: str | None = None
     source_url: str | None = None
     raw_notice_url: str | None = None
+    # Corrected worksite city for the *location* only, when ``city`` must keep a
+    # legacy (wrong) value because it is hashed into notice_id (NY).
+    location_city: str | None = None
     extra: dict[str, str] = field(default_factory=dict)
 
 
