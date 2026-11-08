@@ -25,7 +25,7 @@ def list_scraper_runs(
     pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
 ) -> Page[ScraperRunOut]:
-    stmt = select(ScraperRun).order_by(ScraperRun.started_at.desc())
+    stmt = select(ScraperRun).order_by(ScraperRun.started_at.desc(), ScraperRun.id.desc())
     count_stmt = select(func.count()).select_from(ScraperRun)
 
     if state:

@@ -72,7 +72,7 @@ def list_notices(
         select(Notice)
         .options(joinedload(Notice.company), joinedload(Notice.location))
         .where(Notice.is_superseded.is_(False))
-        .order_by(order_expr, Notice.scraped_at.desc())
+        .order_by(order_expr, Notice.scraped_at.desc(), Notice.notice_id)
     )
     count_stmt = select(func.count()).select_from(Notice).where(Notice.is_superseded.is_(False))
 

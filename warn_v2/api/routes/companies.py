@@ -83,7 +83,7 @@ def list_companies(
     stmt = (
         select(Company, layoff_total)
         .outerjoin(totals_sq, totals_sq.c.cid == Company.id)
-        .order_by(order_expr, Company.name)
+        .order_by(order_expr, Company.name, Company.id)
     )
     count_stmt = select(func.count()).select_from(Company)
 
@@ -209,7 +209,7 @@ def list_company_notices(
     stmt = (
         select(Notice)
         .where(notice_filter)
-        .order_by(Notice.notice_date.desc().nullslast())
+        .order_by(Notice.notice_date.desc().nullslast(), Notice.notice_id)
     )
     count_stmt = select(func.count()).select_from(Notice).where(notice_filter)
     total = db.scalar(count_stmt) or 0

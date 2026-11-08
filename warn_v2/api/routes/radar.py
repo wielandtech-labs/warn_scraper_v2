@@ -195,6 +195,7 @@ def radar(
             Notice.effective_date.asc(),
             Notice.layoff_count.desc().nullslast(),
             Notice.scraped_at.desc(),
+            Notice.notice_id,
         )
     )
     count_stmt = select(func.count()).select_from(Notice)

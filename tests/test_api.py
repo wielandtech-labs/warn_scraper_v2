@@ -160,6 +160,25 @@ def test_notices_pagination(api_client, db):
     assert body["offset"] == 0
 
 
+def test_notices_pagination_is_stable_across_ties(api_client, db):
+    # One scraper run inserts many notices with the same notice_date and the
+    # same scraped_at; without a unique tiebreaker, offset pages could skip or
+    # repeat rows (seen on NY's 2026 multi-site filings).
+    scraped = datetime(2026, 6, 30, tzinfo=UTC)
+    for i in (7, 2, 9, 0, 5, 3, 8, 1, 6, 4):  # insert out of id order
+        db.add(Notice(
+            notice_id=f"tie_{i:02d}", state="NY", employer=f"Site {i}",
+            notice_date=date(2026, 4, 22), scraped_at=scraped,
+        ))
+    db.commit()
+
+    seen = []
+    for offset in range(0, 10, 3):
+        body = api_client.get(f"/api/notices?state=NY&limit=3&offset={offset}").json()
+        seen += [n["notice_id"] for n in body["items"]]
+    assert seen == [f"tie_{i:02d}" for i in range(10)]
+
+
 def test_notices_date_filter(api_client, db):
     _notice(db, notice_date=date(2026, 1, 1))
     _notice(db, employer="Late Corp", notice_date=date(2026, 6, 1))
