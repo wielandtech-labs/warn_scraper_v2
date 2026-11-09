@@ -100,6 +100,11 @@ _CONTENT_PAGES: dict[str, tuple[str, str]] = {
         "WARN Index is free and open source, with no ads and no paywall. Support "
         "the daily WARN layoff tracker with a Bitcoin, Ethereum, or Litecoin donation.",
     ),
+    "/social": (
+        "Social — WARN Index",
+        "Follow WARN Index on LinkedIn, Bluesky, and X for US layoff data, new "
+        "features, and reports.",
+    ),
     "/api-docs": (
         "WARN Dataset & API — Layoff Database Access — WARN Index",
         "Access the complete WARN dataset and layoff database via public REST "
@@ -180,6 +185,7 @@ ORG_PROFILES = (
     "https://huggingface.co/warn-index",
     "https://www.kaggle.com/warnindex",
     "https://bsky.app/profile/warnindex.com",
+    "https://x.com/warnindex",
 )
 
 # The full weekly snapshot, mirrored (warn-v2 export-public-mirror).
