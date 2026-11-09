@@ -70,6 +70,9 @@ def list_notices(
     view: ViewerSchemas = Depends(),
     db: Session = Depends(get_db),
 ) -> Page:
+    # scraped_at has no index, so without a state this sorts the whole table.
+    if sort_by == "scraped_at" and not state:
+        raise HTTPException(status_code=422, detail="sort_by=scraped_at requires a state filter")
     col = _SORT_COLUMNS.get(sort_by or "notice_date", Notice.notice_date)
     order_expr = col.asc().nullslast() if sort_dir == "asc" else col.desc().nullslast()
     stmt = (

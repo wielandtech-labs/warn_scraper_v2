@@ -235,8 +235,12 @@ def test_notices_sort_by_first_seen(api_client, db):
                          ("recent", date(2026, 10, 2), datetime(2026, 10, 6, tzinfo=UTC))]:
         db.add(Notice(notice_id=nid, state="NY", employer=nid, notice_date=d, scraped_at=seen))
     db.commit()
-    body = api_client.get("/api/notices?sort_by=scraped_at&sort_dir=desc&limit=1").json()
+    body = api_client.get("/api/notices?state=NY&sort_by=scraped_at&sort_dir=desc&limit=1").json()
     assert body["items"][0]["notice_id"] == "old_but_new"
+
+
+def test_notices_sort_by_first_seen_requires_state(api_client):
+    assert api_client.get("/api/notices?sort_by=scraped_at").status_code == 422
 
 
 def test_notices_excludes_superseded(api_client, db):
