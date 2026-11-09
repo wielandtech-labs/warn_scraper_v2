@@ -72,57 +72,57 @@ enrichment.
 > it from a trusted run._
 
 <!-- BEGIN GENERATED TABLE -->
-_Generated 2026-11-06 from prod via `warn-v2 audit --markdown`
-(image `20261103-060005-0c71644`)._
+_Generated 2026-11-09 from prod via `warn-v2 audit --markdown`
+(image `20261109-030419-76f672a`)._
 
 | State | Active | Superseded | Years | Eff% | Count% | PDF% | Geo% | Geo src | Enrich% | Scraper | Status | Next action |
 |-------|-------:|-----------:|-------|-----:|-------:|-----:|-----:|---------|--------:|---------|--------|-------------|
 | AK | 65 | 0 | 2006-2026 | 100% | 97% | 100% | 78% | census 4% / zip 16% / ? 80% | 82% | ok | gaps | backfill-historical --state AK; backfill-geo; inspect parser date handling |
 | AL | 1050 | 0 | 1998-2026 | 100% | 100% | - | 96% | city 0% / ? 100% | 58% | ok | gaps | inspect parser date handling |
 | AZ | 1004 | 1 | 2003-2026 | 100% | 97% | n/a | 79% | census 12% / zip 7% / city 31% / ? 51% | 66% | ok | gaps | backfill-historical --state AZ; source detail/PDF for real dates; backfill-geo; mark-superseded --state AZ; inspect parser date handling; inspect parser count handling |
-| CA | 26757 | 0 | 1997-2026 | 100% | 100% | - | 100% | census 34% / zip 17% / city 3% / county 0% / ? 46% | 69% | ok | gaps | backfill-historical --state CA; inspect parser date handling |
+| CA | 26757 | 0 | 1997-2026 | 100% | 100% | - | 100% | census 34% / zip 17% / city 3% / county 0% / ? 46% | 69% | not_modified | gaps | backfill-historical --state CA; inspect parser date handling |
 | CO | 835 | 0 | 2015-2026 | 100% | 95% | - | 1% | ? 100% | 67% | ok | gaps | backfill-geo; inspect parser date handling; inspect parser count handling |
 | CT | 1502 | 0 | 1998-2026 | 100% | 84% | 100% | 63% | census 2% / zip 3% / city 21% / ? 75% | 61% | ok | gaps | backfill-historical --state CT; backfill-geo; inspect parser date handling; inspect parser count handling |
 | DC | 314 | 0 | 2002-2026 | 100% | 96% | - | 100% | city 100% | 51% | ok | gaps | backfill-historical --state DC; inspect parser date handling |
-| DE | 80 | 0 | 2007-2026 | 100% | 100% | n/a | 12% | zip 10% / ? 90% | 70% | ok | gaps | backfill-historical --state DE; source detail/PDF for real dates; backfill-geo; inspect parser count handling |
+| DE | 80 | 0 | 2007-2026 | 100% | 100% | n/a | 12% | zip 10% / ? 90% | 71% | ok | gaps | backfill-historical --state DE; source detail/PDF for real dates; backfill-geo; inspect parser count handling |
 | FL | 5537 | 0 | 1998-2026 | 100% | 100% | 44% | 98% | census 54% / zip 25% / city 0% / ? 21% | 65% | ok | gaps | download-pdfs --state FL; inspect parser date handling; inspect parser count handling |
 | GA | 2723 | 0 | 1989-2026 | 100% | 100% | n/a | 96% | census 1% / zip 0% / city 84% / county 8% / ? 6% | 37% | ok | gaps | backfill-historical --state GA; enrich --state GA; inspect parser date handling; inspect parser count handling |
-| HI | 434 | 0 | 2019-2026 | 100% | 57% | 100% | 55% | census 35% / zip 62% / ? 3% | 51% | ok | gaps | source detail/PDF for real dates; backfill-geo; inspect parser date handling |
-| IA | 1322 | 481 | 2005-2026 | 100% | 99% | - | 100% | census 13% / zip 2% / city 1% / ? 84% | 71% | fetch_failed | broken | /heal-scraper IA; mark-superseded --state IA; inspect parser date handling; inspect parser count handling |
+| HI | 438 | 0 | 2019-2026 | 100% | 57% | 100% | 55% | census 35% / zip 62% / ? 3% | 52% | ok | gaps | source detail/PDF for real dates; backfill-geo; inspect parser date handling |
+| IA | 1333 | 481 | 2005-2026 | 100% | 99% | - | 100% | census 13% / zip 2% / city 1% / ? 84% | 71% | ok | gaps | mark-superseded --state IA; inspect parser date handling; inspect parser count handling |
 | ID | 213 | 0 | 2008-2026 | 100% | 99% | - | 93% | census 2% / zip 2% / ? 96% | 75% | ok | gaps | backfill-geo; inspect parser date handling |
-| IL | 3801 | 14 | 1999-2026 | 100% | 95% | - | 99% | census 66% / zip 23% / city 6% / county 1% / ? 4% | 59% | ok | gaps | mark-superseded --state IL; inspect parser date handling; inspect parser count handling |
-| IN | 1517 | 0 | 2000-2026 | 100% | 99% | 99% | 85% | census 0% / zip 0% / city 7% / ? 92% | 63% | ok | gaps | backfill-geo; inspect parser date handling; inspect parser count handling |
-| KS | 879 | 0 | 1998-2026 | 100% | 100% | n/a | 9% | census 63% / zip 14% / city 10% / ? 13% | 75% | ok | gaps | source detail/PDF for real dates; backfill-geo; inspect parser count handling |
+| IL | 3801 | 14 | 1999-2026 | 100% | 95% | - | 99% | census 66% / zip 23% / city 6% / county 1% / ? 4% | 60% | not_modified | gaps | mark-superseded --state IL; inspect parser date handling; inspect parser count handling |
+| IN | 1517 | 0 | 2000-2026 | 100% | 99% | 99% | 85% | census 0% / zip 0% / city 7% / ? 92% | 64% | ok | gaps | backfill-geo; inspect parser date handling; inspect parser count handling |
+| KS | 880 | 0 | 1998-2026 | 100% | 100% | n/a | 9% | census 62% / zip 15% / city 10% / ? 13% | 75% | ok | gaps | source detail/PDF for real dates; backfill-geo; inspect parser count handling |
 | KY | 1192 | 0 | 1998-2026 | 100% | 89% | 0% | 63% | county 75% / ? 25% | 56% | ok | gaps | download-pdfs --state KY; backfill-geo; inspect parser date handling; inspect parser count handling |
 | LA | 614 | 0 | 2007-2026 | 100% | 99% | - | 89% | census 54% / zip 32% / city 1% / ? 13% | 70% | ok | gaps | backfill-geo; inspect parser date handling |
 | MA | 601 | 0 | 2019-2026 | 100% | 96% | - | 67% | city 29% / ? 71% | 79% | ok | gaps | backfill-geo; inspect parser date handling |
-| MD | 1924 | 0 | 2000-2026 | 100% | 97% | - | 91% | census 50% / zip 6% / city 28% / county 0% / ? 17% | 72% | ok | gaps | backfill-geo; inspect parser date handling; inspect parser count handling |
+| MD | 1926 | 0 | 2000-2026 | 100% | 97% | - | 91% | census 50% / zip 6% / city 28% / county 0% / ? 17% | 72% | ok | gaps | backfill-geo; inspect parser date handling; inspect parser count handling |
 | ME | 92 | 0 | 2012-2026 | 100% | 100% | n/a | 49% | census 80% / zip 18% / ? 2% | 75% | ok | gaps | source detail/PDF for real dates; backfill-geo; inspect parser count handling |
 | MI | 2202 | 0 | 2000-2026 | 100% | 98% | - | 90% | city 41% / county 1% / ? 59% | 59% | ok | gaps | source detail/PDF for real dates; backfill-geo; inspect parser count handling |
 | MN | 565 | 3 | 2012-2026 | 100% | 96% | 100% | 81% | census 2% / zip 3% / city 84% / ? 11% | 58% | ok | gaps | backfill-historical --state MN; backfill-geo; mark-superseded --state MN; inspect parser date handling; inspect parser count handling |
-| MO | 1196 | 0 | 2001-2026 | 100% | 97% | - | 90% | city 33% / county 4% / ? 62% | 69% | ok | gaps | backfill-geo; inspect parser date handling |
+| MO | 1198 | 0 | 2001-2026 | 100% | 97% | - | 90% | city 33% / county 4% / ? 62% | 69% | ok | gaps | backfill-geo; inspect parser date handling |
 | MS | 977 | 0 | 2003-2026 | 100% | 98% | - | 94% | zip 61% / city 31% / county 5% / ? 3% | 45% | not_modified | gaps | backfill-historical --state MS; backfill-geo; enrich --state MS; inspect parser date handling; inspect parser count handling |
 | MT | 45 | 0 | 2015-2026 | 100% | 91% | - | 62% | ? 100% | 73% | not_modified | gaps | backfill-historical --state MT; backfill-geo; inspect parser date handling |
-| NC | 1173 | 4 | 2009-2026 | 100% | 100% | - | 94% | census 36% / zip 4% / city 32% / county 15% / ? 13% | 68% | ok | gaps | backfill-geo; mark-superseded --state NC; inspect parser date handling |
+| NC | 1173 | 4 | 2009-2026 | 100% | 100% | - | 94% | census 36% / zip 4% / city 32% / county 15% / ? 13% | 69% | ok | gaps | backfill-geo; mark-superseded --state NC; inspect parser date handling |
 | ND | 54 | 0 | 2015-2026 | 100% | 100% | - | 80% | ? 100% | 67% | ok | gaps | backfill-historical --state ND; backfill-geo; inspect parser date handling |
 | NE | 1300 | 0 | 2008-2026 | 100% | 89% | 100% | 98% | census 0% / zip 0% / city 71% / ? 29% | 29% | ok | gaps | backfill-historical --state NE; enrich --state NE; inspect parser date handling; inspect parser count handling |
-| NJ | 2326 | 0 | 2004-2026 | 100% | 99% | - | 63% | city 73% / ? 27% | 67% | ok | gaps | backfill-geo; inspect parser date handling; inspect parser count handling |
+| NJ | 2328 | 0 | 2004-2026 | 100% | 99% | - | 63% | city 73% / ? 27% | 68% | ok | gaps | backfill-geo; inspect parser date handling; inspect parser count handling |
 | NM | 114 | 0 | 2016-2026 | 100% | 97% | - | 96% | city 38% / county 6% / ? 55% | 76% | ok | gaps | inspect parser date handling |
-| NV | 623 | 0 | 2017-2026 | 100% | 98% | - | 96% | city 15% / county 7% / ? 78% | 71% | not_modified | gaps | inspect parser date handling; inspect parser count handling |
+| NV | 637 | 0 | 2017-2026 | 100% | 98% | - | 96% | city 15% / county 7% / ? 78% | 72% | not_modified | gaps | inspect parser date handling; inspect parser count handling |
 | NY | 8766 | 0 | 2006-2026 | 100% | 98% | 100% | 100% | census 51% / zip 14% / city 0% / county 3% / ? 31% | 60% | ok | gaps | inspect parser date handling; inspect parser count handling |
 | OH | 3289 | 0 | 1996-2026 | 100% | 92% | 97% | 74% | census 1% / zip 0% / city 84% / county 12% / ? 3% | 53% | ok | gaps | backfill-geo; inspect parser date handling; inspect parser count handling |
 | OK | 202 | 0 | 2001-2026 | 100% | 0% | n/a | 43% | zip 99% / city 1% | 71% | ok | gaps | source detail/PDF for real dates; backfill-geo |
-| OR | 905 | 73 | 1989-2026 | 100% | 98% | 0% | 69% | city 20% / ? 80% | 64% | ok | gaps | backfill-historical --state OR; source detail/PDF for real dates; download-pdfs --state OR; backfill-geo; mark-superseded --state OR; inspect parser date handling |
+| OR | 905 | 73 | 1989-2026 | 100% | 98% | 0% | 69% | city 20% / ? 80% | 65% | ok | gaps | backfill-historical --state OR; source detail/PDF for real dates; download-pdfs --state OR; backfill-geo; mark-superseded --state OR; inspect parser date handling |
 | PA | 4175 | 459 | 1998-2026 | 100% | 89% | - | 98% | census 38% / zip 16% / city 7% / county 2% / ? 38% | 58% | ok | gaps | mark-superseded --state PA; inspect parser date handling |
 | RI | 127 | 0 | 2009-2026 | 100% | 98% | - | 54% | ? 100% | 73% | not_modified | gaps | backfill-geo; inspect parser date handling |
 | SC | 1191 | 0 | 2009-2026 | 100% | 99% | - | 95% | census 8% / zip 3% / city 80% / county 5% / ? 4% | 58% | ok | gaps | inspect parser date handling |
 | SD | 140 | 0 | 1997-2026 | 100% | 99% | 92% | 99% | census 1% / zip 2% / city 27% / ? 70% | 59% | ok | gaps | backfill-historical --state SD; source detail/PDF for real dates; inspect parser date handling |
-| TN | 999 | 0 | 2012-2026 | 100% | 100% | 28% | 97% | census 0% / zip 1% / county 99% | 65% | ok | gaps | download-pdfs --state TN; inspect parser date handling |
+| TN | 999 | 0 | 2012-2026 | 100% | 100% | 28% | 97% | census 0% / zip 1% / county 99% | 66% | ok | gaps | download-pdfs --state TN; inspect parser date handling |
 | TX | 5790 | 0 | 2003-2026 | 100% | 99% | - | 100% | city 37% / county 4% / ? 59% | 58% | not_modified | gaps | inspect parser date handling; inspect parser count handling |
-| UT | 283 | 0 | 2009-2026 | 100% | 100% | - | 78% | city 56% / ? 44% | 81% | ok | gaps | source detail/PDF for real dates; backfill-geo |
+| UT | 283 | 0 | 2009-2026 | 100% | 100% | - | 78% | city 56% / ? 44% | 82% | ok | gaps | source detail/PDF for real dates; backfill-geo |
 | VA | 1578 | 0 | 1999-2026 | 100% | 98% | 100% | 89% | census 10% / zip 1% / city 6% / ? 83% | 61% | ok | gaps | backfill-historical --state VA; backfill-geo; inspect parser date handling; inspect parser count handling |
-| VT | 99 | 0 | 2003-2026 | 100% | 100% | n/a | 31% | census 45% / zip 29% / ? 26% | 67% | ok | gaps | backfill-historical --state VT; source detail/PDF for real dates; backfill-geo |
-| WA | 1529 | 0 | 2004-2026 | 100% | 100% | - | 77% | city 75% / ? 25% | 75% | ok | gaps | backfill-geo; inspect parser date handling; inspect parser count handling |
+| VT | 99 | 0 | 2003-2026 | 100% | 100% | n/a | 31% | census 45% / zip 29% / ? 26% | 68% | ok | gaps | backfill-historical --state VT; source detail/PDF for real dates; backfill-geo |
+| WA | 1529 | 0 | 2004-2026 | 100% | 100% | - | 77% | city 75% / ? 25% | 76% | ok | gaps | backfill-geo; inspect parser date handling; inspect parser count handling |
 | WI | 3658 | 0 | 1996-2026 | 100% | 98% | 100% | 98% | census 0% / zip 1% / city 53% / county 1% / ? 45% | 54% | ok | gaps | inspect parser date handling; inspect parser count handling |
 | WV | 418 | 2 | 2011-2026 | 100% | 92% | 100% | 95% | census 23% / zip 69% / city 2% / county 7% | 41% | ok | gaps | backfill-geo; enrich --state WV; mark-superseded --state WV; inspect parser date handling; inspect parser count handling |
 <!-- END GENERATED TABLE -->
@@ -181,12 +181,22 @@ recover only a few messy CO/CT rows — low value.
 
 Findings the DB can't tell us — confirmed against the live sources.
 
+- **Scraper health at the 2026-11-09 run — all 48 states `ok`/`not_modified`,
+  zero `broken`/`fetch_failed`.** 41 `ok` + 7 `not_modified` (CA, IL, MS, MT, NV,
+  RI, TX; CA and IL flipped back from `ok`). IA recovered from the 2026-11-06
+  `fetch_failed` after the #445 parser repair. Audited image
+  `20261109-030419-76f672a`. Net +36 Active rows over the three-day gap since
+  2026-11-06: NV +14 (after the #446 parser repair), IA +11, HI +4, MD/MO/NJ +2,
+  KS +1. Superseded is unchanged, no state gained a new year floor, and geo% was
+  flat. Enrichment% rose 1 point in 12 states.
+
 - **Scraper health at the 2026-11-06 run — one `broken`: IA `fetch_failed`.** The
   daily scrape has returned 404 for IA's source file
   (`workforce.iowa.gov/media/3050/download`) on 2026-11-04, 11-05 and 11-06, after
   `ok` through 11-03. Three identical 404s suggest a moved file rather than a
   transient block, but run `/heal-scraper IA` to classify (Active is unchanged at
-  1,322, so no rows were lost). The other 47 states are 42 `ok` + 5 `not_modified`
+  1,322, so no rows were lost). *Resolved by #445 — `ok` at the 2026-11-09 run.*
+  The other 47 states are 42 `ok` + 5 `not_modified`
   (MS, MT, NV, RI, TX; CA and IL flipped to `ok`). Audited image
   `20261103-060005-0c71644`. Net +1,832 Active rows over the 18-day gap since
   2026-10-19, mostly Wayback backfills: **MO +626** (PY2001–11, floor 2012→2001,
