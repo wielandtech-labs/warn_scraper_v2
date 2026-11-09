@@ -87,10 +87,13 @@ COLUMN_DOCS: dict[str, tuple[str, str]] = {
 KAGGLE_CSV = "warn_dataset.csv"
 # Keyed by the file name as stored on Kaggle.
 FILE_DOCS = {
-    PARQUET: "Every current (non-superseded) WARN notice, one row per notice, typed: dates "
-             "are dates, layoff_count is a nullable integer. Best for pandas, polars, "
-             "DuckDB and Spark.",
-    KAGGLE_CSV: "The same rows and columns as the Parquet file, as CSV.",
+    PARQUET: "U.S. WARN Act layoff notices, one row per notice, with only the latest version "
+             "of each. Column types are built in: dates are real dates and layoff_count is "
+             "a nullable integer. The best choice for pandas, polars, DuckDB and Spark.",
+    KAGGLE_CSV: "The same notices and columns as warn_dataset.parquet, as plain text for "
+                "Excel, R or any other tool. CSV doesn't store column types, so parse the "
+                "date columns on load; pandas will read layoff_count as a float because "
+                "some values are blank. A blank means no usable count.",
 }
 
 
