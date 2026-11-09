@@ -174,6 +174,12 @@ _HEAD_RE = re.compile(r"^(.*?),?\s*NY\.?,?\s*(?:\d{5}(?:-\d{4})?)?\s*$", re.IGNO
 # A city candidate with these is a list or a street fragment, not one place.
 _NOT_A_CITY_RE = re.compile(r"[\d/,;:()&]|branches", re.IGNORECASE)
 _MAX_CITY_WORDS = 4
+# Street-part words the source sometimes leaves after its double space.
+_STREET_WORDS = frozenset({
+    "avenue", "ave", "blvd", "boulevard", "building", "bldg", "drive", "floor",
+    "fl", "highway", "hwy", "lane", "parkway", "pkwy", "place", "road", "rd",
+    "room", "st", "street", "suite", "ste", "turnpike", "unit",
+})
 
 
 def location_city(raw: str | None) -> str | None:
@@ -206,7 +212,25 @@ def location_city(raw: str | None) -> str | None:
     return None
 
 
+def _is_known_place(name: str) -> bool:
+    return name.lower() in _known_cities() or lookup("NY", name) is not None
+
+
+def _drop_street_words(city: str) -> str:
+    """"Street Brooklyn" -> "Brooklyn", but only when what's left is a known place
+    ("St James" is a real one, and "James" isn't)."""
+    words = city.split()
+    while (
+        len(words) > 1
+        and words[0].rstrip(".,").lower() in _STREET_WORDS
+        and _is_known_place(" ".join(words[1:]))
+    ):
+        words = words[1:]
+    return " ".join(words)
+
+
 def _clean_city(city: str) -> str | None:
+    city = _drop_street_words(city)
     if not city or city.upper() == "NY":
         return None
     # Location city matching is case-sensitive, so "MCGRAW" or "brooklyn" must

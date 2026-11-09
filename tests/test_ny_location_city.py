@@ -21,6 +21,22 @@ from warn_v2.scripts.relink_cities import relink_cities
 @pytest.mark.parametrize(
     ("address", "city"),
     [
+        ("2857 W 8th  Street Brooklyn, NY, 11224", "Brooklyn"),
+        ("81-83 East 98th  Street Brooklyn, NY, 11212", "Brooklyn"),
+        ("12 Main  Floor New York, NY, 10001", "New York"),
+        ("5 Park  Avenue New York, NY, 10016", "New York"),
+        ("9 Elm  St New York, NY, 10001", "New York"),
+        # Real places that start with a street-like word keep it.
+        ("1 Main Street  St James, NY, 11780", "St James"),
+    ],
+)
+def test_location_city_drops_street_word_left_before_city(address, city):
+    assert location_city(address) == city
+
+
+@pytest.mark.parametrize(
+    ("address", "city"),
+    [
         # No double space: longest trailing run that names a known NY place.
         ("140 East 45th Street 12th Floor New York, NY, 10017", "New York"),
         ("Pure Fitness - Jackson Heights 78-14 Roosevelt Ave Jackson Heights, NY, 11372",
