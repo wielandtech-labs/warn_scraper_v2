@@ -2,12 +2,11 @@
 render Markdown consistently, and Bluesky caps a post at 300 graphemes."""
 from __future__ import annotations
 
-from decimal import Decimal
-
 from warn_v2.api.seo import site_base_url
 from warn_v2.closure import closure_label
 from warn_v2.companies.naics import (
     SECTOR_NAME,
+    industry_trusted,
     sector_for_code,
     subsector_for_code,
     subsector_name,
@@ -21,8 +20,6 @@ from warn_v2.states import state_name
 MAX_POST_CHARS = 300
 # Most NAICS titles fit; the rare longer one is cut with an ellipsis.
 MAX_INDUSTRY_CHARS = 60
-# Enrichment confidence an industry label needs to be posted (see _trusted_label).
-MIN_INDUSTRY_CONFIDENCE = Decimal("1.00")
 
 # Added to Bluesky posts only, so keyword and hashtag feeds pick them up.
 # Bluesky needs a tag facet for each (bluesky.tag_facets); chat webhooks
@@ -50,8 +47,7 @@ def _trusted_label(company: Company | None) -> str | None:
     """
     if company is None or not company.naics_code or company.naics_code.startswith("99"):
         return None
-    conf = company.enrichment_confidence
-    if conf is not None and conf < MIN_INDUSTRY_CONFIDENCE:
+    if not industry_trusted(company.enrichment_confidence):
         return None
     if company.naics_desc:
         return company.naics_desc

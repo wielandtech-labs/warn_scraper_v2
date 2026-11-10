@@ -27,6 +27,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, aliased
 
+from warn_v2.companies.naics import industry_trusted
 from warn_v2.db.models import Company, Location, Notice
 
 DEFAULT_DATASET = "warn_notices"
@@ -57,10 +58,11 @@ SCHEMA_SPEC: list[tuple[str, str, str]] = [
     ("geocode_source", "STRING",
      "Geocoding precision tier: census (street) > zip > city > county."),
     ("company_name", "STRING", "Canonical (deduplicated) company name."),
-    ("naics_code", "STRING", "NAICS industry code of the canonical company."),
-    ("naics_desc", "STRING", "NAICS industry description."),
-    ("sic_code", "STRING", "SIC industry code."),
-    ("sic_desc", "STRING", "SIC industry description."),
+    ("naics_code", "STRING", "NAICS industry code of the canonical company; null unless "
+                               "the company match is exact."),
+    ("naics_desc", "STRING", "NAICS industry description; null with naics_code."),
+    ("sic_code", "STRING", "SIC industry code; null unless the company match is exact."),
+    ("sic_desc", "STRING", "SIC industry description; null with sic_code."),
     ("company_website", "STRING", "Company website."),
     ("employee_count", "INTEGER", "Company total employee count (enrichment)."),
     ("parent_company_name", "STRING", "Direct parent company name, when known."),
@@ -106,6 +108,8 @@ def fetch_export_rows(db: Session, exported_at: datetime | None = None) -> list[
     )
     rows = []
     for n, loc, c in db.execute(stmt):
+        # Unverified industry codes are left out of the export (naics module).
+        trusted = industry_trusted(c.enrichment_confidence)
         rows.append({
             "notice_id": n.notice_id,
             "state": n.state,
@@ -123,10 +127,10 @@ def fetch_export_rows(db: Session, exported_at: datetime | None = None) -> list[
             "lon": _coerce(loc.lon) if loc else None,
             "geocode_source": loc.geocode_source if loc else None,
             "company_name": c.name,
-            "naics_code": c.naics_code,
-            "naics_desc": c.naics_desc,
-            "sic_code": c.sic_code,
-            "sic_desc": c.sic_desc,
+            "naics_code": c.naics_code if trusted else None,
+            "naics_desc": c.naics_desc if trusted else None,
+            "sic_code": c.sic_code if trusted else None,
+            "sic_desc": c.sic_desc if trusted else None,
             "company_website": c.website,
             "employee_count": c.employee_count,
             "parent_company_name": c.parent_company_name,

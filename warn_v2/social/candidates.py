@@ -6,8 +6,8 @@ from datetime import datetime, timedelta
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session, aliased, contains_eager, selectinload
 
+from warn_v2.companies.naics import industry_trusted_clause
 from warn_v2.db.models import Company, Notice, NoticeSocialPost
-from warn_v2.social.format import MIN_INDUSTRY_CONFIDENCE
 
 # Discovered recently: the scrape that found it ran within this window.
 SCRAPED_WITHIN = timedelta(hours=48)
@@ -58,10 +58,7 @@ def select_candidates(
                 # (format._trusted_label; the "99" unclassified case aside).
                 and_(
                     canonical.naics_code.is_not(None),
-                    or_(
-                        canonical.enrichment_confidence.is_(None),
-                        canonical.enrichment_confidence >= MIN_INDUSTRY_CONFIDENCE,
-                    ),
+                    industry_trusted_clause(canonical.enrichment_confidence),
                 ),
                 Company.provider_attempted_at.is_not(None),
                 Notice.scraped_at <= now - ENRICHMENT_WAIT,

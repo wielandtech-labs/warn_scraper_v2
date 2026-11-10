@@ -14,6 +14,8 @@ import { CompanyPeek } from "../components/peeks";
 import { QueryError } from "../components/QueryError";
 import { SkeletonTable } from "../components/Skeleton";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { UnverifiedBadge } from "../components/IndustryLabel";
+import { industryUnverified } from "../lib/industry";
 import type { CompanyOut, ParentGroupStat } from "../api/types";
 import { fmtNum, SOURCE_LABEL } from "../lib/format";
 
@@ -188,6 +190,7 @@ function CompaniesView() {
             <>
               <span className="font-mono">{c.sic_code}</span>
               {c.sic_desc && <span className="ml-2 text-slate-500 dark:text-slate-400">{c.sic_desc}</span>}
+              {industryUnverified(c) && <UnverifiedBadge />}
             </>
           );
         },

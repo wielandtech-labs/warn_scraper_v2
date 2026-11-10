@@ -13,6 +13,8 @@ import { SkeletonBlock, SkeletonRows } from "../components/Skeleton";
 import { StateSilhouette } from "../components/StateSilhouette";
 import { YearBars } from "../components/YearBars";
 import { useAuth } from "../hooks/useAuth";
+import { IndustryLabel } from "../components/IndustryLabel";
+import { industryUnverified } from "../lib/industry";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { fmtDate, fmtNum, fmtRelativeDays, SOURCE_LABEL, stateName } from "../lib/format";
 
@@ -122,7 +124,7 @@ export function CompanyDetail() {
       </Link>
 
       <PageHeader
-        kicker={c.sic_desc ?? "Company Layoff History"}
+        kicker={(!industryUnverified(c) && c.sic_desc) || "Company Layoff History"}
         title={
           <span className="flex items-center gap-4">
             <CompanyLogo name={c.name} companyId={c.id} hasLogo={!!c.has_logo} size={56} />
@@ -271,7 +273,7 @@ export function CompanyDetail() {
           <section className="card">
             <h2 className="mb-3 text-lg font-semibold">Profile</h2>
             <dl className="space-y-3 text-sm">
-              <Item label="Industry (SIC)" value={c.sic_code ? `${c.sic_code} · ${c.sic_desc ?? ""}` : "—"} />
+              <Item label="Industry (SIC)" value={<IndustryLabel company={c} />} />
               {/* provider fields are present in the payload only for paid/admin
                   sessions — render whatever the API returned, no role logic here. */}
               {c.unique_id != null && <Item label="ID" value={c.unique_id} />}

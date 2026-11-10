@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session, aliased
 
 from warn_v2.api.deps import get_current_user, get_db
 from warn_v2.api.filters import apply_notice_filters
-from warn_v2.companies.naics import naics_filter
+from warn_v2.companies.naics import if_industry_trusted, naics_filter
 from warn_v2.db.models import Company, Location, Notice, User
 
 router = APIRouter(tags=["export"])
@@ -158,6 +158,12 @@ def export_notices(
     )
 
 
+def _trusted(column):
+    """An industry column, empty unless the company's match is exact
+    (naics.MIN_INDUSTRY_CONFIDENCE): exports carry no unverified labels."""
+    return if_industry_trusted(column, Company.enrichment_confidence).label(column.key)
+
+
 def notice_export_stmt() -> Select:
     """Non-superseded notices joined to company + location, newest first.
 
@@ -171,7 +177,8 @@ def notice_export_stmt() -> Select:
         select(
             Notice.notice_id, Notice.state, Notice.employer, Notice.notice_date,
             Notice.effective_date, Notice.layoff_count, Notice.closure_category,
-            Company.name.label("company_name"), Company.naics_code, Company.naics_desc,
+            Company.name.label("company_name"),
+            _trusted(Company.naics_code), _trusted(Company.naics_desc),
             Location.city, Location.county, Location.zip, Location.lat, Location.lon,
             Notice.source_url, Notice.raw_notice_url,
             Company.parent_company_name, Company.global_ultimate_name,
@@ -214,8 +221,9 @@ def export_companies(
     )
     stmt = (
         select(
-            Company.id, Company.name, Company.sic_code, Company.sic_desc,
-            Company.naics_code, Company.naics_desc, Company.website,
+            Company.id, Company.name,
+            _trusted(Company.sic_code), _trusted(Company.sic_desc),
+            _trusted(Company.naics_code), _trusted(Company.naics_desc), Company.website,
             Company.enriched_at, Company.enrichment_confidence,
             Company.enrichment_source,
             func.coalesce(totals_sq.c.layoff_total, 0).label("layoff_total"),

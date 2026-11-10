@@ -7,7 +7,9 @@ from the code and gives a bounded, stable set of ~20 buckets.
 """
 from __future__ import annotations
 
-from sqlalchemy import func
+from decimal import Decimal
+
+from sqlalchemy import case, func, or_
 
 from warn_v2.companies.naics_subsectors import NAICS_SUBSECTORS
 
@@ -43,6 +45,28 @@ _SECTOR_PREFIXES: dict[str, list[str]] = {
     sid: list(prefixes) for sid, _name, prefixes in NAICS_SECTORS
 }
 SECTOR_NAME: dict[str, str] = {sid: name for sid, name, _ in NAICS_SECTORS}
+
+# Enrichment confidence a company's industry codes (NAICS and SIC) need to be
+# trusted. Below an exact match the labels are mostly wrong (a casino show as
+# "Grantmaking Foundations", a steelmaker as self-storage): the site marks
+# them unverified, the public exports leave them empty. No confidence at all
+# means the code came from the filing itself, which is trusted.
+MIN_INDUSTRY_CONFIDENCE = Decimal("1.00")
+
+
+def industry_trusted(confidence: Decimal | None) -> bool:
+    """Whether a company with this enrichment confidence has trusted industry codes."""
+    return confidence is None or confidence >= MIN_INDUSTRY_CONFIDENCE
+
+
+def industry_trusted_clause(confidence_column):
+    """SQL twin of industry_trusted, on an ``enrichment_confidence`` column."""
+    return or_(confidence_column.is_(None), confidence_column >= MIN_INDUSTRY_CONFIDENCE)
+
+
+def if_industry_trusted(column, confidence_column):
+    """``column``, or NULL when the company's industry codes aren't trusted."""
+    return case((industry_trusted_clause(confidence_column), column), else_=None)
 
 
 def sector_for_code(naics_code: str | None) -> str | None:

@@ -173,3 +173,22 @@ def test_shrink_guard_refuses_partial_load():
 def test_shrink_guard_allows_first_load_and_growth():
     bq_export.load_to_bigquery(_rows(10), "proj", "ds", client=_fake_client(existing_rows=None))
     bq_export.load_to_bigquery(_rows(150), "proj", "ds", client=_fake_client(existing_rows=100))
+
+
+def test_unverified_industry_codes_are_blank(db):
+    exact = _company(db, "Exact Co", naics_code="3361", naics_desc="Motor Vehicles",
+                     sic_code="3711", sic_desc="Motor Vehicles",
+                     enrichment_confidence=Decimal("1.00"))
+    fuzzy = _company(db, "Fuzzy Co", naics_code="8132", naics_desc="Grantmaking",
+                     sic_code="6732", sic_desc="Trusts", enrichment_confidence=Decimal("0.85"))
+    _notice(db, exact, "n_exact")
+    _notice(db, fuzzy, "n_fuzzy")
+    db.commit()
+
+    rows = {r["notice_id"]: r for r in bq_export.fetch_export_rows(db)}
+    assert rows["n_exact"]["naics_code"] == "3361" and rows["n_exact"]["sic_code"] == "3711"
+    fuzzy_row = rows["n_fuzzy"]
+    assert [fuzzy_row[k] for k in ("naics_code", "naics_desc", "sic_code", "sic_desc")] == [
+        None, None, None, None,
+    ]
+    assert fuzzy_row["enrichment_confidence"] == pytest.approx(0.85)

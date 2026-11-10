@@ -70,7 +70,8 @@ COLUMN_DOCS: dict[str, tuple[str, str]] = {
                          "the source does not say."),
     "company_name": ("string", "Canonical company name from WARN Index's employer matching "
                      "(spelling variants of one employer share a name)."),
-    "naics_code": ("string", "NAICS industry code of the matched company."),
+    "naics_code": ("string", "NAICS industry code of the matched company. Empty when the "
+                   "industry is unknown or the company match is not exact."),
     "naics_desc": ("string", "NAICS industry title for naics_code."),
     "city": ("city", "Worksite city."),
     "county": ("string", "Worksite county."),
@@ -207,11 +208,11 @@ The same weekly snapshot is published on
 
 `detail_url` links each notice to its page on WARN Index. Superseded duplicates
 are excluded. Records come from public state filings; `company_name` is WARN
-Index's employer matching, the NAICS fields its industry classification, and
-`lat`/`lon` its geocoding. Values that cannot be right are left empty here (a
-negative `layoff_count`, or an `effective_date` more than 2 years before or 5
-years after `notice_date`); the notice page on WARN Index shows the state's
-original value.
+Index's employer matching, the NAICS fields its industry classification (left
+empty unless the employer match is exact), and `lat`/`lon` its geocoding.
+Values that cannot be right are left empty here (a negative `layoff_count`,
+or an `effective_date` more than 2 years before or 5 years after
+`notice_date`); the notice page on WARN Index shows the state's original value.
 
 ## License and attribution
 

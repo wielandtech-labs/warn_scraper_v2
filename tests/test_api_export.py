@@ -5,6 +5,7 @@ import csv
 import io
 import json
 from datetime import date
+from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
@@ -228,3 +229,27 @@ def test_notices_export_json_is_streamed_and_valid(api_client, db):
 
     empty = json.loads(api_client.get("/api/notices/export?format=json&state=ZZ").text)
     assert empty == []
+
+
+def test_exports_blank_unverified_industry(api_client, db):
+    exact = Company(name="Exact Co", naics_code="334111", naics_desc="Computers",
+                    sic_code="3571", sic_desc="Computers", enrichment_confidence=Decimal("1.00"))
+    fuzzy = Company(name="Fuzzy Co", naics_code="813211", naics_desc="Grantmaking",
+                    sic_code="6732", sic_desc="Trusts", enrichment_confidence=Decimal("0.80"))
+    db.add_all([exact, fuzzy])
+    db.flush()
+    _notice(db, employer="Exact Co", company=exact)
+    _notice(db, employer="Fuzzy Co", company=fuzzy)
+    db.commit()
+
+    notices = {r["employer"]: r for r in api_client.get("/api/notices/export?format=json").json()}
+    assert notices["Exact Co"]["naics_code"] == "334111"
+    assert notices["Fuzzy Co"]["naics_code"] is None
+    assert notices["Fuzzy Co"]["naics_desc"] is None
+
+    companies = {r["name"]: r for r in api_client.get("/api/companies/export?format=json").json()}
+    assert companies["Exact Co"]["sic_code"] == "3571"
+    fuzzy_row = companies["Fuzzy Co"]
+    assert [fuzzy_row[k] for k in ("naics_code", "naics_desc", "sic_code", "sic_desc")] == [
+        None, None, None, None,
+    ]
