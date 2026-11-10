@@ -15,7 +15,7 @@ import { QueryError } from "../components/QueryError";
 import { SkeletonTable } from "../components/Skeleton";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { UnverifiedBadge } from "../components/IndustryLabel";
-import { industryUnverified } from "../lib/industry";
+import { industryCode, industryUnverified } from "../lib/industry";
 import type { CompanyOut, ParentGroupStat } from "../api/types";
 import { fmtNum, SOURCE_LABEL } from "../lib/format";
 
@@ -180,16 +180,18 @@ function CompaniesView() {
         ),
       },
       {
-        id: "sic",
+        id: "industry",
         enableSorting: false,
-        header: "SIC",
+        header: "Industry",
         cell: (info) => {
           const c = info.row.original;
-          if (!c.sic_code) return "—";
+          const ind = industryCode(c);
+          if (!ind) return "—";
           return (
             <>
-              <span className="font-mono">{c.sic_code}</span>
-              {c.sic_desc && <span className="ml-2 text-slate-500 dark:text-slate-400">{c.sic_desc}</span>}
+              <span className="font-mono">{ind.code}</span>
+              {ind.desc && <span className="ml-2 text-slate-500 dark:text-slate-400">{ind.desc}</span>}
+              {ind.system === "SIC" && <span className="ml-1 text-slate-500 dark:text-slate-400">(SIC)</span>}
               {industryUnverified(c) && <UnverifiedBadge />}
             </>
           );

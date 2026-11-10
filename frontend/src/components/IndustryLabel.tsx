@@ -1,5 +1,4 @@
-import type { CompanyOut } from "../api/types";
-import { industryUnverified } from "../lib/industry";
+import { industryCode, industryUnverified, type IndustryFields } from "../lib/industry";
 
 export function UnverifiedBadge() {
   return (
@@ -12,16 +11,14 @@ export function UnverifiedBadge() {
   );
 }
 
-/** "SIC code · description", with an Unverified badge when the match isn't exact. */
-export function IndustryLabel({
-  company: c,
-}: {
-  company: Pick<CompanyOut, "sic_code" | "sic_desc" | "enrichment_confidence">;
-}) {
-  if (!c.sic_code) return <>—</>;
+/** "code · description", with an Unverified badge when the match isn't exact. */
+export function IndustryLabel({ company: c }: { company: IndustryFields }) {
+  const ind = industryCode(c);
+  if (!ind) return <>—</>;
   return (
     <>
-      {c.sic_desc ? `${c.sic_code} · ${c.sic_desc}` : c.sic_code}
+      {ind.desc ? `${ind.code} · ${ind.desc}` : ind.code}
+      {ind.system === "SIC" && <span className="text-slate-500 dark:text-slate-400"> (SIC)</span>}
       {industryUnverified(c) && <UnverifiedBadge />}
     </>
   );
