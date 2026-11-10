@@ -71,7 +71,9 @@ export function ApiDocsPage() {
         <code>load_dataset("warn-index/us-warn-layoffs")</code> or download the
         files directly. The same snapshot, with column descriptions, is on{" "}
         <a href="https://www.kaggle.com/datasets/warnindex/us-warn-act-layoff-notices-1989-2026">Kaggle</a>{" "}
-        for use in Kaggle notebooks.
+        for use in Kaggle notebooks. The{" "}
+        <a href="https://www.kaggle.com/writeups/warnindex/warn-index-every-us-layoff-notice-in-one-dataset">project writeup</a>{" "}
+        explains how the dataset is built and what it shows.
       </p>
       <p>
         Researchers, analysts, and engineering teams can export records from our

@@ -77,6 +77,7 @@ def test_write_mirror_files_and_card(db, tmp_path):
     assert "| `layoff_count` | Number of workers affected" in card
     assert f"](https://www.kaggle.com/datasets/{mirror.KAGGLE_DATASET})" in card
     assert "](https://huggingface.co/datasets/warn-index/us-warn-layoffs)" in card
+    assert f"]({mirror.KAGGLE_WRITEUP})" in card
 
 
 def test_out_of_range_source_dates_do_not_break_the_export(db, tmp_path):

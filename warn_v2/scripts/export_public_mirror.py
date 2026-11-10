@@ -35,6 +35,9 @@ ZENODO_DOI = "10.5281/zenodo.23902958"
 
 HF_DATASET = "warn-index/us-warn-layoffs"
 KAGGLE_DATASET = "warnindex/us-warn-act-layoff-notices-1989-2026"
+KAGGLE_WRITEUP = (
+    "https://www.kaggle.com/writeups/warnindex/warn-index-every-us-layoff-notice-in-one-dataset"
+)
 
 KAGGLE_API = "https://api.kaggle.com/v1"
 KAGGLE_SUBTITLE = "US WARN Act layoff notices from state labor agencies, refreshed weekly"
@@ -197,7 +200,8 @@ For real-time filings, maps, alerts and the REST API, visit
 
 The same weekly snapshot is published on
 [Hugging Face](https://huggingface.co/datasets/{HF_DATASET}) and
-[Kaggle](https://www.kaggle.com/datasets/{KAGGLE_DATASET}).
+[Kaggle](https://www.kaggle.com/datasets/{KAGGLE_DATASET}). How it is built and
+what the data shows: [project writeup]({KAGGLE_WRITEUP}).
 
 ## Fields
 

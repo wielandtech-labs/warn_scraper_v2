@@ -76,6 +76,7 @@ You don't need to run the scraper to use the data:
 
 - **Live tracker, alerts and API:** [warnindex.com](https://warnindex.com) ([API docs](https://warnindex.com/api-docs))
 - **Full weekly snapshot:** [Hugging Face](https://huggingface.co/datasets/warn-index/us-warn-layoffs) · [Kaggle](https://www.kaggle.com/datasets/warnindex/us-warn-act-layoff-notices-1989-2026)
+- **How it's built and what the data shows:** [Kaggle writeup](https://www.kaggle.com/writeups/warnindex/warn-index-every-us-layoff-notice-in-one-dataset)
 - **Citable archive (DOI):** [10.5281/zenodo.23902958](https://doi.org/10.5281/zenodo.23902958)
 - **New large notices on Bluesky:** [@warnindex.com](https://bsky.app/profile/warnindex.com)
 
