@@ -295,7 +295,7 @@ export function NoticeDetail() {
                     }
                   />
                 )}
-                <Item label="Industry (SIC)" value={<IndustryLabel company={n.company} />} />
+                <Item label="Industry" value={<IndustryLabel company={n.company} />} />
               </dl>
             </section>
           )}
