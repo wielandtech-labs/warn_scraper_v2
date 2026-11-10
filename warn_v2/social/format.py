@@ -2,6 +2,8 @@
 render Markdown consistently, and Bluesky caps a post at 300 graphemes."""
 from __future__ import annotations
 
+from decimal import Decimal
+
 from warn_v2.api.seo import site_base_url
 from warn_v2.closure import closure_label
 from warn_v2.companies.naics import (
@@ -10,7 +12,7 @@ from warn_v2.companies.naics import (
     subsector_for_code,
     subsector_name,
 )
-from warn_v2.db.models import Notice
+from warn_v2.db.models import Company, Notice
 from warn_v2.notifications.templates import fmt_date
 from warn_v2.states import state_name
 
@@ -19,6 +21,8 @@ from warn_v2.states import state_name
 MAX_POST_CHARS = 300
 # Most NAICS titles fit; the rare longer one is cut with an ellipsis.
 MAX_INDUSTRY_CHARS = 60
+# Enrichment confidence an industry label needs to be posted (see _trusted_label).
+MIN_INDUSTRY_CONFIDENCE = Decimal("1.00")
 
 # Added to Bluesky posts only, so keyword and hashtag feeds pick them up.
 # Bluesky needs a tag facet for each (bluesky.tag_facets); chat webhooks
@@ -36,13 +40,18 @@ def place(notice: Notice) -> str:
     return f"{local}, {notice.state}" if local else (state_name(notice.state) or notice.state)
 
 
-def industry(notice: Notice) -> str | None:
-    """The company's NAICS industry label, most specific first, or None. A
-    merged duplicate with no code of its own uses its canonical's."""
-    company = notice.company
-    if company is not None and not company.naics_code and company.canonical is not None:
-        company = company.canonical
-    if company is None:
+def _trusted_label(company: Company | None) -> str | None:
+    """The company's NAICS label, most specific first, if we'd stand behind it.
+
+    Only an exact enrichment match (confidence 1.00) or a code from the filing
+    itself (never enriched, so no confidence). Below 1.00 the labels are mostly
+    wrong in a public post (a casino show as "Grantmaking Foundations"), and
+    sector 99 is "Unclassified Establishments", which says nothing.
+    """
+    if company is None or not company.naics_code or company.naics_code.startswith("99"):
+        return None
+    conf = company.enrichment_confidence
+    if conf is not None and conf < MIN_INDUSTRY_CONFIDENCE:
         return None
     if company.naics_desc:
         return company.naics_desc
@@ -50,6 +59,13 @@ def industry(notice: Notice) -> str | None:
     return subsector_name(subsector_for_code(code)) or SECTOR_NAME.get(
         sector_for_code(code) or ""
     )
+
+
+def industry(notice: Notice) -> str | None:
+    """The company's trusted NAICS industry label, or None. A merged duplicate
+    without one of its own uses its canonical's."""
+    company = notice.company
+    return _trusted_label(company) or _trusted_label(company and company.canonical)
 
 
 def render_post(notice: Notice, hashtags: tuple[str, ...] = ()) -> str:
