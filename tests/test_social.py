@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 
 import httpx
 import pytest
@@ -127,6 +128,19 @@ def test_candidates_skip_the_wait_when_an_industry_is_already_known(db):
     assert format.industry(notices[1]) == "Warehousing and Storage"
 
 
+def test_candidates_still_wait_when_the_canonical_label_is_untrusted(db):
+    # The canonical's code is a low-confidence guess the post would drop, so it
+    # is no reason to skip waiting for the variant's own enrichment attempt.
+    canon = Company(name="Acme Inc", naics_code="523991",
+                    enrichment_confidence=Decimal("0.90"), enriched_at=NOW)
+    db.add(canon)
+    db.flush()
+    db.add(_notice("variant", 800,
+                   company=Company(name="Acme - Plant 2", canonical_company_id=canon.id)))
+    db.commit()
+    assert _ids(db) == []
+
+
 # ----- post text -----
 
 def test_render_post_industry_line():
@@ -145,9 +159,40 @@ def test_render_post_industry_line():
     assert "Industry" not in format.render_post(n)
 
 
+def test_industry_only_when_trusted():
+    n = _notice("abc", 500)
+
+    def label(**kw):
+        n.company = Company(name="Acme", naics_code="711110", naics_desc="Theater Companies", **kw)
+        return format.industry(n)
+
+    assert label(enrichment_confidence=Decimal("1.00")) == "Theater Companies"
+    assert label() == "Theater Companies"  # code from the filing, never enriched
+    # A fuzzy match: e.g. a casino show tagged "Grantmaking Foundations".
+    assert label(enrichment_confidence=Decimal("0.90")) is None
+
+    n.company = Company(name="Acme", naics_code="999990",
+                        naics_desc="Unclassified Establishments",
+                        enrichment_confidence=Decimal("1.00"))
+    assert format.industry(n) is None
+
+
+def test_industry_falls_back_to_a_trusted_canonical():
+    n = _notice("abc", 500)
+    canon = Company(name="Acme Inc", naics_code="493110", naics_desc="General Warehousing",
+                    enrichment_confidence=Decimal("1.00"))
+    # The variant's own label is a low-confidence guess; the canonical's is exact.
+    n.company = Company(name="Acme - Plant 2", naics_code="523991",
+                        naics_desc="Trust, Fiduciary, and Custody Activities",
+                        enrichment_confidence=Decimal("0.90"))
+    n.company.canonical = canon
+    assert format.industry(n) == "General Warehousing"
+
+
 def test_render_post_with_industry_stays_under_limit():
     n = _notice("abc", 1350, employer="Very Long Employer Name " * 20)
-    n.company = Company(name="x", naics_desc="Administrative Management and General "
+    n.company = Company(name="x", naics_code="541611",
+                        naics_desc="Administrative Management and General "
                         "Management Consulting Services " * 2)
     text = format.render_post(n, format.BLUESKY_HASHTAGS)
     assert len(text) <= format.MAX_POST_CHARS
