@@ -392,3 +392,26 @@ def test_cli_kaggle_metadata(db, tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     assert calls == [(mirror.KAGGLE_DATASET, mirror.KAGGLE_COVER)]
     assert (tmp_path / mirror.CARD).exists()
+
+
+def test_frame_blanks_unverified_industry(db):
+    exact = Company(name="Exact Co", naics_code="334111", naics_desc="Computer Manufacturing",
+                    enrichment_confidence=Decimal("1.00"))
+    fuzzy = Company(name="Fuzzy Co", naics_code="813211", naics_desc="Grantmaking Foundations",
+                    enrichment_confidence=Decimal("0.80"))
+    filed = Company(name="Filed Co", naics_code="622110", naics_desc="General Hospitals")
+    db.add_all([exact, fuzzy, filed])
+    db.flush()
+    db.add_all([
+        Notice(notice_id=c.name, state="NV", employer=c.name, notice_date=date(2026, 9, 1),
+               company_id=c.id, source_url="https://example.gov/warn")
+        for c in (exact, fuzzy, filed)
+    ])
+    db.commit()
+
+    df = mirror.fetch_frame(db).set_index("notice_id")
+    assert df.loc["Exact Co", "naics_code"] == "334111"
+    assert df.loc["Filed Co", "naics_desc"] == "General Hospitals"  # from the filing
+    assert pd.isna(df.loc["Fuzzy Co", "naics_code"])
+    assert pd.isna(df.loc["Fuzzy Co", "naics_desc"])
+    assert df.loc["Fuzzy Co", "company_name"] == "Fuzzy Co"  # only the industry goes

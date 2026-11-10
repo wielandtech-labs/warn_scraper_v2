@@ -15,6 +15,7 @@ import { PageHeader } from "../components/PageHeader";
 import { QueryError } from "../components/QueryError";
 import { SkeletonBlock, SkeletonRows } from "../components/Skeleton";
 import { StateSilhouette } from "../components/StateSilhouette";
+import { IndustryLabel } from "../components/IndustryLabel";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { fmtDate, fmtNum, fmtRelativeDays, stateName } from "../lib/format";
 
@@ -294,14 +295,7 @@ export function NoticeDetail() {
                     }
                   />
                 )}
-                <Item
-                  label="Industry (SIC)"
-                  value={
-                    n.company.sic_code
-                      ? `${n.company.sic_code} — ${n.company.sic_desc ?? ""}`
-                      : "—"
-                  }
-                />
+                <Item label="Industry (SIC)" value={<IndustryLabel company={n.company} />} />
               </dl>
             </section>
           )}
