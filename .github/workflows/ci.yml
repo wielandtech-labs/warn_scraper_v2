@@ -16,7 +16,9 @@ jobs:
   # runner pod's 4-CPU limit, so OpenMP/BLAS are pinned to one thread per
   # worker (they size their pools from the node's cores, not the pod's limit).
   test:
-    runs-on: homelab-warn-v2
+    # Fork PRs run on GitHub-hosted runners, never on the self-hosted ones
+    # (they sit inside the cluster).
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'homelab-warn-v2' }}
     env:
       OMP_NUM_THREADS: "1"
       OPENBLAS_NUM_THREADS: "1"
@@ -53,7 +55,9 @@ jobs:
         run: uv run python -m pytest -n 4 --dist loadfile -m "not slow" --durations=10
 
   test-slow:
-    runs-on: homelab-warn-v2
+    # Fork PRs run on GitHub-hosted runners, never on the self-hosted ones
+    # (they sit inside the cluster).
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'homelab-warn-v2' }}
     env:
       OMP_NUM_THREADS: "1"
       OPENBLAS_NUM_THREADS: "1"
@@ -72,7 +76,9 @@ jobs:
         run: uv run python -m pytest -n 4 --dist load -m slow --durations=10
 
   frontend:
-    runs-on: homelab-warn-v2
+    # Fork PRs run on GitHub-hosted runners, never on the self-hosted ones
+    # (they sit inside the cluster).
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'homelab-warn-v2' }}
     defaults:
       run:
         working-directory: frontend
