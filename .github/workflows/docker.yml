@@ -26,6 +26,8 @@ concurrency:
 
 jobs:
   build:
+    # Fork PRs never run on the self-hosted runners: they sit inside the cluster.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: homelab-dind
     permissions:
       contents: read
