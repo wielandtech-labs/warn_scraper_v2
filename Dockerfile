@@ -78,8 +78,10 @@ USER warn
 # copied in, so the installed project was stale and every `uv run` rebuilt and
 # reinstalled it into .venv at container start. That failed with "Permission
 # denied" in the migrate hook once the venv wasn't writable (#475).
-RUN --mount=type=cache,target=/home/warn/.cache/uv,uid=1000,gid=1000 \
-    uv sync $UV_SYNC_FLAGS
+# The cache lives under /tmp: buildkit creates a missing mount target's parent
+# dirs as root, so a target under /home/warn/.cache is not writable by warn.
+RUN --mount=type=cache,target=/tmp/uv-cache,uid=1000,gid=1000 \
+    UV_CACHE_DIR=/tmp/uv-cache uv sync $UV_SYNC_FLAGS
 
 # Never sync or rebuild at container start: the image is complete as built.
 ENV UV_NO_SYNC=1
