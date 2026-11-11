@@ -15,10 +15,12 @@ spec:
   timeZone: {{ . | quote }}
   {{- end }}
   concurrencyPolicy: Forbid
-  # A missed slot is skipped rather than run late, so a reader that only
-  # accepts a Job created in the last few hours never sees a stale one as new.
-  startingDeadlineSeconds: 1800
-  # One Job each: the reader must find exactly this week's, never fall back.
+  # Start at most 10 min late, then a 10 min run deadline: done by ~06:50,
+  # before the 07:00 reader. A slot missed by more than that is skipped.
+  startingDeadlineSeconds: 600
+  # The reader only accepts a Job created in the last 6h, which is what keeps
+  # last week's run out when this week's fails. Finished Jobs go after a day,
+  # so a failed run doesn't hold KubeJobFailed for the whole week.
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   jobTemplate:
@@ -29,6 +31,7 @@ spec:
     spec:
       backoffLimit: 0
       activeDeadlineSeconds: 600
+      ttlSecondsAfterFinished: 86400
       template:
         metadata:
           labels:

@@ -264,7 +264,7 @@ alertDigest:
 audit:
   enabled: false          # flip on in the prod HelmRelease
   schedule: "30 6 * * 1"  # Mon 06:30, 30 min before the agent task reads it
-  timeZone: ""            # e.g. America/Detroit; empty = controller time zone
+  timeZone: America/Detroit  # the reader task runs on Detroit time
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: "1",  memory: 1Gi }

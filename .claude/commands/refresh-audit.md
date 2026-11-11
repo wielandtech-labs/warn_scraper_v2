@@ -26,50 +26,64 @@ loop until actually met, not until it "looks right":
    image-tag chain in `CLAUDE.md` never fires. Any diff reaching beyond
    `STATE_AUDIT.md` is **not** merged by this routine.
 
-## Setup (run once at the start)
+## Setup
 
-```bash
-# kubectl/flux live in WSL (project CLAUDE.md) — every kubectl call is `wsl kubectl`.
-# gh auth: GH_TOKEN is preset in Bash by a SessionStart hook (global CLAUDE.md).
-```
+This routine needs only **read** access to the cluster (`get`/`watch` and pod logs,
+e.g. the read-only `tailnet-readers` context) and `gh` auth for the PR. Put the
+`kubectl` verb first (`kubectl get -n warn-v2 ...`): headless runs allowlist commands
+by prefix.
 
 ## Step 1 — Read this week's in-cluster audit, capture the table
 
-The audit runs as the chart's `warn-v2-audit` CronJob (`audit.enabled` in the prod
-HelmRelease, Mon 06:30 America/Detroit), so this step only **reads**: `get` jobs and
-pod logs, which the read-only cluster context allows. Never create, edit or delete
-a Job here.
+The audit runs as the chart's `warn-v2-warn-v2-audit` CronJob (`audit.enabled` in the
+prod HelmRelease, Mon 06:30 America/Detroit). This step only **reads** it. Never
+create, edit or delete a Job here.
 
-```bash
-# The newest audit Job: must have succeeded and been created in the last 6 hours.
-# Anything older is last week's run. Stop and report; never use it.
-kubectl -n warn-v2 get jobs -l app.kubernetes.io/component=audit -o json \
-  | jq -r --arg cut "$(date -u -d '6 hours ago' +%FT%TZ)" '
-      [.items[] | select(.metadata.creationTimestamp >= $cut)]
-      | sort_by(.metadata.creationTimestamp) | last
-      | if . == null then "NONE"
-        else "\(.metadata.name) succeeded=\(.status.succeeded // 0) image=\(.spec.template.spec.containers[0].image)" end'
-kubectl -n warn-v2 logs job/<name>    # the table
-```
+1. **The release must be healthy.** Run both checks:
 
-- **`TAG` is the Job's own image** (`image=` above), not the deployment's. A rollout
-  between 06:30 and now would otherwise credit the table to an image that didn't
-  produce it.
-- `NONE`, or `succeeded=0`: this week's run is missing or failed. Report it, with the
-  failed Job's log if there is one, and stop. Don't fabricate a table. The
-  CronJob keeps one Job of each kind, so there's no older run to fall back to by
-  mistake.
-- If the HelmRelease is mid-rollback, or the API deployment isn't Ready, report that
-  and stop.
+   ```bash
+   kubectl get -n warn-v2 helmreleases.helm.toolkit.fluxcd.io warn-v2 \
+     -o jsonpath='{.status.conditions[?(@.type=="Ready")].status} {.status.conditions[?(@.type=="Ready")].message}'
+   kubectl get -n warn-v2 deploy warn-v2-warn-v2-api \
+     -o jsonpath='{.status.readyReplicas}/{.spec.replicas} {.spec.template.spec.containers[0].image}'
+   ```
+   If the HelmRelease isn't `True`, or it's mid-rollback, or the API isn't fully
+   ready, report that and stop.
+
+2. **Find this week's Job.** It must be the newest audit Job from this release and
+   created in the last 6 hours:
+
+   ```bash
+   kubectl get -n warn-v2 jobs -l app.kubernetes.io/instance=warn-v2,app.kubernetes.io/component=audit -o json \
+     | jq -r --arg cut "$(date -u -d '6 hours ago' +%FT%TZ)" '
+         [.items[] | select(.metadata.creationTimestamp >= $cut)]
+         | sort_by(.metadata.creationTimestamp) | last
+         | if . == null then "NONE"
+           else "\(.metadata.name) succeeded=\(.status.succeeded // 0) active=\(.status.active // 0) failed=\(.status.failed // 0) image=\(.spec.template.spec.containers[0].image)" end'
+   ```
+   - `NONE`: this week's run is missing. Report it and stop. **The 6-hour cut is
+     what keeps last week's Job out.** When this week's run fails, last week's
+     successful Job can still exist, so never widen the cut or fall back to an
+     older Job.
+   - `active=1`: it's still running (the Job may start up to 10 minutes late and
+     has a 10-minute deadline). Re-run the query once a minute, for up to 20
+     minutes.
+   - `failed=1`: report the failure with `kubectl logs -n warn-v2 job/<name>` and
+     stop. Never fabricate a table.
+   - `succeeded=1`: continue. **`TAG` is the Job's own `image=` tag**, used in Step 2.
+     If it differs from the API deployment's image in check 1, a rollout landed
+     after the audit. Say so in the PR body, but the table still belongs to `TAG`.
+
+3. **Read the table:** `kubectl logs -n warn-v2 job/<name>`.
 
 **Keep only from the `| State | Active | …` header onward** and discard anything before it.
 Images built before the fix for #475 (PR #476) printed 3–4 build/install lines first ("Building warn-v2 …",
 "Installed 1 package …"); since then the image sets `UV_NO_SYNC=1` and `uv run` prints none. The note line (`_Generated …_`) is **not** in
 the output; you compose it in Step 2.
 
-Failure handling: a log with **"No such command 'audit'"** means the image predates the
-audit command. A failed or timed-out Job is commonly a DB-connect issue; its log says
-which. Either way, report and stop.
+A log with **"No such command 'audit'"** means the image predates the audit command.
+A failed Job is commonly a DB-connect issue, and its log says which. Either way,
+report and stop.
 
 ## Step 2 — Splice into `STATE_AUDIT.md`
 
@@ -165,41 +179,10 @@ biggest deltas vs the previous table, and the PR number.
 
 ## Running this as a scheduled task
 
-Unlike `/heal-scraper` (local-only), this routine **needs WSL `kubectl` cluster
-access** and `gh` auth. Validate `claude -p "/refresh-audit"` once interactively —
-confirm WSL `kubectl` reaches the cluster and `gh` auth (`GH_TOKEN` from the
-SessionStart hook) resolves non-interactively — before trusting a scheduled run.
-
-**Auto mode (no prompts).** In headless `-p` mode there's no one to answer a
-permission prompt, and the **first un-allowlisted tool call aborts the whole run**
-with a non-zero exit (it doesn't hang or skip). `--permission-mode acceptEdits`
-auto-approves file edits but **not** the `wsl kubectl` / `git` / `gh` Bash this
-routine runs — so it would abort at the first `git` step, *after* touching the
-cluster. For a trusted, bounded task, run with **`--dangerously-skip-permissions`**
-(≡ `--permission-mode bypassPermissions`), which skips all prompts.
-
-This routine *does* merge, which is normally exactly what you must not hand this
-flag to. It is safe here only because the merge is gated on a machine-checked
-predicate — single-file `STATE_AUDIT.md` diff, all checks green, head SHA unmoved —
-and because a `**.md`-only merge cannot build an image or reach the Flux chain.
-Widen that diff and the flag stops being safe.
-
-The audit is a slow-moving snapshot, so **weekly** is plenty. Windows Task Scheduler
-example (Mondays 09:00, after the nightly scrape/enrich window):
-
-```powershell
-$claude = (Get-Command claude).Source
-$action = New-ScheduledTaskAction -Execute $claude `
-  -Argument '-p "/refresh-audit" --dangerously-skip-permissions' `
-  -WorkingDirectory 'C:\Users\rapha\workspace\warn_scraper_v2'
-$trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday -At 9:00am
-Register-ScheduledTask -TaskName 'warn-refresh-audit' -Action $action -Trigger $trigger
-```
-
-`-WorkingDirectory` sets the cwd (the proven mechanism — there's no need for a
-`claude` cwd flag). Output is a merged docs commit when the guards pass, or an open
-PR plus a report when they don't. Either way nothing deploys — docs-only merges
-build no image.
+On the homelab admin workstation this runs headless every Monday at 07:00
+(`claude -p` from a systemd timer), 30 minutes after the CronJob. It runs with a
+per-task tool allowlist and never skips permissions. It reaches the cluster only
+through the read-only context, so the only write it can make anywhere is the guarded
+`STATE_AUDIT.md` PR and its merge.
 
 - **Run once, interactively:** `/refresh-audit`
-- **Re-check on an interval:** `/loop 7d /refresh-audit`
