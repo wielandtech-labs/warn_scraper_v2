@@ -76,9 +76,9 @@ wsl kubectl -n warn-v2 logs job/warn-v2-audit > /tmp/audit-table.md
 wsl kubectl -n warn-v2 delete job warn-v2-audit
 ```
 
-**The `uv run` entrypoint prints 3–4 build/install lines before the table** ("Building
-warn-v2 …", "Installed 1 package …"). Keep only from the `| State | Active | …` header
-onward — discard everything before it. The note line (`_Generated …_`) is **not** in
+**Keep only from the `| State | Active | …` header onward** and discard anything before it.
+Images built before #475's fix printed 3–4 build/install lines first ("Building warn-v2 …",
+"Installed 1 package …"); since then the image sets `UV_NO_SYNC=1` and `uv run` prints none. The note line (`_Generated …_`) is **not** in
 the output; you compose it in Step 2.
 
 Failure handling:
