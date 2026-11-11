@@ -77,7 +77,7 @@ wsl kubectl -n warn-v2 delete job warn-v2-audit
 ```
 
 **Keep only from the `| State | Active | …` header onward** and discard anything before it.
-Images built before #475's fix printed 3–4 build/install lines first ("Building warn-v2 …",
+Images built before the fix for #475 (PR #476) printed 3–4 build/install lines first ("Building warn-v2 …",
 "Installed 1 package …"); since then the image sets `UV_NO_SYNC=1` and `uv run` prints none. The note line (`_Generated …_`) is **not** in
 the output; you compose it in Step 2.
 
