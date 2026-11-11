@@ -1,0 +1,54 @@
+{{- if .Values.audit.enabled }}
+{{- /* Weekly `warn-v2 audit --markdown`. The weekly-refresh-audit agent task
+       reads the newest Succeeded Job's log (read-only kube access) and splices
+       the table into STATE_AUDIT.md, so the task never needs to create Jobs.
+       Part of the release, so it runs the deployed image and rolls back with it. */}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "warn-v2.fullname" . }}-audit
+  labels:
+    {{- include "warn-v2.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.audit.schedule | quote }}
+  {{- with .Values.audit.timeZone }}
+  timeZone: {{ . | quote }}
+  {{- end }}
+  concurrencyPolicy: Forbid
+  # A missed slot is skipped rather than run late, so a reader that only
+  # accepts a Job created in the last few hours never sees a stale one as new.
+  startingDeadlineSeconds: 1800
+  # One Job each: the reader must find exactly this week's, never fall back.
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "warn-v2.labels" . | nindent 8 }}
+        app.kubernetes.io/component: audit
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            {{- include "warn-v2.labels" . | nindent 12 }}
+            app.kubernetes.io/component: audit
+        spec:
+          restartPolicy: Never
+          {{- include "warn-v2.podSecurityContext" . | nindent 10 }}
+          containers:
+            - name: audit
+              {{- include "warn-v2.containerSecurityContext" . | nindent 14 }}
+              image: {{ include "warn-v2.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              args: ["audit", "--markdown"]
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.database.secretName }}
+                      key: {{ .Values.database.secretKey }}
+              resources:
+                {{- toYaml .Values.audit.resources | nindent 16 }}
+{{- end }}

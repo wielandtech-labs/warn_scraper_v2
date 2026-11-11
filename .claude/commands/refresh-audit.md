@@ -33,59 +33,43 @@ loop until actually met, not until it "looks right":
 # gh auth: GH_TOKEN is preset in Bash by a SessionStart hook (global CLAUDE.md).
 ```
 
-## Step 1 — Run the audit in-cluster, capture the table
+## Step 1 — Read this week's in-cluster audit, capture the table
 
-Use the **live deployed** image tag (this also confirms the `audit` command is in
-the running image):
-
-```bash
-TAG=$(wsl kubectl -n warn-v2 get deploy warn-v2-warn-v2-api \
-        -o jsonpath='{.spec.template.spec.containers[0].image}')
-echo "$TAG"   # e.g. ghcr.io/wielandtech-labs/warn-v2:20260629-134906-3c8fcb3
-```
-
-Run a one-off Job (clean stdout), wait, capture to a scratch file, clean up:
+The audit runs as the chart's `warn-v2-audit` CronJob (`audit.enabled` in the prod
+HelmRelease, Mon 06:30 America/Detroit), so this step only **reads**: `get` jobs and
+pod logs, which the read-only cluster context allows. Never create, edit or delete
+a Job here.
 
 ```bash
-wsl kubectl -n warn-v2 apply -f - <<EOF
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: warn-v2-audit
-  namespace: warn-v2
-spec:
-  backoffLimit: 0
-  ttlSecondsAfterFinished: 300
-  template:
-    spec:
-      restartPolicy: Never
-      containers:
-        - name: audit
-          image: ${TAG}
-          args: ["audit","--markdown"]
-          env:
-            - name: DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: warn-v2-db
-                  key: url
-EOF
-
-wsl kubectl -n warn-v2 wait --for=condition=complete job/warn-v2-audit --timeout=180s
-wsl kubectl -n warn-v2 logs job/warn-v2-audit > /tmp/audit-table.md
-wsl kubectl -n warn-v2 delete job warn-v2-audit
+# The newest audit Job: must have succeeded and been created in the last 6 hours.
+# Anything older is last week's run. Stop and report; never use it.
+kubectl -n warn-v2 get jobs -l app.kubernetes.io/component=audit -o json \
+  | jq -r --arg cut "$(date -u -d '6 hours ago' +%FT%TZ)" '
+      [.items[] | select(.metadata.creationTimestamp >= $cut)]
+      | sort_by(.metadata.creationTimestamp) | last
+      | if . == null then "NONE"
+        else "\(.metadata.name) succeeded=\(.status.succeeded // 0) image=\(.spec.template.spec.containers[0].image)" end'
+kubectl -n warn-v2 logs job/<name>    # the table
 ```
+
+- **`TAG` is the Job's own image** (`image=` above), not the deployment's. A rollout
+  between 06:30 and now would otherwise credit the table to an image that didn't
+  produce it.
+- `NONE`, or `succeeded=0`: this week's run is missing or failed. Report it, with the
+  failed Job's log if there is one, and stop. Don't fabricate a table. The
+  CronJob keeps one Job of each kind, so there's no older run to fall back to by
+  mistake.
+- If the HelmRelease is mid-rollback, or the API deployment isn't Ready, report that
+  and stop.
 
 **Keep only from the `| State | Active | …` header onward** and discard anything before it.
 Images built before the fix for #475 (PR #476) printed 3–4 build/install lines first ("Building warn-v2 …",
 "Installed 1 package …"); since then the image sets `UV_NO_SYNC=1` and `uv run` prints none. The note line (`_Generated …_`) is **not** in
 the output; you compose it in Step 2.
 
-Failure handling:
-- Job fails with **"No such command 'audit'"** → the deployed image predates the
-  audit command. Stop and report; do **not** fabricate a table.
-- `wait` times out / Job `failed` → `wsl kubectl -n warn-v2 logs job/warn-v2-audit`
-  for the error (commonly a DB-connect issue). Fix or report; don't proceed.
+Failure handling: a log with **"No such command 'audit'"** means the image predates the
+audit command. A failed or timed-out Job is commonly a DB-connect issue; its log says
+which. Either way, report and stop.
 
 ## Step 2 — Splice into `STATE_AUDIT.md`
 
