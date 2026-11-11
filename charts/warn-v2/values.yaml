@@ -258,6 +258,17 @@ alertDigest:
     requests: { cpu: 50m, memory: 128Mi }
     limits:   { cpu: 300m, memory: 256Mi }
 
+# Weekly prod data-quality audit (warn-v2 audit --markdown). The
+# weekly-refresh-audit agent task reads the Job's log and refreshes
+# STATE_AUDIT.md from it, so it needs no write access to the cluster.
+audit:
+  enabled: false          # flip on in the prod HelmRelease
+  schedule: "30 6 * * 1"  # Mon 06:30, 30 min before the agent task reads it
+  timeZone: America/Detroit  # the reader task runs on Detroit time
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: "1",  memory: 1Gi }
+
 # Large new WARN notices announced on Bluesky / Discord / Slack
 # (warn-v2 post-alerts). Each notice is posted once per channel. Credentials
 # live in the warn-v2-social SealedSecret, all keys optional: bluesky-handle,

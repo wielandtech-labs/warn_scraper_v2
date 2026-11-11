@@ -1,0 +1,57 @@
+{{- if .Values.audit.enabled }}
+{{- /* Weekly `warn-v2 audit --markdown`. The weekly-refresh-audit agent task
+       reads the newest Succeeded Job's log (read-only kube access) and splices
+       the table into STATE_AUDIT.md, so the task never needs to create Jobs.
+       Part of the release, so it runs the deployed image and rolls back with it. */}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "warn-v2.fullname" . }}-audit
+  labels:
+    {{- include "warn-v2.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.audit.schedule | quote }}
+  {{- with .Values.audit.timeZone }}
+  timeZone: {{ . | quote }}
+  {{- end }}
+  concurrencyPolicy: Forbid
+  # Start at most 10 min late, then a 10 min run deadline: done by ~06:50,
+  # before the 07:00 reader. A slot missed by more than that is skipped.
+  startingDeadlineSeconds: 600
+  # The reader only accepts a Job created in the last 6h, which is what keeps
+  # last week's run out when this week's fails. Finished Jobs go after a day,
+  # so a failed run doesn't hold KubeJobFailed for the whole week.
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "warn-v2.labels" . | nindent 8 }}
+        app.kubernetes.io/component: audit
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 600
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            {{- include "warn-v2.labels" . | nindent 12 }}
+            app.kubernetes.io/component: audit
+        spec:
+          restartPolicy: Never
+          {{- include "warn-v2.podSecurityContext" . | nindent 10 }}
+          containers:
+            - name: audit
+              {{- include "warn-v2.containerSecurityContext" . | nindent 14 }}
+              image: {{ include "warn-v2.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              args: ["audit", "--markdown"]
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.database.secretName }}
+                      key: {{ .Values.database.secretKey }}
+              resources:
+                {{- toYaml .Values.audit.resources | nindent 16 }}
+{{- end }}

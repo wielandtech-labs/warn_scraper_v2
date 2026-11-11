@@ -26,66 +26,64 @@ loop until actually met, not until it "looks right":
    image-tag chain in `CLAUDE.md` never fires. Any diff reaching beyond
    `STATE_AUDIT.md` is **not** merged by this routine.
 
-## Setup (run once at the start)
+## Setup
 
-```bash
-# kubectl/flux live in WSL (project CLAUDE.md) — every kubectl call is `wsl kubectl`.
-# gh auth: GH_TOKEN is preset in Bash by a SessionStart hook (global CLAUDE.md).
-```
+This routine needs only **read** access to the cluster (`get`/`watch` and pod logs,
+e.g. the read-only `tailnet-readers` context) and `gh` auth for the PR. Put the
+`kubectl` verb first (`kubectl get -n warn-v2 ...`): headless runs allowlist commands
+by prefix.
 
-## Step 1 — Run the audit in-cluster, capture the table
+## Step 1 — Read this week's in-cluster audit, capture the table
 
-Use the **live deployed** image tag (this also confirms the `audit` command is in
-the running image):
+The audit runs as the chart's `warn-v2-warn-v2-audit` CronJob (`audit.enabled` in the
+prod HelmRelease, Mon 06:30 America/Detroit). This step only **reads** it. Never
+create, edit or delete a Job here.
 
-```bash
-TAG=$(wsl kubectl -n warn-v2 get deploy warn-v2-warn-v2-api \
-        -o jsonpath='{.spec.template.spec.containers[0].image}')
-echo "$TAG"   # e.g. ghcr.io/wielandtech-labs/warn-v2:20260629-134906-3c8fcb3
-```
+1. **The release must be healthy.** Run both checks:
 
-Run a one-off Job (clean stdout), wait, capture to a scratch file, clean up:
+   ```bash
+   kubectl get -n warn-v2 helmreleases.helm.toolkit.fluxcd.io warn-v2 \
+     -o jsonpath='{.status.conditions[?(@.type=="Ready")].status} {.status.conditions[?(@.type=="Ready")].message}'
+   kubectl get -n warn-v2 deploy warn-v2-warn-v2-api \
+     -o jsonpath='{.status.readyReplicas}/{.spec.replicas} {.spec.template.spec.containers[0].image}'
+   ```
+   If the HelmRelease isn't `True`, or it's mid-rollback, or the API isn't fully
+   ready, report that and stop.
 
-```bash
-wsl kubectl -n warn-v2 apply -f - <<EOF
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: warn-v2-audit
-  namespace: warn-v2
-spec:
-  backoffLimit: 0
-  ttlSecondsAfterFinished: 300
-  template:
-    spec:
-      restartPolicy: Never
-      containers:
-        - name: audit
-          image: ${TAG}
-          args: ["audit","--markdown"]
-          env:
-            - name: DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: warn-v2-db
-                  key: url
-EOF
+2. **Find this week's Job.** It must be the newest audit Job from this release and
+   created in the last 6 hours:
 
-wsl kubectl -n warn-v2 wait --for=condition=complete job/warn-v2-audit --timeout=180s
-wsl kubectl -n warn-v2 logs job/warn-v2-audit > /tmp/audit-table.md
-wsl kubectl -n warn-v2 delete job warn-v2-audit
-```
+   ```bash
+   kubectl get -n warn-v2 jobs -l app.kubernetes.io/instance=warn-v2,app.kubernetes.io/component=audit -o json \
+     | jq -r --arg cut "$(date -u -d '6 hours ago' +%FT%TZ)" '
+         [.items[] | select(.metadata.creationTimestamp >= $cut)]
+         | sort_by(.metadata.creationTimestamp) | last
+         | if . == null then "NONE"
+           else "\(.metadata.name) succeeded=\(.status.succeeded // 0) active=\(.status.active // 0) failed=\(.status.failed // 0) image=\(.spec.template.spec.containers[0].image)" end'
+   ```
+   - `NONE`: this week's run is missing. Report it and stop. **The 6-hour cut is
+     what keeps last week's Job out.** When this week's run fails, last week's
+     successful Job can still exist, so never widen the cut or fall back to an
+     older Job.
+   - `active=1`: it's still running (the Job may start up to 10 minutes late and
+     has a 10-minute deadline). Re-run the query once a minute, for up to 20
+     minutes.
+   - `failed=1`: report the failure with `kubectl logs -n warn-v2 job/<name>` and
+     stop. Never fabricate a table.
+   - `succeeded=1`: continue. **`TAG` is the Job's own `image=` tag**, used in Step 2.
+     If it differs from the API deployment's image in check 1, a rollout landed
+     after the audit. Say so in the PR body, but the table still belongs to `TAG`.
+
+3. **Read the table:** `kubectl logs -n warn-v2 job/<name>`.
 
 **Keep only from the `| State | Active | …` header onward** and discard anything before it.
 Images built before the fix for #475 (PR #476) printed 3–4 build/install lines first ("Building warn-v2 …",
 "Installed 1 package …"); since then the image sets `UV_NO_SYNC=1` and `uv run` prints none. The note line (`_Generated …_`) is **not** in
 the output; you compose it in Step 2.
 
-Failure handling:
-- Job fails with **"No such command 'audit'"** → the deployed image predates the
-  audit command. Stop and report; do **not** fabricate a table.
-- `wait` times out / Job `failed` → `wsl kubectl -n warn-v2 logs job/warn-v2-audit`
-  for the error (commonly a DB-connect issue). Fix or report; don't proceed.
+A log with **"No such command 'audit'"** means the image predates the audit command.
+A failed Job is commonly a DB-connect issue, and its log says which. Either way,
+report and stop.
 
 ## Step 2 — Splice into `STATE_AUDIT.md`
 
@@ -181,41 +179,10 @@ biggest deltas vs the previous table, and the PR number.
 
 ## Running this as a scheduled task
 
-Unlike `/heal-scraper` (local-only), this routine **needs WSL `kubectl` cluster
-access** and `gh` auth. Validate `claude -p "/refresh-audit"` once interactively —
-confirm WSL `kubectl` reaches the cluster and `gh` auth (`GH_TOKEN` from the
-SessionStart hook) resolves non-interactively — before trusting a scheduled run.
-
-**Auto mode (no prompts).** In headless `-p` mode there's no one to answer a
-permission prompt, and the **first un-allowlisted tool call aborts the whole run**
-with a non-zero exit (it doesn't hang or skip). `--permission-mode acceptEdits`
-auto-approves file edits but **not** the `wsl kubectl` / `git` / `gh` Bash this
-routine runs — so it would abort at the first `git` step, *after* touching the
-cluster. For a trusted, bounded task, run with **`--dangerously-skip-permissions`**
-(≡ `--permission-mode bypassPermissions`), which skips all prompts.
-
-This routine *does* merge, which is normally exactly what you must not hand this
-flag to. It is safe here only because the merge is gated on a machine-checked
-predicate — single-file `STATE_AUDIT.md` diff, all checks green, head SHA unmoved —
-and because a `**.md`-only merge cannot build an image or reach the Flux chain.
-Widen that diff and the flag stops being safe.
-
-The audit is a slow-moving snapshot, so **weekly** is plenty. Windows Task Scheduler
-example (Mondays 09:00, after the nightly scrape/enrich window):
-
-```powershell
-$claude = (Get-Command claude).Source
-$action = New-ScheduledTaskAction -Execute $claude `
-  -Argument '-p "/refresh-audit" --dangerously-skip-permissions' `
-  -WorkingDirectory 'C:\Users\rapha\workspace\warn_scraper_v2'
-$trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday -At 9:00am
-Register-ScheduledTask -TaskName 'warn-refresh-audit' -Action $action -Trigger $trigger
-```
-
-`-WorkingDirectory` sets the cwd (the proven mechanism — there's no need for a
-`claude` cwd flag). Output is a merged docs commit when the guards pass, or an open
-PR plus a report when they don't. Either way nothing deploys — docs-only merges
-build no image.
+On the homelab admin workstation this runs headless every Monday at 07:00
+(`claude -p` from a systemd timer), 30 minutes after the CronJob. It runs with a
+per-task tool allowlist and never skips permissions. It reaches the cluster only
+through the read-only context, so the only write it can make anywhere is the guarded
+`STATE_AUDIT.md` PR and its merge.
 
 - **Run once, interactively:** `/refresh-audit`
-- **Re-check on an interval:** `/loop 7d /refresh-audit`
