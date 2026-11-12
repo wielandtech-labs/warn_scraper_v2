@@ -197,5 +197,25 @@ succeeded (`gh run list -R <provider repo> -w docker.yml`).
 
 Merging to main is a production deploy (the image-tag chain above runs
 unattended). No dev/QA tier exists for this app — verify locally and run
-`/code-review` before merging. Rollback = revert the image tag in
-`wielandtech-labs/w_homelab` `clusters/prod/apps/warn-v2/` via PR.
+`/code-review` before merging.
+
+**Rollback.** Reverting the image tag in w_homelab is not enough on its own.
+The tag lines in `clusters/prod/apps/warn-v2/` carry a Flux `$imagepolicy`
+marker, and image automation sets a marked tag back to the newest one within
+minutes, so a plain revert redeploys the bad image. (This is read from the
+automation config; `wielandtech-labs/w_homelab#1614` tracks confirming it on
+the cluster.) Two rollbacks hold:
+
+- **Pin in w_homelab** (fastest, no build): a PR that sets the previous tag
+  *and removes the marker* from that line. w_homelab's `rollback` skill does
+  this and opens an issue to put the marker back. While a line is pinned, new
+  merges here build images that prod ignores.
+- **Roll forward here**: revert the bad commit and merge. CI builds a newer
+  tag and the automation deploys it.
+
+Three lines are marked, each on its own policy: the app image, `warn-ml`, and
+the enricher's `providerImage`. Roll back only the one that broke. A pinned
+image does not undo a chart change (the chart comes from this repo's `main`):
+revert the chart commit here, with a new chart `version:`, or the revert never
+deploys. If the bad release ran a migration, check that the older image still
+runs against the new schema before going back to it.
