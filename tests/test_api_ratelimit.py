@@ -4,10 +4,13 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
+from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from warn_v2 import api_keys, auth
 from warn_v2.api import ratelimit
+from warn_v2.cli import TRUSTED_PROXIES
 from warn_v2.db.models import User
 
 PASSWORD = "correct-horse-battery"
@@ -205,3 +208,33 @@ def test_usage_shows_unused_keys_with_zero(api_client, db, clock):
     assert body["today"] == 0
     assert body["keys"][0]["name"] == "fresh"
     assert body["keys"][0]["today"] == 0
+
+
+# --- client IP behind the proxy chain ---------------------------------------
+
+@pytest.mark.parametrize(
+    ("peer", "xff", "expected"),
+    [
+        # Traefik (pod network) appends the address it saw; a client-supplied
+        # entry to its left is ignored.
+        ("10.42.1.28", "1.2.3.4, 203.0.113.9", "203.0.113.9"),
+        ("10.42.1.28", "203.0.113.9", "203.0.113.9"),
+        # A peer outside the proxy chain can't set its own address.
+        ("203.0.113.50", "1.2.3.4", "203.0.113.50"),
+        # No header (Prometheus/kubelet straight to the pod): the peer itself.
+        ("10.42.0.5", None, "10.42.0.5"),
+    ],
+)
+def test_client_ip_trusts_only_the_proxy_chain(peer, xff, expected):
+    """The serve command's default trust list, applied by uvicorn's middleware."""
+    app = FastAPI()
+
+    @app.get("/ip")
+    def _ip(request: Request) -> str:
+        return ratelimit.client_ip(request)
+
+    client = TestClient(
+        ProxyHeadersMiddleware(app, trusted_hosts=TRUSTED_PROXIES), client=(peer, 5000)
+    )
+    headers = {"X-Forwarded-For": xff} if xff else {}
+    assert client.get("/ip", headers=headers).json() == expected

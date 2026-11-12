@@ -30,6 +30,23 @@ def _rate_limiting_off(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture(autouse=True)
+def _fresh_abuse_limiters(monkeypatch: pytest.MonkeyPatch):
+    """Login and subscription-mail limits stay ON (they're behavior under test),
+    but with fresh module-level state per test so counts never leak between
+    tests that share TestClient's fake IP or an address."""
+    from warn_v2.api.ratelimit import SlidingWindowLimiter
+    from warn_v2.api.routes import auth, subscriptions
+
+    monkeypatch.setattr(auth, "_login_limiter", SlidingWindowLimiter(window=auth._LOGIN_WINDOW))
+    monkeypatch.setattr(
+        auth, "_login_ip_limiter", SlidingWindowLimiter(window=auth._LOGIN_IP_WINDOW)
+    )
+    for name in ("_ip_limiter", "_address_limiter", "_repeat_limiter"):
+        old = getattr(subscriptions, name)
+        monkeypatch.setattr(subscriptions, name, SlidingWindowLimiter(window=old._window))
+
+
+@pytest.fixture(autouse=True)
 def _fresh_timeline_cache(monkeypatch: pytest.MonkeyPatch):
     """The /timelapse caches are module-level, so a body cached by one test
     would answer the next test's identical query from a different DB. Also

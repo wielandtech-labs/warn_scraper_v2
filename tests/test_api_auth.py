@@ -124,6 +124,54 @@ def test_login_normalizes_email_case(api_client, db):
     assert resp.status_code == 200
 
 
+def _attempt(client, email: str, password: str = "nope-nope-nope"):
+    return client.post("/api/auth/login", json={"email": email, "password": password})
+
+
+def test_sixth_rapid_login_for_one_account_is_429(api_client, db):
+    from warn_v2.api.routes.auth import _LOGIN_PER_ACCOUNT
+
+    _user(db, "a@example.com")
+    for _ in range(_LOGIN_PER_ACCOUNT):
+        assert _attempt(api_client, "a@example.com").status_code == 401
+    # The right password doesn't help once the account is throttled, and the
+    # count follows the account across IPs and spellings of the address.
+    from warn_v2.api import app
+
+    other_ip = TestClient(app, base_url="https://testserver", client=("198.51.100.7", 5000))
+    resp = _attempt(other_ip, " A@Example.com", PASSWORD)
+    assert resp.status_code == 429
+    assert int(resp.headers["Retry-After"]) > 0
+    # Other accounts are unaffected.
+    _user(db, "b@example.com")
+    assert _login(api_client, "b@example.com").status_code == 200
+
+
+def test_login_throttled_per_ip_across_accounts(api_client, db):
+    from warn_v2.api.routes.auth import _LOGIN_PER_IP
+
+    for i in range(_LOGIN_PER_IP):
+        assert _attempt(api_client, f"user{i}@example.com").status_code == 401
+    assert _attempt(api_client, "fresh@example.com").status_code == 429
+
+
+def test_login_throttle_window_expires(api_client, db, monkeypatch):
+    from warn_v2.api.routes import auth as auth_routes
+
+    now = [1_000_000.0]
+    monkeypatch.setattr(
+        auth_routes,
+        "_login_limiter",
+        auth_routes.SlidingWindowLimiter(window=auth_routes._LOGIN_WINDOW, clock=lambda: now[0]),
+    )
+    _user(db, "a@example.com")
+    for _ in range(auth_routes._LOGIN_PER_ACCOUNT):
+        _attempt(api_client, "a@example.com")
+    assert _attempt(api_client, "a@example.com", PASSWORD).status_code == 429
+    now[0] += auth_routes._LOGIN_WINDOW + 1
+    assert _attempt(api_client, "a@example.com", PASSWORD).status_code == 200
+
+
 def test_me_and_logout_flow(api_client, db):
     _user(db, "a@example.com", role="admin")
     assert api_client.get("/api/auth/me").status_code == 401

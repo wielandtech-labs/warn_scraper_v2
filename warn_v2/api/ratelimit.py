@@ -121,10 +121,20 @@ def _bump_daily(db: Session, key_id: int) -> int:
     return count
 
 
-def _client_ip(request: Request) -> str:
-    # Real client IPs require uvicorn's proxy_headers behind Traefik — see
-    # the serve command. Fall back to a shared bucket if unset.
+def client_ip(request: Request) -> str:
+    # Real client IPs come from uvicorn's proxy_headers, which applies
+    # X-Forwarded-For only for trusted proxies — see TRUSTED_PROXIES in the
+    # serve command. Fall back to a shared bucket if unset.
     return request.client.host if request.client else "unknown"
+
+
+def too_many_attempts(retry_after: float) -> HTTPException:
+    """429 for the per-endpoint abuse limiters (login, mail-sending routes)."""
+    return HTTPException(
+        status_code=429,
+        detail="Too many attempts; try again later.",
+        headers={"Retry-After": str(int(retry_after) + 1)},
+    )
 
 
 def enforce_limits(
@@ -148,7 +158,7 @@ def enforce_limits(
     elif user is not None:
         tier, ident = role or "free", f"user:{user.id}"
     else:
-        tier, ident = "anon", f"ip:{_client_ip(request)}"
+        tier, ident = "anon", f"ip:{client_ip(request)}"
 
     REQUESTS_TOTAL.labels(tier=tier).inc()
     limit = PER_MINUTE.get(tier, PER_MINUTE["anon"])

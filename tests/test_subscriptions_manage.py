@@ -115,8 +115,9 @@ def test_duplicate_signup_does_not_stack(api_client, db, sent):
     _subscribe(api_client, db, state="CA")
     assert db.scalar(select(func.count()).select_from(Subscription)) == 1
     # Same answer both times — a stranger can't learn the address is subscribed.
-    assert len(sent) == 2  # a re-sent confirmation, not a second alert
-    assert "confirm" in sent[1]["subject"].lower()
+    # The repeat lands inside the cooldown, so no second email either.
+    assert len(sent) == 1
+    assert "confirm" in sent[0]["subject"].lower()
 
 
 def test_duplicate_signup_after_confirm_sends_manage_link(api_client, db, sent):
@@ -291,3 +292,89 @@ def test_signup_for_another_address_does_not_link(api_client, db, sent):
     _login(api_client, EMAIL)
     sub = _subscribe(api_client, db, email="someone-else@example.com", state="CA")
     assert sub.user_id is None
+
+
+# --- mail-bombing guards ----------------------------------------------------
+
+@pytest.fixture()
+def clock(monkeypatch):
+    """Drive the subscription mail limiters from a fake clock."""
+    from warn_v2.api.routes import subscriptions as subs
+
+    now = [1_000_000.0]
+    for name in ("_ip_limiter", "_address_limiter", "_repeat_limiter"):
+        old = getattr(subs, name)
+        monkeypatch.setattr(
+            subs, name, subs.SlidingWindowLimiter(window=old._window, clock=lambda: now[0])
+        )
+    return now
+
+
+def test_repeat_signup_mails_again_only_after_cooldown(api_client, db, sent, clock):
+    from warn_v2.api.routes.subscriptions import _REPEAT_COOLDOWN
+
+    _subscribe(api_client, db, state="CA")
+    _subscribe(api_client, db, state="CA")
+    assert len(sent) == 1  # second request inside the cooldown: not sent
+
+    clock[0] += _REPEAT_COOLDOWN + 1
+    _subscribe(api_client, db, state="CA")
+    assert len(sent) == 2
+
+
+def test_new_alerts_inside_cooldown_still_get_their_confirmation(api_client, db, sent):
+    _subscribe(api_client, db, state="CA")
+    _subscribe(api_client, db, state="TX")
+    assert len(sent) == 2  # different alerts, different confirmation links
+
+
+def test_repeat_manage_link_inside_cooldown_not_sent(api_client, db, sent):
+    _subscribe(api_client, db, state="CA")
+    sent.clear()
+    for _ in range(3):
+        resp = api_client.post("/api/subscriptions/manage-link", json={"email": EMAIL})
+        assert resp.status_code == 200  # same answer whether or not mail went out
+    assert len(sent) == 1
+
+
+def test_daily_mail_cap_per_address(api_client, db, sent, clock):
+    from warn_v2.api.routes.subscriptions import _MAILS_PER_ADDRESS_PER_DAY
+
+    for i in range(_MAILS_PER_ADDRESS_PER_DAY + 3):
+        _subscribe(api_client, db, min_layoffs=i + 1)
+    assert len(sent) == _MAILS_PER_ADDRESS_PER_DAY
+    # Another address is unaffected.
+    _subscribe(api_client, db, email="other@example.com", state="CA")
+    assert sent[-1]["to"] == "other@example.com"
+
+    clock[0] += 86_400 + 1
+    _subscribe(api_client, db, min_layoffs=999)
+    assert sent[-1]["to"] == EMAIL
+
+
+def test_signup_and_manage_link_capped_per_ip(api_client, db, sent):
+    from warn_v2.api.routes.subscriptions import _MAIL_REQUESTS_PER_IP
+
+    for i in range(_MAIL_REQUESTS_PER_IP):
+        body = {"email": f"u{i}@example.com"}
+        url = "/api/subscriptions" if i % 2 else "/api/subscriptions/manage-link"
+        assert api_client.post(url, json=body).status_code == 200
+    resp = api_client.post("/api/subscriptions", json={"email": "late@example.com"})
+    assert resp.status_code == 429
+    assert "Retry-After" in resp.headers
+    # A different client IP has its own budget.
+    from warn_v2.api import app
+
+    other = TestClient(app, base_url="https://testserver", client=("198.51.100.7", 5000))
+    assert other.post("/api/subscriptions", json={"email": "late@example.com"}).status_code == 200
+
+
+def test_owner_resend_bypasses_the_address_cap(api_client, db, sent):
+    from warn_v2.api.routes.subscriptions import _MAILS_PER_ADDRESS_PER_DAY
+
+    for i in range(_MAILS_PER_ADDRESS_PER_DAY + 1):
+        sub = _subscribe(api_client, db, min_layoffs=i + 1)
+    sent.clear()  # the last signup's confirmation was capped
+    url = f"/api/subscriptions/manage/{sub.id}/resend-confirmation?token={sub.manage_token}"
+    assert api_client.post(url).json()["status"] == "sent"
+    assert sub.confirm_token in sent[0]["text"]

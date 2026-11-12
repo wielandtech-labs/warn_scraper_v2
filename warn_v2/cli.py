@@ -283,6 +283,16 @@ def enrich(
         sys.exit(1)
 
 
+# Proxies whose X-Forwarded-For uvicorn may apply: the k3s pod network, where
+# Traefik runs. uvicorn walks the header right to left and takes the first
+# address outside this list, i.e. the peer Traefik itself saw — so whatever a
+# client puts in its own X-Forwarded-For is never used. (A bare "*" would take
+# the LEFTMOST entry, which the client controls, letting anyone pick their own
+# rate-limit bucket.) Override with FORWARDED_ALLOW_IPS if the proxy chain
+# changes; if Traefik's address isn't listed, every request shares its IP.
+TRUSTED_PROXIES = "10.42.0.0/16"
+
+
 @main.command()
 @click.option("--host", default="0.0.0.0", show_default=True, help="Bind host")
 @click.option("--port", default=8000, show_default=True, help="Bind port")
@@ -303,17 +313,14 @@ def serve(host: str, port: int, reload: bool) -> None:
     # proxy_headers: behind Traefik every request arrives from the pod network,
     # so request.client.host is the ingress hop unless uvicorn applies
     # X-Forwarded-For — without it, per-IP rate limiting would collapse all
-    # anonymous traffic into one shared bucket. The "*" default trusts every
-    # hop, which lets a client spoof its own XFF to *split* rate-limit buckets
-    # (dodging, never collapsing); narrow via FORWARDED_ALLOW_IPS (e.g. the
-    # cluster pod CIDR) once verified in prod — a values change, not a deploy.
+    # anonymous traffic into one shared bucket. See TRUSTED_PROXIES.
     uvicorn.run(
         "warn_v2.api:app",
         host=host,
         port=port,
         reload=reload,
         proxy_headers=True,
-        forwarded_allow_ips=os.getenv("FORWARDED_ALLOW_IPS", "*"),
+        forwarded_allow_ips=os.getenv("FORWARDED_ALLOW_IPS", TRUSTED_PROXIES),
     )
 
 

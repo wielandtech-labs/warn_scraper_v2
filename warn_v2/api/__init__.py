@@ -105,9 +105,10 @@ def create_app(static_dir: Path | None = None) -> FastAPI:
         return Response(encoder(REGISTRY), media_type=content_type)
 
     # --- domain routes (all under /api so they don't shadow SPA paths) ---
-    # auth/keys/usage/subscriptions stay outside the rate limiter: login and
-    # key management must never 429 (they have their own protections), and the
-    # usage endpoint is how a limited caller checks their quota.
+    # auth/keys/usage stay outside the general rate limiter: login (per IP and
+    # per account) and signup/forgot (per IP) have their own tighter limits in
+    # routes/auth.py, key management must never 429, and the usage endpoint is
+    # how a limited caller checks their quota.
     app.include_router(auth.router, prefix="/api")
     app.include_router(keys.router, prefix="/api")
     app.include_router(usage.router, prefix="/api")

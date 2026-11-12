@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from warn_v2 import auth
 from warn_v2.api.deps import get_current_user, get_db
 from warn_v2.api.pages import page as _page
-from warn_v2.api.ratelimit import SlidingWindowLimiter
+from warn_v2.api.ratelimit import SlidingWindowLimiter, client_ip, too_many_attempts
 from warn_v2.api.seo import site_base_url
 from warn_v2.db.models import User, UserSession
 from warn_v2.notifications.email import EmailNotConfigured, send_email
@@ -34,6 +34,21 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _EMAIL_ENDPOINT_LIMIT = 5  # per hour per IP
 _email_limiter = SlidingWindowLimiter(window=3600)
 
+# Login: every attempt runs argon2, so it is both a password-guessing channel
+# and a CPU sink. Throttle per account (many sources on one account) and per IP
+# (one source spraying many accounts). Every attempt counts, success or not.
+# Windows are short on purpose: a throttle anyone can trip is also a lockout
+# anyone can cause, so it must clear quickly once the noise stops. The account
+# limit is the primary control. The per-IP one is a loose backstop with the
+# shortest window, because the "IP" may be shared: while the edge proxy doesn't
+# pass client addresses through, all public traffic arrives as one address.
+_LOGIN_WINDOW = 300  # seconds, per account
+_LOGIN_PER_ACCOUNT = 5
+_LOGIN_IP_WINDOW = 60  # seconds
+_LOGIN_PER_IP = 60
+_login_limiter = SlidingWindowLimiter(window=_LOGIN_WINDOW)
+_login_ip_limiter = SlidingWindowLimiter(window=_LOGIN_IP_WINDOW)
+
 
 def _signup_enabled() -> bool:
     return os.getenv("SIGNUP_ENABLED", "0") == "1"
@@ -42,14 +57,21 @@ def _signup_enabled() -> bool:
 def _guard_email_endpoint(request: Request) -> None:
     if not _signup_enabled():
         raise HTTPException(status_code=503, detail="Signup is not enabled")
-    ip = request.client.host if request.client else "unknown"
-    allowed, _, retry_after = _email_limiter.hit(f"signup:{ip}", _EMAIL_ENDPOINT_LIMIT)
+    allowed, _, retry_after = _email_limiter.hit(
+        f"signup:{client_ip(request)}", _EMAIL_ENDPOINT_LIMIT
+    )
     if not allowed:
-        raise HTTPException(
-            status_code=429,
-            detail="Too many attempts; try again later.",
-            headers={"Retry-After": str(int(retry_after) + 1)},
-        )
+        raise too_many_attempts(retry_after)
+
+
+def _guard_login(request: Request, email: str) -> None:
+    for limiter, ident, limit in (
+        (_login_ip_limiter, client_ip(request), _LOGIN_PER_IP),
+        (_login_limiter, email.strip().lower(), _LOGIN_PER_ACCOUNT),
+    ):
+        allowed, _, retry_after = limiter.hit(ident, limit)
+        if not allowed:
+            raise too_many_attempts(retry_after)
 
 
 class LoginIn(BaseModel):
@@ -72,7 +94,10 @@ def _cookie_secure() -> bool:
 
 
 @router.post("/login")
-def login(body: LoginIn, response: Response, db: Session = Depends(get_db)) -> MeOut:
+def login(
+    body: LoginIn, request: Request, response: Response, db: Session = Depends(get_db)
+) -> MeOut:
+    _guard_login(request, body.email)
     result = auth.authenticate(db, body.email, body.password)
     if result is None:
         # Same message for unknown email and wrong password — no enumeration.

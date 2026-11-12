@@ -16,7 +16,7 @@ import secrets
 from datetime import UTC, datetime
 from html import escape
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import func, select
@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from warn_v2.api.deps import get_cookie_user, get_db
 from warn_v2.api.pages import page as _page
+from warn_v2.api.ratelimit import SlidingWindowLimiter, client_ip, too_many_attempts
 from warn_v2.api.seo import site_base_url
 from warn_v2.companies.naics import SECTOR_NAME, sector_for_code, subsector_name
 from warn_v2.db.models import Subscription, User
@@ -44,6 +45,19 @@ MAX_PER_EMAIL = 20
 # Above the largest layoff ever filed — a threshold past this is a typo, and
 # would silently match nothing.
 MAX_MIN_LAYOFFS = 100_000
+
+# Mail caps. Signup and manage-link mail an address nobody has proved they own,
+# so bound both what one client can trigger and what one inbox can receive.
+# In-process state, like the API limiter: exact with api.replicas=1. The
+# per-address caps are the real guard; the per-IP cap is a backstop that is
+# site-wide while the edge proxy doesn't pass client addresses through.
+_MAIL_REQUESTS_PER_IP = 30  # per _IP_WINDOW; over this: 429 (> MAX_PER_EMAIL)
+_IP_WINDOW = 600  # seconds; short, so a site-wide trip clears quickly
+_MAILS_PER_ADDRESS_PER_DAY = 10  # over this: silently not sent
+_REPEAT_COOLDOWN = 900  # seconds; a repeat of the same mail inside it isn't sent
+_ip_limiter = SlidingWindowLimiter(window=_IP_WINDOW)
+_address_limiter = SlidingWindowLimiter(window=86400)
+_repeat_limiter = SlidingWindowLimiter(window=_REPEAT_COOLDOWN)
 
 # The one answer every signup gets — new alert, duplicate, or already confirmed.
 # Varying it would tell a stranger whether an address is subscribed.
@@ -217,7 +231,30 @@ def _matching(db: Session, email: str, filters: AlertFilters) -> Subscription | 
 
 # --- emails ----------------------------------------------------------------
 
-def _send_confirmation(sub: Subscription) -> None:
+def _guard_ip(request: Request) -> None:
+    allowed, _, retry_after = _ip_limiter.hit(
+        f"ip:{client_ip(request)}", _MAIL_REQUESTS_PER_IP
+    )
+    if not allowed:
+        raise too_many_attempts(retry_after)
+
+
+def _may_mail(email: str, repeat_key: str) -> bool:
+    """Record and allow one more subscription email to ``email``, or refuse.
+
+    ``repeat_key`` names the message (one confirmation link, one address's
+    manage link): the same message isn't re-sent within the cooldown. Refusals
+    are silent — callers answer exactly as if the mail went out, so the
+    response never reveals that an address was recently mailed.
+    """
+    if not _repeat_limiter.hit(repeat_key, 1)[0]:
+        return False
+    return _address_limiter.hit(email, _MAILS_PER_ADDRESS_PER_DAY)[0]
+
+
+def _send_confirmation(sub: Subscription, *, capped: bool = True) -> None:
+    if capped and not _may_mail(sub.email, f"confirm:{sub.id}"):
+        return
     base = site_base_url()
     confirm_url = f"{base}/api/subscriptions/confirm?token={sub.confirm_token}"
     scope = describe_scope(sub)
@@ -249,6 +286,8 @@ def _send_manage_link(sub: Subscription, *, already_subscribed: bool = False) ->
     Doubles as the "you're already subscribed" reply to a duplicate signup, so a
     repeat submission never creates a second alert or a second confirmation link.
     """
+    if not _may_mail(sub.email, f"manage:{sub.email}"):
+        return
     base = site_base_url()
     url = manage_url(sub, base)
     lead = (
@@ -282,6 +321,7 @@ def _send_manage_link(sub: Subscription, *, already_subscribed: bool = False) ->
 @router.post("")
 def create_subscription(
     payload: SubscriptionCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: User | None = Depends(get_cookie_user),
 ) -> dict[str, str]:
@@ -290,6 +330,7 @@ def create_subscription(
     The response body is identical whether the alert is new, a duplicate, or
     already confirmed — it must not reveal whether an address is subscribed.
     """
+    _guard_ip(request)
     existing = _matching(db, payload.email, payload)
     if existing is not None:
         # Don't stack duplicates: nudge the subscriber to the copy they have.
@@ -424,13 +465,14 @@ def _owned(db: Session, sub_id: int, subscriber: Subscriber) -> Subscription:
 
 @router.post("/manage-link")
 def request_manage_link(
-    payload: ManageLinkRequest, db: Session = Depends(get_db)
+    payload: ManageLinkRequest, request: Request, db: Session = Depends(get_db)
 ) -> dict[str, str]:
     """Email a management link for an address, if it has any alerts.
 
     Answers identically for an address with no alerts — the response must not
     reveal whether someone is subscribed.
     """
+    _guard_ip(request)
     sub = db.scalars(select(Subscription).where(Subscription.email == payload.email)).first()
     if sub is not None:
         try:
@@ -506,7 +548,9 @@ def resend_confirmation(
     if sub.confirmed_at is not None:
         return {"status": "confirmed"}
     try:
-        _send_confirmation(sub)
+        # Uncapped: the caller already proved they own the inbox, and this is
+        # how they recover if someone else used up the address's daily mail.
+        _send_confirmation(sub, capped=False)
     except EmailNotConfigured as exc:
         raise HTTPException(status_code=503, detail="Email not configured") from exc
     return {"status": "sent"}
