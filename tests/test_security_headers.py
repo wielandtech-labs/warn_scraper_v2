@@ -27,7 +27,7 @@ def _client() -> TestClient:
     return TestClient(app)
 
 
-def test_site_pages_get_nosniff_framing_and_report_only_policy():
+def test_site_pages_get_nosniff_enforced_framing_and_report_only_policy():
     resp = _client().get("/notices")
     assert resp.headers["x-content-type-options"] == "nosniff"
     assert resp.headers["content-security-policy"] == "frame-ancestors 'self'"
@@ -51,7 +51,7 @@ def test_route_headers_win():
     assert _client().get("/own").headers.get_list("x-content-type-options") == ["custom"]
 
 
-def test_policies_never_allow_framing_by_other_sites():
+def test_report_only_policies_keep_the_hardening_directives():
     for policy in (SITE_CSP, DOCS_CSP):
         assert "frame-ancestors 'self'" in policy
         assert "object-src 'none'" in policy

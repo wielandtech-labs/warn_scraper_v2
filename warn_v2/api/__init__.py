@@ -77,18 +77,19 @@ def create_app(static_dir: Path | None = None) -> FastAPI:
     # is CPU-limited and 9 buys ~1% extra ratio for noticeably more CPU.
     app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
 
-    # nosniff, frame-ancestors and the Report-Only CSP; /embed/* keeps its own
-    # framing policy. See warn_v2.api.security_headers.
-    app.add_middleware(SecurityHeadersMiddleware)
-
     # 301 the site's secondary hostnames at the canonical origin. Added after
-    # GZip so it is the OUTERMOST layer (add_middleware prepends), letting a
-    # redirect short-circuit before any other work. Inert unless REDIRECT_HOSTS
+    # GZip so it wraps it (add_middleware prepends), letting a redirect
+    # short-circuit before any other work. Inert unless REDIRECT_HOSTS
     # is set, so local dev and tests are unaffected.
     if hosts := redirect_hosts():
         app.add_middleware(
             CanonicalHostMiddleware, hosts=hosts, canonical=site_base_url()
         )
+
+    # nosniff, frame-ancestors and the Report-Only CSP; /embed/* keeps its own
+    # framing policy. Outermost, so the canonical-host redirects get them too.
+    # See warn_v2.api.security_headers.
+    app.add_middleware(SecurityHeadersMiddleware)
 
     # --- health probe (readiness + liveness) ---
     @app.get("/healthz", tags=["health"], include_in_schema=False)

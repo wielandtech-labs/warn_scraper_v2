@@ -18,13 +18,13 @@ from __future__ import annotations
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-# Google Analytics 4: gtag.js, and its hits (stats.g.doubleclick.net with
-# Google signals on).
+# Google Analytics 4: gtag.js, and its hits (stats.g.doubleclick.net and
+# google.com with Google signals on).
 _GA_SCRIPT = "https://*.googletagmanager.com"
 _GA_HITS = (
     "https://*.google-analytics.com https://analytics.google.com "
     "https://*.analytics.google.com https://*.googletagmanager.com "
-    "https://*.g.doubleclick.net"
+    "https://*.g.doubleclick.net https://*.google.com"
 )
 # Raster map tiles (lib/themeColors.ts TILE_LAYERS): <img> in LocationMap,
 # fetch() in the MapLibre maps; MapLibre also fetches glyphs from openfreemap.
