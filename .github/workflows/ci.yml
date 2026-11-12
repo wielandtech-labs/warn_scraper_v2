@@ -75,6 +75,22 @@ jobs:
         # `load`, not `loadfile`: test_ml_train.py alone would pin one worker.
         run: uv run python -m pytest -n 4 --dist load -m slow --durations=10
 
+  # Flux only repackages the chart when `version:` changes, so a chart edit
+  # under an unchanged version never deploys. Compares the PR's merge result
+  # with the base branch's tip, so a PR that went stale behind another chart
+  # PR fails on its next run.
+  chart-version:
+    if: github.event_name == 'pull_request'
+    runs-on: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'homelab-warn-v2' }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Fetch the base branch tip
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: git fetch --no-tags --depth=1 origin "$BASE_REF"
+      - name: Chart version moved if the chart changed
+        run: .github/scripts/check_chart_version.sh FETCH_HEAD
+
   frontend:
     # Fork PRs run on GitHub-hosted runners, never on the self-hosted ones
     # (they sit inside the cluster).

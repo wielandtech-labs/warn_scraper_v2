@@ -38,6 +38,10 @@ the old template with the new values (seen 2026-07-02: two PRs both targeted
 arg never rendered despite `Ready=True` everywhere). **Before merging a chart
 PR, re-check that its `version:` is strictly greater than current `main`'s** —
 if another chart PR merged first, bump again on top.
+CI enforces this on pull requests (`chart-version` job,
+`.github/scripts/check_chart_version.sh`), but it only re-runs when the PR
+does: a PR that was green before another chart PR merged is stale until its
+next push or re-run.
 
 **Editing a list in a pod spec can delete more than you removed.** Prod's
 release is upgraded with a strategic-merge patch, which matches list entries
