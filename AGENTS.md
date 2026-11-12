@@ -185,6 +185,8 @@ apps for this app — main is the only gate, so verify locally and run
 `/code-review` before merging.
 
 Deployment manifests: `w_homelab` `clusters/prod/apps/warn-v2/` (plus the
-chart in this repo under `charts/warn-v2/`). Rollback = revert the HelmRelease
-image tag in w_homelab via PR. Platform-wide conventions:
+chart in this repo under `charts/warn-v2/`). Rollback: revert the bad
+commit here, or pin the previous tag in w_homelab and remove the line's
+`$imagepolicy` marker; a plain tag revert is bumped forward again by Flux
+image automation. Details in CLAUDE.md, "Production gate". Platform-wide conventions:
 `docs/onboarding-new-app.md` in w_homelab.
