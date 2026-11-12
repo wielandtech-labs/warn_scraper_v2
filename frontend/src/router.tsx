@@ -187,7 +187,7 @@ export type MapSearch = {
   lat?: number;
   lon?: number;
   zoom?: number;
-  mode?: "heat";
+  mode?: "bubbles";
   // Timeline. Quarterly since 2015 is the default and stays out of the URL.
   bucket?: "year" | "month";
   since?: number;
@@ -211,8 +211,9 @@ const mapRoute = createRoute({
     lat: numParam(search.lat),
     lon: numParam(search.lon),
     zoom: numParam(search.zoom),
-    // Bubbles is the default and stays out of the URL.
-    mode: search.mode === "heat" ? "heat" : undefined,
+    // The heatmap is the default and stays out of the URL (old ?mode=heat
+    // links read as the default).
+    mode: search.mode === "bubbles" ? "bubbles" : undefined,
     bucket: search.bucket === "year" || search.bucket === "month" ? search.bucket : undefined,
     since: numParam(search.since),
     at: strParam(search.at),
@@ -239,8 +240,8 @@ const mapRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/map"), "MapPage"),
 });
 
-// The time-lapse is /map's timeline now; old links land on the same view,
-// as a heatmap like the page they came from.
+// The time-lapse is /map's timeline now; old links land on the same view
+// (a heatmap, like the page they came from, is /map's default).
 const timelapseRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/timelapse",
@@ -257,7 +258,7 @@ const timelapseRoute = createRoute({
       to: "/map",
       // `since` is always set: a /map URL with filters and neither a period
       // nor a window is an old all-time link (see MapPage).
-      search: { ...search, since: search.since ?? DEFAULT_SINCE, mode: "heat" },
+      search: { ...search, since: search.since ?? DEFAULT_SINCE },
       replace: true,
     });
   },

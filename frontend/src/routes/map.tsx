@@ -81,7 +81,7 @@ export function MapPage() {
   const { resolved } = useTheme();
   const navigate = useNavigate({ from: "/map" });
   const search = useSearch({ from: "/map" });
-  const mode: MapMode = search.mode === "heat" ? "heat" : "bubbles";
+  const mode: MapMode = search.mode === "bubbles" ? "bubbles" : "heat";
   const bucket: TimelineBucket = search.bucket ?? "quarter";
   const since = search.since ?? DEFAULT_SINCE;
   const reducedMotion = useReducedMotion();
@@ -371,7 +371,7 @@ export function MapPage() {
 
   const setMode = (m: MapMode) =>
     navigate({
-      search: (prev) => ({ ...prev, mode: m === "heat" ? "heat" : undefined }),
+      search: (prev) => ({ ...prev, mode: m === "bubbles" ? "bubbles" : undefined }),
       replace: true,
       resetScroll: false,
     });
@@ -482,7 +482,7 @@ export function MapPage() {
       <PageHeader
         kicker="Explore"
         title="Layoff map"
-        lede="Every geocoded WARN notice, period by period. Press play or drag the timeline; tap a place to list its notices."
+        lede="Every geocoded WARN notice, period by period. Press play or drag the timeline; zoom in and tap a place to list its notices."
       />
       <div id="map-filters" className={filtersOpen ? "" : "hidden md:block"}>
         <FilterBar
@@ -532,8 +532,8 @@ export function MapPage() {
         <div className="inline-flex rounded-full border border-slate-200 bg-white p-0.5 dark:border-slate-800 dark:bg-slate-900" role="group" aria-label="Map style">
           {(
             [
-              ["bubbles", "Bubbles"],
               ["heat", "Heatmap"],
+              ["bubbles", "Bubbles"],
             ] as const
           ).map(([m, text]) => (
             <button
