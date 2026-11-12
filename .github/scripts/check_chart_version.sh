@@ -8,7 +8,8 @@
 # CLAUDE.md, "Helm chart version".
 #
 # Usage: check_chart_version.sh <base-ref> [<head-ref>]
-#   base-ref  the commit the PR merges into, e.g. FETCH_HEAD or origin/main
+#   base-ref  the commit the change sits on: HEAD^1 for a PR merge commit
+#             (CI), or origin/main locally
 #   head-ref  defaults to HEAD
 set -euo pipefail
 
