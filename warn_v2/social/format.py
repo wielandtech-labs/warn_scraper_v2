@@ -76,7 +76,7 @@ def render_post(notice: Notice, hashtags: tuple[str, ...] = ()) -> str:
         # Truncate on a word boundary so we don't cut mid-word.
         cut = label[: MAX_INDUSTRY_CHARS - 1]
         last_space = cut.rfind(" ")
-        label = (cut[:last_space] if last_space > 0 else cut.rstrip()) + "…"
+        label = (cut[:last_space].rstrip() if last_space > 0 else cut.rstrip()) + "…"
     industry_line = f"• Industry: {label}\n" if label else ""
 
     def build(employer: str) -> str:
