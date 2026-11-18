@@ -71,17 +71,15 @@ COPY --chown=warn:warn alembic.ini ./alembic.ini
 # warn_v2.api.__init__ can StaticFiles-mount it.
 COPY --chown=warn:warn --from=frontend /build/dist /app/warn_v2/api/static
 
-USER warn
-
 # Install the project itself now that its source is here (deps are already in
-# place, so this is quick). Before, the one sync ran before warn_v2/ was
-# copied in, so the installed project was stale and every `uv run` rebuilt and
-# reinstalled it into .venv at container start. That failed with "Permission
-# denied" in the migrate hook once the venv wasn't writable (#475).
-# The cache lives under /tmp: buildkit creates a missing mount target's parent
-# dirs as root, so a target under /home/warn/.cache is not writable by warn.
-RUN --mount=type=cache,target=/tmp/uv-cache,uid=1000,gid=1000 \
-    UV_CACHE_DIR=/tmp/uv-cache uv sync $UV_SYNC_FLAGS
+# place, so this is quick). Runs as root so it succeeds even when the
+# persistent BuildKit builder serves a stale cached first-sync layer with
+# root-owned .venv; chown in the same RUN keeps everything warn-owned for
+# derived images that `uv pip install` as warn (#475, #487).
+RUN UV_CACHE_DIR=/tmp/uv-cache uv sync $UV_SYNC_FLAGS \
+    && chown -R warn:warn /app/.venv
+
+USER warn
 
 # Never sync or rebuild at container start: the image is complete as built.
 ENV UV_NO_SYNC=1
