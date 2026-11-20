@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import sys
 import urllib.request
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 API = "https://warnindex.com/api"
 
@@ -76,7 +76,7 @@ def _fetch_all_notices(after: str, before: str) -> list[dict]:
 
 
 def main() -> None:
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
     week_ago = today - timedelta(days=7)
     after = week_ago.isoformat()
     before = (today - timedelta(days=1)).isoformat()
