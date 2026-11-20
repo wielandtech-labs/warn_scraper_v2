@@ -10,6 +10,7 @@ on:
       - "**"
       - "!**.md"
       - "!docs/**"
+      - "!scripts/**"
       - "!.github/workflows/ci.yml"
       - "warn_v2/reports/published/**"
   pull_request:
@@ -18,6 +19,7 @@ on:
       - "**"
       - "!**.md"
       - "!docs/**"
+      - "!scripts/**"
       - "warn_v2/reports/published/**"
 
 concurrency:
