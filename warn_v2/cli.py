@@ -1026,12 +1026,22 @@ def _enrich_run_failed(stats: dict) -> bool:
 @click.option(
     "--dry-run", is_flag=True, help="Fetch and parse but do not write to DB or disk"
 )
+@click.option(
+    "--tolerate",
+    default=None,
+    help=(
+        "Comma-separated states whose failure should NOT fail the run "
+        "(known-blocked or chronically-flaky sources, e.g. GA). They are still "
+        "enriched and their errors still logged; they just don't flip the exit code."
+    ),
+)
 def enrich_notices_cmd(
     state: str | None,
     limit: int | None,
     pdf_dir: Path,
     request_delay: float,
     dry_run: bool,
+    tolerate: str | None,
 ) -> None:
     """Enrich notices from per-state detail pages / attachments.
 
@@ -1062,18 +1072,20 @@ def enrich_notices_cmd(
         click.echo("No notice enrichers registered.")
         return
 
+    tolerated_set = {s.strip().upper() for s in tolerate.split(",")} if tolerate else set()
     totals = dict.fromkeys(STAT_KEYS, 0)
     failed_states: list[str] = []
+    tolerated_failures: list[str] = []
     for enricher in enrichers:
         stats = enricher.run(
             limit=limit, dry_run=dry_run, pdf_dir=pdf_dir, request_delay=request_delay
         )
         for k in STAT_KEYS:
             totals[k] += stats.get(k, 0)
-        # Judge each state on its own stats — aggregating first would let one
-        # state's progress mask another state's total failure.
         if _enrich_run_failed(stats):
-            failed_states.append(enricher.state)
+            (tolerated_failures if enricher.state in tolerated_set else failed_states).append(
+                enricher.state
+            )
         click.echo(
             f"[{enricher.state}] "
             f"considered={stats.get('considered', 0)} "
@@ -1089,6 +1101,11 @@ def enrich_notices_cmd(
         f"pdf_fetched={totals['pdf_fetched']} skipped={totals['skipped']} "
         f"errors={totals['errors']}{suffix}"
     )
+    if tolerated_failures:
+        click.echo(
+            f"tolerated failures (not failing run): {', '.join(tolerated_failures)}",
+            err=True,
+        )
     if failed_states:
         click.echo(f"states with errors and no progress: {', '.join(failed_states)}")
         sys.exit(1)

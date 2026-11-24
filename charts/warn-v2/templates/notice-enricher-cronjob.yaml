@@ -34,6 +34,10 @@ spec:
                 - --limit
                 - {{ .Values.noticeEnricher.limit | quote }}
                 {{- end }}
+                {{- if .Values.noticeEnricher.tolerate }}
+                - --tolerate
+                - {{ .Values.noticeEnricher.tolerate | quote }}
+                {{- end }}
               env:
                 {{- include "warn-v2.envSecrets" . | nindent 16 }}
               {{- if .Values.pdfStorage.enabled }}

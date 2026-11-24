@@ -203,6 +203,7 @@ noticeEnricher:
   schedule: "15 8 * * *"  # after scraper 07:17, before geoBackfill 08:47
   requestDelay: 5         # seconds between detail-page requests (TCSG rate-limit safe)
   limit: ""               # blank = all notices missing data; set an int to cap per run
+  tolerate: ""             # comma-separated states whose failure won't fail the job (e.g. "GA")
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 500m, memory: 512Mi }
