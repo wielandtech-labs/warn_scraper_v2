@@ -32,9 +32,16 @@ def _stats(**overrides: int) -> dict[str, int]:
     return stats
 
 
-def _invoke(monkeypatch: pytest.MonkeyPatch, *enrichers: _StubEnricher):
+def _invoke(
+    monkeypatch: pytest.MonkeyPatch,
+    *enrichers: _StubEnricher,
+    tolerate: str | None = None,
+):
     monkeypatch.setattr(registry, "all_enrichers", lambda: list(enrichers))
-    return CliRunner().invoke(cli.main, ["enrich-notices"])
+    args = ["enrich-notices"]
+    if tolerate:
+        args += ["--tolerate", tolerate]
+    return CliRunner().invoke(cli.main, args)
 
 
 def test_clean_run_exits_zero(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -80,4 +87,26 @@ def test_failed_state_not_masked_by_healthy_state(monkeypatch: pytest.MonkeyPatc
         _StubEnricher("XX", _stats(considered=10, errors=10)),
     )
     assert result.exit_code == 1
+    assert "states with errors and no progress: XX" in result.output
+
+
+def test_tolerated_failure_exits_zero(monkeypatch: pytest.MonkeyPatch) -> None:
+    result = _invoke(
+        monkeypatch,
+        _StubEnricher("GA", _stats(considered=2, errors=2)),
+        tolerate="GA",
+    )
+    assert result.exit_code == 0, result.output
+    assert "tolerated failures (not failing run): GA" in result.output
+
+
+def test_tolerate_does_not_suppress_other_states(monkeypatch: pytest.MonkeyPatch) -> None:
+    result = _invoke(
+        monkeypatch,
+        _StubEnricher("GA", _stats(considered=2, errors=2)),
+        _StubEnricher("XX", _stats(considered=5, errors=5)),
+        tolerate="GA",
+    )
+    assert result.exit_code == 1
+    assert "tolerated failures (not failing run): GA" in result.output
     assert "states with errors and no progress: XX" in result.output
