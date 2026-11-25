@@ -28,8 +28,8 @@ jobs:
       - uses: astral-sh/setup-uv@v8.1.0
         with:
           enable-cache: true
-      - name: Set up Python 3.12
-        run: uv python install 3.12
+      - name: Set up Python 3.13
+        run: uv python install 3.13
       - name: Sync deps
         run: uv sync --extra dev
       - name: Lint
@@ -67,8 +67,8 @@ jobs:
       - uses: astral-sh/setup-uv@v8.1.0
         with:
           enable-cache: true
-      - name: Set up Python 3.12
-        run: uv python install 3.12
+      - name: Set up Python 3.13
+        run: uv python install 3.13
       - name: Sync deps
         run: uv sync --extra dev
       - name: Test (slow)

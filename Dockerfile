@@ -15,7 +15,7 @@ RUN npm run build
 
 
 # --- stage 2: python app ---
-FROM python:3.12-slim AS base
+FROM python:3.13-slim AS base
 
 # MALLOC_ARENA_MAX: glibc gives each thread its own heap arena by default,
 # and the API's threadpool fragments them until RSS reaches the pod limit
