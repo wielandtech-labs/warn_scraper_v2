@@ -20,7 +20,7 @@ from warn_v2.db.models import User
 from warn_v2.db.session import get_session_factory
 
 
-def get_db() -> Generator[Session, None, None]:
+def get_db() -> Generator[Session]:
     """Yield a DB session; close it on exit regardless of exceptions."""
     db = get_session_factory()()
     try:
