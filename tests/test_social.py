@@ -199,6 +199,16 @@ def test_render_post_with_industry_stays_under_limit():
     assert "• Industry: Administrative Management" in text
 
 
+def test_industry_truncation_breaks_on_word_boundary():
+    n = _notice("abc", 100)
+    long_desc = ("Radio and Television Broadcasting and Wireless "
+                 "Communications Equipment Manufacturing")
+    n.company = Company(name="x", naics_code="334220", naics_desc=long_desc)
+    text = format.render_post(n)
+    assert "Communicatio…" not in text
+    assert "• Industry: Radio and Television Broadcasting and Wireless…" in text
+
+
 def test_render_post_format():
     n = _notice("abc", 1350, closure_category="Layoff", effective_date=date(2026, 12, 13))
     n.location = Location(city="Seattle", state="WA")
