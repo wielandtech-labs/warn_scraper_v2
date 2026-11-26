@@ -1,12 +1,14 @@
 """New York WARN scraper.
 
 Source: https://dol.ny.gov/warn-dashboard
-Data:   Tableau Public workbook — fetched as CSV directly from public.tableau.com.
+Data:   Tableau Public workbook — fetched via headless Chromium (Playwright).
 
 The dashboard replaced dol.ny.gov/warn-notices on April 1, 2025 and is backed
 by the Tableau Public workbook ``WorkerAdjustmentRetrainingNotificationWARN``.
-The underlying data is downloadable as a plain CSV without authentication or a
-browser, which means no Playwright is required.
+The direct ``.csv`` download endpoint on public.tableau.com was removed in late
+2026 (returns 404 for all workbooks).  The scraper now loads the embed page in
+headless Chromium and triggers a Crosstab export from the toolbar, which yields
+the same CSV column schema as the retired endpoint.
 
 CSV columns (confirmed May 2026):
   Business Legal Name | Date Layoff/Closure Starts | Date of WARN Notice |
@@ -29,8 +31,6 @@ import re
 from collections import Counter
 from pathlib import Path
 
-import httpx
-
 from warn_v2.geo.city_centroids import lookup
 from warn_v2.scrapers._helpers import as_date, as_int, as_str
 from warn_v2.scrapers.base import NoticeRow, ParseFailed, ScrapeFailed
@@ -41,17 +41,35 @@ SOURCE_URL = "https://dol.ny.gov/warn-dashboard"
 # Tableau Public workbook / sheet identifiers.
 _TB_WB   = "WorkerAdjustmentRetrainingNotificationWARN"
 _TB_VIEW = "WARN"
-_CSV_URL = (
-    f"https://public.tableau.com/views/{_TB_WB}/{_TB_VIEW}.csv"
-    "?:showVizHome=no"
+_EMBED_URL = (
+    f"https://public.tableau.com/views/{_TB_WB}/{_TB_VIEW}"
+    "?:embed=y&:showVizHome=no&:toolbar=yes"
 )
 
-_UA = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    )
-}
+
+def _crosstab_download(page) -> bytes:
+    """Click Download -> Crosstab in the Tableau toolbar and return CSV bytes."""
+    page.click("[data-tb-test-id='download-ToolbarButton']")
+    crosstab_sel = "[data-tb-test-id='DownloadCrosstab-Button']"
+    page.wait_for_selector(crosstab_sel, state="visible", timeout=10_000)
+
+    with page.expect_download(timeout=60_000) as dl_info:
+        page.click(crosstab_sel)
+        dialog_btn = page.locator(
+            "[data-tb-test-id='export-crosstab-export-Button']"
+        )
+        try:
+            dialog_btn.wait_for(state="visible", timeout=5_000)
+            dialog_btn.click()
+        except Exception:
+            pass
+
+    download = dl_info.value
+    path = download.path()
+    if path is None:
+        raise ScrapeFailed("NY: crosstab download produced no file")
+    return Path(path).read_bytes()
+
 
 # Matches "Street  City, NY, 10016" — double-space separates street from city.
 _ADDR_RE = re.compile(
@@ -74,13 +92,31 @@ class NYScraper:
     required_fields = frozenset({"employer", "notice_date"})
 
     def fetch(self) -> bytes:
-        """Download the Tableau Public CSV for the NY WARN workbook."""
+        """Download the Tableau Public CSV via headless Chromium Crosstab export."""
         try:
-            r = httpx.get(_CSV_URL, headers=_UA, timeout=60, follow_redirects=True)
-            r.raise_for_status()
-            return r.content
-        except httpx.HTTPError as e:
-            raise ScrapeFailed(f"NY: GET {_CSV_URL}: {e}") from e
+            from playwright.sync_api import sync_playwright
+        except ImportError as e:
+            raise ScrapeFailed(f"NY: fetch failed: {e}") from e
+
+        from warn_v2.scrapers.playwright_base import _LAUNCH_ARGS
+
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True, args=_LAUNCH_ARGS)
+            try:
+                page = browser.new_page()
+                page.goto(_EMBED_URL, wait_until="load", timeout=120_000)
+                page.wait_for_selector(
+                    "[data-tb-test-id='download-ToolbarButton']",
+                    state="visible",
+                    timeout=90_000,
+                )
+                return _crosstab_download(page)
+            except ScrapeFailed:
+                raise
+            except Exception as e:
+                raise ScrapeFailed(f"NY: Playwright fetch failed: {e}") from e
+            finally:
+                browser.close()
 
     def parse(self, raw: bytes) -> list[NoticeRow]:
         text = raw.decode("utf-8-sig")
